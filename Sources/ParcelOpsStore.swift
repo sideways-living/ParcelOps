@@ -16974,6 +16974,17 @@ final class ParcelOpsStore {
     )
   }
 
+  func createGmailShiftDraftMessage() {
+    let summary = gmailShiftHandoffSummary
+    let draftID = "gmail-shift-handoff"
+    createMailboxShiftDraftMessage(
+      linkedEntityID: draftID,
+      providerName: "Gmail",
+      subject: "Gmail shift handoff - \(summary.title)",
+      body: "\(gmailShiftHandoffDetail(summary))\nNo Google sign-in, token request, Gmail API call, mailbox fetch, external service call, or mailbox mutation occurred."
+    )
+  }
+
   private func gmailHandoffPriority(for tone: String) -> TaskPriority {
     switch tone {
     case "warning":
@@ -17695,6 +17706,105 @@ final class ParcelOpsStore {
       entityLabel: connection.displayName,
       summary: "SpaceMail shift summary review task created locally.",
       afterDetail: "\(spaceMailShiftHandoffDetail(for: connection, summary: summary))\nNo mailbox fetch, mailbox mutation, password read, external service call, or parser change occurred."
+    )
+  }
+
+  func createSpaceMailShiftDraftMessage(for connection: SpaceMailIMAPConnection) {
+    let summary = spaceMailShiftHandoffSummary
+    createMailboxShiftDraftMessage(
+      linkedEntityID: "spacemail-shift-handoff-\(connection.id.uuidString)",
+      providerName: "SpaceMail",
+      subject: "SpaceMail shift handoff - \(connection.displayName)",
+      body: "\(spaceMailShiftHandoffDetail(for: connection, summary: summary))\nBoundary: Created from local SpaceMail shift summary. No IMAP connection, Keychain read, mailbox fetch, external service call, parser change, or mailbox mutation occurred."
+    )
+  }
+
+  func createSpaceMailShiftDraftMessage() {
+    if let connection = spaceMailIMAPConnections.first {
+      createSpaceMailShiftDraftMessage(for: connection)
+      return
+    }
+
+    let summary = spaceMailShiftHandoffSummary
+    createMailboxShiftDraftMessage(
+      linkedEntityID: "spacemail-shift-handoff",
+      providerName: "SpaceMail",
+      subject: "SpaceMail shift handoff - \(summary.title)",
+      body: """
+      Handoff status: \(summary.title)
+      Handoff detail: \(summary.detail)
+      Latest refresh note: \(summary.lastRefreshText)
+      Counts: \(summary.keyCounts.map { "\($0.title): \($0.value)" }.joined(separator: ", "))
+      Boundary: Created from local SpaceMail shift summary. No IMAP connection, Keychain read, mailbox fetch, external service call, parser change, or mailbox mutation occurred.
+      """
+    )
+  }
+
+  private func createMailboxShiftDraftMessage(linkedEntityID: String, providerName: String, subject: String, body: String) {
+    let selectedTemplate = communicationTemplates.first { $0.linkedEntityType == .integration && $0.isEnabled } ?? communicationTemplates.first
+    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: subject) ?? "Please review the local ParcelOps record \(subject)."
+    let draftBody = [
+      baseBody,
+      "",
+      "\(providerName) shift handoff",
+      body
+    ].joined(separator: "\n")
+
+    if let existingIndex = draftMessages.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == linkedEntityID
+        && $0.status != .sentLocally
+    }) {
+      let beforeDetail = draftMessages[existingIndex].auditDetail
+      draftMessages[existingIndex].recipient = "operations@parcelops.example"
+      draftMessages[existingIndex].subject = subject
+      draftMessages[existingIndex].body = draftBody
+      draftMessages[existingIndex].channel = selectedTemplate?.channel ?? .email
+      draftMessages[existingIndex].reviewState = .needsReview
+      if draftMessages[existingIndex].status == .ready {
+        draftMessages[existingIndex].status = .reopened
+      }
+      persistDraftMessages()
+      logAudit(
+        action: .edited,
+        entityType: .draftMessage,
+        entityID: draftMessages[existingIndex].id.uuidString,
+        entityLabel: draftMessages[existingIndex].subject,
+        summary: "Existing \(providerName) shift draft refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(draftMessages[existingIndex].auditDetail)\nRefreshed from local \(providerName) shift summary. No duplicate draft was created. No provider sign-in, token request, mailbox fetch, external service call, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    let draft = DraftMessage(
+      linkedEntityType: .integration,
+      linkedEntityID: linkedEntityID,
+      templateID: selectedTemplate?.id,
+      recipient: "operations@parcelops.example",
+      subject: subject,
+      body: draftBody,
+      channel: selectedTemplate?.channel ?? .email,
+      createdDate: Self.auditTimestamp(),
+      status: .draft,
+      reviewState: .needsReview
+    )
+    draftMessages.insert(draft, at: 0)
+    persistDraftMessages()
+
+    if let selectedTemplate, let index = communicationTemplates.firstIndex(where: { $0.id == selectedTemplate.id }) {
+      communicationTemplates[index].lastUsedDate = Self.auditTimestamp()
+      communicationTemplates[index].usageCount += 1
+      persistCommunicationTemplates()
+    }
+
+    logAudit(
+      action: .created,
+      entityType: .draftMessage,
+      entityID: draft.id.uuidString,
+      entityLabel: draft.subject,
+      summary: "\(providerName) shift draft created locally.",
+      afterDetail: "\(draft.auditDetail)\nCreated from local \(providerName) shift summary. No provider sign-in, token request, mailbox fetch, external service call, or mailbox mutation occurred."
     )
   }
 

@@ -1495,7 +1495,8 @@ struct TasksView: View {
         GmailShiftHandoffCard(
           summary: store.gmailShiftHandoffSummary,
           onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
-          onCreateTask: { store.createGmailShiftReviewTask() }
+          onCreateTask: { store.createGmailShiftReviewTask() },
+          onCreateDraft: { store.createGmailShiftDraftMessage() }
         )
 
         gmailTaskReadinessPanel
@@ -1776,7 +1777,10 @@ struct TasksView: View {
         ])
 
         SpaceMailPostRefreshActionCard(plan: spaceMailPostRefreshPlan)
-        SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
+        SpaceMailShiftHandoffCard(
+          summary: store.spaceMailShiftHandoffSummary,
+          onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
+        )
 
         Text("Create a task only when a person must own the follow-up. Imported order mail starts in Inbox, uncertain mail starts in Mailbox Monitor, and filtered mixed-mailbox examples stay out of Tasks unless manually promoted or converted into follow-up.")
           .font(.caption.weight(.semibold))
@@ -1974,7 +1978,10 @@ struct TasksView: View {
             ("Tasks", "\(spaceMailAssignedFollowUpItems.filter { if case .task = $0.source { return true }; return false }.count)", .orange)
           ])
 
-          SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
+          SpaceMailShiftHandoffCard(
+            summary: store.spaceMailShiftHandoffSummary,
+            onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
+          )
 
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
             ForEach(spaceMailAssignedFollowUpItems.prefix(4)) { item in

@@ -2418,12 +2418,16 @@ struct DashboardView: View {
             ])
             SpaceMailPrimaryStatusStrip(store: store, showTitle: false)
             CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
-            SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
+            SpaceMailShiftHandoffCard(
+              summary: store.spaceMailShiftHandoffSummary,
+              onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
+            )
             GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
             GmailShiftHandoffCard(
               summary: store.gmailShiftHandoffSummary,
               onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
-              onCreateTask: { store.createGmailShiftReviewTask() }
+              onCreateTask: { store.createGmailShiftReviewTask() },
+              onCreateDraft: { store.createGmailShiftDraftMessage() }
             )
             SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
             MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)

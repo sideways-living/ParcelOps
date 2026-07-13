@@ -856,13 +856,17 @@ struct OperationsWorkbenchView: View {
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
         SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
         SpaceMailPostRefreshActionCard(plan: spaceMailPostRefreshPlan)
-        SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
+        SpaceMailShiftHandoffCard(
+          summary: store.spaceMailShiftHandoffSummary,
+          onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
+        )
         GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
         GmailShiftHandoffCard(
           summary: store.gmailShiftHandoffSummary,
           onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
-          onCreateTask: { store.createGmailShiftReviewTask() }
+          onCreateTask: { store.createGmailShiftReviewTask() },
+          onCreateDraft: { store.createGmailShiftDraftMessage() }
         )
         Text("Mailbox refresh trends are context for triage across active providers. Imported and uncertain messages can create work; filtered mixed-mailbox messages remain out of Workbench unless promoted from Mailbox Monitor.")
           .font(.caption)

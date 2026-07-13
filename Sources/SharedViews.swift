@@ -4521,6 +4521,7 @@ struct GmailOperationsRunbook: View {
 
 struct SpaceMailShiftHandoffCard: View {
   var summary: SpaceMailShiftHandoffSummary
+  var onCreateDraft: (() -> Void)?
 
   private var color: Color {
     color(for: summary.tone)
@@ -4568,6 +4569,15 @@ struct SpaceMailShiftHandoffCard: View {
           .background(color(for: line.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
       }
+
+      if let onCreateDraft {
+        CompactActionRow {
+          Button(action: onCreateDraft) {
+            Label("Draft handoff", systemImage: "envelope.badge")
+          }
+          .buttonStyle(.bordered)
+        }
+      }
     }
     .padding(14)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -4592,6 +4602,7 @@ struct GmailShiftHandoffCard: View {
   var summary: GmailShiftHandoffSummary
   var onCreateHandoffNote: (() -> Void)?
   var onCreateTask: (() -> Void)?
+  var onCreateDraft: (() -> Void)?
 
   private var color: Color {
     color(for: summary.tone)
@@ -4645,7 +4656,7 @@ struct GmailShiftHandoffCard: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
 
-      if onCreateHandoffNote != nil || onCreateTask != nil {
+      if onCreateHandoffNote != nil || onCreateTask != nil || onCreateDraft != nil {
         CompactActionRow {
           if let onCreateHandoffNote {
             Button(action: onCreateHandoffNote) {
@@ -4656,6 +4667,12 @@ struct GmailShiftHandoffCard: View {
           if let onCreateTask {
             Button(action: onCreateTask) {
               Label("Review task", systemImage: "checklist")
+            }
+            .buttonStyle(.bordered)
+          }
+          if let onCreateDraft {
+            Button(action: onCreateDraft) {
+              Label("Draft handoff", systemImage: "envelope.badge")
             }
             .buttonStyle(.bordered)
           }
@@ -5416,7 +5433,10 @@ struct SpaceMailOperatorGuidanceStack: View {
       }
 
       SpaceMailPostRefreshActionCard(plan: store.spaceMailPostRefreshActionPlan)
-      SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
+      SpaceMailShiftHandoffCard(
+        summary: store.spaceMailShiftHandoffSummary,
+        onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
+      )
 
       DisclosureGroup {
         VStack(alignment: .leading, spacing: 12) {
@@ -5815,7 +5835,10 @@ struct MailboxProviderOperatorReadinessStack: View {
             SpaceMailQACheckCard(summary: store.mailboxProviderQACheckSummary)
             SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
             SpaceMailPostRefreshActionCard(plan: store.spaceMailPostRefreshActionPlan)
-            SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
+            SpaceMailShiftHandoffCard(
+              summary: store.spaceMailShiftHandoffSummary,
+              onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
+            )
             SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
             MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
             MailboxRunTimelineCard(summary: store.mailboxRunTimelineSummary)
@@ -5824,7 +5847,8 @@ struct MailboxProviderOperatorReadinessStack: View {
             GmailShiftHandoffCard(
               summary: store.gmailShiftHandoffSummary,
               onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
-              onCreateTask: { store.createGmailShiftReviewTask() }
+              onCreateTask: { store.createGmailShiftReviewTask() },
+              onCreateDraft: { store.createGmailShiftDraftMessage() }
             )
             SpaceMailReleaseSnapshotCard(snapshot: store.gmailReleaseReadinessSnapshot, store: nil)
             MailboxReleaseBlockerCard(summary: store.gmailReleaseBlockerSummary)

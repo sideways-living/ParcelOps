@@ -3238,6 +3238,66 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     })
   }
 
+  func testGmailShiftDraftRefreshesExistingUnsentDraft() {
+    let connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 10,
+      imported: 2,
+      filtered: 6,
+      uncertain: 1
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.draftMessages = []
+    store.auditEvents = []
+
+    store.createGmailShiftDraftMessage()
+    store.createGmailShiftDraftMessage()
+
+    let drafts = store.draftMessages.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "gmail-shift-handoff"
+    }
+    XCTAssertEqual(drafts.count, 1)
+    XCTAssertEqual(drafts.first?.recipient, "operations@parcelops.example")
+    XCTAssertEqual(drafts.first?.status, .draft)
+    XCTAssertEqual(drafts.first?.reviewState, .needsReview)
+    XCTAssertTrue(drafts.first?.body.contains("Gmail remains explicit, manual, and read-only") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing Gmail shift draft refreshed."
+        && (event.afterDetail?.contains("No duplicate draft was created.") ?? false)
+    })
+  }
+
+  func testGmailShiftDraftCreatesNewDraftAfterSentLocally() {
+    let connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 10,
+      imported: 2,
+      filtered: 6,
+      uncertain: 1
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.draftMessages = []
+    store.auditEvents = []
+
+    store.createGmailShiftDraftMessage()
+    store.draftMessages[0].status = .sentLocally
+    store.createGmailShiftDraftMessage()
+
+    let drafts = store.draftMessages.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "gmail-shift-handoff"
+    }
+    XCTAssertEqual(drafts.count, 2)
+    XCTAssertEqual(drafts.filter { $0.status == .sentLocally }.count, 1)
+    XCTAssertEqual(drafts.filter { $0.status == .draft }.count, 1)
+    XCTAssertEqual(store.auditEvents.filter { $0.summary == "Gmail shift draft created locally." }.count, 2)
+  }
+
   func testSpaceMailShiftHandoffNoteRefreshesExistingOpenNote() {
     let mailboxID = UUID()
     let connection = makeSpaceMailConnection(
@@ -3306,6 +3366,68 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
       event.summary == "Existing SpaceMail shift review task refreshed."
         && (event.afterDetail?.contains("No duplicate task was created.") ?? false)
     })
+  }
+
+  func testSpaceMailShiftDraftRefreshesExistingUnsentDraft() {
+    let mailboxID = UUID()
+    let connection = makeSpaceMailConnection(
+      id: mailboxID,
+      credentialStorageStatus: "Password reference available",
+      fetched: 10,
+      imported: 1,
+      filtered: 8,
+      uncertain: 1
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.draftMessages = []
+    store.auditEvents = []
+
+    store.createSpaceMailShiftDraftMessage(for: connection)
+    store.createSpaceMailShiftDraftMessage(for: connection)
+
+    let drafts = store.draftMessages.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "spacemail-shift-handoff-\(mailboxID.uuidString)"
+    }
+    XCTAssertEqual(drafts.count, 1)
+    XCTAssertEqual(drafts.first?.recipient, "operations@parcelops.example")
+    XCTAssertEqual(drafts.first?.status, .draft)
+    XCTAssertEqual(drafts.first?.reviewState, .needsReview)
+    XCTAssertTrue(drafts.first?.body.contains("Connection: SpaceMail tracking inbox") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing SpaceMail shift draft refreshed."
+        && (event.afterDetail?.contains("No duplicate draft was created.") ?? false)
+    })
+  }
+
+  func testSpaceMailShiftDraftCreatesNewDraftAfterSentLocally() {
+    let mailboxID = UUID()
+    let connection = makeSpaceMailConnection(
+      id: mailboxID,
+      credentialStorageStatus: "Password reference available",
+      fetched: 10,
+      imported: 1,
+      filtered: 8,
+      uncertain: 1
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.draftMessages = []
+    store.auditEvents = []
+
+    store.createSpaceMailShiftDraftMessage(for: connection)
+    store.draftMessages[0].status = .sentLocally
+    store.createSpaceMailShiftDraftMessage(for: connection)
+
+    let drafts = store.draftMessages.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "spacemail-shift-handoff-\(mailboxID.uuidString)"
+    }
+    XCTAssertEqual(drafts.count, 2)
+    XCTAssertEqual(drafts.filter { $0.status == .sentLocally }.count, 1)
+    XCTAssertEqual(drafts.filter { $0.status == .draft }.count, 1)
+    XCTAssertEqual(store.auditEvents.filter { $0.summary == "SpaceMail shift draft created locally." }.count, 2)
   }
 
   func testSpaceMailHealthSummaryFlagsUncertainReview() {
