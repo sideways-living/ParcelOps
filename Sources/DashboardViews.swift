@@ -4096,21 +4096,19 @@ private func dashboardOrderTimelineDetail(for order: TrackedOrder, store: Parcel
 }
 
 private func uniqueDashboardOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
-  var seen: Set<UUID> = []
-  var unique: [TrackedOrder] = []
-  for order in orders where !seen.contains(order.id) {
-    seen.insert(order.id)
-    unique.append(order)
-  }
-  return unique
+  uniqueDashboardRecords(orders)
 }
 
 private func uniqueDashboardShipmentManifests(_ manifests: [ShipmentManifestRecord]) -> [ShipmentManifestRecord] {
-  var seen: Set<UUID> = []
-  var unique: [ShipmentManifestRecord] = []
-  for manifest in manifests where !seen.contains(manifest.id) {
-    seen.insert(manifest.id)
-    unique.append(manifest)
+  uniqueDashboardRecords(manifests)
+}
+
+private func uniqueDashboardRecords<Record: Identifiable>(_ records: [Record]) -> [Record] where Record.ID: Hashable {
+  var seen: Set<Record.ID> = []
+  var unique: [Record] = []
+  for record in records where !seen.contains(record.id) {
+    seen.insert(record.id)
+    unique.append(record)
   }
   return unique
 }
@@ -4305,7 +4303,7 @@ struct CompactReopenedInboxDispatchHandoffList: View {
           }
           .buttonStyle(.plain)
         }
-        ForEach(checklists) { checklist in
+        ForEach(uniqueDashboardRecords(checklists)) { checklist in
           NavigationLink {
             DispatchReadinessView(store: store)
           } label: {
@@ -4344,7 +4342,7 @@ struct CompactWorkbenchList: View {
 
   var body: some View {
     CompactList(title: "Highest priority work", symbol: "rectangle.stack.badge.person.crop.fill") {
-      ForEach(items) { item in
+      ForEach(uniqueDashboardRecords(items)) { item in
         NavigationLink {
           OperationsWorkbenchView(store: store)
         } label: {
@@ -4368,7 +4366,7 @@ struct CompactTrackingList: View {
 
   var body: some View {
     CompactList(title: "Highest risk tracking", symbol: "location.fill.viewfinder") {
-      ForEach(events) { event in
+      ForEach(uniqueDashboardRecords(events)) { event in
         if let order = orders.first(where: { $0.id == event.orderID }) {
           NavigationLink {
             OrderDetailView(order: order, store: store)
@@ -4405,7 +4403,7 @@ struct CompactEvidenceList: View {
 
   var body: some View {
     CompactList(title: "Latest evidence", symbol: "paperclip") {
-      ForEach(attachments) { attachment in
+      ForEach(uniqueDashboardRecords(attachments)) { attachment in
         NavigationLink {
           EvidenceView(store: store)
         } label: {
@@ -4428,7 +4426,7 @@ struct CompactAutomationList: View {
 
   var body: some View {
     CompactList(title: "Automation rules", symbol: "arrow.triangle.branch") {
-      ForEach(rules) { rule in
+      ForEach(uniqueDashboardRecords(rules)) { rule in
         NavigationLink {
           AutomationView(store: store)
         } label: {
@@ -4451,7 +4449,7 @@ struct CompactTaskList: View {
 
   var body: some View {
     CompactList(title: "Task escalations", symbol: "checklist") {
-      ForEach(tasks) { task in
+      ForEach(uniqueDashboardRecords(tasks)) { task in
         NavigationLink {
           TasksView(store: store)
         } label: {
@@ -4475,7 +4473,7 @@ struct CompactSpaceMailDashboardFollowUp: View {
 
   var body: some View {
     CompactList(title: "Assigned mailbox work", symbol: "person.2.wave.2.fill") {
-      ForEach(tasks) { task in
+      ForEach(uniqueDashboardRecords(tasks)) { task in
         NavigationLink {
           TasksView(store: store)
         } label: {
@@ -4489,7 +4487,7 @@ struct CompactSpaceMailDashboardFollowUp: View {
         .buttonStyle(.plain)
       }
 
-      ForEach(handoffs) { note in
+      ForEach(uniqueDashboardRecords(handoffs)) { note in
         NavigationLink {
           TasksView(store: store)
         } label: {
@@ -4526,7 +4524,7 @@ struct CompactHandoffNoteList: View {
 
   var body: some View {
     CompactList(title: "Handoff notes", symbol: "arrow.left.arrow.right.square.fill") {
-      ForEach(notes) { note in
+      ForEach(uniqueDashboardRecords(notes)) { note in
         NavigationLink {
           HandoffNotesView(store: store)
         } label: {
@@ -4549,7 +4547,7 @@ struct CompactSLAPolicyList: View {
 
   var body: some View {
     CompactList(title: "Recent policy matches", symbol: "timer") {
-      ForEach(policies) { policy in
+      ForEach(uniqueDashboardRecords(policies)) { policy in
         NavigationLink {
           SLAPoliciesView(store: store)
         } label: {
@@ -4572,7 +4570,7 @@ struct CompactExceptionPlaybookList: View {
 
   var body: some View {
     CompactList(title: "Exception playbooks", symbol: "book.closed.fill") {
-      ForEach(playbooks) { playbook in
+      ForEach(uniqueDashboardRecords(playbooks)) { playbook in
         NavigationLink {
           ExceptionPlaybooksView(store: store)
         } label: {
@@ -4595,7 +4593,7 @@ struct CompactDraftMessageList: View {
 
   var body: some View {
     CompactList(title: "Draft messages", symbol: "envelope.open.fill") {
-      ForEach(drafts) { draft in
+      ForEach(uniqueDashboardRecords(drafts)) { draft in
         NavigationLink {
           CommunicationView(store: store)
         } label: {
@@ -4618,7 +4616,7 @@ struct CompactContactList: View {
 
   var body: some View {
     CompactList(title: "Contacts needing review", symbol: "person.crop.circle.badge.checkmark") {
-      ForEach(contacts) { contact in
+      ForEach(uniqueDashboardRecords(contacts)) { contact in
         NavigationLink {
           ContactsView(store: store)
         } label: {
@@ -4641,7 +4639,7 @@ struct CompactCustomerProfileList: View {
 
   var body: some View {
     CompactList(title: "Customer profiles", symbol: "person.text.rectangle.fill") {
-      ForEach(profiles) { profile in
+      ForEach(uniqueDashboardRecords(profiles)) { profile in
         NavigationLink {
           CustomerProfilesView(store: store)
         } label: {
@@ -4664,7 +4662,7 @@ struct CompactDestinationAddressList: View {
 
   var body: some View {
     CompactList(title: "Destination addresses", symbol: "mappin.and.ellipse") {
-      ForEach(addresses) { address in
+      ForEach(uniqueDashboardRecords(addresses)) { address in
         NavigationLink {
           DestinationAddressesView(store: store)
         } label: {
@@ -4687,7 +4685,7 @@ struct CompactDeliveryInstructionList: View {
 
   var body: some View {
     CompactList(title: "Delivery instructions", symbol: "signpost.right.and.left.fill") {
-      ForEach(instructions) { instruction in
+      ForEach(uniqueDashboardRecords(instructions)) { instruction in
         NavigationLink {
           DeliveryInstructionsView(store: store)
         } label: {
@@ -4710,7 +4708,7 @@ struct CompactPackageContentList: View {
 
   var body: some View {
     CompactList(title: "Package contents", symbol: "shippingbox.circle.fill") {
-      ForEach(contents) { content in
+      ForEach(uniqueDashboardRecords(contents)) { content in
         NavigationLink {
           PackageContentsView(store: store)
         } label: {
@@ -4733,7 +4731,7 @@ struct CompactCostRecordList: View {
 
   var body: some View {
     CompactList(title: "Costs needing action", symbol: "creditcard.and.123") {
-      ForEach(costs) { cost in
+      ForEach(uniqueDashboardRecords(costs)) { cost in
         NavigationLink {
           CostsBudgetsView(store: store)
         } label: {
@@ -4756,7 +4754,7 @@ struct CompactReturnClaimList: View {
 
   var body: some View {
     CompactList(title: "Returns and claims", symbol: "arrow.uturn.backward.square.fill") {
-      ForEach(claims) { claim in
+      ForEach(uniqueDashboardRecords(claims)) { claim in
         NavigationLink {
           ReturnsClaimsView(store: store)
         } label: {
@@ -4779,7 +4777,7 @@ struct CompactProcurementRequestList: View {
 
   var body: some View {
     CompactList(title: "Procurement requests", symbol: "cart.badge.plus") {
-      ForEach(requests) { request in
+      ForEach(uniqueDashboardRecords(requests)) { request in
         NavigationLink {
           ProcurementView(store: store)
         } label: {
@@ -4802,7 +4800,7 @@ struct CompactReceivingInspectionList: View {
 
   var body: some View {
     CompactList(title: "Receiving inspections", symbol: "checklist.checked") {
-      ForEach(inspections) { inspection in
+      ForEach(uniqueDashboardRecords(inspections)) { inspection in
         NavigationLink {
           ReceivingInspectionsView(store: store)
         } label: {
@@ -4825,7 +4823,7 @@ struct CompactInventoryReceiptList: View {
 
   var body: some View {
     CompactList(title: "Inventory receipts", symbol: "archivebox.fill") {
-      ForEach(receipts) { receipt in
+      ForEach(uniqueDashboardRecords(receipts)) { receipt in
         NavigationLink {
           InventoryReceiptsView(store: store)
         } label: {
@@ -4848,7 +4846,7 @@ struct CompactStorageLocationList: View {
 
   var body: some View {
     CompactList(title: "Storage locations", symbol: "cabinet.fill") {
-      ForEach(locations) { location in
+      ForEach(uniqueDashboardRecords(locations)) { location in
         NavigationLink {
           StorageLocationsView(store: store)
         } label: {
@@ -4871,7 +4869,7 @@ struct CompactCustodyRecordList: View {
 
   var body: some View {
     CompactList(title: "Custody chain", symbol: "person.badge.shield.checkmark.fill") {
-      ForEach(records) { record in
+      ForEach(uniqueDashboardRecords(records)) { record in
         NavigationLink {
           CustodyChainView(store: store)
         } label: {
@@ -4894,7 +4892,7 @@ struct CompactLabelReferenceList: View {
 
   var body: some View {
     CompactList(title: "Label references", symbol: "barcode.viewfinder") {
-      ForEach(records) { record in
+      ForEach(uniqueDashboardRecords(records)) { record in
         NavigationLink {
           LabelReferencesView(store: store)
         } label: {
@@ -4917,7 +4915,7 @@ struct CompactScanSessionList: View {
 
   var body: some View {
     CompactList(title: "Scan sessions", symbol: "qrcode.viewfinder") {
-      ForEach(records) { record in
+      ForEach(uniqueDashboardRecords(records)) { record in
         NavigationLink {
           ScanSessionsView(store: store)
         } label: {
@@ -4965,7 +4963,7 @@ struct CompactDispatchReadinessList: View {
 
   var body: some View {
     CompactList(title: "Dispatch readiness", symbol: "checkmark.rectangle.stack.fill") {
-      ForEach(checklists) { checklist in
+      ForEach(uniqueDashboardRecords(checklists)) { checklist in
         NavigationLink {
           DispatchReadinessView(store: store)
         } label: {
@@ -4988,7 +4986,7 @@ struct CompactAccountList: View {
 
   var body: some View {
     CompactList(title: "Accounts needing review", symbol: "key.horizontal.fill") {
-      ForEach(accounts) { account in
+      ForEach(uniqueDashboardRecords(accounts)) { account in
         NavigationLink {
           AccountsView(store: store)
         } label: {
@@ -5011,7 +5009,7 @@ struct CompactVendorProfileList: View {
 
   var body: some View {
     CompactList(title: "Profile watchlist", symbol: "building.2.crop.circle.fill") {
-      ForEach(profiles) { profile in
+      ForEach(uniqueDashboardRecords(profiles)) { profile in
         NavigationLink {
           VendorProfilesView(store: store)
         } label: {
@@ -5034,7 +5032,7 @@ struct CompactShipmentGroupList: View {
 
   var body: some View {
     CompactList(title: "Shipment group watchlist", symbol: "shippingbox.and.arrow.backward.fill") {
-      ForEach(groups) { group in
+      ForEach(uniqueDashboardRecords(groups)) { group in
         NavigationLink {
           ShipmentGroupsView(store: store)
         } label: {
@@ -5057,7 +5055,7 @@ struct CompactImportQueueList: View {
 
   var body: some View {
     CompactList(title: "Import queue", symbol: "tray.and.arrow.down.fill") {
-      ForEach(items) { item in
+      ForEach(uniqueDashboardRecords(items)) { item in
         NavigationLink {
           ImportQueueView(store: store)
         } label: {
@@ -5080,7 +5078,7 @@ struct CompactAcceptanceList: View {
 
   var body: some View {
     CompactList(title: "Acceptance history", symbol: "checkmark.rectangle.stack.fill") {
-      ForEach(records) { record in
+      ForEach(uniqueDashboardRecords(records)) { record in
         NavigationLink {
           AcceptanceReviewView(store: store)
         } label: {
@@ -5103,7 +5101,7 @@ struct CompactAuditList: View {
 
   var body: some View {
     CompactList(title: "Recent audit", symbol: "list.clipboard.fill") {
-      ForEach(events) { event in
+      ForEach(uniqueDashboardRecords(events)) { event in
         NavigationLink {
           AuditView(store: store)
         } label: {
@@ -5126,7 +5124,7 @@ struct CompactTimelineList: View {
 
   var body: some View {
     CompactList(title: "Recent timeline", symbol: "clock.badge.exclamationmark.fill") {
-      ForEach(activities) { activity in
+      ForEach(uniqueDashboardRecords(activities)) { activity in
         NavigationLink {
           TimelineView(store: store)
         } label: {
@@ -5149,7 +5147,7 @@ struct CompactValidationIssueList: View {
 
   var body: some View {
     CompactList(title: "Validation issues", symbol: "checkmark.seal.fill") {
-      ForEach(issues) { issue in
+      ForEach(uniqueDashboardRecords(issues)) { issue in
         if let store {
           NavigationLink {
             ValidationView(store: store)
@@ -5181,7 +5179,7 @@ struct CompactReconciliationIssueList: View {
 
   var body: some View {
     CompactList(title: "Reconciliation issues", symbol: "arrow.triangle.2.circlepath.circle.fill") {
-      ForEach(issues) { issue in
+      ForEach(uniqueDashboardRecords(issues)) { issue in
         NavigationLink {
           ReconciliationView(store: store)
         } label: {
