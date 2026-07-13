@@ -2624,6 +2624,10 @@ private struct WorkbenchDraftFollowUpRow: View {
   var store: ParcelOpsStore
   @State private var feedbackMessage: String?
 
+  private var isMailboxProviderDraft: Bool {
+    store.isMailboxProviderDraft(draft)
+  }
+
   private var statusColor: Color {
     switch draft.status {
     case .draft:
@@ -2647,17 +2651,17 @@ private struct WorkbenchDraftFollowUpRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
-        Image(systemName: "envelope.open.fill")
+        Image(systemName: isMailboxProviderDraft ? "stethoscope" : "envelope.open.fill")
           .foregroundStyle(statusColor)
           .frame(width: 22)
 
         VStack(alignment: .leading, spacing: 4) {
           Text(draft.subject)
             .font(.headline)
-          Text("\(draft.channel.rawValue) • \(draft.recipient)")
+          Text("\(isMailboxProviderDraft ? "Mailbox provider diagnostic draft" : draft.channel.rawValue) • \(draft.recipient)")
             .foregroundStyle(.secondary)
             .lineLimit(1)
-          Text("Next: confirm the message is ready, mark it sent locally, or reopen it for another edit.")
+          Text(isMailboxProviderDraft ? "Next: use this diagnostic packet to hand off provider setup, refresh, parser, Inbox, and release evidence before closing related work." : "Next: confirm the message is ready, mark it sent locally, or reopen it for another edit.")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.orange)
         }

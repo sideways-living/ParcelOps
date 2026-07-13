@@ -25,10 +25,11 @@ struct TasksView: View {
 
   private var draftFollowUpItems: [DraftMessage] {
     let reviewDrafts = Array(store.draftMessagesNeedingReview.filter { store.isActiveWishlistDraft($0) }.prefix(6))
+    let providerDrafts = store.draftMessagesNeedingReview.filter { store.isMailboxProviderDraft($0) }
     let batchDrafts = wishlistBatchResearchDrafts.filter { draft in
       draft.status != .sentLocally || draft.reviewState != .accepted
     }
-    return (batchDrafts + reviewDrafts).reduce(into: [DraftMessage]()) { result, draft in
+    return (providerDrafts + batchDrafts + reviewDrafts).reduce(into: [DraftMessage]()) { result, draft in
       if !result.contains(where: { $0.id == draft.id }) {
         result.append(draft)
       }
@@ -2570,20 +2571,37 @@ private struct TaskDraftFollowUpRow: View {
     draft.linkedEntityType == .wishlistItem
       && draft.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
   }
+  private var isMailboxProviderDraft: Bool {
+    store.isMailboxProviderDraft(draft)
+  }
 
   private var draftIcon: String {
+    if isMailboxProviderDraft { return "stethoscope" }
     if isWishlistBatchResearchDraft { return "star.square.on.square.fill" }
     if isWishlistPurchasePacketDraft { return "doc.text.fill.viewfinder" }
     return "envelope.open.fill"
   }
 
   private var sourceTitle: String {
+    if isMailboxProviderDraft { return "Mailbox provider diagnostic draft" }
     if isWishlistBatchResearchDraft { return "Wishlist batch research packet" }
     if isWishlistPurchasePacketDraft { return "Wishlist purchase packet" }
     return draft.channel.rawValue
   }
 
   private var nextActionDetail: String {
+    if isMailboxProviderDraft {
+      switch draft.status {
+      case .draft:
+        return "Review the provider diagnostic packet, then mark it ready when the setup, refresh, parser, Inbox, and handoff notes are accurate for the next operator."
+      case .ready:
+        return "Use this packet outside ParcelOps if needed, then mark it sent locally once the provider diagnostic handoff has left the queue."
+      case .sentLocally:
+        return "The provider diagnostic packet is closed locally. Reopen only if provider setup, refresh evidence, parser output, or handoff context changed."
+      case .reopened:
+        return "The provider diagnostic packet is reopened. Refresh it from the troubleshooting card or update it before marking ready again."
+      }
+    }
     if isWishlistBatchResearchDraft {
       switch draft.status {
       case .draft:
@@ -2673,8 +2691,15 @@ private struct TaskDraftFollowUpRow: View {
 
           Text(nextActionDetail)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(isWishlistBatchResearchDraft || isWishlistPurchasePacketDraft ? .purple : .secondary)
+            .foregroundStyle(isMailboxProviderDraft ? .orange : isWishlistBatchResearchDraft || isWishlistPurchasePacketDraft ? .purple : .secondary)
             .fixedSize(horizontal: false, vertical: true)
+
+          if isMailboxProviderDraft {
+            Label("Local diagnostic only. This does not run Gmail, SpaceMail, Microsoft 365, IMAP, Graph, OAuth, token storage, outbound email, notifications, or mailbox mutation.", systemImage: "lock.doc.fill")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.orange)
+              .fixedSize(horizontal: false, vertical: true)
+          }
 
           if isWishlistPurchasePacketDraft {
             Label("Local packet only. ParcelOps does not open product links, compare live prices, log in, buy, pay, or monitor orders in the background.", systemImage: "lock.doc.fill")

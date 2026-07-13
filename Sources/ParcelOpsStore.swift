@@ -4830,7 +4830,7 @@ final class ParcelOpsStore {
 
   var draftMessagesNeedingReview: [DraftMessage] {
     draftMessages.filter {
-      isActiveWishlistDraft($0)
+      (isActiveWishlistDraft($0) || isMailboxProviderDraft($0))
         && ($0.reviewState != .accepted || $0.status == .draft || $0.status == .reopened)
     }
   }
@@ -22202,6 +22202,22 @@ final class ParcelOpsStore {
 
   func isActiveWishlistDraft(_ draft: DraftMessage) -> Bool {
     isActiveWishlistLinkedEntity(type: draft.linkedEntityType, id: draft.linkedEntityID)
+  }
+
+  func isMailboxProviderDraft(_ draft: DraftMessage) -> Bool {
+    guard draft.linkedEntityType == .integration else { return false }
+    let searchableText = [
+      draft.linkedEntityID,
+      draft.subject,
+      draft.body
+    ].joined(separator: " ").localizedLowercase
+
+    return searchableText.contains("mailbox-provider")
+      || searchableText.contains("mailbox release")
+      || searchableText.contains("mailbox provider")
+      || searchableText.contains("provider diagnostic")
+      || searchableText.contains("gmail")
+      || searchableText.contains("spacemail")
   }
 
   func isActiveWishlistPurchaseLinkRecord(_ record: WishlistPurchaseLinkRecord) -> Bool {
