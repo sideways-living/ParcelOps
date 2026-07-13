@@ -1881,6 +1881,43 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(setupItem?.actionLabel, "Review Gmail setup")
   }
 
+  func testGmailPostRefreshActionPlanTreatsFilteredOnlyRefreshAsNoOperatorWork() {
+    let connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 10,
+      imported: 0,
+      filtered: 10,
+      uncertain: 0
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [
+      connection.id: GmailAuthSessionState(
+        connectionID: connection.id,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        tokenStoreStatus: "GoogleSignIn cache available",
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Connected for test."
+      )
+    ]
+    store.mailboxIngestRecords = []
+    store.intakeEmails = []
+    store.intakeParserDiagnostics = []
+
+    let plan = store.gmailPostRefreshActionPlan
+
+    XCTAssertEqual(plan.items.first { $0.title == "Review imported Inbox rows" }?.count, 0)
+    XCTAssertEqual(plan.items.first { $0.title == "Review imported Inbox rows" }?.tone, "success")
+    XCTAssertEqual(plan.items.first { $0.title == "Fix parser diagnostics" }?.count, 0)
+    XCTAssertEqual(plan.items.first { $0.title == "Create or link orders" }?.count, 0)
+    XCTAssertEqual(plan.items.first { $0.title == "Review uncertain messages" }?.count, 0)
+    XCTAssertEqual(plan.items.first { $0.title == "Check filtered examples" }?.count, 0)
+  }
+
   func testGmailHealthSummaryFlagsSetupBlockers() {
     let connection = makeGmailConnection(
       oauthReadinessStatus: "Needs review",
