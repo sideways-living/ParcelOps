@@ -9,9 +9,12 @@
 /* Begin PBXBuildFile section */
 		01FD7A05D54D3BD0C5018A59 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BBE20445D49D4AD19F7FBDD /* Services.swift */; };
 		020A851425309F69EF29E8B8 /* DeliveryInstructionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EEF47F9D60738E1B7F034E8 /* DeliveryInstructionViews.swift */; };
+		04CFB6AEDDE82701366F4B83 /* GoogleGmailAuthAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B531A7AB80D6806FA97D5F4A /* GoogleGmailAuthAdapter.swift */; };
 		05D3E912BBCDDD5249071205 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = C294C1E031F8E92F4B72882D /* Models.swift */; };
 		07F425D3BFACDC91C6DB456C /* SearchViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723F8986A4FA9A5F1D60A3A2 /* SearchViews.swift */; };
 		0A5003ECC06E8155B02A7944 /* ShipmentManifestViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6089D9A2399AD2D84048E51 /* ShipmentManifestViews.swift */; };
+		0BEAE22E5091BB9BDA7EEFC8 /* MSALMicrosoft365AuthAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3D959456AE51E23939FA96 /* MSALMicrosoft365AuthAdapter.swift */; };
+		0C3658912BFB6F0B212393EC /* SpaceMailClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DF6DD0C9614A803D99EBE1 /* SpaceMailClassifier.swift */; };
 		111407DBC3A6AC2C0D3CC44C /* CostViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2F8D74A6303191DB719411 /* CostViews.swift */; };
 		13A61F2FD39FA92F418C95DA /* ExceptionPlaybookViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066C38EC72A5DAD5C5DF392F /* ExceptionPlaybookViews.swift */; };
 		145B03D460BF221A531479FB /* MVPSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD3B5CF499A918F102549CDA /* MVPSetupView.swift */; };
@@ -29,6 +32,7 @@
 		55A859A36024281A3C6F37B7 /* DashboardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82F6A60AB18340948AA8FF22 /* DashboardViews.swift */; };
 		5BD133CB4C048C821D91B3AD /* OrderViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 714FBCDEBC13145973570D0D /* OrderViews.swift */; };
 		6720C349361C35DA73E3EA5B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B35131894477ED26462D829A /* Assets.xcassets */; };
+		6BF61EB01E335D7A106C6098 /* ParcelOpsModelRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DFE262FB7EB2C6DF4492276 /* ParcelOpsModelRegressionTests.swift */; };
 		6E23A072EE0CA2CB61FA829E /* ProcurementViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C64BEDDC71A7C5453FDC86E /* ProcurementViews.swift */; };
 		70256A1D222D8ADD287E63E0 /* VendorProfileViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC3DAF12AE02E8CB0F29C96 /* VendorProfileViews.swift */; };
 		71A99B094D4EBC94635E2E85 /* ParcelOpsWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B322651F5309B88596C34DF /* ParcelOpsWidgets.swift */; };
@@ -41,11 +45,6 @@
 		98C35ECB54BABD8531AFC4D9 /* ParcelOpsActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5E3DBDD1AE2F60DC9F7905 /* ParcelOpsActivityAttributes.swift */; };
 		9A258F87A35D250D49653B5C /* TrackingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2096A18F88235246D192AB /* TrackingViews.swift */; };
 		9E4432914A94BF3FC4BBDD36 /* AcceptanceReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF3076BE8338448EDFD2C3D /* AcceptanceReviewViews.swift */; };
-		A35D5A4F4A6D45AA95A4F001 /* SpaceMailClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35D5A4F4A6D45AA95A4F000 /* SpaceMailClassifier.swift */; };
-		A6B5C4D3E2F1012345678902 /* MSALMicrosoft365AuthAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B5C4D3E2F1012345678901 /* MSALMicrosoft365AuthAdapter.swift */; };
-		A6B5C4D3E2F1012345678905 /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = A6B5C4D3E2F1012345678904 /* MSAL */; };
-		B7C8D9E0F1A2012345678902 /* GoogleGmailAuthAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C8D9E0F1A2012345678901 /* GoogleGmailAuthAdapter.swift */; };
-		B7C8D9E0F1A2012345678905 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = B7C8D9E0F1A2012345678904 /* GoogleSignIn */; };
 		A1A4593A0BA46C8E111B137D /* CommunicationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91EBD362A0621E5FC6CF3BF /* CommunicationViews.swift */; };
 		A9BBF23BBF56CA7001687BFD /* ShipmentGroupViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61FC42698189E40E0E00B958 /* ShipmentGroupViews.swift */; };
 		B19610644621A4CB73F0B7B5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A518D638621BEE2F1123A89C /* Assets.xcassets */; };
@@ -53,6 +52,7 @@
 		C0F23CA1B244428118FA6D21 /* ValidationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB03E04EE9877117E89B2DEC /* ValidationViews.swift */; };
 		C272B81890FB90DD5BB2493A /* TasksViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085551AB9FCCC7F86AF41668 /* TasksViews.swift */; };
 		C5704F0F428E5E8190046CFB /* SampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3188C1B96C11510976A0FA56 /* SampleData.swift */; };
+		CD2C6FA9B9FE2F0B958E31D9 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A084ECE57E308E8C34C3F62C /* GoogleSignIn */; };
 		CFA7684757F5D0289CA35AFA /* OperatorHubViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5776053ED5DCD32056445106 /* OperatorHubViews.swift */; };
 		D8150475F4C6FA3D8F987127 /* StorageLocationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F255E833C8D83405F1F68811 /* StorageLocationViews.swift */; };
 		DAE7239984848CE91DB2AA99 /* ParcelOps Widget Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CB1F5A8248E44B2F201E49CC /* ParcelOps Widget Extension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -63,6 +63,7 @@
 		E9DC786F4529ADCE1AC02187 /* InventoryReceiptViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E44FEC12DD2C68C3F7F0470 /* InventoryReceiptViews.swift */; };
 		EA2C1DE96602461907880361 /* ScanSessionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F896286D2DCA3EA39BB16FAB /* ScanSessionViews.swift */; };
 		ED6D5814A98B4C2623CDCB3E /* ReturnClaimViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A8013CC914AC8E15AE90522 /* ReturnClaimViews.swift */; };
+		EF3FC202F62BBFBB1555B611 /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 1E54157FEE1CA7A1822BDDC4 /* MSAL */; };
 		F0FC33BDB1782A53EACD7CBC /* OperationsWorkbenchViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B4A1864B6092510C25D93BC /* OperationsWorkbenchViews.swift */; };
 		F44CEE20EA4A6F1465EFE7CC /* ReconciliationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB9F271170DD68B00CAD9C /* ReconciliationViews.swift */; };
 		F8D1E0DF621DCE62C87B9310 /* SLAPolicyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52F2EAC70B830904E02C17BD /* SLAPolicyViews.swift */; };
@@ -78,6 +79,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 6E26421399CF4A15ECFA2AD3;
 			remoteInfo = "ParcelOps Widget Extension";
+		};
+		87ED4E0119FEC73CB6B626B3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 11D16C109A2962BB5F389326 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5B50CBC18835C5D2E2B938FC;
+			remoteInfo = ParcelOps;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -125,21 +133,23 @@
 		6862DCA976BE93D4AFAE8663 /* PackageContentViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageContentViews.swift; sourceTree = "<group>"; };
 		691EA6953A8547DF595E322A /* ParcelOpsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParcelOpsApp.swift; sourceTree = "<group>"; };
 		6A8013CC914AC8E15AE90522 /* ReturnClaimViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReturnClaimViews.swift; sourceTree = "<group>"; };
+		70DF6DD0C9614A803D99EBE1 /* SpaceMailClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceMailClassifier.swift; sourceTree = "<group>"; };
 		714FBCDEBC13145973570D0D /* OrderViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderViews.swift; sourceTree = "<group>"; };
 		723F8986A4FA9A5F1D60A3A2 /* SearchViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchViews.swift; sourceTree = "<group>"; };
 		7A5E3DBDD1AE2F60DC9F7905 /* ParcelOpsActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParcelOpsActivityAttributes.swift; sourceTree = "<group>"; };
+		7B1FC7D98D0097F109E04BE1 /* ParcelOpsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ParcelOpsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7DFE262FB7EB2C6DF4492276 /* ParcelOpsModelRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParcelOpsModelRegressionTests.swift; sourceTree = "<group>"; };
 		82F6A60AB18340948AA8FF22 /* DashboardViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViews.swift; sourceTree = "<group>"; };
 		8B919FEB425C4E95C8E54260 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8E1673F9D2A4AAB7BBFD5662 /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
 		975415AD5835CD27D85B0C72 /* LabelReferenceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelReferenceViews.swift; sourceTree = "<group>"; };
 		980D07C345BAEE065C851FA2 /* IntegrationsSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsSettingsViews.swift; sourceTree = "<group>"; };
 		9BBE20445D49D4AD19F7FBDD /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services.swift; sourceTree = "<group>"; };
-		A35D5A4F4A6D45AA95A4F000 /* SpaceMailClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceMailClassifier.swift; sourceTree = "<group>"; };
-		A6B5C4D3E2F1012345678901 /* MSALMicrosoft365AuthAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MSALMicrosoft365AuthAdapter.swift; sourceTree = "<group>"; };
-		B7C8D9E0F1A2012345678901 /* GoogleGmailAuthAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleGmailAuthAdapter.swift; sourceTree = "<group>"; };
 		A518D638621BEE2F1123A89C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AE3D959456AE51E23939FA96 /* MSALMicrosoft365AuthAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MSALMicrosoft365AuthAdapter.swift; sourceTree = "<group>"; };
 		B126E1E735231BE8314F5B87 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		B35131894477ED26462D829A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B531A7AB80D6806FA97D5F4A /* GoogleGmailAuthAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleGmailAuthAdapter.swift; sourceTree = "<group>"; };
 		B6C0F49BA78416BBC6E40B41 /* EvidenceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceViews.swift; sourceTree = "<group>"; };
 		B836E80ABE0108260C2E600B /* AutomationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationViews.swift; sourceTree = "<group>"; };
 		C294C1E031F8E92F4B72882D /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -162,12 +172,12 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		A6B5C4D3E2F1012345678906 /* Frameworks */ = {
+		0ABFDCD1D54D78F9AC5E4D8B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A6B5C4D3E2F1012345678905 /* MSAL in Frameworks */,
-				B7C8D9E0F1A2012345678905 /* GoogleSignIn in Frameworks */,
+				EF3FC202F62BBFBB1555B611 /* MSAL in Frameworks */,
+				CD2C6FA9B9FE2F0B958E31D9 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -189,6 +199,7 @@
 			isa = PBXGroup;
 			children = (
 				B960480CEAB3A43647FB4450 /* App */,
+				9B9E835927473F3AD86DB665 /* ParcelOpsTests */,
 				B2382205A2FE79E08D580F84 /* Shared */,
 				D801FA819D88AC32030801C2 /* Sources */,
 				231887813CF530BED2C2A913 /* Watch */,
@@ -203,8 +214,18 @@
 				C507D85BF101AE2844CD3CDB /* ParcelOps Watch.app */,
 				CB1F5A8248E44B2F201E49CC /* ParcelOps Widget Extension.appex */,
 				CAF3A15F042E2C123A948632 /* ParcelOps.app */,
+				7B1FC7D98D0097F109E04BE1 /* ParcelOpsTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		9B9E835927473F3AD86DB665 /* ParcelOpsTests */ = {
+			isa = PBXGroup;
+			children = (
+				7DFE262FB7EB2C6DF4492276 /* ParcelOpsModelRegressionTests.swift */,
+			);
+			name = ParcelOpsTests;
+			path = Tests/ParcelOpsTests;
 			sourceTree = "<group>";
 		};
 		A7E4C76963355E71323C4E57 /* Widget Extension */ = {
@@ -250,7 +271,7 @@
 				299E154A43E3EF3BBC55411F /* DispatchReadinessViews.swift */,
 				B6C0F49BA78416BBC6E40B41 /* EvidenceViews.swift */,
 				066C38EC72A5DAD5C5DF392F /* ExceptionPlaybookViews.swift */,
-				B7C8D9E0F1A2012345678901 /* GoogleGmailAuthAdapter.swift */,
+				B531A7AB80D6806FA97D5F4A /* GoogleGmailAuthAdapter.swift */,
 				0D5A620540772B3F0294D350 /* HandoffNoteViews.swift */,
 				44B77EED4C77B2EA87964BC3 /* ImportQueueViews.swift */,
 				980D07C345BAEE065C851FA2 /* IntegrationsSettingsViews.swift */,
@@ -258,7 +279,7 @@
 				975415AD5835CD27D85B0C72 /* LabelReferenceViews.swift */,
 				4A332D658D93C22E31455EDE /* MailboxReviewViews.swift */,
 				C294C1E031F8E92F4B72882D /* Models.swift */,
-				A6B5C4D3E2F1012345678901 /* MSALMicrosoft365AuthAdapter.swift */,
+				AE3D959456AE51E23939FA96 /* MSALMicrosoft365AuthAdapter.swift */,
 				FD3B5CF499A918F102549CDA /* MVPSetupView.swift */,
 				2B4A1864B6092510C25D93BC /* OperationsWorkbenchViews.swift */,
 				5776053ED5DCD32056445106 /* OperatorHubViews.swift */,
@@ -276,10 +297,10 @@
 				723F8986A4FA9A5F1D60A3A2 /* SearchViews.swift */,
 				9BBE20445D49D4AD19F7FBDD /* Services.swift */,
 				8E1673F9D2A4AAB7BBFD5662 /* SharedViews.swift */,
-				A35D5A4F4A6D45AA95A4F000 /* SpaceMailClassifier.swift */,
 				61FC42698189E40E0E00B958 /* ShipmentGroupViews.swift */,
 				C6089D9A2399AD2D84048E51 /* ShipmentManifestViews.swift */,
 				52F2EAC70B830904E02C17BD /* SLAPolicyViews.swift */,
+				70DF6DD0C9614A803D99EBE1 /* SpaceMailClassifier.swift */,
 				F255E833C8D83405F1F68811 /* StorageLocationViews.swift */,
 				085551AB9FCCC7F86AF41668 /* TasksViews.swift */,
 				FF611A7ECFF96B0BA513594A /* TimelineViews.swift */,
@@ -299,8 +320,8 @@
 			buildConfigurationList = F2CC2D89B4FB9BB00A090FCE /* Build configuration list for PBXNativeTarget "ParcelOps" */;
 			buildPhases = (
 				75B63BF68CFAC82657F22A37 /* Sources */,
-				A6B5C4D3E2F1012345678906 /* Frameworks */,
 				06439D0BD4DE9D59A0E1FE75 /* Resources */,
+				0ABFDCD1D54D78F9AC5E4D8B /* Frameworks */,
 				3428EDEAF9A0DD2F0E8B2761 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -310,12 +331,30 @@
 			);
 			name = ParcelOps;
 			packageProductDependencies = (
-				A6B5C4D3E2F1012345678904 /* MSAL */,
-				B7C8D9E0F1A2012345678904 /* GoogleSignIn */,
+				1E54157FEE1CA7A1822BDDC4 /* MSAL */,
+				A084ECE57E308E8C34C3F62C /* GoogleSignIn */,
 			);
 			productName = ParcelOps;
 			productReference = CAF3A15F042E2C123A948632 /* ParcelOps.app */;
 			productType = "com.apple.product-type.application";
+		};
+		6B2BD5013F9634497AF9AC00 /* ParcelOpsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F98F4AA1D3D41D1F97AAC677 /* Build configuration list for PBXNativeTarget "ParcelOpsTests" */;
+			buildPhases = (
+				BDD871038540F087078C6779 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4B055AECBA80A043B57B9F20 /* PBXTargetDependency */,
+			);
+			name = ParcelOpsTests;
+			packageProductDependencies = (
+			);
+			productName = ParcelOpsTests;
+			productReference = 7B1FC7D98D0097F109E04BE1 /* ParcelOpsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		6E26421399CF4A15ECFA2AD3 /* ParcelOps Widget Extension */ = {
 			isa = PBXNativeTarget;
@@ -372,11 +411,11 @@
 			);
 			mainGroup = 26FAEC6509BE9A75EACC4C16;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			packageReferences = (
-				A6B5C4D3E2F1012345678903 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
-				B7C8D9E0F1A2012345678903 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				8DE08AEC35DE698458A366B1 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				6A8584E7D92370FE10D34627 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
 			);
+			preferredProjectObjectVersion = 77;
 			productRefGroup = 28B4921062D8B256ECDD1F41 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -384,6 +423,7 @@
 				5B50CBC18835C5D2E2B938FC /* ParcelOps */,
 				824BAD0248C1DF5A7CD502AC /* ParcelOps Watch */,
 				6E26421399CF4A15ECFA2AD3 /* ParcelOps Widget Extension */,
+				6B2BD5013F9634497AF9AC00 /* ParcelOpsTests */,
 			);
 		};
 /* End PBXProject section */
@@ -445,16 +485,16 @@
 				38D4A3363E17870FF8D1E3D5 /* DispatchReadinessViews.swift in Sources */,
 				8696FE9CE574168836A51DC5 /* EvidenceViews.swift in Sources */,
 				13A61F2FD39FA92F418C95DA /* ExceptionPlaybookViews.swift in Sources */,
-				B7C8D9E0F1A2012345678902 /* GoogleGmailAuthAdapter.swift in Sources */,
+				04CFB6AEDDE82701366F4B83 /* GoogleGmailAuthAdapter.swift in Sources */,
 				F8F86A180F81AA25A2F4E2D0 /* HandoffNoteViews.swift in Sources */,
 				4AC03575AE7D40901391BBB0 /* ImportQueueViews.swift in Sources */,
 				4D7EA9C386C701B90612713F /* IntegrationsSettingsViews.swift in Sources */,
 				E9DC786F4529ADCE1AC02187 /* InventoryReceiptViews.swift in Sources */,
 				76E7A7386AD6DF10FBCC3FB9 /* LabelReferenceViews.swift in Sources */,
+				0BEAE22E5091BB9BDA7EEFC8 /* MSALMicrosoft365AuthAdapter.swift in Sources */,
 				145B03D460BF221A531479FB /* MVPSetupView.swift in Sources */,
 				4C8384F2F99F0A67EE5290C4 /* MailboxReviewViews.swift in Sources */,
 				05D3E912BBCDDD5249071205 /* Models.swift in Sources */,
-				A6B5C4D3E2F1012345678902 /* MSALMicrosoft365AuthAdapter.swift in Sources */,
 				F0FC33BDB1782A53EACD7CBC /* OperationsWorkbenchViews.swift in Sources */,
 				CFA7684757F5D0289CA35AFA /* OperatorHubViews.swift in Sources */,
 				5BD133CB4C048C821D91B3AD /* OrderViews.swift in Sources */,
@@ -473,9 +513,9 @@
 				07F425D3BFACDC91C6DB456C /* SearchViews.swift in Sources */,
 				01FD7A05D54D3BD0C5018A59 /* Services.swift in Sources */,
 				B52230695356CE498F4C4371 /* SharedViews.swift in Sources */,
-				A35D5A4F4A6D45AA95A4F001 /* SpaceMailClassifier.swift in Sources */,
 				A9BBF23BBF56CA7001687BFD /* ShipmentGroupViews.swift in Sources */,
 				0A5003ECC06E8155B02A7944 /* ShipmentManifestViews.swift in Sources */,
+				0C3658912BFB6F0B212393EC /* SpaceMailClassifier.swift in Sources */,
 				D8150475F4C6FA3D8F987127 /* StorageLocationViews.swift in Sources */,
 				C272B81890FB90DD5BB2493A /* TasksViews.swift in Sources */,
 				E79CF578136295FA735A1AE9 /* TimelineViews.swift in Sources */,
@@ -483,6 +523,14 @@
 				C0F23CA1B244428118FA6D21 /* ValidationViews.swift in Sources */,
 				70256A1D222D8ADD287E63E0 /* VendorProfileViews.swift in Sources */,
 				97CFB6978471B3359E337980 /* WishlistViews.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BDD871038540F087078C6779 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6BF61EB01E335D7A106C6098 /* ParcelOpsModelRegressionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -497,9 +545,30 @@
 			target = 6E26421399CF4A15ECFA2AD3 /* ParcelOps Widget Extension */;
 			targetProxy = 3B6C4FF67925B18A0E03171F /* PBXContainerItemProxy */;
 		};
+		4B055AECBA80A043B57B9F20 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5B50CBC18835C5D2E2B938FC /* ParcelOps */;
+			targetProxy = 87ED4E0119FEC73CB6B626B3 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		002402D3132D353A8E7F8FF9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.bitrig.parcelops.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ParcelOps.app/Contents/MacOS/ParcelOps";
+			};
+			name = Debug;
+		};
 		0DCB03AC6A041AA63F669BC5 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -610,6 +679,22 @@
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
+		5360EAB5349A5DA76B532416 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.bitrig.parcelops.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ParcelOps.app/Contents/MacOS/ParcelOps";
 			};
 			name = Release;
 		};
@@ -749,6 +834,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		F98F4AA1D3D41D1F97AAC677 /* Build configuration list for PBXNativeTarget "ParcelOpsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				002402D3132D353A8E7F8FF9 /* Debug */,
+				5360EAB5349A5DA76B532416 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		F9F5672FADB02A24CAB184A8 /* Build configuration list for PBXNativeTarget "ParcelOps Widget Extension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -761,7 +855,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		A6B5C4D3E2F1012345678903 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */ = {
+		6A8584E7D92370FE10D34627 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/AzureAD/microsoft-authentication-library-for-objc.git";
 			requirement = {
@@ -769,7 +863,7 @@
 				version = 2.12.1;
 			};
 		};
-		B7C8D9E0F1A2012345678903 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+		8DE08AEC35DE698458A366B1 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
 			requirement = {
@@ -780,14 +874,14 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		A6B5C4D3E2F1012345678904 /* MSAL */ = {
+		1E54157FEE1CA7A1822BDDC4 /* MSAL */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A6B5C4D3E2F1012345678903 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */;
+			package = 6A8584E7D92370FE10D34627 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */;
 			productName = MSAL;
 		};
-		B7C8D9E0F1A2012345678904 /* GoogleSignIn */ = {
+		A084ECE57E308E8C34C3F62C /* GoogleSignIn */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = B7C8D9E0F1A2012345678903 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			package = 8DE08AEC35DE698458A366B1 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignIn;
 		};
 /* End XCSwiftPackageProductDependency section */

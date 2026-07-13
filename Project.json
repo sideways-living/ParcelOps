@@ -160,6 +160,27 @@
           "PRODUCT_BUNDLE_IDENTIFIER": "app.bitrig.parcelops.widget-extension"
         }
       }
+    },
+    "ParcelOpsTests": {
+      "type": "bundle.unit-test",
+      "platform": "macOS",
+      "sources": [
+        {
+          "path": "Tests/ParcelOpsTests"
+        }
+      ],
+      "dependencies": [
+        {
+          "target": "ParcelOps"
+        }
+      ],
+      "settings": {
+        "base": {
+          "PRODUCT_BUNDLE_IDENTIFIER": "app.bitrig.parcelops.tests",
+          "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/ParcelOps.app/Contents/MacOS/ParcelOps",
+          "BUNDLE_LOADER": "$(TEST_HOST)"
+        }
+      }
     }
   },
   "schemes": {
@@ -168,6 +189,11 @@
         "targets": {
           "ParcelOps": "all"
         }
+      },
+      "test": {
+        "targets": [
+          "ParcelOpsTests"
+        ]
       },
       "run": {
         "config": "Debug"
