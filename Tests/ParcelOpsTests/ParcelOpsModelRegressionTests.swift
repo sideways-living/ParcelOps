@@ -2464,6 +2464,8 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     let store = ParcelOpsStore()
 
     let readiness = store.gmailOAuthReadinessSummary(for: connection)
+    let checklist = store.gmailSetupTestChecklist(for: connection)
+    let compiledStep = checklist.items.first { $0.title == "Confirm Google app and compiled callback" }
 
     XCTAssertFalse(readiness.isReady)
     XCTAssertTrue(readiness.missingFields.contains { $0.localizedCaseInsensitiveContains("Compiled App Info.plist GIDClientID") })
@@ -2471,6 +2473,10 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("compiled"))
     XCTAssertTrue(readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("compiled"))
     XCTAssertEqual(readiness.expectedCallbackScheme, "com.googleusercontent.apps.1234567890-abcdef")
+    XCTAssertEqual(checklist.statusText, "1/6 Gmail setup test steps complete")
+    XCTAssertEqual(compiledStep?.isComplete, false)
+    XCTAssertTrue(compiledStep?.detail.localizedCaseInsensitiveContains("Compiled App Info.plist") == true)
+    XCTAssertTrue(compiledStep?.nextAction.localizedCaseInsensitiveContains("compiled App Info.plist") == true)
   }
 
   func testGmailReleaseSelfCheckStaysBlockedWhenCompiledOAuthConfigurationIsMissing() {
@@ -2617,7 +2623,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.title, "Provider setup checklist needs review")
     XCTAssertEqual(summary.tone, "warning")
     XCTAssertEqual(summary.metrics.first { $0.title == "Configured" }?.value, "1")
-    XCTAssertEqual(summary.metrics.first { $0.title == "Checks" }?.value, "3/5")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Checks" }?.value, "2/5")
     XCTAssertEqual(summary.metrics.first { $0.title == "Warnings" }?.value, "1")
     XCTAssertEqual(summary.metrics.first { $0.title == "Refresh evidence" }?.value, "No")
     XCTAssertEqual(spaceMail?.status, "Optional, not configured")

@@ -24822,6 +24822,7 @@ final class ParcelOpsStore {
 
   func gmailSetupTestChecklist(for connection: GmailMailboxConnection) -> GmailSetupTestChecklist {
     let authState = gmailAuthSessionState(for: connection)
+    let readiness = gmailOAuthReadinessSummary(for: connection)
     let trimmedEmail = connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
     let trimmedLabels = connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines)
     let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -24853,10 +24854,14 @@ final class ParcelOpsStore {
         symbolName: "envelope.badge"
       ),
       GmailSetupTestChecklistItem(
-        title: "Confirm Google app placeholders",
-        isComplete: hasOAuthAppConfig && hasReadonlyScope,
-        detail: hasOAuthAppConfig && hasReadonlyScope ? "Google iOS OAuth client ID, reversed callback scheme, and read-only Gmail scope are structurally ready." : "Add the real Google iOS OAuth client ID, matching reversed callback scheme, and gmail.readonly or gmail.metadata scope.",
-        nextAction: hasOAuthAppConfig && hasReadonlyScope ? "Proceed to sign-in test after compiled app plist values also match." : "Use Edit setup and save non-secret values only.",
+        title: "Confirm Google app and compiled callback",
+        isComplete: readiness.isReady,
+        detail: readiness.isReady
+          ? "Google iOS OAuth client ID, reversed callback scheme, read-only Gmail scope, consent notes, and compiled Info.plist callback values match."
+          : readiness.detailText,
+        nextAction: readiness.isReady
+          ? "Proceed to sign-in test."
+          : (hasOAuthAppConfig && hasReadonlyScope ? "Update compiled App Info.plist/Project settings so GIDClientID and callback scheme match this setup." : "Use Edit setup and save non-secret Google OAuth values only."),
         symbolName: "gearshape.2.fill"
       ),
       GmailSetupTestChecklistItem(
