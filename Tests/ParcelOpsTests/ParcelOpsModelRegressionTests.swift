@@ -3238,6 +3238,76 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     })
   }
 
+  func testSpaceMailShiftHandoffNoteRefreshesExistingOpenNote() {
+    let mailboxID = UUID()
+    let connection = makeSpaceMailConnection(
+      id: mailboxID,
+      credentialStorageStatus: "Password reference available",
+      fetched: 10,
+      imported: 1,
+      filtered: 8,
+      uncertain: 1
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.handoffNotes = []
+    store.auditEvents = []
+
+    store.createSpaceMailShiftHandoffNote(for: connection)
+    store.createSpaceMailShiftHandoffNote(for: connection)
+
+    let notes = store.handoffNotes.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.title.localizedCaseInsensitiveContains("SpaceMail shift handoff")
+    }
+    XCTAssertEqual(notes.count, 1)
+    XCTAssertEqual(notes.first?.assignee, "Mailbox team")
+    XCTAssertEqual(notes.first?.dueDate, "Next shift")
+    XCTAssertEqual(notes.first?.status, .open)
+    XCTAssertEqual(notes.first?.reviewState, .needsReview)
+    XCTAssertTrue(notes.first?.notes.contains("Connection: SpaceMail tracking inbox") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing SpaceMail shift handoff note refreshed."
+        && (event.afterDetail?.contains("No duplicate handoff note was created.") ?? false)
+    })
+  }
+
+  func testSpaceMailShiftReviewTaskRefreshesExistingOpenTask() {
+    let mailboxID = UUID()
+    let connection = makeSpaceMailConnection(
+      id: mailboxID,
+      credentialStorageStatus: "Password reference available",
+      fetched: 10,
+      imported: 1,
+      filtered: 8,
+      uncertain: 1
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createSpaceMailShiftReviewTask(for: connection)
+    store.createSpaceMailShiftReviewTask(for: connection)
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.title.localizedCaseInsensitiveContains("SpaceMail shift summary")
+    }
+    XCTAssertEqual(tasks.count, 1)
+    XCTAssertEqual(tasks.first?.title, "Follow up SpaceMail shift summary")
+    XCTAssertEqual(tasks.first?.assignee, "Mailbox team")
+    XCTAssertEqual(tasks.first?.status, .open)
+    XCTAssertEqual(tasks.first?.reviewState, .needsReview)
+    XCTAssertTrue(tasks.first?.summary.contains("Connection: SpaceMail tracking inbox") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing SpaceMail shift review task refreshed."
+        && (event.afterDetail?.contains("No duplicate task was created.") ?? false)
+    })
+  }
+
   func testSpaceMailHealthSummaryFlagsUncertainReview() {
     let uncertainMessage = SpaceMailUncertainMessage(
       providerMessageID: "spacemail-uncertain-1",

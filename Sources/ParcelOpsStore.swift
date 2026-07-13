@@ -17580,12 +17580,41 @@ final class ParcelOpsStore {
   func createSpaceMailShiftHandoffNote(for connection: SpaceMailIMAPConnection) {
     let summary = spaceMailShiftHandoffSummary
     let detail = spaceMailShiftHandoffDetail(for: connection, summary: summary)
+    let priority = spaceMailHandoffPriority(for: summary.tone)
+
+    if let existingIndex = handoffNotes.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == connection.id.uuidString
+        && $0.title.localizedCaseInsensitiveContains("SpaceMail shift handoff")
+        && $0.status != .completed
+    }) {
+      let beforeDetail = handoffNotes[existingIndex].auditDetail
+      handoffNotes[existingIndex].title = "SpaceMail shift handoff - \(connection.displayName)"
+      handoffNotes[existingIndex].summary = summary.detail
+      handoffNotes[existingIndex].priority = priority
+      handoffNotes[existingIndex].assignee = "Mailbox team"
+      handoffNotes[existingIndex].dueDate = "Next shift"
+      handoffNotes[existingIndex].reviewState = .needsReview
+      handoffNotes[existingIndex].notes = detail
+      persistHandoffNotes()
+      logAudit(
+        action: .edited,
+        entityType: .handoffNote,
+        entityID: handoffNotes[existingIndex].id.uuidString,
+        entityLabel: handoffNotes[existingIndex].title,
+        summary: "Existing SpaceMail shift handoff note refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(handoffNotes[existingIndex].auditDetail)\nRefreshed from local SpaceMail shift summary. No duplicate handoff note was created. No IMAP connection, Keychain read, mailbox fetch, external service call, or mailbox mutation occurred."
+      )
+      return
+    }
+
     let note = HandoffNote(
       title: "SpaceMail shift handoff - \(connection.displayName)",
       summary: summary.detail,
       linkedEntityType: .integration,
       linkedEntityID: connection.id.uuidString,
-      priority: spaceMailHandoffPriority(for: summary.tone),
+      priority: priority,
       assignee: "Mailbox team",
       createdDate: Self.auditTimestamp(),
       dueDate: "Next shift",
@@ -17616,14 +17645,49 @@ final class ParcelOpsStore {
 
   func createSpaceMailShiftReviewTask(for connection: SpaceMailIMAPConnection) {
     let summary = spaceMailShiftHandoffSummary
-    createReviewTask(
+    let priority = spaceMailHandoffPriority(for: summary.tone)
+    let taskSummary = "\(summary.title): \(summary.detail) \(summary.lastRefreshText)\n\(spaceMailShiftHandoffDetail(for: connection, summary: summary))"
+
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == connection.id.uuidString
+        && $0.title.localizedCaseInsensitiveContains("SpaceMail shift summary")
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = "Follow up SpaceMail shift summary"
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = priority
+      reviewTasks[existingIndex].dueDate = priority == .high ? "Today" : priority == .normal ? "Tomorrow" : "This week"
+      reviewTasks[existingIndex].assignee = "Mailbox team"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing SpaceMail shift review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from local SpaceMail shift summary. No duplicate task was created. No IMAP connection, Keychain read, mailbox fetch, external service call, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: "Follow up SpaceMail shift summary",
+      summary: taskSummary,
       linkedEntityType: .integration,
       linkedEntityID: connection.id.uuidString,
-      label: "SpaceMail shift summary",
-      summary: "\(summary.title): \(summary.detail) \(summary.lastRefreshText)",
-      priority: spaceMailHandoffPriority(for: summary.tone),
-      assignee: "Mailbox team"
+      priority: priority,
+      dueDate: priority == .high ? "Today" : priority == .normal ? "Tomorrow" : "This week",
+      assignee: "Mailbox team",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
     )
+    addReviewTask(task, summary: "Review task created from SpaceMail shift summary.")
     logAudit(
       action: .linked,
       entityType: .spaceMailIMAPConnection,
