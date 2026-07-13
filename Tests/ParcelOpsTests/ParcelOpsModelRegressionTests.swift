@@ -2561,6 +2561,62 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(store.auditEvents.contains { $0.summary == "Existing mailbox provider release gate task refreshed." })
   }
 
+  func testWorkbenchPromotesMailboxProviderReleaseGateItem() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.gmailAuthSessionStates = [:]
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+
+    let item = store.workbenchItems.first { $0.source == .mailboxProviderGate }
+
+    XCTAssertNotNil(item)
+    XCTAssertEqual(item?.id, "mailbox-provider-release-gate")
+    XCTAssertEqual(item?.linkedEntityType, .integration)
+    XCTAssertEqual(item?.linkedEntityID, "mailbox-provider-release-gate")
+    XCTAssertEqual(item?.prioritySeverity, "High")
+    XCTAssertEqual(item?.status, "Blocked")
+    XCTAssertEqual(item?.reviewState, .needsReview)
+    XCTAssertTrue(item?.title.contains("Mailbox provider release gate") == true)
+    XCTAssertTrue(item?.summary.contains("Open gates:") == true)
+    XCTAssertFalse(item?.suggestedNextAction.isEmpty ?? true)
+  }
+
+  func testWorkbenchMailboxProviderReleaseGateReviewLogsWithoutMutatingProviders() {
+    let mailboxID = UUID()
+    let connection = makeSpaceMailConnection(
+      id: mailboxID,
+      credentialStorageStatus: "Password reference available",
+      fetched: 10,
+      imported: 1,
+      filtered: 9,
+      uncertain: 0
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.gmailMailboxConnections = []
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+    store.auditEvents = []
+
+    guard let item = store.workbenchItems.first(where: { $0.source == .mailboxProviderGate }) else {
+      XCTFail("Expected mailbox provider release gate Workbench item.")
+      return
+    }
+
+    store.markWorkbenchItemReviewed(item)
+
+    XCTAssertEqual(store.spaceMailIMAPConnections, [connection])
+    XCTAssertTrue(store.gmailMailboxConnections.isEmpty)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Mailbox provider release gate workbench item reviewed locally."
+        && (event.afterDetail?.contains("No mailbox was fetched, no credential was changed, and no provider configuration was modified.") ?? false)
+    })
+  }
+
   func testGmailReleaseSelfCheckFlagsSetupBlockersBeforeSignIn() {
     let connection = makeGmailConnection(
       oauthReadinessStatus: "Needs review",
