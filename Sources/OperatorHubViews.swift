@@ -3132,6 +3132,13 @@ struct DispatchView: View {
           } label: {
             Label("Open Readiness", systemImage: "checkmark.rectangle.stack.fill")
           }
+          if !store.gmailMailboxConnections.isEmpty {
+            Button {
+              store.recordGmailReleaseReadinessSnapshot()
+            } label: {
+              Label("Record Gmail snapshot", systemImage: "camera.metering.center.weighted")
+            }
+          }
           NavigationLink {
             AuditView(store: store)
           } label: {
