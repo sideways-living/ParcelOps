@@ -1297,6 +1297,12 @@ struct TasksView: View {
           .fixedSize(horizontal: false, vertical: true)
 
         CompactActionRow {
+          Button {
+            store.recordGmailReleaseReadinessSnapshot()
+            mvpFeedbackMessage = "Gmail readiness snapshot recorded in Audit."
+          } label: {
+            Label("Record Gmail snapshot", systemImage: "camera.metering.center.weighted")
+          }
           NavigationLink {
             MailboxView(store: store)
           } label: {
