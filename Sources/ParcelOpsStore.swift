@@ -11582,6 +11582,79 @@ final class ParcelOpsStore {
     )
   }
 
+  func createDraftMessageFromMailboxProviderTroubleshooting() {
+    let troubleshooting = mailboxProviderTroubleshootingSummary
+    let selectedTemplate = communicationTemplates.first { $0.linkedEntityType == .integration && $0.isEnabled } ?? communicationTemplates.first
+    let subject = troubleshooting.tone == "success"
+      ? "Mailbox provider diagnostics clear"
+      : "Mailbox provider diagnostics - \(troubleshooting.title)"
+    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: subject) ?? "Please review the local ParcelOps record \(subject)."
+    let body = [
+      baseBody,
+      "",
+      "Mailbox provider diagnostic packet",
+      troubleshooting.reportText,
+      "Boundary: Draft created locally from current mailbox provider diagnostics. ParcelOps did not run Gmail, SpaceMail, Microsoft 365, IMAP, Graph, OAuth, token storage, external service calls, outbound email, notifications, or mailbox mutation."
+    ].joined(separator: "\n")
+
+    if let existingIndex = draftMessages.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "mailbox-provider-troubleshooting"
+        && $0.status != .sentLocally
+    }) {
+      let beforeDetail = draftMessages[existingIndex].auditDetail
+      draftMessages[existingIndex].recipient = "operations@parcelops.example"
+      draftMessages[existingIndex].subject = subject
+      draftMessages[existingIndex].body = body
+      draftMessages[existingIndex].channel = selectedTemplate?.channel ?? .email
+      draftMessages[existingIndex].reviewState = .needsReview
+      if draftMessages[existingIndex].status == .ready {
+        draftMessages[existingIndex].status = .reopened
+      }
+      persistDraftMessages()
+      logAudit(
+        action: .edited,
+        entityType: .draftMessage,
+        entityID: draftMessages[existingIndex].id.uuidString,
+        entityLabel: draftMessages[existingIndex].subject,
+        summary: "Existing mailbox provider troubleshooting draft refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(draftMessages[existingIndex].auditDetail)\nRefreshed from current mailbox provider troubleshooting summary. No duplicate draft was created. No mailbox refresh, credential read, external service call, outbound email, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    let draft = DraftMessage(
+      linkedEntityType: .integration,
+      linkedEntityID: "mailbox-provider-troubleshooting",
+      templateID: selectedTemplate?.id,
+      recipient: "operations@parcelops.example",
+      subject: subject,
+      body: body,
+      channel: selectedTemplate?.channel ?? .email,
+      createdDate: Self.auditTimestamp(),
+      status: .draft,
+      reviewState: .needsReview
+    )
+    draftMessages.insert(draft, at: 0)
+    persistDraftMessages()
+
+    if let selectedTemplate, let index = communicationTemplates.firstIndex(where: { $0.id == selectedTemplate.id }) {
+      communicationTemplates[index].lastUsedDate = Self.auditTimestamp()
+      communicationTemplates[index].usageCount += 1
+      persistCommunicationTemplates()
+    }
+
+    logAudit(
+      action: .created,
+      entityType: .draftMessage,
+      entityID: draft.id.uuidString,
+      entityLabel: draft.subject,
+      summary: "Mailbox provider troubleshooting draft created locally.",
+      afterDetail: "\(draft.auditDetail)\nCreated from current mailbox provider troubleshooting summary. No mailbox refresh, credential read, external service call, outbound email, or mailbox mutation occurred."
+    )
+  }
+
   func createReviewTaskFromMailboxProviderReleaseGate() {
     let gate = mailboxProviderReleaseGateSummary
     let primaryOpenGate = gate.gates.sorted { left, right in

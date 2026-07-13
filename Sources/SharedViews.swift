@@ -3772,10 +3772,23 @@ struct MailboxProviderTroubleshootingCard: View {
           }
           .buttonStyle(.bordered)
 
+          Button("Draft diagnostic packet", systemImage: "envelope.badge") {
+            store.createDraftMessageFromMailboxProviderTroubleshooting()
+            feedbackMessage = "Mailbox provider diagnostic draft created. Check Drafts."
+          }
+          .buttonStyle(.bordered)
+
           NavigationLink {
             TasksView(store: store)
           } label: {
             Label("Open Tasks", systemImage: "checklist")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            CommunicationView(store: store)
+          } label: {
+            Label("Open Drafts", systemImage: "envelope.open.fill")
           }
           .buttonStyle(.bordered)
         }

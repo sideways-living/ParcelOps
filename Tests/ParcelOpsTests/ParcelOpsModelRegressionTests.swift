@@ -2714,6 +2714,52 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(store.auditEvents.contains { $0.summary == "Existing mailbox provider handoff note refreshed." })
   }
 
+  func testMailboxProviderTroubleshootingDraftRefreshesExistingUnsentDraft() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.draftMessages = []
+    store.auditEvents = []
+
+    store.createDraftMessageFromMailboxProviderTroubleshooting()
+    store.createDraftMessageFromMailboxProviderTroubleshooting()
+
+    let drafts = store.draftMessages.filter {
+      $0.linkedEntityType == .integration && $0.linkedEntityID == "mailbox-provider-troubleshooting"
+    }
+    XCTAssertEqual(drafts.count, 1)
+    XCTAssertEqual(drafts.first?.recipient, "operations@parcelops.example")
+    XCTAssertEqual(drafts.first?.status, .draft)
+    XCTAssertEqual(drafts.first?.reviewState, .needsReview)
+    XCTAssertTrue(drafts.first?.subject.contains("Mailbox provider diagnostics") == true)
+    XCTAssertTrue(drafts.first?.body.contains("Mailbox provider diagnostic packet") == true)
+    XCTAssertTrue(drafts.first?.body.contains("ParcelOps did not run Gmail, SpaceMail, Microsoft 365, IMAP, Graph") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing mailbox provider troubleshooting draft refreshed."
+        && (event.afterDetail?.contains("No duplicate draft was created.") ?? false)
+    })
+  }
+
+  func testMailboxProviderTroubleshootingDraftCreatesNewDraftAfterSentLocally() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.draftMessages = []
+    store.auditEvents = []
+
+    store.createDraftMessageFromMailboxProviderTroubleshooting()
+    store.draftMessages[0].status = .sentLocally
+    store.createDraftMessageFromMailboxProviderTroubleshooting()
+
+    let drafts = store.draftMessages.filter {
+      $0.linkedEntityType == .integration && $0.linkedEntityID == "mailbox-provider-troubleshooting"
+    }
+    XCTAssertEqual(drafts.count, 2)
+    XCTAssertEqual(drafts.filter { $0.status == .sentLocally }.count, 1)
+    XCTAssertEqual(drafts.filter { $0.status == .draft }.count, 1)
+    XCTAssertEqual(store.auditEvents.filter { $0.summary == "Mailbox provider troubleshooting draft created locally." }.count, 2)
+  }
+
   func testMailboxProviderReleaseGateTaskPromotesPrimaryOpenGate() {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     store.spaceMailIMAPConnections = []
