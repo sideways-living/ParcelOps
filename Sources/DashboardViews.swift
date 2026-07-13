@@ -2143,6 +2143,11 @@ struct DashboardView: View {
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
 
         CompactActionRow {
+          Button {
+            store.recordGmailReleaseReadinessSnapshot()
+          } label: {
+            Label("Record Gmail snapshot", systemImage: "camera.metering.center.weighted")
+          }
           NavigationLink {
             MailboxView(store: store)
           } label: {
