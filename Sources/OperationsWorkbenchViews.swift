@@ -158,6 +158,23 @@ struct OperationsWorkbenchView: View {
   private var wishlistBatchBriefNeeded: Bool {
     !wishlistAgentReadyResearchRequests.isEmpty && wishlistBatchResearchDrafts.isEmpty
   }
+
+  private var wishlistAgentReadiness: WishlistAgentReadinessSummary {
+    store.wishlistAgentReadinessSummary
+  }
+
+  private var wishlistAgentReadinessTint: Color {
+    switch wishlistAgentReadiness.tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .purple
+    default:
+      return .secondary
+    }
+  }
   private var wishlistPurchasePacketNeededItems: [WishlistItem] {
     wishlistReleaseItems.filter(wishlistNeedsPurchasePacket)
   }
@@ -2040,6 +2057,7 @@ struct OperationsWorkbenchView: View {
 
         MetricStrip(items: [
           ("Follow-up", "\(wishlistWorkbenchItems.count + wishlistResearchWorkbenchRequests.count + wishlistPurchasePacketNeededItems.count + (wishlistBatchBriefNeeded ? 1 : 0))", .purple),
+          ("Agent verdict", wishlistAgentReadiness.tone.capitalized, wishlistAgentReadinessTint),
           ("Blocked", "\(wishlistWorkbenchItems.filter { $0.status.localizedCaseInsensitiveContains("blocked") }.count)", wishlistWorkbenchItems.contains { $0.status.localizedCaseInsensitiveContains("blocked") } ? .red : .green),
           ("Release ready", "\(wishlistReleaseReadyItems.count)", wishlistReleaseReadyItems.isEmpty ? .secondary : .green),
           ("Release blocked", "\(wishlistReleaseBlockedItems.count)", wishlistReleaseBlockedItems.isEmpty ? .green : .orange),
@@ -2056,6 +2074,27 @@ struct OperationsWorkbenchView: View {
           ("Decision", "\(wishlistWorkbenchItems.filter { wishlistNeedsPurchaseDecision($0) || $0.purchaseDecision?.reviewState == .needsReview }.count)", wishlistWorkbenchItems.contains { wishlistNeedsPurchaseDecision($0) || $0.purchaseDecision?.reviewState == .needsReview } ? .brown : .green),
           ("Handoff gaps", "\(wishlistWorkbenchItems.filter { !wishlistHandoffPackGaps(for: $0).isEmpty }.count)", wishlistWorkbenchItems.contains { !wishlistHandoffPackGaps(for: $0).isEmpty } ? .purple : .green)
         ])
+
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: wishlistAgentReadiness.tone == "success" ? "checkmark.seal.fill" : "sparkles.rectangle.stack.fill")
+            .foregroundStyle(wishlistAgentReadinessTint)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(wishlistAgentReadiness.title)
+              .font(.subheadline.weight(.semibold))
+            Text(wishlistAgentReadiness.verdict)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(wishlistAgentReadinessTint)
+            Text(wishlistAgentReadiness.detail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(wishlistAgentReadiness.tone.capitalized, color: wishlistAgentReadinessTint)
+        }
+        .padding(10)
+        .background(wishlistAgentReadinessTint.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
         if wishlistBatchBriefNeeded || !wishlistBatchResearchDrafts.isEmpty {
           HStack(alignment: .top, spacing: 10) {
@@ -2099,10 +2138,20 @@ struct OperationsWorkbenchView: View {
           WishlistWorkbenchFollowUpRow(item: item, store: store)
         }
 
-        NavigationLink {
-          WishlistView(store: store)
-        } label: {
-          Label("Open Wishlist", systemImage: "star.square.fill")
+        CompactActionRow {
+          Button("Record readiness snapshot", systemImage: "camera.metering.center.weighted") {
+            store.recordWishlistAgentReadinessSnapshot()
+          }
+          NavigationLink {
+            WishlistView(store: store)
+          } label: {
+            Label("Open Wishlist", systemImage: "star.square.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit trail", systemImage: "list.clipboard.fill")
+          }
         }
         .buttonStyle(.bordered)
       }
