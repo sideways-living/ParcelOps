@@ -665,6 +665,15 @@ struct MailboxView: View {
                 Label("Open Audit", systemImage: "list.clipboard.fill")
               }
               .buttonStyle(.bordered)
+
+              if !store.gmailMailboxConnections.isEmpty {
+                Button {
+                  store.recordGmailReleaseReadinessSnapshot()
+                } label: {
+                  Label("Record Gmail snapshot", systemImage: "camera.metering.center.weighted")
+                }
+                .buttonStyle(.bordered)
+              }
             }
           }
         }
