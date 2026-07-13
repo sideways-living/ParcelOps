@@ -3171,6 +3171,73 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(store.auditEvents.contains { $0.summary == "Review task created from Gmail release self-check." })
   }
 
+  func testGmailShiftHandoffNoteRefreshesExistingOpenNote() {
+    let connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 10,
+      imported: 2,
+      filtered: 6,
+      uncertain: 1
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.handoffNotes = []
+    store.auditEvents = []
+
+    store.createGmailShiftHandoffNote()
+    store.createGmailShiftHandoffNote()
+
+    let notes = store.handoffNotes.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "gmail-shift-handoff"
+    }
+    XCTAssertEqual(notes.count, 1)
+    XCTAssertEqual(notes.first?.title, "Gmail shift handoff")
+    XCTAssertEqual(notes.first?.assignee, "Mailbox team")
+    XCTAssertEqual(notes.first?.dueDate, "Next shift")
+    XCTAssertEqual(notes.first?.status, .open)
+    XCTAssertEqual(notes.first?.reviewState, .needsReview)
+    XCTAssertTrue(notes.first?.notes.contains("Gmail remains explicit, manual, and read-only") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing Gmail shift handoff note refreshed."
+        && (event.afterDetail?.contains("No duplicate handoff note was created.") ?? false)
+    })
+  }
+
+  func testGmailShiftReviewTaskRefreshesExistingOpenTask() {
+    let connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 10,
+      imported: 2,
+      filtered: 6,
+      uncertain: 1
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createGmailShiftReviewTask()
+    store.createGmailShiftReviewTask()
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "gmail-shift-handoff"
+    }
+    XCTAssertEqual(tasks.count, 1)
+    XCTAssertEqual(tasks.first?.title, "Follow up Gmail shift handoff")
+    XCTAssertEqual(tasks.first?.assignee, "Mailbox team")
+    XCTAssertEqual(tasks.first?.status, .open)
+    XCTAssertEqual(tasks.first?.reviewState, .needsReview)
+    XCTAssertTrue(tasks.first?.summary.contains("Gmail remains explicit, manual, and read-only") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing Gmail shift review task refreshed."
+        && (event.afterDetail?.contains("No duplicate task was created.") ?? false)
+    })
+  }
+
   func testSpaceMailHealthSummaryFlagsUncertainReview() {
     let uncertainMessage = SpaceMailUncertainMessage(
       providerMessageID: "spacemail-uncertain-1",

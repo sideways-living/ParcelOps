@@ -859,7 +859,11 @@ struct OperationsWorkbenchView: View {
         SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
         GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
-        GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
+        GmailShiftHandoffCard(
+          summary: store.gmailShiftHandoffSummary,
+          onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
+          onCreateTask: { store.createGmailShiftReviewTask() }
+        )
         Text("Mailbox refresh trends are context for triage across active providers. Imported and uncertain messages can create work; filtered mixed-mailbox messages remain out of Workbench unless promoted from Mailbox Monitor.")
           .font(.caption)
           .foregroundStyle(.secondary)

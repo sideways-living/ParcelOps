@@ -16860,6 +16860,147 @@ final class ParcelOpsStore {
     )
   }
 
+  func createGmailShiftHandoffNote() {
+    let summary = gmailShiftHandoffSummary
+    let detail = gmailShiftHandoffDetail(summary)
+    let handoffID = "gmail-shift-handoff"
+    let priority = gmailHandoffPriority(for: summary.tone)
+
+    if let existingIndex = handoffNotes.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == handoffID
+        && $0.status != .completed
+    }) {
+      let beforeDetail = handoffNotes[existingIndex].auditDetail
+      handoffNotes[existingIndex].title = "Gmail shift handoff"
+      handoffNotes[existingIndex].summary = summary.detail
+      handoffNotes[existingIndex].priority = priority
+      handoffNotes[existingIndex].assignee = "Mailbox team"
+      handoffNotes[existingIndex].dueDate = "Next shift"
+      handoffNotes[existingIndex].reviewState = .needsReview
+      handoffNotes[existingIndex].notes = detail
+      persistHandoffNotes()
+      logAudit(
+        action: .edited,
+        entityType: .handoffNote,
+        entityID: handoffNotes[existingIndex].id.uuidString,
+        entityLabel: handoffNotes[existingIndex].title,
+        summary: "Existing Gmail shift handoff note refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(handoffNotes[existingIndex].auditDetail)\nRefreshed from local Gmail shift summary. No duplicate handoff note was created. No Google sign-in, token request, Gmail API call, mailbox fetch, external service call, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    let note = HandoffNote(
+      title: "Gmail shift handoff",
+      summary: summary.detail,
+      linkedEntityType: .integration,
+      linkedEntityID: handoffID,
+      priority: priority,
+      assignee: "Mailbox team",
+      createdDate: Self.auditTimestamp(),
+      dueDate: "Next shift",
+      status: .open,
+      reviewState: .needsReview,
+      notes: detail
+    )
+
+    handoffNotes.insert(note, at: 0)
+    persistHandoffNotes()
+    logAudit(
+      action: .created,
+      entityType: .handoffNote,
+      entityID: note.id.uuidString,
+      entityLabel: note.title,
+      summary: "Gmail shift handoff note created locally.",
+      afterDetail: "\(detail)\nNo Google sign-in, token request, Gmail API call, mailbox fetch, external service call, or mailbox mutation occurred."
+    )
+  }
+
+  func createGmailShiftReviewTask() {
+    let summary = gmailShiftHandoffSummary
+    let taskID = "gmail-shift-handoff"
+    let priority = gmailHandoffPriority(for: summary.tone)
+    let taskSummary = "\(summary.title): \(summary.detail) \(summary.lastRefreshText)\n\(gmailShiftHandoffDetail(summary))"
+
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == taskID
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = "Follow up Gmail shift handoff"
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = priority
+      reviewTasks[existingIndex].dueDate = priority == .high ? "Today" : priority == .normal ? "Tomorrow" : "This week"
+      reviewTasks[existingIndex].assignee = "Mailbox team"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing Gmail shift review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from local Gmail shift summary. No duplicate task was created. No Google sign-in, token request, Gmail API call, mailbox fetch, external service call, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: "Follow up Gmail shift handoff",
+      summary: taskSummary,
+      linkedEntityType: .integration,
+      linkedEntityID: taskID,
+      priority: priority,
+      dueDate: priority == .high ? "Today" : priority == .normal ? "Tomorrow" : "This week",
+      assignee: "Mailbox team",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+
+    addReviewTask(task, summary: "Review task created from Gmail shift handoff.")
+    logAudit(
+      action: .created,
+      entityType: .gmailMailboxConnection,
+      entityID: taskID,
+      entityLabel: "Gmail shift handoff",
+      summary: "Gmail shift summary review task created locally.",
+      afterDetail: "\(gmailShiftHandoffDetail(summary))\nNo Google sign-in, token request, Gmail API call, mailbox fetch, external service call, or mailbox mutation occurred."
+    )
+  }
+
+  private func gmailHandoffPriority(for tone: String) -> TaskPriority {
+    switch tone {
+    case "warning":
+      return .high
+    case "attention":
+      return .normal
+    case "success":
+      return .low
+    default:
+      return .normal
+    }
+  }
+
+  private func gmailShiftHandoffDetail(_ summary: GmailShiftHandoffSummary) -> String {
+    let metrics = summary.keyCounts.map { "\($0.title): \($0.value)" }.joined(separator: ", ")
+    let lines = summary.handoffLines.map { "- \($0.title): \($0.detail)" }.joined(separator: "\n")
+    return """
+    Handoff status: \(summary.title)
+    Handoff detail: \(summary.detail)
+    Latest refresh note: \(summary.lastRefreshText)
+    Counts: \(metrics)
+    Handoff checks:
+    \(lines)
+    Boundary: Gmail remains explicit, manual, and read-only. This follow-up does not run Google sign-in, request tokens, call Gmail, fetch mailbox messages, import messages, or mutate mailbox messages.
+    """
+  }
+
   private func gmailLatestRefreshTaskNextAction(for connection: GmailMailboxConnection, hasFailure: Bool, uncertainCount: Int, filteredCount: Int) -> String {
     if hasFailure {
       return "Open Mailbox Monitor, inspect the Gmail troubleshooting runbook, then retry sign-in or readiness only after setup is corrected"

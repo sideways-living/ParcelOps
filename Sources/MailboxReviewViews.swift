@@ -630,7 +630,11 @@ struct MailboxView: View {
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
             SpaceMailShiftHandoffCard(summary: store.spaceMailShiftHandoffSummary)
             GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
-            GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
+            GmailShiftHandoffCard(
+              summary: store.gmailShiftHandoffSummary,
+              onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
+              onCreateTask: { store.createGmailShiftReviewTask() }
+            )
             SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
             MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
             MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)

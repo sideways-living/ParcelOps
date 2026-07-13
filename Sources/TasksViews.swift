@@ -1492,7 +1492,11 @@ struct TasksView: View {
         }
 
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
-        GmailShiftHandoffCard(summary: store.gmailShiftHandoffSummary)
+        GmailShiftHandoffCard(
+          summary: store.gmailShiftHandoffSummary,
+          onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
+          onCreateTask: { store.createGmailShiftReviewTask() }
+        )
 
         gmailTaskReadinessPanel
 
