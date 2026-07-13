@@ -2529,6 +2529,44 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(compiledStep?.nextAction.localizedCaseInsensitiveContains("compiled App Info.plist") == true)
   }
 
+  func testRealGmailRefreshStopsBeforeClientWhenCompiledReadinessIsBlocked() async throws {
+    let realClient = RecordingGmailMailboxClient()
+    var connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: nil
+    )
+    connection.googleCloudProjectHint = "ParcelOps Gmail intake"
+    connection.oauthClientIDPlaceholder = "1234567890-abcdef.apps.googleusercontent.com"
+    connection.redirectURIPlaceholder = "com.googleusercontent.apps.1234567890-abcdef"
+    connection.consentScreenNotes = "Internal test consent screen prepared."
+    let store = ParcelOpsStore(
+      repository: InMemoryParcelOpsRepository(),
+      realGmailMailboxClient: realClient
+    )
+    store.gmailMailboxConnections = [connection]
+    store.auditEvents = []
+
+    store.importRealGmailMessages(for: connection)
+    try await Task.sleep(nanoseconds: 200_000_000)
+
+    let updatedConnection = try XCTUnwrap(store.gmailMailboxConnections.first)
+    let realClientCallCount = await realClient.callCount()
+    XCTAssertEqual(realClientCallCount, 0)
+    XCTAssertEqual(updatedConnection.connectionStatus, "Real Gmail: Not configured")
+    XCTAssertEqual(updatedConnection.lastRefreshFetchedCount, 0)
+    XCTAssertEqual(updatedConnection.lastRefreshImportedCount, 0)
+    XCTAssertTrue(updatedConnection.lastRefreshSummary.localizedCaseInsensitiveContains("stopped before token or API access"))
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Real Gmail refresh stopped before API access."
+        && event.afterDetail?.contains("Compiled client ID status") == true
+        && event.afterDetail?.contains("No Google sign-in, token request, Gmail API call") == true
+    })
+  }
+
   func testGmailReleaseSelfCheckStaysBlockedWhenCompiledOAuthConfigurationIsMissing() {
     let mailboxID = UUID()
     var connection = makeGmailConnection(
@@ -5270,5 +5308,31 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
       lastRefreshUncertainCount: uncertain,
       reviewState: .needsReview
     )
+  }
+}
+
+private actor RecordingGmailMailboxClient: GmailMailboxClient {
+  private var fetchCount = 0
+
+  func fetchMessages(for connection: GmailMailboxConnection, sourceMailboxID: UUID) async -> GmailMailboxFetchResult {
+    fetchCount += 1
+    return GmailMailboxFetchResult(
+      status: .success,
+      messages: [
+        FetchedMailboxMessage(
+          providerMessageID: "recording-gmail-\(sourceMailboxID.uuidString)",
+          sender: connection.emailAddress,
+          subject: "Order TEST-CLIENT shipped tracking CLIENT123",
+          receivedDate: "Recording client",
+          plainTextBodyPreview: "Order TEST-CLIENT shipped tracking CLIENT123.",
+          sourceMailboxID: sourceMailboxID
+        )
+      ],
+      detail: "Recording Gmail client was called."
+    )
+  }
+
+  func callCount() -> Int {
+    fetchCount
   }
 }

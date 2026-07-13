@@ -16255,14 +16255,56 @@ final class ParcelOpsStore {
     let mailbox = trackedMailbox(for: connection)
     upsertTrackedMailbox(mailbox)
     let timestamp = Self.auditTimestamp()
+    let readiness = gmailOAuthReadinessSummary(for: connection)
     logAudit(
       action: .evaluated,
       entityType: .gmailMailboxConnection,
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Real Gmail refresh started.",
-      afterDetail: "Labels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nMode: Manual read-only Gmail API refresh. ParcelOps may request an in-memory Google access token from the current GoogleSignIn session, but no token value, authorization header, raw Gmail body, full request URL, or mailbox credential is logged or stored. No Gmail message is deleted, moved, marked read, sent, or modified."
+      afterDetail: "Labels: \(connection.monitoredLabelNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nCompiled app readiness: \(readiness.isReady ? "ready" : "blocked")\nMode: Manual read-only Gmail API refresh. ParcelOps may request an in-memory Google access token from the current GoogleSignIn session only after saved setup values and compiled callback configuration are ready. No token value, authorization header, raw Gmail body, full request URL, or mailbox credential is logged or stored. No Gmail message is deleted, moved, marked read, sent, or modified."
     )
+
+    guard readiness.isReady else {
+      let blockedDetail = "Real Gmail refresh stopped before token or API access because setup/callback readiness is blocked: \(readiness.missingFields.joined(separator: ", ")). Run Check readiness, align Project.json and App/Info.plist with the saved Google iOS client ID and reversed callback scheme, rebuild, then test real Google sign-in before retrying refresh."
+      updateGmailMailboxConnection(connection) { draft in
+        draft.connectionStatus = "Real Gmail: \(GmailMailboxFetchStatus.notConfigured.rawValue)"
+        draft.oauthReadinessStatus = readiness.statusText
+        draft.lastManualRefreshDate = timestamp
+        draft.lastRefreshFetchedCount = 0
+        draft.lastRefreshImportedCount = 0
+        draft.lastRefreshDuplicateCount = 0
+        draft.lastRefreshFilteredNonOrderCount = 0
+        draft.lastRefreshUncertainCount = 0
+        draft.lastRefreshFilteredExamples = []
+        draft.lastRefreshUncertainExamples = []
+        draft.lastRefreshReasonBreakdown = []
+        draft.lastRefreshSummary = "Real Gmail refresh preflight stopped: \(GmailMailboxFetchStatus.notConfigured.rawValue). \(blockedDetail)"
+        appendGmailRefreshHistory(
+          GmailRefreshHistoryEntry(
+            timestamp: timestamp,
+            eventType: "Real refresh preflight",
+            status: GmailMailboxFetchStatus.notConfigured.rawValue,
+            fetchedCount: 0,
+            importedCount: 0,
+            duplicateCount: 0,
+            filteredNonOrderCount: 0,
+            uncertainCount: 0,
+            summary: draft.lastRefreshSummary
+          ),
+          to: &draft
+        )
+      }
+      logAudit(
+        action: .evaluated,
+        entityType: .gmailMailboxConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Real Gmail refresh stopped before API access.",
+        afterDetail: "Status: \(GmailMailboxFetchStatus.notConfigured.rawValue)\nFetched: 0\nImported: 0\nDuplicate skips: 0\nFiltered non-order: 0\nUncertain: 0\nReadiness: \(readiness.statusText)\nMissing or blocked setup: \(readiness.missingFields.joined(separator: ", "))\nCompiled client ID status: \(readiness.compiledClientIDStatus)\nCompiled callback scheme status: \(readiness.compiledCallbackSchemeStatus)\nExpected callback scheme: \(readiness.expectedCallbackScheme)\nDetail: \(blockedDetail)\nNo Google sign-in, token request, Gmail API call, authorization header, raw Gmail body, full request URL, password, client secret, or mailbox credential was accessed, logged, or stored. No Gmail message was deleted, moved, marked read, sent, or modified."
+      )
+      return
+    }
 
     let fetchResult = await realGmailMailboxClient.fetchMessages(for: connection, sourceMailboxID: mailbox.id)
     let filterResult = filteredGmailMessages(fetchResult.messages, for: connection)
