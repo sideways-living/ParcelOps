@@ -381,6 +381,8 @@ struct MailboxView: View {
           showMailboxLink: false
         )
 
+        MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
+
         wishlistOrderWatchPanel
 
         MailboxSpaceMailReadinessPanel(store: store)

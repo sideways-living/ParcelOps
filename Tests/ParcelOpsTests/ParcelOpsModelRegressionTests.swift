@@ -2069,6 +2069,58 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "1")
   }
 
+  func testMailboxProviderSetupChecklistFlagsMissingProvider() {
+    let store = ParcelOpsStore()
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.gmailAuthSessionStates = [:]
+
+    let summary = store.mailboxProviderSetupChecklistSummary
+    let spaceMail = summary.providers.first { $0.providerName == "SpaceMail IMAP" }
+    let gmail = summary.providers.first { $0.providerName == "Gmail" }
+
+    XCTAssertEqual(summary.title, "Provider setup checklist needs review")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Configured" }?.value, "0")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Checks" }?.value, "0/5")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Warnings" }?.value, "2")
+    XCTAssertEqual(spaceMail?.status, "Setup needs attention")
+    XCTAssertEqual(spaceMail?.tone, "warning")
+    XCTAssertEqual(gmail?.status, "Optional, not configured")
+    XCTAssertEqual(gmail?.tone, "neutral")
+  }
+
+  func testMailboxProviderSetupChecklistTreatsSpaceMailRefreshAsUsable() {
+    let store = ParcelOpsStore()
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 1,
+        filtered: 7,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.gmailAuthSessionStates = [:]
+
+    let summary = store.mailboxProviderSetupChecklistSummary
+    let spaceMail = summary.providers.first { $0.providerName == "SpaceMail IMAP" }
+    let gmail = summary.providers.first { $0.providerName == "Gmail" }
+
+    XCTAssertEqual(summary.title, "Provider setup checklist is usable")
+    XCTAssertEqual(summary.tone, "success")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Configured" }?.value, "1")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Checks" }?.value, "5/5")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Warnings" }?.value, "0")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Refresh evidence" }?.value, "Yes")
+    XCTAssertEqual(spaceMail?.status, "Ready for manual read-only refresh")
+    XCTAssertEqual(spaceMail?.tone, "success")
+    XCTAssertTrue(spaceMail?.checks.allSatisfy(\.isComplete) == true)
+    XCTAssertEqual(gmail?.status, "Optional, not configured")
+    XCTAssertEqual(gmail?.tone, "neutral")
+  }
+
   func testMailboxProviderComparisonTreatsQuietSpaceMailRefreshAsReady() {
     let store = ParcelOpsStore()
     store.spaceMailIMAPConnections = [
