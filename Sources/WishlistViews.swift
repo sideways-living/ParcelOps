@@ -4723,6 +4723,9 @@ struct WishlistView: View {
         }
 
         CompactActionRow {
+          Button("Record snapshot", systemImage: "camera.metering.center.weighted") {
+            store.recordWishlistAgentReadinessSnapshot()
+          }
           Button("Create readiness task", systemImage: "checklist") {
             store.createWishlistAgentReadinessReviewTask()
           }

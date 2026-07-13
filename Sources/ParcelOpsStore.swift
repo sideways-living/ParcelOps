@@ -20895,6 +20895,39 @@ final class ParcelOpsStore {
     )
   }
 
+  func recordWishlistAgentReadinessSnapshot() {
+    let summary = wishlistAgentReadinessSummary
+    let readinessLines = summary.items.map { item in
+      "\(item.title): \(item.status) - \(item.detail) Next: \(item.nextAction)"
+    }
+    let afterLines = [
+      "Title: \(summary.title)",
+      "Verdict: \(summary.verdict)",
+      "Detail: \(summary.detail)",
+      "Tone: \(summary.tone)",
+      "Ready briefs: \(summary.readyBriefCount)",
+      "Scope gaps: \(summary.scopeGapCount)",
+      "Seller option gaps: \(summary.sellerOptionGapCount)",
+      "Trust review count: \(summary.trustReviewCount)",
+      "Purchase handoff gaps: \(summary.purchaseHandoffGapCount)",
+      "Order watch gaps: \(summary.orderWatchGapCount)",
+      "Readiness items:"
+    ] + readinessLines + [
+      "Boundary: snapshot only. No web search, browser automation, retailer comparison, currency conversion, postage quote, trust lookup, account login, checkout, purchase, payment, mailbox fetch, order monitoring, or external agent run occurred."
+    ]
+
+    logAudit(
+      action: .evaluated,
+      entityType: .wishlistItem,
+      entityID: "wishlist-agent-readiness",
+      entityLabel: "Wishlist agent readiness",
+      summary: summary.tone == "success"
+        ? "Wishlist agent readiness snapshot recorded with no active blockers."
+        : "Wishlist agent readiness snapshot recorded for operator review.",
+      afterDetail: afterLines.joined(separator: "\n")
+    )
+  }
+
   func runWishlistPurchaseReadinessCheck(_ item: WishlistItem) {
     guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
     let beforeDetail = wishlistItems[index].auditDetail

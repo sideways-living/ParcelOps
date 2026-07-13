@@ -275,6 +275,38 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(orderWatchItem?.detail.contains("No current Wishlist handoff") == true)
   }
 
+  func testWishlistAgentReadinessSnapshotLogsWithoutCreatingWork() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.reviewTasks = []
+    store.draftMessages = []
+    store.auditEvents = []
+
+    let beforeItemIDs = store.wishlistItems.map(\.id)
+
+    store.recordWishlistAgentReadinessSnapshot()
+
+    XCTAssertEqual(store.wishlistItems.map(\.id), beforeItemIDs)
+    XCTAssertTrue(store.reviewTasks.isEmpty)
+    XCTAssertTrue(store.draftMessages.isEmpty)
+    let event = try XCTUnwrap(store.auditEvents.first)
+    XCTAssertEqual(store.auditEvents.count, 1)
+    XCTAssertEqual(event.action, .evaluated)
+    XCTAssertEqual(event.entityType, .wishlistItem)
+    XCTAssertEqual(event.entityID, "wishlist-agent-readiness")
+    XCTAssertEqual(event.summary, "Wishlist agent readiness snapshot recorded for operator review.")
+    XCTAssertTrue(event.afterDetail?.contains("Order watch gaps: 1") == true)
+    XCTAssertTrue(event.afterDetail?.contains("Post-purchase order watch: 1 open") == true)
+    XCTAssertTrue(event.afterDetail?.contains("No web search, browser automation, retailer comparison") == true)
+  }
+
   func testWishlistOrderWatchMatchesExistingLocalOrder() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     let item = makeReadyWishlistItem(
