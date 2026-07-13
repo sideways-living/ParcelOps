@@ -342,6 +342,7 @@ struct InboxView: View {
         mailboxProviderNextStepPanel
         mailboxProviderReleaseGatePanel
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
         SpaceMailPrimaryStatusStrip(store: store)
         SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
@@ -2905,6 +2906,7 @@ struct DispatchView: View {
         header
         dispatchSummaryPanel
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
         dispatchReadinessLadderPanel
         inboxDispatchSetupPanel
         dispatchQueuePanel

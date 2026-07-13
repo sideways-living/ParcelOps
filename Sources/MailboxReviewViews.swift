@@ -3376,8 +3376,15 @@ struct NeedsReviewView: View {
   private var gmailReleaseNeedsReview: Bool {
     gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0
   }
+  private var mailboxProviderTroubleshootingNeedsReview: Bool {
+    let tone = store.mailboxProviderTroubleshootingSummary.tone
+    return tone == "warning" || tone == "attention"
+  }
   private var mailboxProviderNeedsReview: Bool {
-    store.mailboxProviderReleaseGateSummary.tone != "success" || store.mailboxProviderHandoffPacketSummary.tone != "success" || gmailReleaseNeedsReview
+    store.mailboxProviderReleaseGateSummary.tone != "success"
+      || store.mailboxProviderHandoffPacketSummary.tone != "success"
+      || mailboxProviderTroubleshootingNeedsReview
+      || gmailReleaseNeedsReview
   }
 
   private var visiblePrimaryReviewSectionCount: Int {
@@ -3526,6 +3533,7 @@ struct NeedsReviewView: View {
 
               MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
               MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+              MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
               GmailReleaseBoundaryPanel(
                 store: store,
                 title: "Gmail Needs Review boundary",

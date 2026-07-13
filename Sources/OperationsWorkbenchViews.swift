@@ -850,6 +850,7 @@ struct OperationsWorkbenchView: View {
         releaseCandidateBlockersPanel
         MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
         operatorSummary
         resolutionLadderPanel
         SpaceMailPrimaryStatusStrip(store: store)

@@ -1223,6 +1223,7 @@ struct DashboardView: View {
         OperatorHandoffBriefCard(store: store, detail: "Current handoff notes for the next operator or test session.")
         MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
         OperatorMVPReadinessCard(store: store)
         LocalDataHygieneSummaryCard(
           store: store,

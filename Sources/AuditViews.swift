@@ -666,6 +666,7 @@ struct AuditView: View {
       VStack(alignment: .leading, spacing: 12) {
         MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: nil)
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store, showAuditLink: false)
+        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
 
         gmailAuditReadinessPanel
 
