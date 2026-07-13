@@ -1592,6 +1592,12 @@ final class ParcelOpsStore {
     let linkedOrderCount = Set(intakeEmails.compactMap(\.linkedOrderID)).count
     let inboxCreatedOrderCount = orders.filter(\.isInboxCreatedLocalOrder).count
     let openTaskHandoffCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let releaseGateTasks = reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "mailbox-provider-release-gate"
+    }
+    let openReleaseGateTaskCount = releaseGateTasks.filter { $0.status != .completed }.count
+    let completedReleaseGateTaskCount = releaseGateTasks.filter { $0.status == .completed }.count
     let refreshEvidenceCount = timeline.entries.count
     let fetchedCount = spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
       + gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
@@ -1712,6 +1718,17 @@ final class ParcelOpsStore {
         isPassed: releaseIncompleteCount == 0 || releasePlan.tone != "warning",
         tone: releaseIncompleteCount == 0 ? "success" : releasePlan.tone,
         symbol: "checkmark.seal.fill"
+      ),
+      MailboxProviderReleaseGateItem(
+        title: "Release validation checkpoint recorded",
+        requirement: "Before release-candidate use, capture the current mailbox provider gate as a local review task.",
+        evidence: "\(releaseGateTasks.count) release gate task\(releaseGateTasks.count == 1 ? "" : "s") recorded, \(openReleaseGateTaskCount) open, \(completedReleaseGateTaskCount) completed.",
+        nextAction: releaseGateTasks.isEmpty
+          ? "Create a review task from the mailbox provider release gate before the next hands-on test pass."
+          : "Keep the release gate task current if provider setup or refresh evidence changes.",
+        isPassed: !releaseGateTasks.isEmpty,
+        tone: releaseGateTasks.isEmpty ? "attention" : "success",
+        symbol: "checkmark.seal"
       )
     ]
 
@@ -1775,7 +1792,8 @@ final class ParcelOpsStore {
         SpaceMailReleaseSnapshotMetric(title: "Warnings", value: "\(warningCount)", tone: warningCount == 0 ? "success" : "warning"),
         SpaceMailReleaseSnapshotMetric(title: "Review", value: "\(attentionCount)", tone: attentionCount == 0 ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: fetchedCount > 0 ? "success" : "neutral"),
-        SpaceMailReleaseSnapshotMetric(title: "Orders", value: "\(linkedOrderCount + inboxCreatedOrderCount)", tone: linkedOrderCount + inboxCreatedOrderCount > 0 ? "success" : "neutral")
+        SpaceMailReleaseSnapshotMetric(title: "Orders", value: "\(linkedOrderCount + inboxCreatedOrderCount)", tone: linkedOrderCount + inboxCreatedOrderCount > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Checkpoint", value: releaseGateTasks.isEmpty ? "Needed" : "Recorded", tone: releaseGateTasks.isEmpty ? "attention" : "success")
       ],
       gates: gates
     )

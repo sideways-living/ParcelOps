@@ -2673,7 +2673,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.title, "Provider setup checklist needs review")
     XCTAssertEqual(summary.tone, "warning")
     XCTAssertEqual(summary.metrics.first { $0.title == "Configured" }?.value, "1")
-    XCTAssertEqual(summary.metrics.first { $0.title == "Checks" }?.value, "2/5")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Checks" }?.value, "3/5")
     XCTAssertEqual(summary.metrics.first { $0.title == "Warnings" }?.value, "1")
     XCTAssertEqual(summary.metrics.first { $0.title == "Refresh evidence" }?.value, "No")
     XCTAssertEqual(spaceMail?.status, "Optional, not configured")
@@ -3162,6 +3162,45 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(setupGate?.evidence.contains("Optional providers not configured: Gmail") == true)
     XCTAssertEqual(setupGate?.nextAction, "Keep the active provider path current; configure optional providers only when needed.")
     XCTAssertTrue(gate.reportText.contains("Optional providers not configured: Gmail"))
+  }
+
+  func testMailboxProviderReleaseGateRequiresLocalCheckpointTask() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 0,
+        filtered: 10,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+    store.reviewTasks = []
+
+    let initialGate = store.mailboxProviderReleaseGateSummary
+    let checkpointGate = initialGate.gates.first { $0.title == "Release validation checkpoint recorded" }
+
+    XCTAssertEqual(checkpointGate?.isPassed, false)
+    XCTAssertEqual(checkpointGate?.tone, "attention")
+    XCTAssertEqual(initialGate.metrics.first { $0.title == "Checkpoint" }?.value, "Needed")
+    XCTAssertTrue(initialGate.reportText.contains("Release validation checkpoint recorded"))
+
+    store.createReviewTaskFromMailboxProviderReleaseGate()
+
+    let refreshedGate = store.mailboxProviderReleaseGateSummary
+    let refreshedCheckpointGate = refreshedGate.gates.first { $0.title == "Release validation checkpoint recorded" }
+
+    XCTAssertEqual(refreshedCheckpointGate?.isPassed, true)
+    XCTAssertEqual(refreshedCheckpointGate?.tone, "success")
+    XCTAssertEqual(refreshedGate.metrics.first { $0.title == "Checkpoint" }?.value, "Recorded")
+    XCTAssertTrue(store.reviewTasks.contains {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "mailbox-provider-release-gate"
+    })
   }
 
   func testLocalDataHygieneSnapshotLogsWithoutMutatingOperationalRecords() {
