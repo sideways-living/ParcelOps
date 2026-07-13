@@ -1563,6 +1563,13 @@ final class ParcelOpsStore {
     let releasePlan = mailboxReleaseTestPlanSummary
     let timeline = mailboxRunTimelineSummary
     let providerCount = spaceMailIMAPConnections.count + gmailMailboxConnections.count
+    let optionalProviderNames = setup.providers
+      .filter { provider in
+        provider.tone == "neutral"
+          && provider.checks.allSatisfy { $0.tone == "neutral" || $0.isComplete }
+      }
+      .map(\.providerName)
+    let optionalProviderText = optionalProviderNames.isEmpty ? "none" : optionalProviderNames.joined(separator: ", ")
     let setupIncompleteCount = setup.providers.reduce(0) { total, provider in
       total + provider.checks.filter { !$0.isComplete && provider.tone != "neutral" && $0.tone != "neutral" }.count
     }
@@ -1605,8 +1612,10 @@ final class ParcelOpsStore {
       MailboxProviderReleaseGateItem(
         title: "Setup checklist complete enough",
         requirement: "Provider setup checks should not have unresolved warning blockers.",
-        evidence: "\(setupIncompleteCount) incomplete setup check\(setupIncompleteCount == 1 ? "" : "s").",
-        nextAction: "Use the provider setup checklist and fix missing credential/OAuth/readiness values.",
+        evidence: "\(setupIncompleteCount) incomplete required setup check\(setupIncompleteCount == 1 ? "" : "s"). Optional providers not configured: \(optionalProviderText).",
+        nextAction: setupIncompleteCount == 0
+          ? "Keep the active provider path current; configure optional providers only when needed."
+          : "Use the provider setup checklist and fix missing credential/OAuth/readiness values.",
         isPassed: setupIncompleteCount == 0,
         tone: setupIncompleteCount == 0 ? "success" : setupWarningCount == 0 ? "attention" : "warning",
         symbol: "checklist.checked"
@@ -1721,6 +1730,7 @@ final class ParcelOpsStore {
       "Verdict: \(verdict)",
       "Generated: \(generatedDate)",
       "Provider path: \(comparison.recommendedProvider)",
+      "Optional providers not configured: \(optionalProviderText)",
       ""
     ] + gates.map { gate in
       "\(gate.isPassed ? "PASS" : "OPEN") - \(gate.title)\nRequirement: \(gate.requirement)\nEvidence: \(gate.evidence)\nNext: \(gate.nextAction)"

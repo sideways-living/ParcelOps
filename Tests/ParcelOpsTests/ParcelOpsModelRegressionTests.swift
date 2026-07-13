@@ -2641,7 +2641,10 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertFalse(queue.items.contains { $0.providerName == "Gmail" && $0.phase == "Setup" })
     XCTAssertEqual(setupGate?.isPassed, true)
     XCTAssertEqual(setupGate?.tone, "success")
-    XCTAssertTrue(setupGate?.evidence.contains("0 incomplete setup checks") == true)
+    XCTAssertTrue(setupGate?.evidence.contains("0 incomplete required setup checks") == true)
+    XCTAssertTrue(setupGate?.evidence.contains("Optional providers not configured: Gmail") == true)
+    XCTAssertEqual(setupGate?.nextAction, "Keep the active provider path current; configure optional providers only when needed.")
+    XCTAssertTrue(gate.reportText.contains("Optional providers not configured: Gmail"))
   }
 
   func testMailboxProviderHandoffPacketPromotesQueueAndBoundaries() {
