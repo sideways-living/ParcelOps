@@ -20946,7 +20946,7 @@ final class ParcelOpsStore {
     let beforeDetail = wishlistItems[index].auditDetail
     let checkedItem = wishlistItems[index]
     let options = checkedItem.comparisonOptions ?? []
-    let preferredOption = options.first { $0.id == checkedItem.preferredOptionID }
+    let preferredOption = selectedWishlistSellerOption(for: checkedItem)
     var checks: [WishlistPurchaseCheck] = []
 
     checks.append(wishlistCheck(
@@ -20962,10 +20962,10 @@ final class ParcelOpsStore {
       passDetail: "\(options.count) seller option\(options.count == 1 ? "" : "s") available for review."
     ))
     checks.append(wishlistCheck(
-      title: "Preferred seller",
+      title: "Selected seller",
       passed: preferredOption != nil,
-      failDetail: "Select a preferred seller option before marking ready to buy.",
-      passDetail: preferredOption.map { "Preferred seller is \($0.sellerName)." } ?? "Preferred seller selected."
+      failDetail: "Select or score a seller option before marking ready to buy.",
+      passDetail: preferredOption.map { checkedItem.preferredOptionID == $0.id ? "Preferred seller is \($0.sellerName)." : "Best scored seller fallback is \($0.sellerName)." } ?? "Seller selected."
     ))
 
     if let preferredOption {
@@ -20994,9 +20994,9 @@ final class ParcelOpsStore {
         passDetail: "AUD total is recorded as \(preferredOption.estimatedAUDTotal)."
       ))
     } else {
-      checks.append(WishlistPurchaseCheck(title: "Seller trust", status: "Blocked", detail: "Select and score a preferred seller before assessing trust.", severity: "High"))
-      checks.append(WishlistPurchaseCheck(title: "Postage and delivery", status: "Blocked", detail: "Select a preferred seller before checking postage and delivery time.", severity: "High"))
-      checks.append(WishlistPurchaseCheck(title: "AUD landed cost", status: "Blocked", detail: "Select a preferred seller before checking landed cost.", severity: "High"))
+      checks.append(WishlistPurchaseCheck(title: "Seller trust", status: "Blocked", detail: "Select or score a seller before assessing trust.", severity: "High"))
+      checks.append(WishlistPurchaseCheck(title: "Postage and delivery", status: "Blocked", detail: "Select or score a seller before checking postage and delivery time.", severity: "High"))
+      checks.append(WishlistPurchaseCheck(title: "AUD landed cost", status: "Blocked", detail: "Select or score a seller before checking landed cost.", severity: "High"))
     }
 
     checks.append(wishlistCheck(
@@ -21033,7 +21033,7 @@ final class ParcelOpsStore {
       let checks = item.purchaseChecks ?? []
       return isActiveWishlistItem(item)
         && !options.isEmpty
-        && item.preferredOptionID != nil
+        && selectedWishlistSellerOption(for: item) != nil
         && !options.contains { !$0.operatorSellerEvidenceGaps.isEmpty }
         && (checks.isEmpty || checks.contains { $0.status != "Passed" })
     }
@@ -21270,9 +21270,7 @@ final class ParcelOpsStore {
       }
       return firstScore > secondScore
     }
-    let selectedOption = refreshed.preferredOptionID.flatMap { preferredID in
-      options.first { $0.id == preferredID }
-    } ?? options.first
+    let selectedOption = selectedWishlistSellerOption(for: refreshed)
     let sellerQuotes = wishlistSellerQuotes(for: refreshed)
     let trustRecords = wishlistSellerTrustRecords.filter { record in
       record.wishlistItemID == refreshed.id
@@ -21505,8 +21503,7 @@ final class ParcelOpsStore {
     if let decisionTotal = item.purchaseDecision?.totalAUDSummary.trimmingCharacters(in: .whitespacesAndNewlines), !decisionTotal.isEmpty {
       return decisionTotal
     }
-    if let preferredOptionID = item.preferredOptionID,
-       let preferredOption = item.comparisonOptions?.first(where: { $0.id == preferredOptionID }) {
+    if let preferredOption = selectedWishlistSellerOption(for: item) {
       let preferredTotal = preferredOption.estimatedAUDTotal.trimmingCharacters(in: .whitespacesAndNewlines)
       if !preferredTotal.isEmpty {
         return preferredTotal
@@ -21517,11 +21514,12 @@ final class ParcelOpsStore {
 
   func createWishlistPurchaseCostRecord(_ item: WishlistItem) {
     guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
-    let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? item.storefront
+    let selectedOption = selectedWishlistSellerOption(for: item)
+    let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? selectedOption?.sellerName ?? item.storefront
     let account = suggestedAccounts(for: item).first
     let amountText = wishlistPurchaseAmountText(for: item)
-    let postage = item.purchaseDecision?.postageSummary ?? item.comparisonOptions?.first(where: { $0.id == item.preferredOptionID })?.postageCost ?? "Postage to confirm"
-    let trust = item.purchaseDecision?.trustSummary ?? item.comparisonOptions?.first(where: { $0.id == item.preferredOptionID })?.trustRating ?? "Seller trust to confirm"
+    let postage = item.purchaseDecision?.postageSummary ?? selectedOption.map { "\($0.postageCost), \($0.postageTime)" } ?? "Postage to confirm"
+    let trust = item.purchaseDecision?.trustSummary ?? selectedOption?.trustRating ?? "Seller trust to confirm"
     let cost = CostRecord(
       title: "Wishlist purchase cost: \(item.itemName)",
       linkedEntityType: .wishlistItem,
@@ -21561,7 +21559,7 @@ final class ParcelOpsStore {
 
   func createWishlistProcurementRequest(_ item: WishlistItem) {
     guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
-    let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? item.storefront
+    let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? selectedWishlistSellerOption(for: item)?.sellerName ?? item.storefront
     let cost = suggestedCostRecords(for: item).first
     let account = suggestedAccounts(for: item).first
     let amountText = cost?.amountText ?? wishlistPurchaseAmountText(for: item)
@@ -21972,7 +21970,7 @@ final class ParcelOpsStore {
     guard let index = wishlistItems.firstIndex(where: { $0.id == item.id }) else { return }
     let beforeDetail = wishlistItems[index].auditDetail
     let current = wishlistItems[index]
-    let preferredOption = (current.comparisonOptions ?? []).first { $0.id == current.preferredOptionID }
+    let preferredOption = selectedWishlistSellerOption(for: current)
     let sellerName = preferredOption?.sellerName ?? current.storefront
     wishlistItems[index].purchaseHandoff = WishlistPurchaseHandoff(
       sellerName: sellerName,
@@ -22004,9 +22002,7 @@ final class ParcelOpsStore {
   func createWishlistPurchaseHandoffReviewTask(_ item: WishlistItem) {
     let handoff = item.purchaseHandoff
     let decision = item.purchaseDecision
-    let preferredOption = item.preferredOptionID.flatMap { optionID in
-      item.comparisonOptions?.first { $0.id == optionID }
-    }
+    let preferredOption = selectedWishlistSellerOption(for: item)
     let seller = handoff?.sellerName ?? decision?.selectedSellerName ?? preferredOption?.sellerName ?? item.storefront
     let account = handoff?.accountLabel ?? "\(item.owner) account to confirm"
     let expectedSignals = handoff?.expectedOrderSignals ?? [seller, item.itemName, preferredOption?.productURL ?? item.storefrontURL]

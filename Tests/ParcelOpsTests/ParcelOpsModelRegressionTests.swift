@@ -960,6 +960,50 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(updatedItem.purchaseHandoff?.purchaseStatus, "Purchased externally, awaiting order confirmation")
   }
 
+  func testWishlistPurchaseHandoffFallsBackToBestScoredSellerWhenNoPreferenceIsSet() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    var item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let riskyFirstOption = WishlistComparisonOption(
+      sellerName: "First cheap risky seller",
+      productURL: "https://risk-first.example/scanner",
+      listedPrice: "18.00",
+      currency: "USD",
+      estimatedAUDTotal: "AUD 39 delivered",
+      postageCost: "AUD 0",
+      postageTime: "21-45 business days",
+      sellerRegion: "Overseas",
+      trustRating: "Unknown",
+      trustNotes: "No returns or warranty evidence.",
+      recommendation: "Do not prefer without review",
+      lastChecked: "Today",
+      localScore: 20,
+      riskLevel: "High risk",
+      decisionReason: "Cheap but poor trust evidence."
+    )
+    let trustedOption = try XCTUnwrap(item.comparisonOptions?.first)
+    item.comparisonOptions = [riskyFirstOption, trustedOption]
+    item.preferredOptionID = nil
+    item.purchaseHandoff = nil
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.wishlistOrderWatchRecords = []
+
+    store.prepareWishlistPurchaseHandoff(item)
+
+    let handoff = try XCTUnwrap(store.wishlistItems.first?.purchaseHandoff)
+    let watchRecord = try XCTUnwrap(store.wishlistOrderWatchRecords.first)
+
+    XCTAssertEqual(handoff.sellerName, "Known Australian retailer")
+    XCTAssertTrue(handoff.expectedOrderSignals.contains(trustedOption.productURL))
+    XCTAssertFalse(handoff.expectedOrderSignals.localizedCaseInsensitiveContains("risk-first"))
+    XCTAssertTrue(watchRecord.expectedOrderSignals.contains("Known Australian retailer"))
+  }
+
   func testWishlistPurchasePacketDraftCreatesLocalOperatorPacket() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     var item = makeReadyWishlistItem(
@@ -988,6 +1032,51 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(draft.body.contains("Known Australian retailer"))
     XCTAssertTrue(draft.body.contains("ParcelOps did not open retailer pages"))
     XCTAssertNotNil(updatedItem.purchaseDecision)
+  }
+
+  func testWishlistPurchasePacketDraftFallsBackToBestScoredSellerWhenNoPreferenceIsSet() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    var item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let riskyFirstOption = WishlistComparisonOption(
+      sellerName: "First cheap risky seller",
+      productURL: "https://risk-first.example/scanner",
+      listedPrice: "18.00",
+      currency: "USD",
+      estimatedAUDTotal: "AUD 39 delivered",
+      postageCost: "AUD 0",
+      postageTime: "21-45 business days",
+      sellerRegion: "Overseas",
+      trustRating: "Unknown",
+      trustNotes: "No returns or warranty evidence.",
+      recommendation: "Do not prefer without review",
+      lastChecked: "Today",
+      localScore: 20,
+      riskLevel: "High risk",
+      decisionReason: "Cheap but poor trust evidence."
+    )
+    let trustedOption = try XCTUnwrap(item.comparisonOptions?.first)
+    item.comparisonOptions = [riskyFirstOption, trustedOption]
+    item.preferredOptionID = nil
+    item.purchaseDecision = nil
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.draftMessages = []
+
+    store.createWishlistPurchasePacketDraft(item)
+
+    let draft = try XCTUnwrap(store.draftMessages.first)
+    let decision = try XCTUnwrap(store.wishlistItems.first?.purchaseDecision)
+
+    XCTAssertEqual(decision.selectedSellerName, "Known Australian retailer")
+    XCTAssertTrue(draft.body.contains("Selected seller:\nKnown Australian retailer"))
+    XCTAssertTrue(draft.body.contains(trustedOption.productURL))
+    XCTAssertTrue(draft.body.contains("First cheap risky seller"))
+    XCTAssertFalse(draft.body.contains("Selected seller:\nFirst cheap risky seller"))
   }
 
   func testWishlistPurchasePacketDraftReopensExistingPacketInsteadOfDuplicating() throws {
