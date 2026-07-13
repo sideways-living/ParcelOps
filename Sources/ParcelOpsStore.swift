@@ -17251,20 +17251,105 @@ final class ParcelOpsStore {
   }
 
   func createDraftMessage(from uncertainMessage: SpaceMailUncertainMessage, connection: SpaceMailIMAPConnection) {
-    createDraftMessage(
-      linkedEntityType: .integration,
-      linkedEntityID: connection.id.uuidString,
-      label: uncertainMessage.subject.isEmpty ? connection.displayName : uncertainMessage.subject,
-      recipient: uncertainMessage.sender.isEmpty ? "operations@parcelops.example" : uncertainMessage.sender
+    createSpaceMailPreviewDraft(
+      providerMessageID: uncertainMessage.providerMessageID,
+      connection: connection,
+      title: uncertainMessage.subject,
+      sender: uncertainMessage.sender,
+      reason: uncertainMessage.reason,
+      queueLabel: "uncertain"
     )
   }
 
   func createDraftMessage(from filteredMessage: SpaceMailFilteredMessage, connection: SpaceMailIMAPConnection) {
-    createDraftMessage(
+    createSpaceMailPreviewDraft(
+      providerMessageID: filteredMessage.providerMessageID,
+      connection: connection,
+      title: filteredMessage.subject,
+      sender: filteredMessage.sender,
+      reason: filteredMessage.reason,
+      queueLabel: "filtered"
+    )
+  }
+
+  private func createSpaceMailPreviewDraft(
+    providerMessageID: String,
+    connection: SpaceMailIMAPConnection,
+    title: String,
+    sender: String,
+    reason: String,
+    queueLabel: String
+  ) {
+    let label = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? connection.displayName : title
+    let recipient = sender.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "operations@parcelops.example" : sender
+    let selectedTemplate = communicationTemplates.first { $0.linkedEntityType == .integration && $0.isEnabled } ?? communicationTemplates.first
+    let subject = selectedTemplate?.subjectTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "ParcelOps update for \(label)"
+    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "Please review the local ParcelOps record \(label)."
+    let body = [
+      baseBody,
+      "",
+      "SpaceMail preview: \(queueLabel)",
+      "Reason: \(reason)",
+      "Provider message ID: \(providerMessageID)",
+      "Boundary: Created from stored safe preview only. No IMAP connection, Keychain read, mailbox fetch, full message body logging, external service call, or mailbox mutation occurred."
+    ].joined(separator: "\n")
+
+    if let existingIndex = draftMessages.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == connection.id.uuidString
+        && $0.body.localizedCaseInsensitiveContains(providerMessageID)
+        && $0.status != .sentLocally
+    }) {
+      let beforeDetail = draftMessages[existingIndex].auditDetail
+      draftMessages[existingIndex].recipient = recipient
+      draftMessages[existingIndex].subject = subject
+      draftMessages[existingIndex].body = body
+      draftMessages[existingIndex].channel = selectedTemplate?.channel ?? .email
+      draftMessages[existingIndex].reviewState = .needsReview
+      if draftMessages[existingIndex].status == .ready {
+        draftMessages[existingIndex].status = .reopened
+      }
+      persistDraftMessages()
+      logAudit(
+        action: .edited,
+        entityType: .draftMessage,
+        entityID: draftMessages[existingIndex].id.uuidString,
+        entityLabel: draftMessages[existingIndex].subject,
+        summary: "Existing SpaceMail preview draft refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(draftMessages[existingIndex].auditDetail)\nProvider message ID: \(providerMessageID). Refreshed from stored SpaceMail preview only. No duplicate draft was created. No IMAP connection, Keychain read, mailbox fetch, full message body logging, external service call, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    let draft = DraftMessage(
       linkedEntityType: .integration,
       linkedEntityID: connection.id.uuidString,
-      label: filteredMessage.subject.isEmpty ? connection.displayName : filteredMessage.subject,
-      recipient: filteredMessage.sender.isEmpty ? "operations@parcelops.example" : filteredMessage.sender
+      templateID: selectedTemplate?.id,
+      recipient: recipient,
+      subject: subject,
+      body: body,
+      channel: selectedTemplate?.channel ?? .email,
+      createdDate: Self.auditTimestamp(),
+      status: .draft,
+      reviewState: .needsReview
+    )
+    draftMessages.insert(draft, at: 0)
+    persistDraftMessages()
+
+    if let selectedTemplate, let index = communicationTemplates.firstIndex(where: { $0.id == selectedTemplate.id }) {
+      communicationTemplates[index].lastUsedDate = Self.auditTimestamp()
+      communicationTemplates[index].usageCount += 1
+      persistCommunicationTemplates()
+    }
+
+    logAudit(
+      action: .created,
+      entityType: .draftMessage,
+      entityID: draft.id.uuidString,
+      entityLabel: draft.subject,
+      summary: "Draft message created from SpaceMail preview.",
+      afterDetail: "\(draft.auditDetail)\nProvider message ID: \(providerMessageID). Created from stored SpaceMail preview only. No IMAP connection, Keychain read, mailbox fetch, full message body logging, external service call, or mailbox mutation occurred."
     )
   }
 

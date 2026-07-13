@@ -3364,6 +3364,92 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(store.auditEvents.contains { $0.summary == "Review task created from integration." })
   }
 
+  func testSpaceMailUncertainPreviewDraftRefreshesExistingUnsentProviderMessageDraft() {
+    let mailboxID = UUID()
+    let message = SpaceMailUncertainMessage(
+      providerMessageID: "spacemail-preview-draft-1",
+      sourceMailboxID: mailboxID,
+      sender: "sender@example.test",
+      subject: "Delivery question",
+      receivedDate: "Today",
+      bodyPreview: "Can you check whether this relates to an order?",
+      reason: "delivery-ish no id",
+      capturedDate: "Today"
+    )
+    let connection = makeSpaceMailConnection(
+      id: mailboxID,
+      credentialStorageStatus: "Password reference available",
+      fetched: 10,
+      imported: 0,
+      filtered: 9,
+      uncertain: 1,
+      uncertainMessages: [message]
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.draftMessages = []
+    store.auditEvents = []
+
+    store.createDraftMessage(from: message, connection: connection)
+    store.draftMessages[0].status = .ready
+    store.createDraftMessage(from: message, connection: connection)
+
+    let drafts = store.draftMessages.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.body.contains(message.providerMessageID)
+    }
+    XCTAssertEqual(drafts.count, 1)
+    XCTAssertEqual(drafts.first?.recipient, "sender@example.test")
+    XCTAssertEqual(drafts.first?.status, .reopened)
+    XCTAssertTrue(drafts.first?.body.contains("SpaceMail preview: uncertain") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing SpaceMail preview draft refreshed."
+        && (event.afterDetail?.contains("No duplicate draft was created.") ?? false)
+    })
+  }
+
+  func testSpaceMailFilteredPreviewDraftCreatesNewDraftAfterSentLocally() {
+    let mailboxID = UUID()
+    let message = SpaceMailFilteredMessage(
+      providerMessageID: "spacemail-filtered-draft-sent",
+      sourceMailboxID: mailboxID,
+      sender: "offers@example.test",
+      subject: "Final days",
+      receivedDate: "Today",
+      bodyPreview: "Marketing promotion that was filtered from mixed mailbox intake.",
+      reason: "marketing",
+      capturedDate: "Today"
+    )
+    let connection = makeSpaceMailConnection(
+      id: mailboxID,
+      credentialStorageStatus: "Password reference available",
+      fetched: 10,
+      imported: 0,
+      filtered: 10,
+      uncertain: 0
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [connection]
+    store.draftMessages = []
+    store.auditEvents = []
+
+    store.createDraftMessage(from: message, connection: connection)
+    store.draftMessages[0].status = .sentLocally
+    store.createDraftMessage(from: message, connection: connection)
+
+    let drafts = store.draftMessages.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.body.contains(message.providerMessageID)
+    }
+    XCTAssertEqual(drafts.count, 2)
+    XCTAssertEqual(drafts.filter { $0.status == .sentLocally }.count, 1)
+    XCTAssertEqual(drafts.filter { $0.status == .draft }.count, 1)
+    XCTAssertTrue(drafts.allSatisfy { $0.body.contains("SpaceMail preview: filtered") })
+    XCTAssertEqual(store.auditEvents.filter { $0.summary == "Draft message created from SpaceMail preview." }.count, 2)
+  }
+
   private func makeOrder(
     orderNumber: String,
     trackingNumber: String,
