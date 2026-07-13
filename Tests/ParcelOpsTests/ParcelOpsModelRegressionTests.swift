@@ -1906,7 +1906,6 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     ]
     store.mailboxIngestRecords = []
     store.intakeEmails = []
-    store.intakeParserDiagnostics = []
 
     let plan = store.gmailPostRefreshActionPlan
 
@@ -1916,6 +1915,63 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(plan.items.first { $0.title == "Create or link orders" }?.count, 0)
     XCTAssertEqual(plan.items.first { $0.title == "Review uncertain messages" }?.count, 0)
     XCTAssertEqual(plan.items.first { $0.title == "Check filtered examples" }?.count, 0)
+  }
+
+  func testGmailClassifierSuiteKeepsMixedMailboxDecisionsConservative() throws {
+    var connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: 0
+    )
+    connection.mailboxMode = .mixedFiltered
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.auditEvents = []
+
+    store.runGmailClassifierTestSuite(for: connection)
+
+    let updatedConnection = try XCTUnwrap(store.gmailMailboxConnections.first)
+    let results = try XCTUnwrap(updatedConnection.classifierTestResults)
+    XCTAssertEqual(results.count, 4)
+    XCTAssertEqual(results.first { $0.sampleName == "Clear shipped order" }?.decision, "Imported")
+    XCTAssertEqual(results.first { $0.sampleName == "Ambiguous delivery question" }?.decision, "Uncertain")
+    XCTAssertEqual(results.first { $0.sampleName == "Marketing offer" }?.decision, "Filtered")
+    XCTAssertEqual(results.first { $0.sampleName == "Security notification" }?.decision, "Filtered")
+    XCTAssertTrue(results.allSatisfy { $0.decisionStatus.localizedCaseInsensitiveContains("passed") })
+    XCTAssertEqual(updatedConnection.classifierTestSummary, "Gmail classifier suite: 4/4 local expectations passed. No Gmail API call, OAuth flow, token request, mailbox fetch, or Inbox import occurred.")
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Gmail classifier test suite ran locally." })
+  }
+
+  func testGmailAmbiguousClassifierAddsUncertainPreviewWithoutInboxImport() throws {
+    var connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: 0
+    )
+    connection.mailboxMode = .mixedFiltered
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.auditEvents = []
+
+    store.testGmailAmbiguousClassifier(for: connection)
+
+    let updatedConnection = try XCTUnwrap(store.gmailMailboxConnections.first)
+    let uncertainMessages = try XCTUnwrap(updatedConnection.uncertainMessages)
+    XCTAssertEqual(uncertainMessages.count, 1)
+    XCTAssertEqual(uncertainMessages.first?.subject, "Delivery question")
+    XCTAssertTrue(uncertainMessages.first?.reason.localizedCaseInsensitiveContains("order") == true)
+    XCTAssertEqual(updatedConnection.lastRefreshUncertainCount, 1)
+    XCTAssertTrue(store.intakeEmails.isEmpty)
+    XCTAssertTrue(store.mailboxIngestRecords.isEmpty)
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Gmail classifier sample tested locally." })
   }
 
   func testGmailHealthSummaryFlagsSetupBlockers() {
