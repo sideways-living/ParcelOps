@@ -3217,6 +3217,51 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(completedGate.metrics.first { $0.title == "Checkpoint" }?.value, "Needed")
   }
 
+  func testSpaceMailReleaseSnapshotRequiresOpenReleaseTask() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 0,
+        filtered: 10,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+    store.reviewTasks = []
+
+    let initialSnapshot = store.spaceMailReleaseSnapshot
+    XCTAssertTrue(initialSnapshot.reportText.contains("Release task gate: open task needed"))
+    XCTAssertTrue(initialSnapshot.reportText.contains("Open SpaceMail release snapshot tasks: 0"))
+    XCTAssertEqual(initialSnapshot.metrics.first { $0.title == "Release task" }?.value, "0")
+    XCTAssertEqual(initialSnapshot.metrics.first { $0.title == "Release task" }?.tone, "attention")
+
+    store.createReviewTaskFromSpaceMailReleaseSnapshot()
+
+    let openTaskSnapshot = store.spaceMailReleaseSnapshot
+    XCTAssertTrue(openTaskSnapshot.reportText.contains("Release task gate: open task present"))
+    XCTAssertTrue(openTaskSnapshot.reportText.contains("Open SpaceMail release snapshot tasks: 1"))
+    XCTAssertEqual(openTaskSnapshot.metrics.first { $0.title == "Release task" }?.value, "1")
+    XCTAssertEqual(openTaskSnapshot.metrics.first { $0.title == "Release task" }?.tone, "success")
+
+    if let task = store.reviewTasks.first(where: {
+      $0.linkedEntityType == .integration &&
+        $0.linkedEntityID == "spacemail-release-snapshot"
+    }) {
+      store.completeReviewTask(task)
+    }
+
+    let completedTaskSnapshot = store.spaceMailReleaseSnapshot
+    XCTAssertTrue(completedTaskSnapshot.reportText.contains("Release task gate: open task needed"))
+    XCTAssertTrue(completedTaskSnapshot.reportText.contains("Completed SpaceMail release snapshot tasks: 1"))
+    XCTAssertEqual(completedTaskSnapshot.metrics.first { $0.title == "Release task" }?.value, "0")
+    XCTAssertEqual(completedTaskSnapshot.metrics.first { $0.title == "Release task" }?.tone, "attention")
+  }
+
   func testLocalDataHygieneSnapshotLogsWithoutMutatingOperationalRecords() {
     let mailboxID = UUID()
     let intake = ForwardedEmailIntake(

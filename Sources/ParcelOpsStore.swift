@@ -3176,11 +3176,22 @@ final class ParcelOpsStore {
     let generatedDate = Date.now.formatted(date: .abbreviated, time: .shortened)
     let completedChecks = readiness.completedCount + qa.completedCount
     let totalChecks = readiness.totalCount + qa.totalCount
+    let releaseSnapshotTasks = reviewTasks.filter {
+      $0.linkedEntityType == .integration &&
+        $0.linkedEntityID == "spacemail-release-snapshot"
+    }
+    let openReleaseSnapshotTaskCount = releaseSnapshotTasks.filter { $0.status != .completed }.count
+    let completedReleaseSnapshotTaskCount = releaseSnapshotTasks.filter { $0.status == .completed }.count
+    let hasOpenReleaseSnapshotTask = spaceMailIMAPConnections.isEmpty || openReleaseSnapshotTaskCount > 0
 
     let verdict: String
     let detail: String
     let tone: String
-    if readiness.tone == "success" && qa.tone == "success" {
+    if readiness.tone == "success" && qa.tone == "success" && !hasOpenReleaseSnapshotTask {
+      verdict = "SpaceMail local MVP release snapshot: release task needed"
+      detail = "Create and keep open a SpaceMail release snapshot review task before treating SpaceMail intake as release-ready."
+      tone = "attention"
+    } else if readiness.tone == "success" && qa.tone == "success" {
       verdict = "SpaceMail local MVP release snapshot: ready for supervised testing"
       detail = "Readiness and QA evidence are complete. Continue using manual refresh and human review before operational reliance."
       tone = "success"
@@ -3221,6 +3232,9 @@ final class ParcelOpsStore {
       "Parser diagnostics: \(parserIssueCount)",
       "Inbox rows needing review: \(reviewIntakeCount)",
       "Inbox-created orders: \(orders.filter { $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import" }.count)",
+      "Open SpaceMail release snapshot tasks: \(openReleaseSnapshotTaskCount)",
+      "Completed SpaceMail release snapshot tasks: \(completedReleaseSnapshotTaskCount)",
+      "Release task gate: \(hasOpenReleaseSnapshotTask ? "open task present" : "open task needed")",
       "",
       "Release boundaries:",
       "- SpaceMail refresh is manual and read-only.",
@@ -3248,7 +3262,8 @@ final class ParcelOpsStore {
         SpaceMailReleaseSnapshotMetric(title: "Inbox imports", value: "\(importedCount)", tone: importedCount > 0 ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(filteredCount)", tone: filteredCount > 0 ? "success" : "neutral"),
         SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(uncertainCount)", tone: uncertainCount > 0 ? "attention" : "neutral"),
-        SpaceMailReleaseSnapshotMetric(title: "Parser checks", value: "\(parserIssueCount)", tone: parserIssueCount == 0 ? "success" : "attention")
+        SpaceMailReleaseSnapshotMetric(title: "Parser checks", value: "\(parserIssueCount)", tone: parserIssueCount == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Release task", value: "\(openReleaseSnapshotTaskCount)", tone: spaceMailIMAPConnections.isEmpty ? "neutral" : hasOpenReleaseSnapshotTask ? "success" : "attention")
       ],
       reportText: reportLines.joined(separator: "\n")
     )
