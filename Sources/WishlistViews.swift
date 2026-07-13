@@ -4713,7 +4713,8 @@ struct WishlistView: View {
           ("Scope gaps", "\(summary.scopeGapCount)", summary.scopeGapCount == 0 ? .green : .orange),
           ("Seller gaps", "\(summary.sellerOptionGapCount)", summary.sellerOptionGapCount == 0 ? .green : .orange),
           ("Trust review", "\(summary.trustReviewCount)", summary.trustReviewCount == 0 ? .green : .red),
-          ("Order watch", "\(summary.orderWatchGapCount)", summary.orderWatchGapCount == 0 ? .green : .teal)
+          ("Order watch", "\(summary.orderWatchGapCount)", summary.orderWatchGapCount == 0 ? .green : .teal),
+          ("Closure trail", "\(summary.operationsClosureGapCount)", summary.operationsClosureGapCount == 0 ? .green : .orange)
         ])
 
         LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 230 : 300), spacing: 10)], alignment: .leading, spacing: 10) {

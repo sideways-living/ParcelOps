@@ -5988,6 +5988,7 @@ struct SettingsView: View {
       + wishlistAgentReadiness.trustReviewCount
       + wishlistAgentReadiness.purchaseHandoffGapCount
       + wishlistAgentReadiness.orderWatchGapCount
+      + wishlistAgentReadiness.operationsClosureGapCount
   }
 
   private var wishlistSettingsTone: Color {
@@ -6012,7 +6013,7 @@ struct SettingsView: View {
       return "Add wanted items manually first. Browser extension, retailer research agents, live price comparison, currency lookup, postage lookup, account monitoring, and checkout automation are not active."
     }
     if wishlistWorkflowBlockerCount > 0 {
-      return "\(wishlistAgentReadiness.verdict). Clear seller option, trust, handoff, and order-watch gaps in Wishlist before treating any item as ready to buy."
+      return "\(wishlistAgentReadiness.verdict). Clear seller option, trust, handoff, order-watch, and operations closure gaps in Wishlist before treating any item as ready to buy."
     }
     if wishlistItemsWithPurchaseHandoffCount > 0 {
       return "Wishlist has local purchase handoff records. Continue in Wishlist, Orders, Tasks, Workbench, and Audit to keep manual purchase follow-up traceable."

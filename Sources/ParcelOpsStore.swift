@@ -20885,6 +20885,7 @@ final class ParcelOpsStore {
       trustReviewCount: trustReviewCount,
       purchaseHandoffGapCount: purchaseHandoffGaps,
       orderWatchGapCount: orderWatchGaps,
+      operationsClosureGapCount: operationsClosureGapItems.count,
       items: items
     )
   }

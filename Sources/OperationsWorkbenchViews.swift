@@ -2071,6 +2071,7 @@ struct OperationsWorkbenchView: View {
           ("Order watch", "\(wishlistReleaseOrderWatchItems.count)", wishlistReleaseOrderWatchItems.isEmpty ? .secondary : .teal),
           ("Handoff sanity", "\(wishlistHandoffSanityBlockedItems.count)", wishlistHandoffSanityBlockedItems.isEmpty ? .green : .orange),
           ("Dispatch setup", "\(wishlistLinkedOrderDispatchGapItems.count)", wishlistLinkedOrderDispatchGapItems.isEmpty ? .green : .blue),
+          ("Closure trail", "\(wishlistAgentReadiness.operationsClosureGapCount)", wishlistAgentReadiness.operationsClosureGapCount == 0 ? .green : .orange),
           ("Purchase packets", "\(wishlistPurchasePacketNeededItems.count)", wishlistPurchasePacketNeededItems.isEmpty ? .green : .indigo),
           ("Packet drafts", "\(wishlistPurchasePacketDrafts.count)", wishlistPurchasePacketDrafts.isEmpty ? .secondary : .blue),
           ("Brief gaps", "\(wishlistResearchWorkbenchRequests.count)", wishlistResearchWorkbenchRequests.isEmpty ? .green : .orange),

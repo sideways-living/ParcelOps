@@ -3207,6 +3207,7 @@ struct WishlistAgentReadinessSummary: Identifiable, Hashable {
   var trustReviewCount: Int
   var purchaseHandoffGapCount: Int
   var orderWatchGapCount: Int
+  var operationsClosureGapCount: Int
   var items: [WishlistAgentReadinessItem]
 }
 

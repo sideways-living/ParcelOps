@@ -177,6 +177,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.sellerOptionGapCount, 0)
     XCTAssertEqual(summary.trustReviewCount, 0)
     XCTAssertEqual(summary.orderWatchGapCount, 0)
+    XCTAssertEqual(summary.operationsClosureGapCount, 0)
   }
 
   func testWishlistAgentReadinessSummaryFlagsSellerEvidenceBlockers() {
@@ -250,6 +251,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.title, "Wishlist agent path needs operator review")
     XCTAssertEqual(summary.tone, "attention")
     XCTAssertEqual(summary.orderWatchGapCount, 1)
+    XCTAssertEqual(summary.operationsClosureGapCount, 0)
     XCTAssertEqual(orderWatchItem?.status, "1 open")
     XCTAssertEqual(orderWatchItem?.tone, "attention")
     XCTAssertTrue(orderWatchItem?.detail.contains("order confirmation") == true)
@@ -270,6 +272,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     let orderWatchItem = summary.items.first { $0.title == "Post-purchase order watch" }
 
     XCTAssertEqual(summary.orderWatchGapCount, 0)
+    XCTAssertEqual(summary.operationsClosureGapCount, 0)
     XCTAssertEqual(orderWatchItem?.status, "No open watch gaps")
     XCTAssertEqual(orderWatchItem?.tone, "success")
     XCTAssertTrue(orderWatchItem?.detail.contains("No current Wishlist handoff") == true)
@@ -292,6 +295,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
 
     XCTAssertEqual(summary.title, "Wishlist agent path needs operator review")
     XCTAssertEqual(summary.tone, "attention")
+    XCTAssertEqual(summary.operationsClosureGapCount, 1)
     XCTAssertEqual(operationsItem?.status, "1 gap")
     XCTAssertEqual(operationsItem?.tone, "attention")
     XCTAssertTrue(operationsItem?.detail.contains("Linked Wishlist orders still need local operations evidence") == true)
@@ -314,6 +318,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     let summary = store.wishlistAgentReadinessSummary
     let operationsItem = summary.items.first { $0.title == "Operations closure trail" }
 
+    XCTAssertEqual(summary.operationsClosureGapCount, 0)
     XCTAssertEqual(operationsItem?.status, "Closure trail clear")
     XCTAssertEqual(operationsItem?.tone, "success")
     XCTAssertTrue(operationsItem?.detail.contains("receiving, inventory, storage") == true)

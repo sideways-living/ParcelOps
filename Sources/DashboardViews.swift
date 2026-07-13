@@ -747,6 +747,7 @@ struct DashboardView: View {
       + wishlistAgentReadiness.trustReviewCount
       + wishlistAgentReadiness.purchaseHandoffGapCount
       + wishlistAgentReadiness.orderWatchGapCount
+      + wishlistAgentReadiness.operationsClosureGapCount
   }
   private var wishlistDailyAttentionCount: Int {
     wishlistAttentionItems.count
@@ -2464,7 +2465,7 @@ struct DashboardView: View {
                 ? (wishlistBatchBriefNeeded
                   ? "\(wishlistAgentReadyResearchRequests.count) agent-ready research brief\(wishlistAgentReadyResearchRequests.count == 1 ? "" : "s") need one batch packet. Agent verdict: \(wishlistAgentReadiness.verdict)."
                   : "\(wishlistAgentReadiness.verdict). Purchase packets: \(wishlistPurchasePacketDrafts.count) drafted. Release checklist: \(wishlistReleaseReadyItems.count) ready handoff, \(wishlistReleaseBlockedItems.count) blocked, \(wishlistReleaseOrderWatchItems.count) watching for order confirmation.")
-                : "Top blockers: \(wishlistAttentionBlockerSummary). Readiness checks: \(wishlistReadinessBlockedItems.count), purchase packets: \(wishlistPurchasePacketNeededItems.count), order links: \(wishlistPurchasedNeedsOrderLinkItems.count), dispatch setup: \(wishlistLinkedOrderDispatchGapItems.count).",
+                : "Top blockers: \(wishlistAttentionBlockerSummary). Readiness checks: \(wishlistReadinessBlockedItems.count), purchase packets: \(wishlistPurchasePacketNeededItems.count), order links: \(wishlistPurchasedNeedsOrderLinkItems.count), dispatch setup: \(wishlistLinkedOrderDispatchGapItems.count), closure trail: \(wishlistAgentReadiness.operationsClosureGapCount).",
               nextAction: wishlistAgentReadiness.tone == "warning" ? "Open Wishlist readiness verdict" : wishlistDashboardNextAction,
               symbol: "star.square.fill",
               tint: wishlistDailyAttentionClear ? wishlistAgentReadinessTint : .purple
