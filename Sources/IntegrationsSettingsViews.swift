@@ -430,6 +430,7 @@ struct IntegrationsView: View {
 
             SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
             SpaceMailQACheckCard(summary: store.liveMailboxQACheckSummary)
+            MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
 
             Text("Advanced providers stay available below, but they should not be treated as the daily mailbox path unless the project explicitly switches the active mailbox intake provider.")
               .font(.caption)

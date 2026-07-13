@@ -2121,6 +2121,51 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(gmail?.tone, "neutral")
   }
 
+  func testMailboxProviderSetupChecklistDoesNotRequireSpaceMailWhenGmailIsConfigured() {
+    let gmailID = UUID()
+    let store = ParcelOpsStore()
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = [
+      makeGmailConnection(
+        id: gmailID,
+        oauthReadinessStatus: "Ready",
+        credentialStorageStatus: "GoogleSignIn cache available",
+        fetched: 8,
+        imported: 1,
+        filtered: 6,
+        uncertain: 0
+      )
+    ]
+    store.gmailAuthSessionStates = [
+      gmailID: GmailAuthSessionState(
+        connectionID: gmailID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        tokenStoreStatus: "GoogleSignIn cache available",
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available."
+      )
+    ]
+
+    let summary = store.mailboxProviderSetupChecklistSummary
+    let gmail = summary.providers.first { $0.providerName == "Gmail" }
+    let spaceMail = summary.providers.first { $0.providerName == "SpaceMail IMAP" }
+
+    XCTAssertEqual(summary.title, "Provider setup checklist needs review")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Configured" }?.value, "1")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Checks" }?.value, "3/5")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Warnings" }?.value, "1")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Refresh evidence" }?.value, "No")
+    XCTAssertEqual(spaceMail?.status, "Optional, not configured")
+    XCTAssertEqual(spaceMail?.tone, "neutral")
+    XCTAssertEqual(gmail?.status, "Gmail setup needs attention")
+    XCTAssertEqual(gmail?.tone, "warning")
+    XCTAssertEqual(gmail?.checks.count, 5)
+  }
+
   func testMailboxProviderComparisonTreatsQuietSpaceMailRefreshAsReady() {
     let store = ParcelOpsStore()
     store.spaceMailIMAPConnections = [

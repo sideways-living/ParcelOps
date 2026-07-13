@@ -3826,14 +3826,15 @@ final class ParcelOpsStore {
       return incompleteRequired == 0 ? "success" : "attention"
     }
 
-    let spaceMailTone = providerTone(for: spaceMailChecks)
+    let spaceMailIsOptional = spaceMail == nil && gmail != nil
+    let spaceMailTone = providerTone(for: spaceMailChecks, optional: spaceMailIsOptional)
     let gmailTone = providerTone(for: gmailChecks, optional: gmail == nil)
     let providers = [
       MailboxProviderSetupChecklistProvider(
         providerName: "SpaceMail IMAP",
-        status: spaceMailTone == "success" ? "Ready for manual read-only refresh" : "Setup needs attention",
+        status: spaceMailIsOptional ? "Optional, not configured" : (spaceMailTone == "success" ? "Ready for manual read-only refresh" : "Setup needs attention"),
         detail: "Use for SpaceMail or generic IMAP mailboxes. Passwords stay in Keychain, not JSON.",
-        nextAction: spaceMailTone == "success" ? "Run real SpaceMail refresh when checking new mail." : "Confirm setup fields and Keychain credential before refreshing.",
+        nextAction: spaceMailIsOptional ? "Leave SpaceMail unconfigured unless an IMAP mailbox is needed." : (spaceMailTone == "success" ? "Run real SpaceMail refresh when checking new mail." : "Confirm setup fields and Keychain credential before refreshing."),
         tone: spaceMailTone,
         symbol: "server.rack",
         checks: spaceMailChecks
@@ -3849,10 +3850,10 @@ final class ParcelOpsStore {
       )
     ]
 
-    let requiredChecks = spaceMailChecks + (gmail == nil ? [] : gmailChecks)
+    let requiredChecks = (spaceMail == nil && gmail != nil ? [] : spaceMailChecks) + (gmail == nil ? [] : gmailChecks)
     let completedChecks = requiredChecks.filter(\.isComplete).count
     let totalChecks = requiredChecks.count
-    let requiredWarnings = providers.flatMap(\.checks).filter { !$0.isComplete && $0.tone == "warning" }.count
+    let requiredWarnings = requiredChecks.filter { !$0.isComplete && $0.tone == "warning" }.count
     let refreshEvidence = spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
       || gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
     let summaryTone = requiredWarnings > 0 ? "warning" : (refreshEvidence ? "success" : "attention")
