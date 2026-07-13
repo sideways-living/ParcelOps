@@ -1570,6 +1570,12 @@ final class ParcelOpsStore {
       }
       .map(\.providerName)
     let optionalProviderText = optionalProviderNames.isEmpty ? "none" : optionalProviderNames.joined(separator: ", ")
+    let gmailReadinessSummaries = gmailMailboxConnections.map(gmailOAuthReadinessSummary(for:))
+    let gmailReadinessBlockers = gmailReadinessSummaries.filter { !$0.isReady }
+    let gmailReadinessBlockerPreview = gmailReadinessBlockers
+      .flatMap(\.missingFields)
+      .prefix(3)
+      .joined(separator: ", ")
     let setupIncompleteCount = setup.providers.reduce(0) { total, provider in
       total + provider.checks.filter { !$0.isComplete && provider.tone != "neutral" && $0.tone != "neutral" }.count
     }
@@ -1619,6 +1625,21 @@ final class ParcelOpsStore {
         isPassed: setupIncompleteCount == 0,
         tone: setupIncompleteCount == 0 ? "success" : setupWarningCount == 0 ? "attention" : "warning",
         symbol: "checklist.checked"
+      ),
+      MailboxProviderReleaseGateItem(
+        title: "Gmail compiled callback readiness",
+        requirement: "Configured Gmail providers must have saved OAuth values that match the compiled app callback configuration.",
+        evidence: gmailMailboxConnections.isEmpty
+          ? "No Gmail setup is configured; Gmail remains optional for non-Google mailboxes."
+          : "\(gmailReadinessBlockers.count) of \(gmailMailboxConnections.count) Gmail setup\(gmailMailboxConnections.count == 1 ? "" : "s") still have OAuth/client/callback blockers\(gmailReadinessBlockerPreview.isEmpty ? "." : ": \(gmailReadinessBlockerPreview).")",
+        nextAction: gmailMailboxConnections.isEmpty
+          ? "Leave Gmail unconfigured unless a mailbox is hosted by Gmail or Google Workspace."
+          : gmailReadinessBlockers.isEmpty
+            ? "Proceed with explicit Google sign-in and manual read-only Gmail refresh testing when needed."
+            : "Update saved Gmail setup values and the compiled app Info.plist/project callback configuration before relying on Gmail refresh.",
+        isPassed: gmailMailboxConnections.isEmpty || gmailReadinessBlockers.isEmpty,
+        tone: gmailMailboxConnections.isEmpty ? "neutral" : (gmailReadinessBlockers.isEmpty ? "success" : "warning"),
+        symbol: "g.circle.fill"
       ),
       MailboxProviderReleaseGateItem(
         title: "Manual refresh evidence exists",

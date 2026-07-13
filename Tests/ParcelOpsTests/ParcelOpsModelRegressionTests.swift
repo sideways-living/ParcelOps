@@ -3230,6 +3230,49 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(gate.metrics.first { $0.title == "Warnings" }?.tone, "warning")
   }
 
+  func testMailboxProviderReleaseGateBlocksGmailWhenCompiledCallbackMissing() {
+    let mailboxID = UUID()
+    let connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 10,
+      imported: 0,
+      filtered: 10,
+      uncertain: 0
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [
+      mailboxID: GmailAuthSessionState(
+        connectionID: mailboxID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        tokenStoreStatus: "GoogleSignIn cache available",
+        tokenStoreDetail: "GoogleSignIn cache only; no token values in JSON.",
+        detailText: "Connected for local readiness test."
+      )
+    ]
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+
+    let gate = store.mailboxProviderReleaseGateSummary
+    let gmailGate = gate.gates.first { $0.title == "Gmail compiled callback readiness" }
+
+    XCTAssertEqual(gate.verdict, "Blocked")
+    XCTAssertEqual(gate.tone, "warning")
+    XCTAssertEqual(gmailGate?.isPassed, false)
+    XCTAssertEqual(gmailGate?.tone, "warning")
+    XCTAssertTrue(gmailGate?.evidence.contains("OAuth/client/callback blockers") == true)
+    XCTAssertTrue(gmailGate?.nextAction.contains("compiled app Info.plist/project callback configuration") == true)
+    XCTAssertTrue(gate.reportText.contains("Gmail compiled callback readiness"))
+    XCTAssertTrue(gate.reportText.contains("compiled app Info.plist/project callback configuration"))
+  }
+
   func testMailboxProviderReleaseGateTracksImportedInboxHandoffGap() {
     let mailboxID = UUID()
     let intake = ForwardedEmailIntake(
