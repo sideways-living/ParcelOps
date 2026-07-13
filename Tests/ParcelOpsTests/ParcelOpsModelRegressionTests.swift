@@ -3262,6 +3262,51 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(completedTaskSnapshot.metrics.first { $0.title == "Release task" }?.tone, "attention")
   }
 
+  func testMailboxReleaseReadinessSnapshotRequiresOpenReleaseTask() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 0,
+        filtered: 10,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.orders = []
+    store.reviewTasks = []
+
+    let initialSnapshot = store.mailboxReleaseReadinessSnapshot
+    XCTAssertTrue(initialSnapshot.reportText.contains("Release task gate: open task needed"))
+    XCTAssertTrue(initialSnapshot.reportText.contains("Open mailbox release readiness tasks: 0"))
+    XCTAssertEqual(initialSnapshot.metrics.first { $0.title == "Release task" }?.value, "0")
+    XCTAssertEqual(initialSnapshot.metrics.first { $0.title == "Release task" }?.tone, "attention")
+
+    store.createReviewTaskFromMailboxReleaseReadinessSnapshot()
+
+    let openTaskSnapshot = store.mailboxReleaseReadinessSnapshot
+    XCTAssertTrue(openTaskSnapshot.reportText.contains("Release task gate: open task present"))
+    XCTAssertTrue(openTaskSnapshot.reportText.contains("Open mailbox release readiness tasks: 1"))
+    XCTAssertEqual(openTaskSnapshot.metrics.first { $0.title == "Release task" }?.value, "1")
+    XCTAssertEqual(openTaskSnapshot.metrics.first { $0.title == "Release task" }?.tone, "success")
+
+    if let task = store.reviewTasks.first(where: {
+      $0.linkedEntityType == .integration &&
+        $0.linkedEntityID == "mailbox-release-readiness"
+    }) {
+      store.completeReviewTask(task)
+    }
+
+    let completedTaskSnapshot = store.mailboxReleaseReadinessSnapshot
+    XCTAssertTrue(completedTaskSnapshot.reportText.contains("Release task gate: open task needed"))
+    XCTAssertTrue(completedTaskSnapshot.reportText.contains("Completed mailbox release readiness tasks: 1"))
+    XCTAssertEqual(completedTaskSnapshot.metrics.first { $0.title == "Release task" }?.value, "0")
+    XCTAssertEqual(completedTaskSnapshot.metrics.first { $0.title == "Release task" }?.tone, "attention")
+  }
+
   func testLocalDataHygieneSnapshotLogsWithoutMutatingOperationalRecords() {
     let mailboxID = UUID()
     let intake = ForwardedEmailIntake(

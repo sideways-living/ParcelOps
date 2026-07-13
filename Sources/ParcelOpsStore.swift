@@ -3279,6 +3279,13 @@ final class ParcelOpsStore {
     let totalChecks = providerQA.totalCount + intakeQuality.totalCount
     let providerBlockers = comparison.providers.reduce(0) { $0 + $1.blockedCount }
     let handoffAttention = handoff.lines.filter { $0.tone == "attention" || $0.tone == "warning" }.count
+    let releaseReadinessTasks = reviewTasks.filter {
+      $0.linkedEntityType == .integration &&
+        $0.linkedEntityID == "mailbox-release-readiness"
+    }
+    let openReleaseReadinessTaskCount = releaseReadinessTasks.filter { $0.status != .completed }.count
+    let completedReleaseReadinessTaskCount = releaseReadinessTasks.filter { $0.status == .completed }.count
+    let hasOpenReleaseReadinessTask = (spaceMailIMAPConnections.isEmpty && gmailMailboxConnections.isEmpty) || openReleaseReadinessTaskCount > 0
     let totalFetched = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
       + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
     let totalImported = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
@@ -3292,7 +3299,11 @@ final class ParcelOpsStore {
     let verdict: String
     let detail: String
     let tone: String
-    if providerQA.tone == "success" && intakeQuality.tone == "success" && providerBlockers == 0 && handoffAttention == 0 {
+    if providerQA.tone == "success" && intakeQuality.tone == "success" && providerBlockers == 0 && handoffAttention == 0 && !hasOpenReleaseReadinessTask {
+      verdict = "Mailbox release snapshot: release task needed"
+      detail = "Create and keep open a mailbox release readiness review task before treating mailbox intake as release-ready."
+      tone = "attention"
+    } else if providerQA.tone == "success" && intakeQuality.tone == "success" && providerBlockers == 0 && handoffAttention == 0 {
       verdict = "Mailbox release snapshot: ready for supervised testing"
       detail = "Provider boundaries, intake quality, and handoff status are complete enough for a focused hands-on mailbox test."
       tone = "success"
@@ -3332,6 +3343,9 @@ final class ParcelOpsStore {
       "Uncertain: \(totalUncertain)",
       "Parser diagnostics: \(intakeParserDiagnostics.count)",
       "Inbox rows linked to orders: \(linkedOrderCount)",
+      "Open mailbox release readiness tasks: \(openReleaseReadinessTaskCount)",
+      "Completed mailbox release readiness tasks: \(completedReleaseReadinessTaskCount)",
+      "Release task gate: \(hasOpenReleaseReadinessTask ? "open task present" : "open task needed")",
       "",
       "Current handoff lines:",
       handoffLines.joined(separator: "\n"),
@@ -3361,7 +3375,8 @@ final class ParcelOpsStore {
         SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(totalFetched)", tone: totalFetched > 0 ? "neutral" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(totalImported)", tone: totalImported > 0 ? "success" : "neutral"),
         SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(totalFiltered)", tone: totalFiltered > 0 ? "success" : "neutral"),
-        SpaceMailReleaseSnapshotMetric(title: "Handoff", value: "\(handoffAttention)", tone: handoffAttention == 0 ? "success" : "attention")
+        SpaceMailReleaseSnapshotMetric(title: "Handoff", value: "\(handoffAttention)", tone: handoffAttention == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Release task", value: "\(openReleaseReadinessTaskCount)", tone: spaceMailIMAPConnections.isEmpty && gmailMailboxConnections.isEmpty ? "neutral" : hasOpenReleaseReadinessTask ? "success" : "attention")
       ],
       reportText: reportLines.joined(separator: "\n")
     )
