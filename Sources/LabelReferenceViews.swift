@@ -153,7 +153,7 @@ struct LabelReferencesView: View {
 
   private var inboxLabelCoverage: some View {
     let inboxOrders = inboxCreatedOrders
-    let wishlistOrders = wishlistLinkedOrders
+    let wishlistOrders = store.wishlistLinkedOrders
     let linkedLabels = labelsLinkedToInboxOrders
     let actionLabels = labelsNeedingAction
     let missingLabelCount = inboxOrdersMissingLabel.count
@@ -321,9 +321,6 @@ struct LabelReferencesView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
 
   private var labelSourceOrders: [TrackedOrder] {
     store.operatorSourceOrders

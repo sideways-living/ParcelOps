@@ -167,7 +167,7 @@ struct CustodyChainView: View {
 
   private var inboxCustodyCoverage: some View {
     let inboxOrders = inboxCreatedOrders
-    let wishlistOrders = wishlistLinkedOrders
+    let wishlistOrders = store.wishlistLinkedOrders
     let linkedRecords = custodyLinkedToInboxOrders
     let actionRecords = custodyNeedingAction
     let missingCustodyCount = inboxOrdersMissingCustody.count
@@ -334,9 +334,6 @@ struct CustodyChainView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
 
   private var custodySourceOrders: [TrackedOrder] {
     store.operatorSourceOrders

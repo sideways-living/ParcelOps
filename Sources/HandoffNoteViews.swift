@@ -424,7 +424,7 @@ struct HandoffNotesView: View {
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
-          Badge("\(wishlistLinkedOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.wishlistLinkedOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedNotes.count) linked notes", color: .teal)
           Badge("\(actionNotes.count) need action", color: actionNotes.isEmpty ? .green : .orange)
           Badge("\(missingCount) without handoff", color: missingCount == 0 ? .green : .orange)
@@ -510,9 +510,6 @@ struct HandoffNotesView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
 
   private var sourceOrders: [TrackedOrder] {
     store.operatorSourceOrders

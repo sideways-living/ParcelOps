@@ -191,7 +191,7 @@ struct AccountsView: View {
 
   private var inboxAccountCoverage: some View {
     let inboxOrders = inboxCreatedOrders
-    let wishlistOrders = wishlistLinkedOrders
+    let wishlistOrders = store.wishlistLinkedOrders
     let linkedAccounts = accountsLinkedToInboxOrders
     let actionAccounts = linkedAccounts.filter { account in
       !account.isEnabled
@@ -358,9 +358,6 @@ struct AccountsView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
 
   private var accountSourceOrders: [TrackedOrder] {
     store.operatorSourceOrders

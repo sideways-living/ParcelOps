@@ -140,7 +140,7 @@ struct SLAPoliciesView: View {
 
   private var inboxPolicyCoverage: some View {
     let inboxOrders = inboxCreatedOrders
-    let wishlistOrders = wishlistLinkedOrders
+    let wishlistOrders = store.wishlistLinkedOrders
     let linkedPolicies = policiesLinkedToInboxOrders
     let actionPolicies = linkedPolicies.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.priority == .high || $0.priority == .urgent }
 
@@ -294,9 +294,6 @@ struct SLAPoliciesView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
 
   private var policySourceOrders: [TrackedOrder] {
     store.operatorSourceOrders

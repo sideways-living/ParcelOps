@@ -7,16 +7,13 @@ struct SearchView: View {
   @State private var selectedEntityType: SearchEntityType?
   @State private var selectedReviewState: ReviewState?
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.inboxCreatedOrders
-  }
 
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
-    inboxCreatedOrders.filter { sourceTrailCount(for: $0) > 0 }
+    store.inboxCreatedOrders.filter { sourceTrailCount(for: $0) > 0 }
   }
 
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
+    store.inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
   }
 
   private var uncertainSpaceMailCount: Int {
@@ -90,7 +87,7 @@ struct SearchView: View {
 
         SearchReadinessPanel(
           store: store,
-          inboxCreatedOrderCount: inboxCreatedOrders.count,
+          inboxCreatedOrderCount: store.inboxCreatedOrders.count,
           inboxCreatedOrdersWithSourceTrailCount: inboxCreatedOrdersWithSourceTrail.count,
           inboxCreatedOrdersMissingSourceTrail: Array(inboxCreatedOrdersMissingSourceTrail.prefix(3)),
           uncertainMailboxCount: uncertainMailboxCount,

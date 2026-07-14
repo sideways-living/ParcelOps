@@ -89,16 +89,13 @@ struct AuditView: View {
     }
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.inboxCreatedOrders
-  }
 
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
-    inboxCreatedOrders.filter { sourceTrailCount(for: $0) > 0 }
+    store.inboxCreatedOrders.filter { sourceTrailCount(for: $0) > 0 }
   }
 
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
+    store.inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
   }
 
   private var mailboxEvidenceEvents: [AuditEvent] {
@@ -780,13 +777,13 @@ struct AuditView: View {
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
-          ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .secondary : .teal),
+          ("Inbox orders", "\(store.inboxCreatedOrders.count)", store.inboxCreatedOrders.isEmpty ? .secondary : .teal),
           ("With source", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersWithSourceTrail.isEmpty ? .secondary : .green),
           ("Missing source", "\(inboxCreatedOrdersMissingSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange)
         ])
 
         if inboxCreatedOrdersMissingSourceTrail.isEmpty {
-          Label(inboxCreatedOrders.isEmpty ? "No Inbox-created orders exist yet." : "All current Inbox-created orders have local source context.", systemImage: "checkmark.seal.fill")
+          Label(store.inboxCreatedOrders.isEmpty ? "No Inbox-created orders exist yet." : "All current Inbox-created orders have local source context.", systemImage: "checkmark.seal.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.green)
         } else {

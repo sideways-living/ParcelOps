@@ -461,23 +461,14 @@ struct DashboardView: View {
   private var problemOrdersCount: Int {
     store.reviewOrders.count + store.orders.filter { $0.status == .exception }.count + store.trackingWarningCount + store.criticalTrackingCount
   }
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.inboxCreatedOrders
-  }
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
-  private var operatorSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
-    operatorSourceOrders.filter(hasOperatorSourceTrail)
+    store.operatorSourceOrders.filter(hasOperatorSourceTrail)
   }
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    operatorSourceOrders.filter { !hasOperatorSourceTrail($0) }
+    store.operatorSourceOrders.filter { !hasOperatorSourceTrail($0) }
   }
   private var partialInboxOrderBlockers: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    store.inboxCreatedOrders.filter { order in
       hasPartialInboxOrderTask(order) || order.missingInboxOrderFieldCount > 0
     }
   }
@@ -2407,9 +2398,9 @@ struct DashboardView: View {
               title: "Orders",
               count: problemOrdersCount,
               detail: "Review-needed orders, exceptions, warning tracking events, and orders created from Inbox or Wishlist handoff.",
-              nextAction: partialInboxOrderBlockers.isEmpty ? (operatorSourceOrders.isEmpty ? (problemOrdersCount == 0 ? "Orders look steady" : "Review problem orders") : "Review sourced orders") : "Verify missing Inbox details",
+              nextAction: partialInboxOrderBlockers.isEmpty ? (store.operatorSourceOrders.isEmpty ? (problemOrdersCount == 0 ? "Orders look steady" : "Review problem orders") : "Review sourced orders") : "Verify missing Inbox details",
               symbol: "shippingbox.fill",
-              tint: partialInboxOrderBlockers.isEmpty ? (operatorSourceOrders.isEmpty ? (problemOrdersCount == 0 ? .green : .red) : .purple) : .orange
+              tint: partialInboxOrderBlockers.isEmpty ? (store.operatorSourceOrders.isEmpty ? (problemOrdersCount == 0 ? .green : .red) : .purple) : .orange
             ) {
               OrdersView(store: store)
             }
@@ -2538,21 +2529,21 @@ struct DashboardView: View {
             MetricStrip(items: [
               ("Active", "\(store.activeCount)", .teal),
               ("Review", "\(store.reviewOrders.count)", .orange),
-              ("From Inbox", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .green : .purple),
-              ("From Wishlist", "\(wishlistLinkedOrders.count)", wishlistLinkedOrders.isEmpty ? .secondary : .pink),
+              ("From Inbox", "\(store.inboxCreatedOrders.count)", store.inboxCreatedOrders.isEmpty ? .green : .purple),
+              ("From Wishlist", "\(store.wishlistLinkedOrders.count)", store.wishlistLinkedOrders.isEmpty ? .secondary : .pink),
               ("Source trail", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
               ("Verify first", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
               ("Tracking", "\(store.trackingWarningCount + store.criticalTrackingCount)", .red),
               ("Delivered", "\(store.deliveredCount)", .green)
             ])
             CompactInboxSourceTrailCoverage(
-              total: operatorSourceOrders.count,
+              total: store.operatorSourceOrders.count,
               withSourceTrail: inboxCreatedOrdersWithSourceTrail.count,
               missingSourceTrailOrders: Array(inboxCreatedOrdersMissingSourceTrail.prefix(3)),
               store: store
             )
             CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)), store: store)
-            CompactInboxCreatedOrderList(orders: Array(inboxCreatedOrders.prefix(3)), store: store)
+            CompactInboxCreatedOrderList(orders: Array(store.inboxCreatedOrders.prefix(3)), store: store)
             CompactOrderList(orders: Array((store.reviewOrders + store.orders.filter { $0.status == .exception || $0.status == .inTransit || $0.status == .shipped }).prefix(4)), store: store)
           }
         }

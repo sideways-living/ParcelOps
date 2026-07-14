@@ -162,7 +162,7 @@ struct StorageLocationsView: View {
 
   private var inboxStorageCoverage: some View {
     let inboxOrders = inboxCreatedOrders
-    let wishlistOrders = wishlistLinkedOrders
+    let wishlistOrders = store.wishlistLinkedOrders
     let linkedLocations = locationsLinkedToInboxOrders
     let actionLocations = locationsNeedingStorageAction
     let missingStorageCount = inboxOrdersMissingStorage.count
@@ -329,9 +329,6 @@ struct StorageLocationsView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
 
   private var storageSourceOrders: [TrackedOrder] {
     store.operatorSourceOrders

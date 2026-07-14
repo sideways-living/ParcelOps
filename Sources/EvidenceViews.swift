@@ -29,13 +29,7 @@ struct EvidenceView: View {
       || !evidenceSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.inboxCreatedOrders
-  }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
 
   private var evidenceSourceOrders: [TrackedOrder] {
     store.operatorSourceOrders
@@ -54,14 +48,14 @@ struct EvidenceView: View {
   }
 
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
+    store.inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
   }
 
   private var evidenceProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
 
-    for order in inboxCreatedOrders {
+    for order in store.inboxCreatedOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -112,7 +106,7 @@ struct EvidenceView: View {
   }
 
   private var gmailSourceTrailOrders: [TrackedOrder] {
-    inboxCreatedOrders.filter { order in
+    store.inboxCreatedOrders.filter { order in
       linkedIntakeEmails(for: order).contains { email in
         store.intakeSourceSummary(for: email).tone == "gmail"
       }
@@ -185,8 +179,8 @@ struct EvidenceView: View {
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
-          ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .secondary : .teal),
-          ("Wishlist orders", "\(wishlistLinkedOrders.count)", wishlistLinkedOrders.isEmpty ? .secondary : .pink),
+          ("Inbox orders", "\(store.inboxCreatedOrders.count)", store.inboxCreatedOrders.isEmpty ? .secondary : .teal),
+          ("Wishlist orders", "\(store.wishlistLinkedOrders.count)", store.wishlistLinkedOrders.isEmpty ? .secondary : .pink),
           ("With evidence", "\(inboxCreatedOrdersWithEvidence.count)", inboxCreatedOrdersWithoutEvidence.isEmpty ? .green : .orange),
           ("No evidence", "\(inboxCreatedOrdersWithoutEvidence.count)", inboxCreatedOrdersWithoutEvidence.isEmpty ? .green : .orange),
           ("Missing source", "\(inboxCreatedOrdersMissingSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange)

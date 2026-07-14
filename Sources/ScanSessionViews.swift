@@ -151,7 +151,7 @@ struct ScanSessionsView: View {
 
   private var inboxScanCoverage: some View {
     let inboxOrders = inboxCreatedOrders
-    let wishlistOrders = wishlistLinkedOrders
+    let wishlistOrders = store.wishlistLinkedOrders
     let linkedScans = scansLinkedToInboxOrders
     let actionScans = scansNeedingAction
     let missingScanCount = inboxOrdersMissingScan.count
@@ -318,9 +318,6 @@ struct ScanSessionsView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
 
   private var scanSourceOrders: [TrackedOrder] {
     store.operatorSourceOrders

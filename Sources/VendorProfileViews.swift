@@ -168,7 +168,7 @@ struct VendorProfilesView: View {
 
   private var inboxVendorCoverage: some View {
     let inboxOrders = inboxCreatedOrders
-    let wishlistOrders = wishlistLinkedOrders
+    let wishlistOrders = store.wishlistLinkedOrders
     let linkedProfiles = vendorProfilesLinkedToInboxOrders
     let actionProfiles = linkedProfiles.filter { profile in
       !profile.isEnabled
@@ -330,9 +330,6 @@ struct VendorProfilesView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
 
   private var vendorSourceOrders: [TrackedOrder] {
     store.operatorSourceOrders

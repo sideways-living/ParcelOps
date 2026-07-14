@@ -190,7 +190,7 @@ struct PackageContentsView: View {
 
   private var inboxPackageContentCoverage: some View {
     let sourceOrders = packageContentSourceOrders
-    let wishlistOrders = wishlistLinkedOrders
+    let wishlistOrders = store.wishlistLinkedOrders
 
     return SettingsPanel(title: "Inbox and Wishlist package content coverage", symbol: "shippingbox.circle.fill") {
       Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local item verification records before cost, return, receiving, and dispatch work.")
@@ -282,9 +282,6 @@ struct PackageContentsView: View {
     }
   }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
 
   private var packageContentSourceOrders: [TrackedOrder] {
     store.operatorSourceOrders

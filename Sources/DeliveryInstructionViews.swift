@@ -204,7 +204,7 @@ struct DeliveryInstructionsView: View {
 
   private var inboxInstructionCoverage: some View {
     let inboxOrders = inboxCreatedOrders
-    let wishlistOrders = wishlistLinkedOrders
+    let wishlistOrders = store.wishlistLinkedOrders
     let linkedInstructions = deliveryInstructionsLinkedToInboxOrders
     let actionInstructions = linkedInstructions.filter { instruction in
       !instruction.isEnabled
@@ -337,9 +337,6 @@ struct DeliveryInstructionsView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
 
   private var instructionSourceOrders: [TrackedOrder] {
     store.operatorSourceOrders

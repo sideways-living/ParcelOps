@@ -35,13 +35,7 @@ struct ValidationView: View {
       || !validationSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.inboxCreatedOrders
-  }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
 
   private var sourceOrders: [TrackedOrder] {
     store.operatorSourceOrders
@@ -251,8 +245,8 @@ struct ValidationView: View {
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
-          ("Inbox orders", "\(inboxCreatedOrders.count)", inboxCreatedOrders.isEmpty ? .secondary : .teal),
-          ("Wishlist orders", "\(wishlistLinkedOrders.count)", wishlistLinkedOrders.isEmpty ? .secondary : .pink),
+          ("Inbox orders", "\(store.inboxCreatedOrders.count)", store.inboxCreatedOrders.isEmpty ? .secondary : .teal),
+          ("Wishlist orders", "\(store.wishlistLinkedOrders.count)", store.wishlistLinkedOrders.isEmpty ? .secondary : .pink),
           ("With source", "\(sourceOrdersWithSourceTrail.count)", sourceOrdersMissingSourceTrail.isEmpty ? .green : .orange),
           ("Missing source", "\(sourceOrdersMissingSourceTrail.count)", sourceOrdersMissingSourceTrail.isEmpty ? .green : .orange),
           ("Related issues", "\(inboxLinkedValidationIssues.count)", inboxLinkedValidationIssues.isEmpty ? .secondary : .orange)

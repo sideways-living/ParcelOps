@@ -178,7 +178,7 @@ struct CustomerProfilesView: View {
 
   private var inboxProfileCoverage: some View {
     let inboxOrders = inboxCreatedOrders
-    let wishlistOrders = wishlistLinkedOrders
+    let wishlistOrders = store.wishlistLinkedOrders
     let linkedProfiles = customerProfilesLinkedToInboxOrders
     let actionProfiles = linkedProfiles.filter { !$0.isEnabled || $0.reviewState != .accepted }
     let missingCount = inboxOrdersMissingProfile.count
@@ -305,9 +305,6 @@ struct CustomerProfilesView: View {
     store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.wishlistLinkedOrders
-  }
 
   private var profileSourceOrders: [TrackedOrder] {
     store.operatorSourceOrders
