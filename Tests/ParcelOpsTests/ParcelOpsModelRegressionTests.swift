@@ -173,6 +173,35 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     })
   }
 
+  func testInboxDispatchSetupStopsWhenInboxOrderFieldsAreMissing() throws {
+    let order = makeOrder(
+      orderNumber: "Pending",
+      trackingNumber: "Pending",
+      destination: "Destination needs review",
+      checkedMailbox: "caught@droctopus.net",
+      source: .forwardedMailbox,
+      latestStatus: "Created from partial Inbox intake"
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.orders = [order]
+    store.shipmentManifestRecords = []
+    store.dispatchReadinessChecklists = []
+    store.auditEvents = []
+
+    store.createDispatchSetup(for: order)
+
+    let updatedOrder = try XCTUnwrap(store.orders.first)
+    XCTAssertEqual(updatedOrder.latestStatus, "Created from partial Inbox intake")
+    XCTAssertEqual(updatedOrder.status, .intake)
+    XCTAssertTrue(store.shipmentManifestRecords.isEmpty)
+    XCTAssertTrue(store.dispatchReadinessChecklists.isEmpty)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Dispatch setup blocked by missing Inbox handoff fields."
+        && (event.afterDetail?.contains("Missing fields: order number, tracking number, destination") ?? false)
+        && (event.afterDetail?.contains("No dispatch records were created.") ?? false)
+    })
+  }
+
   func testWishlistSellerEvidenceGapsAndScore() {
     let weakOption = WishlistComparisonOption(
       sellerName: "Unknown marketplace seller",
