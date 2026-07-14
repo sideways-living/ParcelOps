@@ -39,28 +39,10 @@ struct TasksView: View {
   }
 
   private var wishlistBatchResearchDrafts: [DraftMessage] {
-    store.draftMessages.filter {
-      $0.linkedEntityType == .wishlistItem && $0.linkedEntityID == "wishlist-research-batch"
-    }
+    store.wishlistBatchResearchDrafts
   }
   private var wishlistTaskContextItems: [WishlistItem] {
-    store.wishlistItems.filter { item in
-      store.isActiveWishlistItem(item) && (
-        item.status.localizedCaseInsensitiveContains("purchase blocked")
-        || item.status.localizedCaseInsensitiveContains("handoff")
-        || item.status.localizedCaseInsensitiveContains("awaiting order")
-        || item.status.localizedCaseInsensitiveContains("confirmation")
-        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("blocker")
-        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("review")
-        || store.wishlistSellerEvidenceGapCount(for: item) > 0
-        || store.wishlistNeedsPurchaseDecision(item)
-        || store.wishlistNeedsPurchasePacket(item)
-        || !store.wishlistHandoffPackGaps(for: item).isEmpty
-        || !store.wishlistHandoffSanityGaps(for: item).isEmpty
-        || !store.wishlistLinkedOrderDispatchGaps(for: item).isEmpty
-        || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
-      )
-    }
+    store.wishlistTaskContextItems
   }
   private var wishlistLinkedQueueItems: [TaskQueueItem] {
     queueItems.filter { $0.linkedEntityType == .wishlistItem }
@@ -73,45 +55,26 @@ struct TasksView: View {
     }
   }
   private var wishlistPurchasePacketNeededItems: [WishlistItem] {
-    store.wishlistItems.filter { item in
-      store.isActiveWishlistItem(item)
-        && !(item.comparisonOptions ?? []).isEmpty
-        && store.wishlistPurchasePacketDraft(for: item) == nil
-    }
+    store.wishlistPurchasePacketNeededItems
   }
   private var wishlistPurchasePacketDrafts: [DraftMessage] {
-    store.draftMessages.filter {
-      $0.linkedEntityType == .wishlistItem
-        && $0.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
-    }
+    store.wishlistPurchasePacketDrafts
   }
 
   private var wishlistReadyPacketItems: [WishlistItem] {
-    store.wishlistItems.filter { item in
-      store.isActiveWishlistItem(item) && (
-        item.operatorPurchaseBlockers.isEmpty
-        || item.purchaseReadiness?.localizedCaseInsensitiveContains("ready") == true
-        || item.purchaseDecision?.reviewState == .accepted
-      )
-    }
+    store.wishlistReadyPacketItems
   }
 
   private var wishlistNeedsHandoffItems: [WishlistItem] {
-    store.wishlistItems.filter { item in
-      store.isActiveWishlistItem(item) && item.purchaseDecision?.reviewState == .accepted && item.purchaseHandoff == nil
-    }
+    store.wishlistNeedsHandoffItems
   }
 
   private var wishlistAwaitingOrderItems: [WishlistItem] {
-    store.wishlistItems.filter { item in
-      store.isActiveWishlistItem(item) && item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil
-    }
+    store.wishlistAwaitingOrderItems
   }
 
   private var wishlistLinkedOrderDispatchGapItems: [WishlistItem] {
-    store.wishlistItems.filter { item in
-      store.isActiveWishlistItem(item) && !store.wishlistLinkedOrderDispatchGaps(for: item).isEmpty
-    }
+    store.wishlistLinkedOrderDispatchGapItems
   }
 
   private var wishlistTaskActionCount: Int {

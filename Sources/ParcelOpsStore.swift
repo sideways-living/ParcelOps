@@ -5910,6 +5910,23 @@ final class ParcelOpsStore {
     activeWishlistResearchRequests.filter(\.isAgentBriefReady)
   }
 
+  var wishlistResearchAttentionRequests: [WishlistResearchRequest] {
+    activeWishlistResearchRequests.filter {
+      !$0.isAgentBriefReady || $0.requestStatus.localizedCaseInsensitiveContains("blocked")
+    }
+  }
+
+  var wishlistBatchResearchDrafts: [DraftMessage] {
+    draftMessages.filter {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == "wishlist-research-batch"
+    }
+  }
+
+  var wishlistBatchBriefNeeded: Bool {
+    !agentReadyWishlistResearchRequests.isEmpty && wishlistBatchResearchDrafts.isEmpty
+  }
+
   var activeWishlistOrderWatchRecords: [WishlistOrderWatchRecord] {
     wishlistOrderWatchRecords.filter(isActiveWishlistOrderWatchRecord)
   }
@@ -5968,6 +5985,32 @@ final class ParcelOpsStore {
 
   var wishlistPurchasePacketNeededItems: [WishlistItem] {
     activeWishlistItems.filter(wishlistNeedsPurchasePacket)
+  }
+
+  var wishlistTaskContextItems: [WishlistItem] {
+    activeWishlistItems.filter { item in
+      item.status.localizedCaseInsensitiveContains("purchase blocked")
+        || item.status.localizedCaseInsensitiveContains("handoff")
+        || item.status.localizedCaseInsensitiveContains("awaiting order")
+        || item.status.localizedCaseInsensitiveContains("confirmation")
+        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("blocker")
+        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("review")
+        || wishlistSellerEvidenceGapCount(for: item) > 0
+        || wishlistNeedsPurchaseDecision(item)
+        || wishlistNeedsPurchasePacket(item)
+        || !wishlistHandoffPackGaps(for: item).isEmpty
+        || !wishlistHandoffSanityGaps(for: item).isEmpty
+        || !wishlistLinkedOrderDispatchGaps(for: item).isEmpty
+        || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
+    }
+  }
+
+  var wishlistReadyPacketItems: [WishlistItem] {
+    activeWishlistItems.filter { item in
+      item.operatorPurchaseBlockers.isEmpty
+        || item.purchaseReadiness?.localizedCaseInsensitiveContains("ready") == true
+        || item.purchaseDecision?.reviewState == .accepted
+    }
   }
 
   var wishlistReleaseItems: [WishlistItem] {

@@ -138,25 +138,19 @@ struct OperationsWorkbenchView: View {
   }
 
   private var wishlistResearchWorkbenchRequests: [WishlistResearchRequest] {
-    store.wishlistResearchRequests.filter {
-      store.isActiveWishlistResearchRequest($0)
-        && (!$0.isAgentBriefReady || $0.requestStatus.localizedCaseInsensitiveContains("blocked"))
-    }
+    store.wishlistResearchAttentionRequests
   }
 
   private var wishlistAgentReadyResearchRequests: [WishlistResearchRequest] {
-    store.wishlistResearchRequests.filter { store.isActiveWishlistResearchRequest($0) && $0.isAgentBriefReady }
+    store.agentReadyWishlistResearchRequests
   }
 
   private var wishlistBatchResearchDrafts: [DraftMessage] {
-    store.draftMessages.filter {
-      $0.linkedEntityType == .wishlistItem
-        && $0.linkedEntityID == "wishlist-research-batch"
-    }
+    store.wishlistBatchResearchDrafts
   }
 
   private var wishlistBatchBriefNeeded: Bool {
-    !wishlistAgentReadyResearchRequests.isEmpty && wishlistBatchResearchDrafts.isEmpty
+    store.wishlistBatchBriefNeeded
   }
 
   private var wishlistAgentReadiness: WishlistAgentReadinessSummary {
