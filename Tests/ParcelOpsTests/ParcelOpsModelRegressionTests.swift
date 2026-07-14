@@ -104,6 +104,40 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     })
   }
 
+  func testInboxDispatchCompletionStopsWhenLinkedDispatchRecordsAreBlocked() throws {
+    let order = makeOrder(
+      orderNumber: "TEST-789",
+      trackingNumber: "TRACK-789",
+      destination: "Sydney NSW",
+      checkedMailbox: "caught@droctopus.net",
+      source: .forwardedMailbox,
+      latestStatus: "Created from verified Inbox intake"
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.orders = [order]
+    store.shipmentManifestRecords = []
+    store.dispatchReadinessChecklists = []
+    store.auditEvents = []
+
+    store.createDispatchSetup(for: order)
+    store.shipmentManifestRecords[0].dispatchStatus = .blockedNeedsReview
+    store.dispatchReadinessChecklists[0].checklistStatus = .blockedNeedsReview
+    let latestStatusBeforeCompletion = try XCTUnwrap(store.orders.first).latestStatus
+
+    store.completeInboxDispatchHandoff(for: order)
+
+    let updatedOrder = try XCTUnwrap(store.orders.first)
+    XCTAssertEqual(updatedOrder.latestStatus, latestStatusBeforeCompletion)
+    XCTAssertEqual(updatedOrder.status, .intake)
+    XCTAssertEqual(updatedOrder.reviewState, .needsReview)
+    XCTAssertEqual(store.shipmentManifestRecords.first?.dispatchStatus, .blockedNeedsReview)
+    XCTAssertEqual(store.dispatchReadinessChecklists.first?.checklistStatus, .blockedNeedsReview)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Inbox dispatch handoff completion blocked."
+        && (event.afterDetail?.contains("Resolve blocked dispatch records before completing handoff.") ?? false)
+    })
+  }
+
   func testWishlistSellerEvidenceGapsAndScore() {
     let weakOption = WishlistComparisonOption(
       sellerName: "Unknown marketplace seller",
