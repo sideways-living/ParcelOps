@@ -2745,6 +2745,117 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     })
   }
 
+  func testGmailCreatedOrderKeepsActualSourceMailboxTrail() throws {
+    let mailboxID = UUID()
+    let intake = ForwardedEmailIntake(
+      sender: "orders@example-store.test",
+      subject: "Example Store order TEST-123 shipped",
+      receivedDate: "Today",
+      rawBodyPreview: "Order TEST-123 shipped tracking ABC123 to 10 Market Street, Melbourne VIC.",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "TEST-123",
+      detectedTrackingNumber: "ABC123",
+      detectedDestinationAddress: "10 Market Street, Melbourne VIC",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    let connection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 1,
+      imported: 1,
+      filtered: 0,
+      uncertain: 0
+    )
+    var gmailConnection = connection
+    gmailConnection.emailAddress = "gmail-orders@example.test"
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [gmailConnection]
+    store.intakeEmails = [intake]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "gmail-order-source-1",
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .imported,
+        summary: "Imported from Gmail"
+      )
+    ]
+    store.auditEvents = []
+
+    store.createOrder(from: intake)
+
+    let createdOrder = try XCTUnwrap(store.orders.first)
+    let updatedIntake = try XCTUnwrap(store.intakeEmails.first)
+    XCTAssertEqual(createdOrder.checkedMailbox, "gmail-orders@example.test")
+    XCTAssertEqual(createdOrder.contactHistory.first?.contactPoint, "gmail-orders@example.test")
+    XCTAssertEqual(updatedIntake.linkedOrderID, createdOrder.id)
+    XCTAssertEqual(updatedIntake.reviewState, .reviewed)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Tracked order created from forwarded intake email."
+        && event.afterDetail?.contains("Source mailbox: gmail-orders@example.test") == true
+    })
+  }
+
+  func testLinkingGmailIntakeToExistingOrderKeepsActualSourceMailboxTrail() throws {
+    let mailboxID = UUID()
+    let order = makeOrder(
+      orderNumber: "TEST-123",
+      trackingNumber: "ABC123",
+      destination: "10 Market Street, Melbourne VIC",
+      checkedMailbox: "manual-import",
+      source: .manual,
+      latestStatus: "Manual order"
+    )
+    let intake = ForwardedEmailIntake(
+      sender: "orders@example-store.test",
+      subject: "Example Store order TEST-123 shipped",
+      receivedDate: "Today",
+      rawBodyPreview: "Order TEST-123 shipped tracking ABC123 to 10 Market Street, Melbourne VIC.",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "TEST-123",
+      detectedTrackingNumber: "ABC123",
+      detectedDestinationAddress: "10 Market Street, Melbourne VIC",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    var gmailConnection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 1,
+      imported: 1,
+      filtered: 0,
+      uncertain: 0
+    )
+    gmailConnection.emailAddress = "gmail-orders@example.test"
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.orders = [order]
+    store.gmailMailboxConnections = [gmailConnection]
+    store.intakeEmails = [intake]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "gmail-order-link-1",
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .imported,
+        summary: "Imported from Gmail"
+      )
+    ]
+
+    store.linkIntakeEmail(intake, to: order)
+
+    let updatedOrder = try XCTUnwrap(store.orders.first)
+    let updatedIntake = try XCTUnwrap(store.intakeEmails.first)
+    XCTAssertEqual(updatedOrder.contactHistory.first?.contactPoint, "gmail-orders@example.test")
+    XCTAssertEqual(updatedOrder.latestStatus, "Forwarded email evidence linked")
+    XCTAssertEqual(updatedIntake.linkedOrderID, order.id)
+    XCTAssertEqual(updatedIntake.reviewState, .reviewed)
+  }
+
   func testGmailConnectedRefreshStillSurfacesCompiledSetupBlockers() {
     let mailboxID = UUID()
     let connection = makeGmailConnection(

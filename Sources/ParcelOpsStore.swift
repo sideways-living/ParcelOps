@@ -10211,6 +10211,7 @@ final class ParcelOpsStore {
   func linkIntakeEmail(_ email: ForwardedEmailIntake, to order: TrackedOrder) {
     guard let emailIndex = intakeEmails.firstIndex(where: { $0.id == email.id }) else { return }
     let beforeDetail = intakeEmails[emailIndex].auditDetail
+    let sourceMailbox = sourceMailboxLabel(for: email)
     intakeEmails[emailIndex].linkedOrderID = order.id
     intakeEmails[emailIndex].reviewState = .reviewed
 
@@ -10219,7 +10220,7 @@ final class ParcelOpsStore {
         ContactHistoryEvent(
           time: "Now",
           source: .mailbox,
-          contactPoint: "Forwarded email intake",
+          contactPoint: sourceMailbox,
           summary: "Forwarded email linked to this order.",
           evidence: "\(email.subject) from \(email.sender)",
           reviewState: .accepted
@@ -10251,6 +10252,7 @@ final class ParcelOpsStore {
     let latestStatus = isPartialOrder
       ? "Created from forwarded email with missing \(missingFields.joined(separator: ", "))"
       : "Created from forwarded email and awaiting review"
+    let sourceMailbox = sourceMailboxLabel(for: email)
     let handoffDetail = isPartialOrder
       ? "Created as a partial order because \(missingFields.joined(separator: ", ")) needs confirmation."
       : "Created from forwarded email with usable detected order fields."
@@ -10259,7 +10261,7 @@ final class ParcelOpsStore {
       orderNumber: orderNumber,
       store: email.detectedMerchant.isPlaceholder ? "Forwarded email supplier" : email.detectedMerchant,
       recipientEmail: "captured-from-forward@parcelops.example",
-      checkedMailbox: "tracking-intake@parcelops.example",
+      checkedMailbox: sourceMailbox,
       customer: "Unassigned",
       fulfillment: .delivery,
       carrier: trackingNumber == "Pending" ? "Pending" : "Carrier pending",
@@ -10275,7 +10277,7 @@ final class ParcelOpsStore {
         TimelineEvent(title: isPartialOrder ? "Partial order created" : "Order created", detail: handoffDetail, time: "Now", symbol: isPartialOrder ? "exclamationmark.triangle.fill" : "shippingbox.fill")
       ],
       contactHistory: [
-        ContactHistoryEvent(time: "Now", source: .mailbox, contactPoint: "Forwarded email intake", summary: handoffDetail, evidence: email.rawBodyPreview, reviewState: .needsReview)
+        ContactHistoryEvent(time: "Now", source: .mailbox, contactPoint: sourceMailbox, summary: handoffDetail, evidence: email.rawBodyPreview, reviewState: .needsReview)
       ]
     )
 
@@ -10297,7 +10299,7 @@ final class ParcelOpsStore {
       entityID: order.id.uuidString,
       entityLabel: order.orderNumber,
       summary: isPartialOrder ? "Partial tracked order created from forwarded intake email." : "Tracked order created from forwarded intake email.",
-      afterDetail: "\(order.auditDetail)\nInbox handoff: \(handoffDetail)"
+      afterDetail: "\(order.auditDetail)\nSource mailbox: \(sourceMailbox)\nInbox handoff: \(handoffDetail)"
     )
     logAudit(
       action: .reviewed,
@@ -10308,6 +10310,25 @@ final class ParcelOpsStore {
       beforeDetail: email.auditDetail,
       afterDetail: intakeEmails.first { $0.id == email.id }?.auditDetail
     )
+  }
+
+  private func sourceMailboxLabel(for email: ForwardedEmailIntake) -> String {
+    guard let ingestRecord = mailboxIngestRecords.first(where: { $0.intakeEmailID == email.id }) else {
+      return "tracking-intake@parcelops.example"
+    }
+    if let gmail = gmailMailboxConnections.first(where: { $0.id == ingestRecord.sourceMailboxID }) {
+      return gmail.emailAddress
+    }
+    if let spaceMail = spaceMailIMAPConnections.first(where: { $0.id == ingestRecord.sourceMailboxID }) {
+      return spaceMail.emailAddressUsername
+    }
+    if let microsoft365 = microsoft365MailboxConnections.first(where: { $0.id == ingestRecord.sourceMailboxID }) {
+      return microsoft365.mailboxAddress
+    }
+    if let trackedMailbox = mailboxes.first(where: { $0.id == ingestRecord.sourceMailboxID }) {
+      return trackedMailbox.address
+    }
+    return "Mailbox \(ingestRecord.sourceMailboxID.uuidString.prefix(8))"
   }
 
   private func missingIntakeOrderFields(_ email: ForwardedEmailIntake) -> [String] {
