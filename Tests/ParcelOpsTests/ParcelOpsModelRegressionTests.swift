@@ -59,6 +59,51 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     })
   }
 
+  func testInboxDispatchReopenCreatesSingleFollowUpTaskAndCompletionResolvesIt() throws {
+    let order = makeOrder(
+      orderNumber: "TEST-456",
+      trackingNumber: "TRACK-456",
+      destination: "Melbourne VIC",
+      checkedMailbox: "caught@droctopus.net",
+      source: .forwardedMailbox,
+      latestStatus: "Created from verified Inbox intake"
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.orders = [order]
+    store.shipmentManifestRecords = []
+    store.dispatchReadinessChecklists = []
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createDispatchSetup(for: order)
+    store.completeInboxDispatchHandoff(for: order)
+    store.reopenInboxDispatchHandoff(for: order)
+    store.reopenInboxDispatchHandoff(for: order)
+
+    let reopenTasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .order
+        && $0.linkedEntityID == order.id.uuidString
+        && $0.summary.localizedCaseInsensitiveContains("Reopened Inbox dispatch handoff")
+    }
+    XCTAssertEqual(reopenTasks.count, 1)
+    XCTAssertEqual(reopenTasks.first?.status, .open)
+    XCTAssertEqual(store.shipmentManifestRecords.first?.dispatchStatus, .reopened)
+    XCTAssertEqual(store.dispatchReadinessChecklists.first?.checklistStatus, .reopened)
+
+    store.completeInboxDispatchHandoff(for: order)
+
+    let completedTask = try XCTUnwrap(store.reviewTasks.first {
+      $0.linkedEntityID == order.id.uuidString
+        && $0.summary.localizedCaseInsensitiveContains("Reopened Inbox dispatch handoff")
+    })
+    XCTAssertEqual(completedTask.status, .completed)
+    XCTAssertEqual(store.shipmentManifestRecords.first?.dispatchStatus, .handedOff)
+    XCTAssertEqual(store.dispatchReadinessChecklists.first?.checklistStatus, .completed)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Reopened Inbox dispatch handoff task resolved."
+    })
+  }
+
   func testWishlistSellerEvidenceGapsAndScore() {
     let weakOption = WishlistComparisonOption(
       sellerName: "Unknown marketplace seller",
