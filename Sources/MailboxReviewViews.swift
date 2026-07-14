@@ -37,28 +37,27 @@ struct MailboxView: View {
   }
 
   private var latestMailboxFetchedCount: Int {
-    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxFetchedCount
   }
 
   private var latestMailboxImportedCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
 
   private var latestMailboxDuplicateCount: Int {
-    (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
+    store.latestMailboxDuplicateCount
   }
 
   private var latestMailboxDuplicateRefreshedCount: Int {
-    (latestSpaceMailSummary?.duplicateRefreshedCount ?? 0) + (latestGmailSummary?.duplicateRefreshedCount ?? 0)
+    store.latestMailboxDuplicateRefreshedCount
   }
 
   private var latestMailboxFilteredCount: Int {
-    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+    store.latestMailboxFilteredCount
   }
 
   private var latestMailboxUncertainCount: Int {
-    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
-      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
+    store.latestMailboxUncertainCount
   }
 
   private var mailboxProviderDecision: (title: String, detail: String, color: Color) {
@@ -1111,28 +1110,27 @@ private struct MailboxMissedOrderInvestigationPanel: View {
   }
 
   private var latestFetchedCount: Int {
-    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxFetchedCount
   }
 
   private var latestImportedCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
 
   private var latestDuplicateCount: Int {
-    (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
+    store.latestMailboxDuplicateCount
   }
 
   private var latestDuplicateRefreshedCount: Int {
-    (latestSpaceMailSummary?.duplicateRefreshedCount ?? 0) + (latestGmailSummary?.duplicateRefreshedCount ?? 0)
+    store.latestMailboxDuplicateRefreshedCount
   }
 
   private var latestFilteredCount: Int {
-    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+    store.latestMailboxFilteredCount
   }
 
   private var latestUncertainCount: Int {
-    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
-      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
+    store.latestMailboxUncertainCount
   }
 
   private var parserDiagnosticCount: Int {

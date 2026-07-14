@@ -5930,23 +5930,23 @@ struct MailboxProviderQAMatrixCard: View {
   }
 
   private var fetchedCount: Int {
-    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxFetchedCount
   }
 
   private var importedCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
 
   private var duplicateCount: Int {
-    (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
+    store.latestMailboxDuplicateCount
   }
 
   private var duplicateRefreshedCount: Int {
-    (latestSpaceMailSummary?.duplicateRefreshedCount ?? 0) + (latestGmailSummary?.duplicateRefreshedCount ?? 0)
+    store.latestMailboxDuplicateRefreshedCount
   }
 
   private var filteredCount: Int {
-    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+    store.latestMailboxFilteredCount
   }
 
   private var uncertainCount: Int {
@@ -6225,7 +6225,7 @@ struct OperatorSupportSnapshotCard: View {
         "Mixed mailbox mode",
         "\(mailboxModeText). Mixed mailbox mode keeps filtered non-order mail out of Inbox and holds uncertain mail for review.",
         "line.3.horizontal.decrease.circle",
-        ((latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)) > 0 ? .teal : .secondary
+        (store.latestMailboxFilteredCount) > 0 ? .teal : .secondary
       ),
       (
         "Inbox-to-order trail",
@@ -6275,10 +6275,10 @@ struct OperatorSupportSnapshotCard: View {
         ("Linked orders", "\(inboxLinkedOrderCount)", inboxLinkedOrderCount == 0 ? .orange : .green),
         ("Wishlist", "\(activeWishlistItems.count)", activeWishlistItems.isEmpty ? .secondary : .purple),
         ("Wish orders", "\(linkedWishlistOrderCount)", linkedWishlistOrderCount == 0 ? .secondary : .green),
-        ("Fetched", "\((latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0))", latestSpaceMailSummary == nil && latestGmailSummary == nil ? .secondary : .blue),
-        ("Refreshed", "\((latestSpaceMailSummary?.duplicateRefreshedCount ?? 0) + (latestGmailSummary?.duplicateRefreshedCount ?? 0))", ((latestSpaceMailSummary?.duplicateRefreshedCount ?? 0) + (latestGmailSummary?.duplicateRefreshedCount ?? 0)) == 0 ? .secondary : .green),
-        ("Filtered", "\((latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0))", ((latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)) == 0 ? .secondary : .teal),
-        ("Uncertain", "\((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0))", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)) == 0 ? .secondary : .orange)
+        ("Fetched", "\(store.latestMailboxFetchedCount)", latestSpaceMailSummary == nil && latestGmailSummary == nil ? .secondary : .blue),
+        ("Refreshed", "\(store.latestMailboxDuplicateRefreshedCount)", (store.latestMailboxDuplicateRefreshedCount) == 0 ? .secondary : .green),
+        ("Filtered", "\(store.latestMailboxFilteredCount)", (store.latestMailboxFilteredCount) == 0 ? .secondary : .teal),
+        ("Uncertain", "\(store.latestMailboxUncertainCount)", (store.latestMailboxUncertainCount) == 0 ? .secondary : .orange)
       ])
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {

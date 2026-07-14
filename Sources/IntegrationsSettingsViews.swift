@@ -346,9 +346,9 @@ struct IntegrationsView: View {
               ("Credential", hasSpaceMailCredentialReference ? "Keychain" : hasSpaceMailSetup ? "Needed" : "N/A", hasSpaceMailCredentialReference ? .green : hasSpaceMailSetup ? .orange : .secondary),
               ("Gmail", hasGmailSetup ? "Configured" : "Not set", hasGmailSetup ? .green : .secondary),
               ("Google sign-in", hasGmailConnectedAuth ? "Connected" : hasGmailSetup ? "Needed" : "N/A", hasGmailConnectedAuth ? .green : hasGmailSetup ? .orange : .secondary),
-              ("Fetched", "\((latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0))", .blue),
-              ("Imported", "\((latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0))", ((latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)) > 0 ? .green : .secondary),
-              ("Uncertain", "\((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0))", (((latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0) + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)) > 0) ? .orange : .secondary)
+              ("Fetched", "\(store.latestMailboxFetchedCount)", .blue),
+              ("Imported", "\(store.latestMailboxImportedCount)", (store.latestMailboxImportedCount) > 0 ? .green : .secondary),
+              ("Uncertain", "\(store.latestMailboxUncertainCount)", ((store.latestMailboxUncertainCount) > 0) ? .orange : .secondary)
             ])
 
             VStack(alignment: .leading, spacing: 8) {
@@ -5652,15 +5652,15 @@ struct SettingsReleaseCandidateCard: View {
   }
 
   private var latestManualFetchedCount: Int {
-    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxMaxFetchedCount
   }
 
   private var latestManualImportedCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
 
   private var latestManualFilteredCount: Int {
-    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+    store.latestMailboxFilteredCount
   }
 
   private var latestManualUncertainCount: Int {
@@ -5915,15 +5915,15 @@ struct SettingsView: View {
   }
 
   private var latestManualMailboxFetchedCount: Int {
-    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxMaxFetchedCount
   }
 
   private var latestManualMailboxImportedCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
 
   private var latestManualMailboxFilteredCount: Int {
-    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+    store.latestMailboxFilteredCount
   }
 
   private var latestManualMailboxUncertainCount: Int {

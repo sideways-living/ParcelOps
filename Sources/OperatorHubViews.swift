@@ -166,24 +166,23 @@ struct InboxView: View {
   }
 
   private var latestMailboxFetchedCount: Int {
-    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxFetchedCount
   }
 
   private var latestMailboxImportedCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
 
   private var latestMailboxDuplicateCount: Int {
-    (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
+    store.latestMailboxDuplicateCount
   }
 
   private var latestMailboxFilteredCount: Int {
-    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+    store.latestMailboxFilteredCount
   }
 
   private var latestMailboxUncertainCount: Int {
-    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
-      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
+    store.latestMailboxUncertainCount
   }
 
   private var pendingFilteredGmailReviewCount: Int {

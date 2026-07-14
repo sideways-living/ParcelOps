@@ -371,7 +371,7 @@ struct MVPMailboxProviderStatusPanel: View {
   }
 
   private var latestManualFetchCount: Int {
-    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxMaxFetchedCount
   }
 
   private var statusTitle: String {
@@ -885,11 +885,11 @@ struct MVPDevelopmentStatusPanel: View {
   }
 
   private var latestManualFetchedCount: Int {
-    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxMaxFetchedCount
   }
 
   private var latestManualImportedCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
 
   private var hasInboxOrderHandoff: Bool {
@@ -1065,11 +1065,11 @@ struct MVPUsableVersionPanel: View {
   }
 
   private var latestManualFetchedCount: Int {
-    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxMaxFetchedCount
   }
 
   private var latestManualImportedCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
 
   private var inboxOrderCount: Int {
@@ -1208,15 +1208,15 @@ struct MVPCompletionRoadmapPanel: View {
   }
 
   private var fetchedCount: Int {
-    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxFetchedCount
   }
 
   private var importedCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
 
   private var filteredCount: Int {
-    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+    store.latestMailboxFilteredCount
   }
 
   private var uncertainCount: Int {
@@ -1434,11 +1434,11 @@ struct MVPDevelopmentProgressPanel: View {
   }
 
   private var latestManualFetchedCount: Int {
-    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxMaxFetchedCount
   }
 
   private var latestManualImportedCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
 
   private var hasInboxOrderHandoff: Bool {
@@ -1805,7 +1805,7 @@ struct MVPHandsOnReleaseChecklist: View {
   }
 
   private var latestManualFetchedCount: Int {
-    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxMaxFetchedCount
   }
 
   private var intakeReadyCount: Int {
@@ -2793,16 +2793,15 @@ struct MVPHandsOnTroubleshootingGuide: View {
   }
 
   private var fetchedCount: Int {
-    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxFetchedCount
   }
 
   private var filteredCount: Int {
-    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+    store.latestMailboxFilteredCount
   }
 
   private var uncertainCount: Int {
-    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
-      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
+    store.latestMailboxUncertainCount
   }
 
   private var latestMailboxDetail: String {

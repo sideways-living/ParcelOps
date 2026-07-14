@@ -5911,6 +5911,35 @@ final class ParcelOpsStore {
     gmailIntakeHealthSummaries.first
   }
 
+  var latestMailboxFetchedCount: Int {
+    (latestSpaceMailIntakeHealthSummary?.fetchedCount ?? 0) + (latestGmailIntakeHealthSummary?.fetchedCount ?? 0)
+  }
+
+  var latestMailboxMaxFetchedCount: Int {
+    max(latestSpaceMailIntakeHealthSummary?.fetchedCount ?? 0, latestGmailIntakeHealthSummary?.fetchedCount ?? 0)
+  }
+
+  var latestMailboxImportedCount: Int {
+    (latestSpaceMailIntakeHealthSummary?.importedCount ?? 0) + (latestGmailIntakeHealthSummary?.importedCount ?? 0)
+  }
+
+  var latestMailboxDuplicateCount: Int {
+    (latestSpaceMailIntakeHealthSummary?.duplicateCount ?? 0) + (latestGmailIntakeHealthSummary?.duplicateCount ?? 0)
+  }
+
+  var latestMailboxDuplicateRefreshedCount: Int {
+    (latestSpaceMailIntakeHealthSummary?.duplicateRefreshedCount ?? 0) + (latestGmailIntakeHealthSummary?.duplicateRefreshedCount ?? 0)
+  }
+
+  var latestMailboxFilteredCount: Int {
+    (latestSpaceMailIntakeHealthSummary?.filteredCount ?? 0) + (latestGmailIntakeHealthSummary?.filteredCount ?? 0)
+  }
+
+  var latestMailboxUncertainCount: Int {
+    (latestSpaceMailIntakeHealthSummary?.pendingUncertainReviewCount ?? latestSpaceMailIntakeHealthSummary?.uncertainCount ?? 0)
+      + (latestGmailIntakeHealthSummary?.pendingUncertainReviewCount ?? latestGmailIntakeHealthSummary?.uncertainCount ?? 0)
+  }
+
   var hasSpaceMailCredentialReference: Bool {
     spaceMailIMAPConnections.contains {
       $0.credentialStorageStatus == SpaceMailCredentialStoreStatus.passwordReferenceAvailable.rawValue

@@ -2661,20 +2661,19 @@ private struct DashboardReleaseReadinessSnapshot: View {
   }
 
   private var latestFetchedCount: Int {
-    max(latestSpaceMailSummary?.fetchedCount ?? 0, latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxMaxFetchedCount
   }
 
   private var importedMailboxCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
 
   private var uncertainMailboxCount: Int {
-    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
-      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
+    store.latestMailboxUncertainCount
   }
 
   private var filteredMailboxCount: Int {
-    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+    store.latestMailboxFilteredCount
   }
 
   private var inboxOrderCount: Int {
@@ -3529,19 +3528,19 @@ struct FirstLiveMailboxTestCard: View {
   }
 
   private var fetchedCount: Int {
-    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxFetchedCount
   }
 
   private var importedCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
 
   private var filteredCount: Int {
-    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+    store.latestMailboxFilteredCount
   }
 
   private var duplicateCount: Int {
-    (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
+    store.latestMailboxDuplicateCount
   }
 
   private var hasRealRefresh: Bool {
@@ -3562,8 +3561,7 @@ struct FirstLiveMailboxTestCard: View {
   }
 
   private var pendingUncertainCount: Int {
-    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
-      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
+    store.latestMailboxUncertainCount
   }
 
   private var hasRefreshOutcome: Bool {

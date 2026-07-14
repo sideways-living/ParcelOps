@@ -172,11 +172,11 @@ private struct SearchReadinessPanel: View {
   var latestGmailSummary: GmailIntakeHealthSummary?
 
   private var filteredCount: Int {
-    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+    store.latestMailboxFilteredCount
   }
 
   private var importedCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
 
   private var providerReleaseNeedsReview: Bool {

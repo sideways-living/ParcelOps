@@ -66,23 +66,22 @@ struct OrdersView: View {
     store.latestGmailIntakeHealthSummary
   }
   private var pendingUncertainMailboxCount: Int {
-    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)
-      + (latestGmailSummary?.pendingUncertainReviewCount ?? latestGmailSummary?.uncertainCount ?? 0)
+    store.latestMailboxUncertainCount
   }
   private var mailboxFetchedCount: Int {
-    (latestSpaceMailSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0)
+    store.latestMailboxFetchedCount
   }
   private var mailboxImportedCount: Int {
-    (latestSpaceMailSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)
+    store.latestMailboxImportedCount
   }
   private var mailboxFilteredCount: Int {
-    (latestSpaceMailSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)
+    store.latestMailboxFilteredCount
   }
   private var mailboxDuplicateCount: Int {
-    (latestSpaceMailSummary?.duplicateCount ?? 0) + (latestGmailSummary?.duplicateCount ?? 0)
+    store.latestMailboxDuplicateCount
   }
   private var mailboxDuplicateRefreshedCount: Int {
-    (latestSpaceMailSummary?.duplicateRefreshedCount ?? 0) + (latestGmailSummary?.duplicateRefreshedCount ?? 0)
+    store.latestMailboxDuplicateRefreshedCount
   }
   private var orderMailboxProviderRows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] {
     var rows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] = []
