@@ -91,11 +91,11 @@ struct AuditView: View {
 
 
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
-    store.inboxCreatedOrders.filter { store.sourceTrailCount(for: $0) > 0 }
+    store.inboxCreatedOrdersWithSourceTrail()
   }
 
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    store.inboxCreatedOrders.filter { store.sourceTrailCount(for: $0) == 0 }
+    store.inboxCreatedOrdersMissingSourceTrail()
   }
 
   private var mailboxEvidenceEvents: [AuditEvent] {

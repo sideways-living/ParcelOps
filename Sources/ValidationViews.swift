@@ -39,11 +39,11 @@ struct ValidationView: View {
 
 
   private var sourceOrdersWithSourceTrail: [TrackedOrder] {
-    store.operatorSourceOrders.filter { store.sourceTrailCount(for: $0, includeWishlist: true) > 0 }
+    store.operatorSourceOrdersWithSourceTrail(includeWishlist: true)
   }
 
   private var sourceOrdersMissingSourceTrail: [TrackedOrder] {
-    store.operatorSourceOrders.filter { store.sourceTrailCount(for: $0, includeWishlist: true) == 0 }
+    store.operatorSourceOrdersMissingSourceTrail(includeWishlist: true)
   }
 
   private var inboxLinkedValidationIssues: [ValidationIssue] {

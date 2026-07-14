@@ -45,7 +45,7 @@ struct EvidenceView: View {
   }
 
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    store.inboxCreatedOrders.filter { store.sourceTrailCount(for: $0) == 0 }
+    store.inboxCreatedOrdersMissingSourceTrail()
   }
 
   private var evidenceProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {

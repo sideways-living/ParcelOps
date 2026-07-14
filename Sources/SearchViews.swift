@@ -9,11 +9,11 @@ struct SearchView: View {
 
 
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
-    store.inboxCreatedOrders.filter { store.sourceTrailCount(for: $0, includeWishlist: true) > 0 }
+    store.inboxCreatedOrdersWithSourceTrail(includeWishlist: true)
   }
 
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    store.inboxCreatedOrders.filter { store.sourceTrailCount(for: $0, includeWishlist: true) == 0 }
+    store.inboxCreatedOrdersMissingSourceTrail(includeWishlist: true)
   }
 
   private var uncertainSpaceMailCount: Int {

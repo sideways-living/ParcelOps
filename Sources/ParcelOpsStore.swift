@@ -5923,6 +5923,22 @@ final class ParcelOpsStore {
     sourceTrailSummary(for: order, includeWishlist: includeWishlist).totalCount
   }
 
+  func operatorSourceOrdersWithSourceTrail(includeWishlist: Bool = false) -> [TrackedOrder] {
+    operatorSourceOrders.filter { sourceTrailSummary(for: $0, includeWishlist: includeWishlist).hasSourceTrail }
+  }
+
+  func operatorSourceOrdersMissingSourceTrail(includeWishlist: Bool = false) -> [TrackedOrder] {
+    operatorSourceOrders.filter { !sourceTrailSummary(for: $0, includeWishlist: includeWishlist).hasSourceTrail }
+  }
+
+  func inboxCreatedOrdersWithSourceTrail(includeWishlist: Bool = false) -> [TrackedOrder] {
+    inboxCreatedOrders.filter { sourceTrailSummary(for: $0, includeWishlist: includeWishlist).hasSourceTrail }
+  }
+
+  func inboxCreatedOrdersMissingSourceTrail(includeWishlist: Bool = false) -> [TrackedOrder] {
+    inboxCreatedOrders.filter { !sourceTrailSummary(for: $0, includeWishlist: includeWishlist).hasSourceTrail }
+  }
+
   func importQueueItems(for order: TrackedOrder) -> [ImportQueueItem] {
     importQueueItems.filter { item in
       item.suggestedLinkedOrderID == order.id

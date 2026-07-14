@@ -46,11 +46,11 @@ struct TimelineView: View {
 
 
   private var sourceOrdersWithSourceTrail: [TrackedOrder] {
-    store.operatorSourceOrders.filter { store.sourceTrailCount(for: $0) > 0 }
+    store.operatorSourceOrdersWithSourceTrail()
   }
 
   private var sourceOrdersMissingSourceTrail: [TrackedOrder] {
-    store.operatorSourceOrders.filter { store.sourceTrailCount(for: $0) == 0 }
+    store.operatorSourceOrdersMissingSourceTrail()
   }
 
   private var inboxSourceTimelineActivities: [TimelineActivity] {

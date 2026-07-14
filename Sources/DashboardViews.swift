@@ -462,10 +462,10 @@ struct DashboardView: View {
     store.reviewOrders.count + store.orders.filter { $0.status == .exception }.count + store.trackingWarningCount + store.criticalTrackingCount
   }
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
-    store.operatorSourceOrders.filter { store.sourceTrailSummary(for: $0, includeWishlist: true).hasSourceTrail }
+    store.operatorSourceOrdersWithSourceTrail(includeWishlist: true)
   }
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    store.operatorSourceOrders.filter { !store.sourceTrailSummary(for: $0, includeWishlist: true).hasSourceTrail }
+    store.operatorSourceOrdersMissingSourceTrail(includeWishlist: true)
   }
   private var partialInboxOrderBlockers: [TrackedOrder] {
     store.inboxCreatedOrders.filter { order in
