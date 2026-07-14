@@ -2624,23 +2624,15 @@ struct DashboardView: View {
   }
 
   private func hasInboxSourceTrail(_ order: TrackedOrder) -> Bool {
-    !linkedIntakeEmails(for: order).isEmpty
-      || !store.importQueueItems(for: order).isEmpty
-      || !store.acceptanceRecords(for: order).isEmpty
+    store.sourceTrailSummary(for: order).hasSourceTrail
   }
 
   private func hasOperatorSourceTrail(_ order: TrackedOrder) -> Bool {
-    hasInboxSourceTrail(order) || !store.activeWishlistItemsLinked(to: order).isEmpty
+    store.sourceTrailSummary(for: order, includeWishlist: true).hasSourceTrail
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-    return store.intakeEmails.filter { email in
-      email.linkedOrderID == order.id
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
-    }
+    store.linkedIntakeEmails(for: order)
   }
 
   private func inboxDispatchHandoffCompleted(_ order: TrackedOrder) -> Bool {

@@ -5877,6 +5877,29 @@ final class ParcelOpsStore {
     }
   }
 
+  func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
+    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+    return intakeEmails.filter { email in
+      email.linkedOrderID == order.id
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
+        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
+    }
+  }
+
+  func sourceTrailSummary(for order: TrackedOrder, includeWishlist: Bool = false) -> OrderSourceTrailSummary {
+    OrderSourceTrailSummary(
+      intakeCount: linkedIntakeEmails(for: order).count,
+      importCount: importQueueItems(for: order).count,
+      acceptanceCount: acceptanceRecords(for: order).count,
+      wishlistCount: includeWishlist ? activeWishlistItemsLinked(to: order).count : 0
+    )
+  }
+
+  func sourceTrailCount(for order: TrackedOrder, includeWishlist: Bool = false) -> Int {
+    sourceTrailSummary(for: order, includeWishlist: includeWishlist).totalCount
+  }
+
   func importQueueItems(for order: TrackedOrder) -> [ImportQueueItem] {
     importQueueItems.filter { item in
       item.suggestedLinkedOrderID == order.id

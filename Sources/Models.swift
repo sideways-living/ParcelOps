@@ -1,5 +1,37 @@
 import Foundation
 
+struct OrderSourceTrailSummary: Equatable {
+  var intakeCount: Int
+  var importCount: Int
+  var acceptanceCount: Int
+  var wishlistCount: Int
+
+  var totalCount: Int {
+    intakeCount + importCount + acceptanceCount + wishlistCount
+  }
+
+  var hasSourceTrail: Bool {
+    totalCount > 0
+  }
+
+  var compactLabel: String {
+    hasSourceTrail ? "\(totalCount) source\(totalCount == 1 ? "" : "s")" : "Source trail missing"
+  }
+
+  var auditDetail: String {
+    let parts = [
+      intakeCount > 0 ? "\(intakeCount) intake" : nil,
+      importCount > 0 ? "\(importCount) import" : nil,
+      acceptanceCount > 0 ? "\(acceptanceCount) acceptance" : nil,
+      wishlistCount > 0 ? "\(wishlistCount) wishlist" : nil
+    ].compactMap { $0 }
+
+    return parts.isEmpty
+      ? "No linked intake, import, acceptance, or Wishlist source records matched this order."
+      : "Source trail: \(parts.joined(separator: ", "))."
+  }
+}
+
 enum ParcelSection: String, CaseIterable, Identifiable {
   case dashboard
   case inbox

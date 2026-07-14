@@ -3112,6 +3112,85 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(context.detail.contains("Linked order: Example Store TEST-123"))
   }
 
+  func testOrderSourceTrailSummaryCountsIntakeImportAcceptanceAndWishlist() {
+    let order = makeOrder(
+      orderNumber: "TEST-789",
+      trackingNumber: "TRACK-789",
+      destination: "Sydney NSW",
+      checkedMailbox: "caught@droctopus.net",
+      source: .forwardedMailbox,
+      latestStatus: "Created from verified Inbox intake"
+    )
+    let intake = ForwardedEmailIntake(
+      sender: "orders@example.test",
+      subject: "Order TEST-789 shipped",
+      receivedDate: "Today",
+      rawBodyPreview: "Order TEST-789 shipped tracking TRACK-789.",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "Order number needs review",
+      detectedTrackingNumber: "TRACK-789",
+      detectedDestinationAddress: "Sydney NSW",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    let importItem = ImportQueueItem(
+      sourceType: .manualEntry,
+      sourceLabel: "Manual TEST-789 import",
+      capturedDate: "Today",
+      rawSummary: "Manual import for TEST-789",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "TEST-789",
+      detectedTrackingNumber: "TRACK-789",
+      detectedDestinationAddress: "Sydney NSW",
+      suggestedLinkedOrderID: order.id,
+      suggestedShipmentGroupID: nil,
+      confidenceScore: 88,
+      importStatus: .linked,
+      reviewState: .accepted,
+      notes: "Linked locally."
+    )
+    let acceptance = AcceptanceRecord(
+      sourceType: .intakeEmail,
+      sourceID: intake.id,
+      sourceLabel: intake.subject,
+      decidedDate: "Today",
+      confidenceScore: 92,
+      linkedOrderID: order.id,
+      linkedShipmentGroupID: nil,
+      decision: .accepted,
+      reviewState: .accepted,
+      summary: "Accepted into tracked order.",
+      notes: "Preserved source history."
+    )
+    let wishlist = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: order.id
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.orders = [order]
+    store.intakeEmails = [intake]
+    store.importQueueItems = [importItem]
+    store.acceptanceRecords = [acceptance]
+    store.wishlistItems = [wishlist]
+
+    let inboxSummary = store.sourceTrailSummary(for: order)
+    let operatorSummary = store.sourceTrailSummary(for: order, includeWishlist: true)
+
+    XCTAssertEqual(store.linkedIntakeEmails(for: order).map(\.id), [intake.id])
+    XCTAssertEqual(inboxSummary.intakeCount, 1)
+    XCTAssertEqual(inboxSummary.importCount, 1)
+    XCTAssertEqual(inboxSummary.acceptanceCount, 1)
+    XCTAssertEqual(inboxSummary.wishlistCount, 0)
+    XCTAssertEqual(inboxSummary.totalCount, 3)
+    XCTAssertEqual(inboxSummary.compactLabel, "3 sources")
+    XCTAssertTrue(inboxSummary.auditDetail.contains("1 intake"))
+    XCTAssertEqual(operatorSummary.totalCount, 4)
+    XCTAssertEqual(operatorSummary.wishlistCount, 1)
+    XCTAssertTrue(operatorSummary.auditDetail.contains("1 wishlist"))
+  }
+
   func testGmailConnectedRefreshStillSurfacesCompiledSetupBlockers() {
     let mailboxID = UUID()
     let connection = makeGmailConnection(

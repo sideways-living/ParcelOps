@@ -455,9 +455,7 @@ struct EvidenceView: View {
   }
 
   private func sourceTrailCount(for order: TrackedOrder) -> Int {
-    linkedIntakeEmails(for: order).count
-      + store.importQueueItems(for: order).count
-      + store.acceptanceRecords(for: order).count
+    store.sourceTrailCount(for: order)
   }
 
   private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
@@ -471,13 +469,7 @@ struct EvidenceView: View {
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-    return store.intakeEmails.filter { email in
-      email.linkedOrderID == order.id
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
-    }
+    store.linkedIntakeEmails(for: order)
   }
 }
 
@@ -684,26 +676,11 @@ struct EvidenceAttachmentRow: View {
 
   private func sourceTrailCount(for order: TrackedOrder) -> Int {
     guard let store else { return 0 }
-    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-    let linkedIntakeCount = store.intakeEmails.filter { email in
-      email.linkedOrderID == order.id
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
-    }.count
-    return linkedIntakeCount
-      + store.importQueueItems(for: order).count
-      + store.acceptanceRecords(for: order).count
+    return store.sourceTrailCount(for: order)
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
-    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-    return store.intakeEmails.filter { email in
-      email.linkedOrderID == order.id
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
-    }
+    store.linkedIntakeEmails(for: order)
   }
 
   private func sourceColor(for tone: String) -> Color {
