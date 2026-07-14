@@ -362,13 +362,7 @@ struct ProcurementView: View {
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-    return store.intakeEmails.filter { email in
-      email.linkedOrderID == order.id
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
-    }
+    store.linkedIntakeEmails(for: order)
   }
 
   private func linkedOrder(for request: ProcurementRequest) -> TrackedOrder? {
@@ -490,13 +484,7 @@ struct ProcurementRequestRow: View {
 
   private var linkedIntakeEmails: [ForwardedEmailIntake] {
     guard let store, let linkedOrder else { return [] }
-    let orderNumber = linkedOrder.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-    return store.intakeEmails.filter { email in
-      email.linkedOrderID == linkedOrder.id
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
-    }
+    return store.linkedIntakeEmails(for: linkedOrder)
   }
 
   private var linkedWishlistItems: [WishlistItem] {

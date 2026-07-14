@@ -344,13 +344,7 @@ struct SLAPoliciesView: View {
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-    return store.intakeEmails.filter { email in
-      email.linkedOrderID == order.id
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
-    }
+    store.linkedIntakeEmails(for: order)
   }
 
   private func slaPolicySearchParts(_ policy: SLAPolicy) -> [String] {
@@ -554,13 +548,7 @@ struct SLAPolicyRow: View {
   private func sourceEmails(using store: ParcelOpsStore) -> [ForwardedEmailIntake] {
     var seen = Set<UUID>()
     return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
-      let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-      return store.intakeEmails.filter { email in
-        email.linkedOrderID == order.id
-          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
-          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
-          || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
-      }
+      return store.linkedIntakeEmails(for: order)
     }.filter { seen.insert($0.id).inserted }
   }
 

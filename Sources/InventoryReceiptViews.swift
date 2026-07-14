@@ -422,13 +422,7 @@ struct InventoryReceiptsView: View {
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-    return store.intakeEmails.filter { email in
-      email.linkedOrderID == order.id
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
-    }
+    store.linkedIntakeEmails(for: order)
   }
 
   private func inventoryReceipt(_ receipt: InventoryReceiptRecord, matches query: String) -> Bool {
@@ -708,13 +702,7 @@ struct InventoryReceiptRow: View {
   }
 
   private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
-    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-    return store.intakeEmails.filter { email in
-      email.linkedOrderID == order.id
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
-    }
+    store.linkedIntakeEmails(for: order)
   }
 
   private func sourceColor(for tone: String) -> Color {

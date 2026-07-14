@@ -3070,17 +3070,7 @@ private struct TaskInboxSourceTrail: View {
   var store: ParcelOpsStore
 
   private var linkedEmails: [ForwardedEmailIntake] {
-    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-    return Array(
-      store.intakeEmails
-        .filter { email in
-          email.linkedOrderID == order.id
-            || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
-            || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
-            || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
-        }
-        .prefix(3)
-    )
+    Array(store.linkedIntakeEmails(for: order).prefix(3))
   }
   private var importItems: [ImportQueueItem] {
     Array(store.importQueueItems(for: order).prefix(3))

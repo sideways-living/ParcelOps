@@ -8170,13 +8170,7 @@ struct LinkedOrdersContextPanel: View {
 
   private func inboxSourceSummary(for order: TrackedOrder, store: ParcelOpsStore) -> DispatchLinkedOrderSourceSummary? {
     guard order.isInboxCreatedLocalOrder else { return nil }
-    let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-    let linkedEmail = store.intakeEmails.first { email in
-      email.linkedOrderID == order.id
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.detectedOrderNumber.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.subject.localizedCaseInsensitiveContains(orderNumber))
-        || (!orderNumber.isEmpty && !orderNumber.isPlaceholderValidationValue && email.rawBodyPreview.localizedCaseInsensitiveContains(orderNumber))
-    }
+    let linkedEmail = store.linkedIntakeEmails(for: order).first
 
     guard let linkedEmail else {
       return DispatchLinkedOrderSourceSummary(
