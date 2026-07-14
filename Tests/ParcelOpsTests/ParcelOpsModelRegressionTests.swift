@@ -28,6 +28,37 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(manualImport.missingInboxOrderFieldCount, 0)
   }
 
+  func testInboxDispatchSetupDoesNotCreateDuplicateRecords() {
+    let order = makeOrder(
+      orderNumber: "TEST-123",
+      trackingNumber: "ABC123",
+      destination: "Brisbane QLD",
+      checkedMailbox: "caught@droctopus.net",
+      source: .forwardedMailbox,
+      latestStatus: "Created from verified Inbox intake"
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.orders = [order]
+    store.shipmentManifestRecords = []
+    store.dispatchReadinessChecklists = []
+    store.auditEvents = []
+
+    store.createDispatchSetup(for: order)
+    store.createDispatchSetup(for: order)
+
+    let manifests = store.suggestedShipmentManifestRecords(for: order).filter(\.isInboxHandoffSetup)
+    let checklists = store.suggestedDispatchReadinessChecklists(for: order).filter(\.isInboxHandoffSetup)
+
+    XCTAssertEqual(manifests.count, 1)
+    XCTAssertEqual(checklists.count, 1)
+    XCTAssertEqual(manifests.first?.includedOrderIDs, [order.id])
+    XCTAssertEqual(checklists.first?.orderIDs, [order.id])
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Dispatch setup already exists for Inbox-created order."
+        && (event.afterDetail?.contains("No duplicate dispatch records were created.") ?? false)
+    })
+  }
+
   func testWishlistSellerEvidenceGapsAndScore() {
     let weakOption = WishlistComparisonOption(
       sellerName: "Unknown marketplace seller",
