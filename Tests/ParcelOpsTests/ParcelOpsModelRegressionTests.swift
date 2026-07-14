@@ -2543,6 +2543,24 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     connection.oauthClientIDPlaceholder = "1234567890-abcdef.apps.googleusercontent.com"
     connection.redirectURIPlaceholder = "com.googleusercontent.apps.1234567890-abcdef"
     connection.consentScreenNotes = "Internal test consent screen prepared."
+    connection.lastRefreshFilteredExamples = ["Old filtered Gmail example"]
+    connection.lastRefreshUncertainExamples = ["Old uncertain Gmail example"]
+    connection.lastRefreshReasonBreakdown = [
+      SpaceMailClassifierReasonCount(decision: "filtered", reason: "old stale reason", count: 3)
+    ]
+    connection.refreshHistory = [
+      GmailRefreshHistoryEntry(
+        timestamp: "Earlier",
+        eventType: "Mock refresh",
+        status: "Fetch success",
+        fetchedCount: 5,
+        importedCount: 1,
+        duplicateCount: 1,
+        filteredNonOrderCount: 3,
+        uncertainCount: 0,
+        summary: "Previous refresh"
+      )
+    ]
     let store = ParcelOpsStore(
       repository: InMemoryParcelOpsRepository(),
       realGmailMailboxClient: realClient
@@ -2559,7 +2577,22 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(updatedConnection.connectionStatus, "Real Gmail: Not configured")
     XCTAssertEqual(updatedConnection.lastRefreshFetchedCount, 0)
     XCTAssertEqual(updatedConnection.lastRefreshImportedCount, 0)
+    XCTAssertEqual(updatedConnection.lastRefreshDuplicateCount, 0)
+    XCTAssertEqual(updatedConnection.lastRefreshFilteredNonOrderCount, 0)
+    XCTAssertEqual(updatedConnection.lastRefreshUncertainCount, 0)
+    XCTAssertEqual(updatedConnection.lastRefreshFilteredExamples, [])
+    XCTAssertEqual(updatedConnection.lastRefreshUncertainExamples, [])
+    XCTAssertEqual(updatedConnection.lastRefreshReasonBreakdown, [])
     XCTAssertTrue(updatedConnection.lastRefreshSummary.localizedCaseInsensitiveContains("stopped before token or API access"))
+    let latestHistory = try XCTUnwrap(updatedConnection.refreshHistory?.first)
+    XCTAssertEqual(latestHistory.eventType, "Real refresh preflight")
+    XCTAssertEqual(latestHistory.status, GmailMailboxFetchStatus.notConfigured.rawValue)
+    XCTAssertEqual(latestHistory.fetchedCount, 0)
+    XCTAssertEqual(latestHistory.importedCount, 0)
+    XCTAssertEqual(latestHistory.duplicateCount, 0)
+    XCTAssertEqual(latestHistory.filteredNonOrderCount, 0)
+    XCTAssertEqual(latestHistory.uncertainCount, 0)
+    XCTAssertTrue(latestHistory.summary.localizedCaseInsensitiveContains("preflight stopped"))
     XCTAssertTrue(store.auditEvents.contains { event in
       event.summary == "Real Gmail refresh stopped before API access."
         && event.afterDetail?.contains("Compiled client ID status") == true
