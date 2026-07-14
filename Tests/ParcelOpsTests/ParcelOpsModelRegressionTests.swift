@@ -2684,6 +2684,67 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.duplicateNoChangeCount, 1)
   }
 
+  func testDuplicateGmailFetchRefreshesExistingStaleIntakeWithoutCreatingDuplicate() throws {
+    let mailboxID = UUID()
+    let intakeID = UUID()
+    let staleIntake = ForwardedEmailIntake(
+      id: intakeID,
+      sender: "Unknown Sender",
+      subject: "No subject",
+      receivedDate: "Earlier",
+      rawBodyPreview: "Raw Gmail API placeholder before parser cleanup.",
+      detectedMerchant: "Unknown Sender",
+      detectedOrderNumber: "Order number needs review",
+      detectedTrackingNumber: "Tracking number needs review",
+      detectedDestinationAddress: "Destination needs review",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    let fetchedMessage = FetchedMailboxMessage(
+      providerMessageID: "gmail-clean-duplicate-1",
+      sender: "orders@example-store.test",
+      subject: "Example Store order TEST-123 shipped",
+      receivedDate: "Today",
+      plainTextBodyPreview: "Order TEST-123 shipped tracking ABC123 to 10 Market Street, Melbourne VIC.",
+      sourceMailboxID: mailboxID
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.intakeEmails = [staleIntake]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: fetchedMessage.providerMessageID,
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intakeID,
+        capturedDate: "Earlier",
+        status: .imported,
+        summary: "Original Gmail import"
+      )
+    ]
+    store.auditEvents = []
+
+    let result = store.importFetchedMailboxMessages([fetchedMessage])
+
+    XCTAssertEqual(result.imported, 0)
+    XCTAssertEqual(result.duplicates, 1)
+    XCTAssertEqual(store.intakeEmails.count, 1)
+    let refreshed = try XCTUnwrap(store.intakeEmails.first)
+    XCTAssertEqual(refreshed.id, intakeID)
+    XCTAssertEqual(refreshed.sender, "orders@example-store.test")
+    XCTAssertEqual(refreshed.subject, "Example Store order TEST-123 shipped")
+    XCTAssertEqual(refreshed.detectedMerchant, "Example Store")
+    XCTAssertEqual(refreshed.detectedOrderNumber, "TEST-123")
+    XCTAssertEqual(refreshed.detectedTrackingNumber, "ABC123")
+    XCTAssertTrue(refreshed.detectedDestinationAddress.localizedCaseInsensitiveContains("10 Market Street"))
+    XCTAssertEqual(refreshed.reviewState, .needsReview)
+    XCTAssertEqual(store.mailboxIngestRecords.first?.status, .duplicateRefreshed)
+    XCTAssertEqual(store.mailboxIngestRecords.first?.intakeEmailID, intakeID)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Duplicate fetched mailbox message refreshed existing intake email."
+        && event.afterDetail?.contains("Changed fields:") == true
+        && event.afterDetail?.contains("No duplicate intake email was created") == true
+    })
+  }
+
   func testGmailConnectedRefreshStillSurfacesCompiledSetupBlockers() {
     let mailboxID = UUID()
     let connection = makeGmailConnection(
