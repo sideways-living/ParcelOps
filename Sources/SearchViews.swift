@@ -8,7 +8,7 @@ struct SearchView: View {
   @State private var selectedReviewState: ReviewState?
 
   private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter(\.isInboxCreatedLocalOrder)
+    store.inboxCreatedOrders
   }
 
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {

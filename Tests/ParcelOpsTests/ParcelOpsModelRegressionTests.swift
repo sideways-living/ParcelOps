@@ -3191,6 +3191,45 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(operatorSummary.auditDetail.contains("1 wishlist"))
   }
 
+  func testOperatorSourceOrdersDeduplicateInboxAndWishlistOrders() {
+    let inboxOrder = makeOrder(
+      orderNumber: "TEST-902",
+      trackingNumber: "TRACK-902",
+      destination: "Brisbane QLD",
+      checkedMailbox: "manual-import",
+      source: .forwardedMailbox,
+      latestStatus: "Created from Inbox"
+    )
+    let wishlistOnlyOrder = makeOrder(
+      orderNumber: "TEST-903",
+      trackingNumber: "TRACK-903",
+      destination: "Melbourne VIC",
+      checkedMailbox: "Wishlist",
+      source: .manual,
+      latestStatus: "Wishlist order confirmed"
+    )
+    let inboxWishlist = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: inboxOrder.id
+    )
+    let wishlistOnly = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Packing labels",
+      sellerName: "Label supplier",
+      linkedOrderID: wishlistOnlyOrder.id
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.orders = [inboxOrder, wishlistOnlyOrder]
+    store.wishlistItems = [inboxWishlist, wishlistOnly]
+
+    XCTAssertEqual(store.inboxCreatedOrders.map(\.id), [inboxOrder.id])
+    XCTAssertEqual(Set(store.wishlistLinkedOrders.map(\.id)), Set([inboxOrder.id, wishlistOnlyOrder.id]))
+    XCTAssertEqual(Set(store.operatorSourceOrders.map(\.id)), Set([inboxOrder.id, wishlistOnlyOrder.id]))
+    XCTAssertEqual(store.operatorSourceOrders.count, 2)
+  }
+
   func testGmailConnectedRefreshStillSurfacesCompiledSetupBlockers() {
     let mailboxID = UUID()
     let connection = makeGmailConnection(

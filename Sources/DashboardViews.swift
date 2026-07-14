@@ -462,16 +462,13 @@ struct DashboardView: View {
     store.reviewOrders.count + store.orders.filter { $0.status == .exception }.count + store.trackingWarningCount + store.criticalTrackingCount
   }
   private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter(\.isInboxCreatedLocalOrder)
+    store.inboxCreatedOrders
   }
   private var wishlistLinkedOrders: [TrackedOrder] {
-    store.orders.filter { !store.activeWishlistItemsLinked(to: $0).isEmpty }
+    store.wishlistLinkedOrders
   }
   private var operatorSourceOrders: [TrackedOrder] {
-    var seen = Set<UUID>()
-    return (inboxCreatedOrders + wishlistLinkedOrders).filter { order in
-      seen.insert(order.id).inserted
-    }
+    store.operatorSourceOrders
   }
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
     operatorSourceOrders.filter(hasOperatorSourceTrail)
@@ -3031,9 +3028,7 @@ struct MVPHandsOnDashboardStatus: View {
   }
 
   private var inboxCreatedOrdersCount: Int {
-    store.orders.filter { order in
-      order.source == .forwardedMailbox || order.checkedMailbox == "manual-import" || order.isInboxCreatedLocalOrder
-    }.count
+    store.inboxCreatedOrders.count
   }
 
   private var hasManualRefresh: Bool {

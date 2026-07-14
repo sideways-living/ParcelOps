@@ -43,15 +43,15 @@ struct TimelineView: View {
   }
 
   private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter(\.isInboxCreatedLocalOrder)
+    store.inboxCreatedOrders
   }
 
   private var wishlistLinkedOrders: [TrackedOrder] {
-    store.orders.filter { !store.activeWishlistItemsLinked(to: $0).isEmpty }
+    store.wishlistLinkedOrders
   }
 
   private var sourceOrders: [TrackedOrder] {
-    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+    store.operatorSourceOrders
   }
 
   private var sourceOrdersWithSourceTrail: [TrackedOrder] {

@@ -5887,6 +5887,25 @@ final class ParcelOpsStore {
     }
   }
 
+  var inboxCreatedOrders: [TrackedOrder] {
+    orders.filter(\.isInboxCreatedLocalOrder)
+  }
+
+  var wishlistLinkedOrders: [TrackedOrder] {
+    orders.filter { !activeWishlistItemsLinked(to: $0).isEmpty }
+  }
+
+  var operatorSourceOrders: [TrackedOrder] {
+    uniqueOrdersByID(inboxCreatedOrders + wishlistLinkedOrders)
+  }
+
+  func uniqueOrdersByID(_ orders: [TrackedOrder]) -> [TrackedOrder] {
+    var seen = Set<UUID>()
+    return orders.filter { order in
+      seen.insert(order.id).inserted
+    }
+  }
+
   func sourceTrailSummary(for order: TrackedOrder, includeWishlist: Bool = false) -> OrderSourceTrailSummary {
     OrderSourceTrailSummary(
       intakeCount: linkedIntakeEmails(for: order).count,

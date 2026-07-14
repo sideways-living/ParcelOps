@@ -29,7 +29,7 @@ struct OrdersView: View {
       .map { $0 }
   }
   private var inboxCreatedOrderCount: Int {
-    store.orders.filter(\.isInboxCreatedLocalOrder).count
+    store.inboxCreatedOrders.count
   }
   private var inboxCreatedOrdersWithSourceTrailCount: Int {
     store.orders
@@ -313,7 +313,7 @@ struct OrdersView: View {
         ("Queue", "\(orderItems.count)", .blue),
         ("Active", "\(store.orders.filter { $0.status != .delivered }.count)", .teal),
         ("Review", "\(store.orders.filter { $0.reviewState != .accepted }.count)", .orange),
-        ("From Inbox", "\(store.orders.filter(\.isInboxCreatedLocalOrder).count)", .purple),
+        ("From Inbox", "\(store.inboxCreatedOrders.count)", .purple),
         ("Exceptions", "\(store.orders.filter { $0.status == .exception }.count)", .red),
         ("Delivered", "\(store.orders.filter { $0.status == .delivered }.count)", .green)
       ])

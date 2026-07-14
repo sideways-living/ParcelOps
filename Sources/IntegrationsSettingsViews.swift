@@ -5945,7 +5945,7 @@ struct SettingsView: View {
   }
 
   private var settingsInboxCreatedOrdersCount: Int {
-    store.orders.filter(\.isInboxCreatedLocalOrder).count
+    store.inboxCreatedOrders.count
   }
 
   private var settingsOpenOperatorWorkCount: Int {

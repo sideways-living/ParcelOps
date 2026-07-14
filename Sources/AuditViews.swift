@@ -90,7 +90,7 @@ struct AuditView: View {
   }
 
   private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter(\.isInboxCreatedLocalOrder)
+    store.inboxCreatedOrders
   }
 
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
