@@ -105,7 +105,7 @@ struct ParcelOpsRootView: View {
   private var dailyAttentionCount: Int {
     store.reviewIntakeEmails.count
       + store.intakeParserDiagnostics.count
-      + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+      + store.pendingSpaceMailUncertainReviewCount
       + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
       + store.importQueueItemsNeedingReview.count
       + store.blockedImportQueueItems.count
@@ -563,7 +563,7 @@ struct ParcelOpsRootView: View {
     case .inbox:
       return store.reviewIntakeEmails.count
         + store.intakeParserDiagnostics.count
-        + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+        + store.pendingSpaceMailUncertainReviewCount
         + store.importQueueItemsNeedingReview.count
         + store.blockedImportQueueItems.count
         + store.acceptanceRecordsNeedingReview.count

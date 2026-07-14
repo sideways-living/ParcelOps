@@ -378,15 +378,15 @@ struct OperationsWorkbenchView: View {
   }
 
   private var gmailFilteredCount: Int {
-    store.gmailMailboxConnections.reduce(0) { $0 + max($1.filteredMessages?.count ?? 0, $1.lastRefreshFilteredNonOrderCount) }
+    store.gmailFilteredMailboxSignalCount
   }
 
   private var gmailUncertainCount: Int {
-    store.gmailMailboxConnections.reduce(0) { $0 + max($1.uncertainMessages?.count ?? 0, $1.lastRefreshUncertainCount ?? 0) }
+    store.pendingGmailUncertainReviewCount
   }
 
   private var pendingGmailFilteredReviewCount: Int {
-    store.gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
+    store.pendingGmailFilteredReviewCount
   }
 
   private var gmailClassifierHintCount: Int {
@@ -1990,8 +1990,8 @@ struct OperationsWorkbenchView: View {
 
         MetricStrip(items: [
           ("Parser checks", "\(store.intakeParserDiagnostics.count)", store.intakeParserDiagnostics.isEmpty ? .green : .orange),
-          ("Uncertain mail", "\(store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count } + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) })", store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } || store.gmailMailboxConnections.contains { ($0.uncertainMessages?.isEmpty == false) } ? .orange : .green),
-          ("Filtered mail", "\(store.spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count } + pendingGmailFilteredReviewCount)", .teal),
+          ("Uncertain mail", "\(store.pendingSpaceMailUncertainReviewCount + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) })", store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } || store.gmailMailboxConnections.contains { ($0.uncertainMessages?.isEmpty == false) } ? .orange : .green),
+          ("Filtered mail", "\(store.pendingSpaceMailFilteredReviewCount + pendingGmailFilteredReviewCount)", .teal),
           ("Inbox review", "\(store.reviewIntakeEmails.count)", store.reviewIntakeEmails.isEmpty ? .green : .teal),
           ("Primary work", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .green : .blue)
         ])

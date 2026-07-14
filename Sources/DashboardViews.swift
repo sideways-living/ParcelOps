@@ -234,10 +234,10 @@ struct DashboardView: View {
     gmailReleaseWarningCount + gmailReleaseAttentionCount
   }
   private var pendingGmailUncertainReviewCount: Int {
-    store.gmailMailboxConnections.reduce(0) { $0 + max($1.uncertainMessages?.count ?? 0, $1.lastRefreshUncertainCount ?? 0) }
+    store.pendingGmailUncertainReviewCount
   }
   private var pendingGmailFilteredReviewCount: Int {
-    store.gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
+    store.pendingGmailFilteredReviewCount
   }
   private var gmailClassifierHintCount: Int {
     store.gmailMailboxConnections.reduce(0) { total, connection in
@@ -553,10 +553,10 @@ struct DashboardView: View {
     }
   }
   private var pendingSpaceMailUncertainCount: Int {
-    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+    store.pendingSpaceMailUncertainReviewCount
   }
   private var pendingSpaceMailFilteredCount: Int {
-    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count }
+    store.pendingSpaceMailFilteredReviewCount
   }
   private var mailboxAssignedFollowUpCount: Int {
     openMailboxAssignedTasks.count + openMailboxAssignedHandoffs.count

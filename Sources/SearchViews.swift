@@ -17,13 +17,11 @@ struct SearchView: View {
   }
 
   private var uncertainSpaceMailCount: Int {
-    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+    store.pendingSpaceMailUncertainReviewCount
   }
 
   private var uncertainGmailCount: Int {
-    store.gmailMailboxConnections.reduce(0) { total, connection in
-      total + max(connection.uncertainMessages?.count ?? 0, connection.lastRefreshUncertainCount ?? 0)
-    }
+    store.pendingGmailUncertainReviewCount
   }
 
   private var uncertainMailboxCount: Int {

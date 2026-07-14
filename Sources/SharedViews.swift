@@ -7382,13 +7382,13 @@ struct ActiveOperatorQueueFocusCard: View {
   }
 
   private var uncertainProviderCount: Int {
-    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+    store.pendingSpaceMailUncertainReviewCount
       + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
   }
 
   private var filteredProviderCount: Int {
-    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count }
-      + store.gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
+    store.pendingSpaceMailFilteredReviewCount
+      + store.pendingGmailFilteredReviewCount
   }
 
   private var activeWorkbenchCount: Int {

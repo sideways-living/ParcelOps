@@ -1593,7 +1593,7 @@ private struct MailboxReviewStartPanel: View {
   }
 
   private var uncertainCount: Int {
-    store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+    store.pendingSpaceMailUncertainReviewCount
   }
 
   private var gmailUncertainCount: Int {
@@ -2042,7 +2042,7 @@ private struct MailboxGmailRunbookPanel: View {
   }
 
   private var filteredReviewCount: Int {
-    store.gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
+    store.pendingGmailFilteredReviewCount
   }
 
   private var latestCountsText: String {
@@ -3450,7 +3450,7 @@ struct NeedsReviewView: View {
       + store.blockedImportQueueItems.count
       + store.reviewOrders.count
       + store.reviewMailEvents.count
-      + store.spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+      + store.pendingSpaceMailUncertainReviewCount
       + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
       + store.reviewIntakeEmails.count
       + store.reviewEvidenceAttachments.count

@@ -5903,6 +5903,26 @@ final class ParcelOpsStore {
     uniqueOrdersByID(inboxCreatedOrders + intakeLinkedOrders + wishlistLinkedOrders)
   }
 
+  var pendingSpaceMailUncertainReviewCount: Int {
+    spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+  }
+
+  var pendingSpaceMailFilteredReviewCount: Int {
+    spaceMailIMAPConnections.reduce(0) { $0 + $1.filteredMessages.count }
+  }
+
+  var pendingGmailUncertainReviewCount: Int {
+    gmailMailboxConnections.reduce(0) { $0 + max($1.uncertainMessages?.count ?? 0, $1.lastRefreshUncertainCount ?? 0) }
+  }
+
+  var pendingGmailFilteredReviewCount: Int {
+    gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
+  }
+
+  var gmailFilteredMailboxSignalCount: Int {
+    gmailMailboxConnections.reduce(0) { $0 + max($1.filteredMessages?.count ?? 0, $1.lastRefreshFilteredNonOrderCount) }
+  }
+
   func uniqueOrdersByID(_ orders: [TrackedOrder]) -> [TrackedOrder] {
     var seen = Set<UUID>()
     return orders.filter { order in
