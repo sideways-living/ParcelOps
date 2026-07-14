@@ -2908,6 +2908,70 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     })
   }
 
+  func testGmailReadinessCheckClearsStaleRefreshStateWhenBlocked() async throws {
+    var connection = makeGmailConnection(
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 8,
+      imported: 2,
+      filtered: 5,
+      uncertain: 1
+    )
+    connection.googleCloudProjectHint = "ParcelOps Gmail intake"
+    connection.oauthClientIDPlaceholder = "1234567890-abcdef.apps.googleusercontent.com"
+    connection.redirectURIPlaceholder = "com.googleusercontent.apps.1234567890-abcdef"
+    connection.consentScreenNotes = "Internal test consent screen prepared."
+    connection.lastRefreshFilteredExamples = ["Old filtered Gmail example"]
+    connection.lastRefreshUncertainExamples = ["Old uncertain Gmail example"]
+    connection.lastRefreshReasonBreakdown = [
+      SpaceMailClassifierReasonCount(decision: "filtered", reason: "old stale reason", count: 5)
+    ]
+    connection.refreshHistory = [
+      GmailRefreshHistoryEntry(
+        timestamp: "Earlier",
+        eventType: "Real refresh",
+        status: "Fetch success",
+        fetchedCount: 8,
+        importedCount: 2,
+        duplicateCount: 1,
+        filteredNonOrderCount: 5,
+        uncertainCount: 1,
+        summary: "Previous real refresh"
+      )
+    ]
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [connection]
+    store.auditEvents = []
+
+    store.checkRealGmailReadiness(for: connection)
+    try await Task.sleep(nanoseconds: 200_000_000)
+
+    let updatedConnection = try XCTUnwrap(store.gmailMailboxConnections.first)
+    XCTAssertEqual(updatedConnection.connectionStatus, "Real Gmail readiness: Not configured")
+    XCTAssertEqual(updatedConnection.lastRefreshFetchedCount, 0)
+    XCTAssertEqual(updatedConnection.lastRefreshImportedCount, 0)
+    XCTAssertEqual(updatedConnection.lastRefreshDuplicateCount, 0)
+    XCTAssertEqual(updatedConnection.lastRefreshFilteredNonOrderCount, 0)
+    XCTAssertEqual(updatedConnection.lastRefreshUncertainCount, 0)
+    XCTAssertEqual(updatedConnection.lastRefreshFilteredExamples, [])
+    XCTAssertEqual(updatedConnection.lastRefreshUncertainExamples, [])
+    XCTAssertEqual(updatedConnection.lastRefreshReasonBreakdown, [])
+    XCTAssertTrue(updatedConnection.lastRefreshSummary.localizedCaseInsensitiveContains("did not request a token"))
+    let latestHistory = try XCTUnwrap(updatedConnection.refreshHistory?.first)
+    XCTAssertEqual(latestHistory.eventType, "Readiness check")
+    XCTAssertEqual(latestHistory.status, GmailMailboxFetchStatus.notConfigured.rawValue)
+    XCTAssertEqual(latestHistory.fetchedCount, 0)
+    XCTAssertEqual(latestHistory.importedCount, 0)
+    XCTAssertEqual(latestHistory.duplicateCount, 0)
+    XCTAssertEqual(latestHistory.filteredNonOrderCount, 0)
+    XCTAssertEqual(latestHistory.uncertainCount, 0)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Real Gmail readiness check completed."
+        && event.afterDetail?.contains("Fetched: 0") == true
+        && event.afterDetail?.contains("No Google OAuth flow, token request, Gmail API call") == true
+    })
+  }
+
   func testGmailReleaseSelfCheckStaysBlockedWhenCompiledOAuthConfigurationIsMissing() {
     let mailboxID = UUID()
     var connection = makeGmailConnection(

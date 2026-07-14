@@ -16160,6 +16160,7 @@ final class ParcelOpsStore {
       draft.lastRefreshUncertainCount = 0
       draft.lastRefreshFilteredExamples = []
       draft.lastRefreshUncertainExamples = []
+      draft.lastRefreshReasonBreakdown = []
       draft.lastRefreshSummary = "Real Gmail readiness check: \(status.rawValue). \(detail)"
       appendGmailRefreshHistory(
         GmailRefreshHistoryEntry(
