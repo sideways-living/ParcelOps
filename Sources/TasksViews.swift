@@ -52,12 +52,12 @@ struct TasksView: View {
         || item.status.localizedCaseInsensitiveContains("confirmation")
         || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("blocker")
         || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("review")
-        || wishlistSellerEvidenceGapCount(for: item) > 0
-        || wishlistNeedsPurchaseDecision(item)
-        || wishlistNeedsPurchasePacket(item)
-        || !wishlistHandoffPackGaps(for: item).isEmpty
-        || !wishlistHandoffSanityGaps(for: item).isEmpty
-        || !wishlistLinkedOrderDispatchGaps(for: item).isEmpty
+        || store.wishlistSellerEvidenceGapCount(for: item) > 0
+        || store.wishlistNeedsPurchaseDecision(item)
+        || store.wishlistNeedsPurchasePacket(item)
+        || !store.wishlistHandoffPackGaps(for: item).isEmpty
+        || !store.wishlistHandoffSanityGaps(for: item).isEmpty
+        || !store.wishlistLinkedOrderDispatchGaps(for: item).isEmpty
         || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
       )
     }
@@ -76,7 +76,7 @@ struct TasksView: View {
     store.wishlistItems.filter { item in
       store.isActiveWishlistItem(item)
         && !(item.comparisonOptions ?? []).isEmpty
-        && wishlistPurchasePacketDraft(for: item) == nil
+        && store.wishlistPurchasePacketDraft(for: item) == nil
     }
   }
   private var wishlistPurchasePacketDrafts: [DraftMessage] {
@@ -110,7 +110,7 @@ struct TasksView: View {
 
   private var wishlistLinkedOrderDispatchGapItems: [WishlistItem] {
     store.wishlistItems.filter { item in
-      store.isActiveWishlistItem(item) && !wishlistLinkedOrderDispatchGaps(for: item).isEmpty
+      store.isActiveWishlistItem(item) && !store.wishlistLinkedOrderDispatchGaps(for: item).isEmpty
     }
   }
 
@@ -125,109 +125,56 @@ struct TasksView: View {
 
   private var wishlistEvidenceGapCount: Int {
     wishlistTaskContextItems.reduce(0) { total, item in
-      total + wishlistSellerEvidenceGapCount(for: item)
+      total + store.wishlistSellerEvidenceGapCount(for: item)
     }
   }
 
   private var wishlistDecisionGapCount: Int {
-    wishlistTaskContextItems.filter(wishlistNeedsPurchaseDecision).count
+    wishlistTaskContextItems.filter { store.wishlistNeedsPurchaseDecision($0) }.count
   }
 
   private var wishlistHandoffGapCount: Int {
     wishlistTaskContextItems.reduce(0) { total, item in
-      total + wishlistHandoffPackGaps(for: item).count
+      total + store.wishlistHandoffPackGaps(for: item).count
     }
   }
 
   private var wishlistHandoffSanityGapCount: Int {
     wishlistTaskContextItems.reduce(0) { total, item in
-      total + wishlistHandoffSanityGaps(for: item).count
+      total + store.wishlistHandoffSanityGaps(for: item).count
     }
   }
 
   private var wishlistLinkedOrderDispatchGapCount: Int {
     wishlistLinkedOrderDispatchGapItems.reduce(0) { total, item in
-      total + wishlistLinkedOrderDispatchGaps(for: item).count
+      total + store.wishlistLinkedOrderDispatchGaps(for: item).count
     }
   }
 
   private func wishlistSellerEvidenceGapCount(for item: WishlistItem) -> Int {
-    (item.comparisonOptions ?? []).reduce(0) { total, option in
-      total + option.operatorSellerEvidenceGaps.count
-    }
+    store.wishlistSellerEvidenceGapCount(for: item)
   }
 
   private func wishlistNeedsPurchaseDecision(_ item: WishlistItem) -> Bool {
-    let options = item.comparisonOptions ?? []
-    guard !options.isEmpty else { return false }
-    let checks = item.purchaseChecks ?? []
-    let checksClear = !checks.isEmpty && !checks.contains { $0.status != "Passed" }
-    return checksClear && item.purchaseDecision == nil
+    store.wishlistNeedsPurchaseDecision(item)
   }
   private func wishlistNeedsPurchasePacket(_ item: WishlistItem) -> Bool {
-    !(item.comparisonOptions ?? []).isEmpty && wishlistPurchasePacketDraft(for: item) == nil
+    store.wishlistNeedsPurchasePacket(item)
   }
   private func wishlistPurchasePacketDraft(for item: WishlistItem) -> DraftMessage? {
-    store.draftMessages.first {
-      $0.linkedEntityType == .wishlistItem
-        && $0.linkedEntityID == item.id.uuidString
-        && $0.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
-    }
+    store.wishlistPurchasePacketDraft(for: item)
   }
 
   private func wishlistHandoffPackGaps(for item: WishlistItem) -> [String] {
-    var gaps: [String] = []
-    guard item.purchaseHandoff != nil
-      || item.purchaseDecision?.reviewState == .accepted
-      || item.status.localizedCaseInsensitiveContains("purchase")
-      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
-      return gaps
-    }
-    if item.purchaseHandoff == nil { gaps.append("handoff") }
-    if store.suggestedAccounts(for: item).isEmpty { gaps.append("account") }
-    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
-    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
-    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
-    if item.purchaseHandoff?.linkedOrderID == nil { gaps.append("order link") }
-    return gaps
+    store.wishlistHandoffPackGaps(for: item)
   }
 
   private func wishlistHandoffSanityGaps(for item: WishlistItem) -> [String] {
-    guard item.purchaseHandoff != nil
-      || item.purchaseDecision?.reviewState == .accepted
-      || item.status.localizedCaseInsensitiveContains("purchase")
-      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
-      return []
-    }
-
-    let handoff = item.purchaseHandoff
-    let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
-      store.orders.first { $0.id == orderID }
-    }
-    var gaps: [String] = []
-    let seller = handoff?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
-    if seller.isPlaceholderValidationValue { gaps.append("seller route") }
-    if handoff?.accountLabel.isPlaceholderValidationValue != false && store.suggestedAccounts(for: item).isEmpty {
-      gaps.append("account label")
-    }
-    if handoff?.expectedOrderSignals.isPlaceholderValidationValue != false {
-      gaps.append("order watch")
-    }
-    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
-    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
-    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
-    if linkedOrder == nil && handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
-      gaps.append("order link")
-    }
-    return gaps
+    store.wishlistHandoffSanityGaps(for: item)
   }
 
   private func wishlistLinkedOrderDispatchGaps(for item: WishlistItem) -> [String] {
-    guard item.purchaseHandoff?.linkedOrderID != nil else { return [] }
-    var gaps: [String] = []
-    if store.suggestedShipmentManifestRecords(for: item).isEmpty { gaps.append("manifest") }
-    if store.suggestedDispatchReadinessChecklists(for: item).isEmpty { gaps.append("readiness checklist") }
-    return gaps
+    store.wishlistLinkedOrderDispatchGaps(for: item)
   }
 
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
@@ -763,7 +710,7 @@ struct TasksView: View {
                     badge: wishlistPacketTaskBadge(for: item),
                     color: wishlistPacketTaskColor(for: item)
                   )
-                  if wishlistNeedsPurchasePacket(item) {
+                  if store.wishlistNeedsPurchasePacket(item) {
                     CompactActionRow {
                       Button("Create packet", systemImage: "doc.badge.plus") {
                         store.createWishlistPurchasePacketDraft(item)
@@ -803,12 +750,12 @@ struct TasksView: View {
   }
 
   private func wishlistPacketTaskBadge(for item: WishlistItem) -> String {
-    if wishlistNeedsPurchasePacket(item) { return "Packet" }
-    if !wishlistHandoffSanityGaps(for: item).isEmpty { return "Sanity gaps" }
-    if !wishlistHandoffPackGaps(for: item).isEmpty { return "Handoff gaps" }
-    if !wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return "Dispatch setup" }
-    if wishlistNeedsPurchaseDecision(item) { return "Decision" }
-    if wishlistSellerEvidenceGapCount(for: item) > 0 { return "Evidence" }
+    if store.wishlistNeedsPurchasePacket(item) { return "Packet" }
+    if !store.wishlistHandoffSanityGaps(for: item).isEmpty { return "Sanity gaps" }
+    if !store.wishlistHandoffPackGaps(for: item).isEmpty { return "Handoff gaps" }
+    if !store.wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return "Dispatch setup" }
+    if store.wishlistNeedsPurchaseDecision(item) { return "Decision" }
+    if store.wishlistSellerEvidenceGapCount(for: item) > 0 { return "Evidence" }
     if item.purchaseHandoff?.linkedOrderID != nil { return "Linked order" }
     if item.purchaseHandoff != nil { return "Order watch" }
     if item.purchaseDecision?.reviewState == .accepted { return "Handoff" }
@@ -817,12 +764,12 @@ struct TasksView: View {
   }
 
   private func wishlistPacketTaskColor(for item: WishlistItem) -> Color {
-    if wishlistNeedsPurchasePacket(item) { return .indigo }
-    if !wishlistHandoffSanityGaps(for: item).isEmpty { return .orange }
-    if !wishlistHandoffPackGaps(for: item).isEmpty { return .orange }
-    if !wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return .blue }
-    if wishlistNeedsPurchaseDecision(item) { return .purple }
-    if wishlistSellerEvidenceGapCount(for: item) > 0 { return .orange }
+    if store.wishlistNeedsPurchasePacket(item) { return .indigo }
+    if !store.wishlistHandoffSanityGaps(for: item).isEmpty { return .orange }
+    if !store.wishlistHandoffPackGaps(for: item).isEmpty { return .orange }
+    if !store.wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return .blue }
+    if store.wishlistNeedsPurchaseDecision(item) { return .purple }
+    if store.wishlistSellerEvidenceGapCount(for: item) > 0 { return .orange }
     if item.purchaseHandoff?.linkedOrderID != nil { return .green }
     if item.purchaseHandoff != nil { return .orange }
     if item.purchaseDecision?.reviewState == .accepted { return .purple }
@@ -831,7 +778,7 @@ struct TasksView: View {
   }
 
   private func wishlistPacketTaskDetail(for item: WishlistItem) -> String {
-    if wishlistNeedsPurchasePacket(item) {
+    if store.wishlistNeedsPurchasePacket(item) {
       let optionCount = (item.comparisonOptions ?? []).count
       let seller = item.purchaseDecision?.selectedSellerName
         ?? item.preferredOptionID.flatMap { preferredID in
@@ -841,19 +788,19 @@ struct TasksView: View {
         ?? item.storefront
       return "\(optionCount) seller option\(optionCount == 1 ? "" : "s") recorded. Create the local purchase packet before manual buying. Current seller: \(seller)."
     }
-    let sanityGaps = wishlistHandoffSanityGaps(for: item)
+    let sanityGaps = store.wishlistHandoffSanityGaps(for: item)
     if !sanityGaps.isEmpty {
       return "Resolve handoff sanity before assigning purchase follow-up: \(sanityGaps.prefix(4).joined(separator: ", "))"
     }
-    let handoffGaps = wishlistHandoffPackGaps(for: item)
+    let handoffGaps = store.wishlistHandoffPackGaps(for: item)
     if !handoffGaps.isEmpty {
       return "Complete handoff pack: \(handoffGaps.prefix(4).joined(separator: ", "))"
     }
-    let dispatchGaps = wishlistLinkedOrderDispatchGaps(for: item)
+    let dispatchGaps = store.wishlistLinkedOrderDispatchGaps(for: item)
     if !dispatchGaps.isEmpty {
       return "Linked order exists. Stage dispatch setup before closing the purchase handoff: \(dispatchGaps.prefix(3).joined(separator: ", "))."
     }
-    if wishlistNeedsPurchaseDecision(item) {
+    if store.wishlistNeedsPurchaseDecision(item) {
       return "Ready for a local purchase decision before handoff."
     }
     let evidenceGaps = wishlistSellerEvidenceGaps(for: item)
@@ -879,18 +826,18 @@ struct TasksView: View {
     if !evidenceGaps.isEmpty {
       return "\(item.status) • Seller evidence: \(evidenceGaps.prefix(3).joined(separator: ", "))"
     }
-    if wishlistNeedsPurchaseDecision(item) {
+    if store.wishlistNeedsPurchaseDecision(item) {
       return "\(item.status) • Draft the local purchase decision before handoff."
     }
-    let sanityGaps = wishlistHandoffSanityGaps(for: item)
+    let sanityGaps = store.wishlistHandoffSanityGaps(for: item)
     if !sanityGaps.isEmpty {
       return "\(item.status) • Handoff sanity: \(sanityGaps.prefix(3).joined(separator: ", "))"
     }
-    let handoffGaps = wishlistHandoffPackGaps(for: item)
+    let handoffGaps = store.wishlistHandoffPackGaps(for: item)
     if !handoffGaps.isEmpty {
       return "\(item.status) • Handoff pack: \(handoffGaps.prefix(3).joined(separator: ", "))"
     }
-    let dispatchGaps = wishlistLinkedOrderDispatchGaps(for: item)
+    let dispatchGaps = store.wishlistLinkedOrderDispatchGaps(for: item)
     if !dispatchGaps.isEmpty {
       return "\(item.status) • Dispatch setup: \(dispatchGaps.prefix(3).joined(separator: ", "))"
     }
@@ -899,10 +846,10 @@ struct TasksView: View {
 
   private func wishlistTaskContextBadge(for item: WishlistItem) -> String {
     if !wishlistSellerEvidenceGaps(for: item).isEmpty { return "Evidence" }
-    if wishlistNeedsPurchaseDecision(item) { return "Decision" }
-    if !wishlistHandoffSanityGaps(for: item).isEmpty { return "Sanity gaps" }
-    if !wishlistHandoffPackGaps(for: item).isEmpty { return "Handoff pack" }
-    if !wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return "Dispatch setup" }
+    if store.wishlistNeedsPurchaseDecision(item) { return "Decision" }
+    if !store.wishlistHandoffSanityGaps(for: item).isEmpty { return "Sanity gaps" }
+    if !store.wishlistHandoffPackGaps(for: item).isEmpty { return "Handoff pack" }
+    if !store.wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return "Dispatch setup" }
     if item.purchaseHandoff != nil { return "Order watch" }
     return "Wishlist"
   }
@@ -910,10 +857,10 @@ struct TasksView: View {
   private func wishlistTaskContextColor(for item: WishlistItem) -> Color {
     if item.status.localizedCaseInsensitiveContains("blocked") { return .red }
     if !wishlistSellerEvidenceGaps(for: item).isEmpty { return .orange }
-    if wishlistNeedsPurchaseDecision(item) { return .purple }
-    if !wishlistHandoffSanityGaps(for: item).isEmpty { return .orange }
-    if !wishlistHandoffPackGaps(for: item).isEmpty { return .orange }
-    if !wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return .blue }
+    if store.wishlistNeedsPurchaseDecision(item) { return .purple }
+    if !store.wishlistHandoffSanityGaps(for: item).isEmpty { return .orange }
+    if !store.wishlistHandoffPackGaps(for: item).isEmpty { return .orange }
+    if !store.wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return .blue }
     if item.purchaseHandoff != nil { return .teal }
     return item.operatorPurchaseBlockers.isEmpty ? .green : .purple
   }

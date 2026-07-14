@@ -5933,6 +5933,141 @@ final class ParcelOpsStore {
       + wishlistLinkedOrders.count
   }
 
+  func wishlistSellerEvidenceGapCount(for item: WishlistItem) -> Int {
+    (item.comparisonOptions ?? []).reduce(0) { total, option in
+      total + option.operatorSellerEvidenceGaps.count
+    }
+  }
+
+  func wishlistNeedsPurchaseDecision(_ item: WishlistItem) -> Bool {
+    let options = item.comparisonOptions ?? []
+    guard !options.isEmpty else { return false }
+    let checks = item.purchaseChecks ?? []
+    let checksClear = !checks.isEmpty && !checks.contains { $0.status != "Passed" }
+    return checksClear && item.purchaseDecision == nil
+  }
+
+  func wishlistPurchasePacketDraft(for item: WishlistItem) -> DraftMessage? {
+    draftMessages.first {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == item.id.uuidString
+        && $0.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
+    }
+  }
+
+  func wishlistNeedsPurchasePacket(_ item: WishlistItem) -> Bool {
+    !(item.comparisonOptions ?? []).isEmpty && wishlistPurchasePacketDraft(for: item) == nil
+  }
+
+  var wishlistPurchasePacketDrafts: [DraftMessage] {
+    draftMessages.filter {
+      $0.linkedEntityType == .wishlistItem
+        && $0.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
+    }
+  }
+
+  var wishlistPurchasePacketNeededItems: [WishlistItem] {
+    activeWishlistItems.filter(wishlistNeedsPurchasePacket)
+  }
+
+  func wishlistHandoffPackGaps(for item: WishlistItem) -> [String] {
+    var gaps: [String] = []
+    guard item.purchaseHandoff != nil
+      || item.purchaseDecision?.reviewState == .accepted
+      || item.status.localizedCaseInsensitiveContains("purchase")
+      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
+      return gaps
+    }
+    if item.purchaseHandoff == nil { gaps.append("handoff") }
+    if suggestedAccounts(for: item).isEmpty { gaps.append("account") }
+    if suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
+    if suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
+    if suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if item.purchaseHandoff?.linkedOrderID == nil { gaps.append("order link") }
+    return gaps
+  }
+
+  func wishlistHandoffSanityGaps(for item: WishlistItem) -> [String] {
+    guard item.purchaseHandoff != nil
+      || item.purchaseDecision?.reviewState == .accepted
+      || item.status.localizedCaseInsensitiveContains("purchase")
+      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
+      return []
+    }
+
+    let handoff = item.purchaseHandoff
+    let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
+      orders.first { $0.id == orderID }
+    }
+    var gaps: [String] = []
+    let seller = handoff?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
+    if seller.isPlaceholderValidationValue { gaps.append("seller route") }
+    if handoff?.accountLabel.isPlaceholderValidationValue != false && suggestedAccounts(for: item).isEmpty {
+      gaps.append("account label")
+    }
+    if handoff?.expectedOrderSignals.isPlaceholderValidationValue != false {
+      gaps.append("order watch")
+    }
+    if suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
+    if suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
+    if suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
+    if linkedOrder == nil && handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
+      gaps.append("order link")
+    }
+    return gaps
+  }
+
+  func wishlistLinkedOrderDispatchGaps(for item: WishlistItem) -> [String] {
+    guard item.purchaseHandoff?.linkedOrderID != nil else { return [] }
+    var gaps: [String] = []
+    if suggestedShipmentManifestRecords(for: item).isEmpty { gaps.append("manifest") }
+    if suggestedDispatchReadinessChecklists(for: item).isEmpty { gaps.append("readiness checklist") }
+    return gaps
+  }
+
+  func wishlistReleaseBlockers(for item: WishlistItem) -> [String] {
+    let options = item.comparisonOptions ?? []
+    let preferred = item.preferredOptionID.flatMap { preferredID in
+      options.first { $0.id == preferredID }
+    } ?? options.first
+    let checks = item.purchaseChecks ?? []
+    var blockers: [String] = []
+    if item.itemName.isPlaceholderValidationValue || item.storefrontURL.isPlaceholderValidationValue || item.owner.isPlaceholderValidationValue {
+      blockers.append("source")
+    }
+    if options.isEmpty {
+      blockers.append("seller comparison")
+    } else if preferred == nil || item.preferredOptionID == nil {
+      blockers.append("preferred seller")
+    } else if preferred?.operatorSellerEvidenceGaps.isEmpty == false {
+      blockers.append("seller evidence")
+    }
+    if checks.isEmpty || checks.contains(where: { $0.status != "Passed" }) {
+      blockers.append("readiness")
+    }
+    if item.purchaseDecision == nil {
+      blockers.append("decision")
+    } else if item.purchaseDecision?.reviewState != .accepted {
+      blockers.append("decision review")
+    }
+    if item.purchaseHandoff == nil {
+      blockers.append("handoff")
+    }
+    return blockers
+  }
+
+  var wishlistNeedsHandoffItems: [WishlistItem] {
+    activeWishlistItems.filter { $0.purchaseDecision?.reviewState == .accepted && $0.purchaseHandoff == nil }
+  }
+
+  var wishlistAwaitingOrderItems: [WishlistItem] {
+    activeWishlistItems.filter { $0.purchaseHandoff != nil && $0.purchaseHandoff?.linkedOrderID == nil }
+  }
+
+  var wishlistLinkedOrderDispatchGapItems: [WishlistItem] {
+    activeWishlistItems.filter { !wishlistLinkedOrderDispatchGaps(for: $0).isEmpty }
+  }
+
   var operatorSourceOrders: [TrackedOrder] {
     uniqueOrdersByID(inboxCreatedOrders + intakeLinkedOrders + wishlistLinkedOrders)
   }
