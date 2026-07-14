@@ -228,7 +228,7 @@ struct ReceivingInspectionsView: View {
         }
       }
 
-      if receivingSourceOrders.isEmpty {
+      if store.operatorSourceOrders.isEmpty {
         Text("No Inbox-created or Wishlist-linked orders need receiving inspection checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -325,16 +325,13 @@ struct ReceivingInspectionsView: View {
 
 
 
-  private var receivingSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var inspectionsLinkedToInboxOrders: [ReceivingInspectionRecord] {
     store.receivingInspections.filter { inspection in
       guard let orderID = inspection.orderID ?? (inspection.linkedEntityType == .order ? UUID(uuidString: inspection.linkedEntityID) : nil) else {
         return false
       }
-      return receivingSourceOrders.contains { $0.id == orderID }
+      return store.operatorSourceOrders.contains { $0.id == orderID }
     }
   }
 
@@ -350,7 +347,7 @@ struct ReceivingInspectionsView: View {
   }
 
   private var inboxOrdersMissingInspection: [TrackedOrder] {
-    receivingSourceOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       !store.receivingInspections.contains { inspection in
         inspection.orderID == order.id || (inspection.linkedEntityType == .order && inspection.linkedEntityID == order.id.uuidString)
       }

@@ -332,12 +332,9 @@ struct CustodyChainView: View {
 
 
 
-  private var custodySourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var custodyLinkedToInboxOrders: [CustodyRecord] {
-    let orderIDs = Set(custodySourceOrders.map(\.id))
+    let orderIDs = Set(store.operatorSourceOrders.map(\.id))
     let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -365,7 +362,7 @@ struct CustodyChainView: View {
     let custodyOrderIDs = Set(custodyLinkedToInboxOrders.compactMap { record -> UUID? in
       record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
     })
-    return custodySourceOrders.filter { !custodyOrderIDs.contains($0.id) }
+    return store.operatorSourceOrders.filter { !custodyOrderIDs.contains($0.id) }
   }
 
 

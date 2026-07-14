@@ -335,20 +335,17 @@ struct DeliveryInstructionsView: View {
 
 
 
-  private var instructionSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var deliveryInstructionsLinkedToInboxOrders: [DeliveryInstructionRecord] {
     store.deliveryInstructions.filter { instruction in
-      instructionSourceOrders.contains { order in
+      store.operatorSourceOrders.contains { order in
         deliveryInstruction(instruction, matches: order)
       }
     }
   }
 
   private var inboxOrdersMissingInstruction: [TrackedOrder] {
-    instructionSourceOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       !store.deliveryInstructions.contains { instruction in
         deliveryInstruction(instruction, matches: order)
       }
@@ -356,7 +353,7 @@ struct DeliveryInstructionsView: View {
   }
 
   private func inboxOrders(for instruction: DeliveryInstructionRecord) -> [TrackedOrder] {
-    instructionSourceOrders.filter { deliveryInstruction(instruction, matches: $0) }
+    store.operatorSourceOrders.filter { deliveryInstruction(instruction, matches: $0) }
   }
 
   private func deliveryInstruction(_ instruction: DeliveryInstructionRecord, matches order: TrackedOrder) -> Bool {

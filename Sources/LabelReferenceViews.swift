@@ -319,12 +319,9 @@ struct LabelReferencesView: View {
 
 
 
-  private var labelSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var labelsLinkedToInboxOrders: [LabelReferenceRecord] {
-    let orderIDs = Set(labelSourceOrders.map(\.id))
+    let orderIDs = Set(store.operatorSourceOrders.map(\.id))
     let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -356,7 +353,7 @@ struct LabelReferencesView: View {
     let labelOrderIDs = Set(labelsLinkedToInboxOrders.compactMap { record -> UUID? in
       record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
     })
-    return labelSourceOrders.filter { !labelOrderIDs.contains($0.id) }
+    return store.operatorSourceOrders.filter { !labelOrderIDs.contains($0.id) }
   }
 
   private var labelsNeedingAction: [LabelReferenceRecord] {

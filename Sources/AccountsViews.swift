@@ -356,20 +356,17 @@ struct AccountsView: View {
 
 
 
-  private var accountSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var accountsLinkedToInboxOrders: [AccountCredentialRecord] {
     store.accountCredentialRecords.filter { account in
-      accountSourceOrders.contains { order in
+      store.operatorSourceOrders.contains { order in
         accountMatches(account, order: order)
       }
     }
   }
 
   private var inboxOrdersMissingAccount: [TrackedOrder] {
-    accountSourceOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       !store.accountCredentialRecords.contains { account in
         accountMatches(account, order: order)
       }
@@ -377,7 +374,7 @@ struct AccountsView: View {
   }
 
   private func inboxOrders(for account: AccountCredentialRecord) -> [TrackedOrder] {
-    accountSourceOrders.filter { accountMatches(account, order: $0) }
+    store.operatorSourceOrders.filter { accountMatches(account, order: $0) }
   }
 
   private func accountMatches(_ account: AccountCredentialRecord, order: TrackedOrder) -> Bool {

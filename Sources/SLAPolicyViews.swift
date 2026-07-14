@@ -292,20 +292,17 @@ struct SLAPoliciesView: View {
 
 
 
-  private var policySourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var policiesLinkedToInboxOrders: [SLAPolicy] {
     store.slaPolicies.filter { policy in
-      policySourceOrders.contains { order in
+      store.operatorSourceOrders.contains { order in
         slaPolicy(policy, matches: order)
       }
     }
   }
 
   private func inboxOrders(for policy: SLAPolicy) -> [TrackedOrder] {
-    policySourceOrders.filter { slaPolicy(policy, matches: $0) }
+    store.operatorSourceOrders.filter { slaPolicy(policy, matches: $0) }
   }
 
 

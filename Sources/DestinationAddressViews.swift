@@ -300,20 +300,17 @@ struct DestinationAddressesView: View {
 
 
 
-  private var destinationSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var destinationAddressesLinkedToInboxOrders: [DestinationAddressRecord] {
     store.destinationAddresses.filter { address in
-      destinationSourceOrders.contains { order in
+      store.operatorSourceOrders.contains { order in
         destinationAddress(address, matches: order)
       }
     }
   }
 
   private var inboxOrdersMissingAddress: [TrackedOrder] {
-    destinationSourceOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       !store.destinationAddresses.contains { address in
         destinationAddress(address, matches: order)
       }
@@ -321,7 +318,7 @@ struct DestinationAddressesView: View {
   }
 
   private func inboxOrders(for address: DestinationAddressRecord) -> [TrackedOrder] {
-    destinationSourceOrders.filter { destinationAddress(address, matches: $0) }
+    store.operatorSourceOrders.filter { destinationAddress(address, matches: $0) }
   }
 
 

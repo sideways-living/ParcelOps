@@ -228,7 +228,7 @@ struct ReturnsClaimsView: View {
         }
       }
 
-      if claimSourceOrders.isEmpty {
+      if store.operatorSourceOrders.isEmpty {
         Text("No Inbox-created or Wishlist-linked orders need return or claim checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -312,16 +312,13 @@ struct ReturnsClaimsView: View {
 
 
 
-  private var claimSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var claimsLinkedToInboxOrders: [ReturnClaimRecord] {
     store.returnClaims.filter { claim in
       guard let orderID = claim.orderID ?? (claim.linkedEntityType == .order ? UUID(uuidString: claim.linkedEntityID) : nil) else {
         return false
       }
-      return claimSourceOrders.contains { $0.id == orderID }
+      return store.operatorSourceOrders.contains { $0.id == orderID }
     }
   }
 

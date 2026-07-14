@@ -411,7 +411,7 @@ struct HandoffNotesView: View {
   }
 
   private var inboxHandoffCoverage: some View {
-    let inboxOrders = sourceOrders
+    let inboxOrders = store.operatorSourceOrders
     let linkedNotes = handoffNotesLinkedToInboxOrders
     let actionNotes = handoffNotesNeedingSourceAction
     let missingCount = inboxOrdersMissingHandoff.count
@@ -508,13 +508,10 @@ struct HandoffNotesView: View {
 
 
 
-  private var sourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var handoffNotesLinkedToInboxOrders: [HandoffNote] {
-    let orderIDs = Set(sourceOrders.map(\.id))
-    let orderNumbers = Set(sourceOrders.map(\.orderNumber).filter { !$0.isPlaceholderValidationValue })
+    let orderIDs = Set(store.operatorSourceOrders.map(\.id))
+    let orderNumbers = Set(store.operatorSourceOrders.map(\.orderNumber).filter { !$0.isPlaceholderValidationValue })
     return store.handoffNotes.filter { note in
       if note.linkedEntityType == .order, let linkedID = UUID(uuidString: note.linkedEntityID), orderIDs.contains(linkedID) {
         return true
@@ -532,7 +529,7 @@ struct HandoffNotesView: View {
       return UUID(uuidString: note.linkedEntityID)
     })
     let linkedText = handoffNotesLinkedToInboxOrders.map { [$0.title, $0.summary, $0.linkedEntityID, $0.notes].joined(separator: " ") }
-    return sourceOrders.filter { order in
+    return store.operatorSourceOrders.filter { order in
       if linkedOrderIDs.contains(order.id) { return false }
       let orderNumber = order.orderNumber.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !orderNumber.isEmpty, !orderNumber.isPlaceholderValidationValue else { return true }
@@ -570,7 +567,7 @@ struct HandoffNotesView: View {
   private var handoffProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in sourceOrders {
+    for order in store.operatorSourceOrders {
       for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1

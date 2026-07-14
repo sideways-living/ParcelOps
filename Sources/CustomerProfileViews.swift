@@ -303,20 +303,17 @@ struct CustomerProfilesView: View {
 
 
 
-  private var profileSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var customerProfilesLinkedToInboxOrders: [CustomerRecipientProfile] {
     store.customerRecipientProfiles.filter { profile in
-      profileSourceOrders.contains { order in
+      store.operatorSourceOrders.contains { order in
         customerProfile(profile, matches: order)
       }
     }
   }
 
   private var inboxOrdersMissingProfile: [TrackedOrder] {
-    profileSourceOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       !store.customerRecipientProfiles.contains { profile in
         customerProfile(profile, matches: order)
       }
@@ -324,7 +321,7 @@ struct CustomerProfilesView: View {
   }
 
   private func inboxOrders(for profile: CustomerRecipientProfile) -> [TrackedOrder] {
-    profileSourceOrders.filter { customerProfile(profile, matches: $0) }
+    store.operatorSourceOrders.filter { customerProfile(profile, matches: $0) }
   }
 
   private func customerProfile(_ profile: CustomerRecipientProfile, matches order: TrackedOrder) -> Bool {

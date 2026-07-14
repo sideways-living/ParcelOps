@@ -231,7 +231,7 @@ struct ProcurementView: View {
         }
       }
 
-      if procurementSourceOrders.isEmpty {
+      if store.operatorSourceOrders.isEmpty {
         Text("No Inbox-created or Wishlist-linked orders need procurement checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -315,15 +315,12 @@ struct ProcurementView: View {
 
 
 
-  private var procurementSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var requestsLinkedToInboxOrders: [ProcurementRequest] {
     store.procurementRequests.filter { request in
       guard request.linkedEntityType == .order,
             let orderID = UUID(uuidString: request.linkedEntityID) else { return false }
-      return procurementSourceOrders.contains { $0.id == orderID }
+      return store.operatorSourceOrders.contains { $0.id == orderID }
     }
   }
 

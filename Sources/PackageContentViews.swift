@@ -189,7 +189,7 @@ struct PackageContentsView: View {
   }
 
   private var inboxPackageContentCoverage: some View {
-    let sourceOrders = packageContentSourceOrders
+    let sourceOrders = store.operatorSourceOrders
     let wishlistOrders = store.wishlistLinkedOrders
 
     return SettingsPanel(title: "Inbox and Wishlist package content coverage", symbol: "shippingbox.circle.fill") {
@@ -278,16 +278,13 @@ struct PackageContentsView: View {
 
 
 
-  private var packageContentSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var contentsLinkedToInboxOrders: [PackageContentRecord] {
     store.packageContents.filter { content in
       guard let orderID = content.orderID ?? (content.linkedEntityType == .order ? UUID(uuidString: content.linkedEntityID) : nil) else {
         return false
       }
-      return packageContentSourceOrders.contains { $0.id == orderID }
+      return store.operatorSourceOrders.contains { $0.id == orderID }
     }
   }
 
@@ -296,7 +293,7 @@ struct PackageContentsView: View {
   }
 
   private var inboxOrdersMissingContent: [TrackedOrder] {
-    packageContentSourceOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       !store.packageContents.contains { content in
         content.orderID == order.id || (content.linkedEntityType == .order && content.linkedEntityID == order.id.uuidString)
       }

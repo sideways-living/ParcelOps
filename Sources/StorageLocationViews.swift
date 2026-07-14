@@ -327,12 +327,9 @@ struct StorageLocationsView: View {
 
 
 
-  private var storageSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var locationsLinkedToInboxOrders: [StorageLocationRecord] {
-    let orderIDs = Set(storageSourceOrders.map(\.id))
+    let orderIDs = Set(store.operatorSourceOrders.map(\.id))
     let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -352,7 +349,7 @@ struct StorageLocationsView: View {
 
   private var inboxOrdersMissingStorage: [TrackedOrder] {
     let locationOrderIDs = Set(locationsLinkedToInboxOrders.flatMap(\.orderIDs))
-    return storageSourceOrders.filter { order in
+    return store.operatorSourceOrders.filter { order in
       locationOrderIDs.contains(order.id) == false
         && locationsLinkedToInboxOrders.contains { location in
           location.linkedEntityType == .order && UUID(uuidString: location.linkedEntityID) == order.id

@@ -40,20 +40,17 @@ struct ReconciliationView: View {
 
 
 
-  private var sourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var sourceOrdersWithSourceTrail: [TrackedOrder] {
-    sourceOrders.filter { store.sourceTrailCount(for: $0, includeWishlist: true) > 0 }
+    store.operatorSourceOrders.filter { store.sourceTrailCount(for: $0, includeWishlist: true) > 0 }
   }
 
   private var sourceOrdersMissingSourceTrail: [TrackedOrder] {
-    sourceOrders.filter { store.sourceTrailCount(for: $0, includeWishlist: true) == 0 }
+    store.operatorSourceOrders.filter { store.sourceTrailCount(for: $0, includeWishlist: true) == 0 }
   }
 
   private var inboxLinkedReconciliationIssues: [ReconciliationIssue] {
-    let sourceOrderIDs = Set(sourceOrders.map(\.id))
+    let sourceOrderIDs = Set(store.operatorSourceOrders.map(\.id))
     return store.reconciliationIssues.filter { issue in
       guard let order = linkedOrder(for: issue) else { return false }
       return sourceOrderIDs.contains(order.id)
@@ -64,7 +61,7 @@ struct ReconciliationView: View {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
 
-    for order in sourceOrders {
+    for order in store.operatorSourceOrders {
       for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -314,7 +311,7 @@ struct ReconciliationView: View {
         }
 
         if sourceOrdersMissingSourceTrail.isEmpty {
-          Label(sourceOrders.isEmpty ? "No Inbox-created or Wishlist-linked orders exist yet." : "All current Inbox-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
+          Label(store.operatorSourceOrders.isEmpty ? "No Inbox-created or Wishlist-linked orders exist yet." : "All current Inbox-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.green)
         } else {

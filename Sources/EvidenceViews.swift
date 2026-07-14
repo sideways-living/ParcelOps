@@ -31,18 +31,15 @@ struct EvidenceView: View {
 
 
 
-  private var evidenceSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var inboxCreatedOrdersWithEvidence: [TrackedOrder] {
-    evidenceSourceOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       !evidenceForOrder(order).isEmpty
     }
   }
 
   private var inboxCreatedOrdersWithoutEvidence: [TrackedOrder] {
-    evidenceSourceOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       evidenceForOrder(order).isEmpty
     }
   }
@@ -219,7 +216,7 @@ struct EvidenceView: View {
         }
 
         if inboxCreatedOrdersWithoutEvidence.isEmpty && inboxCreatedOrdersMissingSourceTrail.isEmpty {
-          Label(evidenceSourceOrders.isEmpty ? "No Inbox-created or Wishlist-linked orders exist yet." : "Inbox-created and Wishlist-linked orders have evidence or source context available.", systemImage: "checkmark.seal.fill")
+          Label(store.operatorSourceOrders.isEmpty ? "No Inbox-created or Wishlist-linked orders exist yet." : "Inbox-created and Wishlist-linked orders have evidence or source context available.", systemImage: "checkmark.seal.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.green)
         } else {

@@ -340,20 +340,17 @@ struct ContactsView: View {
 
 
 
-  private var contactSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var contactsLinkedToInboxOrders: [ContactDirectoryEntry] {
     store.contactDirectoryEntries.filter { contact in
-      contactSourceOrders.contains { order in
+      store.operatorSourceOrders.contains { order in
         contactMatches(contact, order: order)
       }
     }
   }
 
   private var inboxOrdersMissingContact: [TrackedOrder] {
-    contactSourceOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       !store.contactDirectoryEntries.contains { contact in
         contactMatches(contact, order: order)
       }
@@ -361,7 +358,7 @@ struct ContactsView: View {
   }
 
   private func inboxOrders(for contact: ContactDirectoryEntry) -> [TrackedOrder] {
-    contactSourceOrders.filter { contactMatches(contact, order: $0) }
+    store.operatorSourceOrders.filter { contactMatches(contact, order: $0) }
   }
 
   private func contactMatches(_ contact: ContactDirectoryEntry, order: TrackedOrder) -> Bool {

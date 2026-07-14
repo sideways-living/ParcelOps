@@ -233,20 +233,17 @@ struct ExceptionPlaybooksView: View {
 
 
 
-  private var playbookSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var playbooksLinkedToInboxOrders: [ExceptionPlaybook] {
     store.exceptionPlaybooks.filter { playbook in
-      playbookSourceOrders.contains { order in
+      store.operatorSourceOrders.contains { order in
         exceptionPlaybook(playbook, matches: order)
       }
     }
   }
 
   private func inboxOrders(for playbook: ExceptionPlaybook) -> [TrackedOrder] {
-    playbookSourceOrders.filter { exceptionPlaybook(playbook, matches: $0) }
+    store.operatorSourceOrders.filter { exceptionPlaybook(playbook, matches: $0) }
   }
 
   private func exceptionPlaybook(_ playbook: ExceptionPlaybook, matches order: TrackedOrder) -> Bool {

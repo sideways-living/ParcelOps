@@ -233,7 +233,7 @@ struct CostsBudgetsView: View {
         }
       }
 
-      if costSourceOrders.isEmpty {
+      if store.operatorSourceOrders.isEmpty {
         Text("No Inbox-created or Wishlist-linked orders need cost checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -330,16 +330,13 @@ struct CostsBudgetsView: View {
 
 
 
-  private var costSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var costsLinkedToInboxOrders: [CostRecord] {
     store.costRecords.filter { cost in
       guard let orderID = cost.orderID ?? (cost.linkedEntityType == .order ? UUID(uuidString: cost.linkedEntityID) : nil) else {
         return false
       }
-      return costSourceOrders.contains { $0.id == orderID }
+      return store.operatorSourceOrders.contains { $0.id == orderID }
     }
   }
 
@@ -353,7 +350,7 @@ struct CostsBudgetsView: View {
   }
 
   private var inboxOrdersMissingCost: [TrackedOrder] {
-    costSourceOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       !store.costRecords.contains { cost in
         cost.orderID == order.id || (cost.linkedEntityType == .order && cost.linkedEntityID == order.id.uuidString)
       }

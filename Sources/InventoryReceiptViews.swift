@@ -163,7 +163,7 @@ struct InventoryReceiptsView: View {
 
   private var inboxInventoryReceiptCoverage: some View {
     let inboxOrders = store.intakeLinkedOrders
-    let sourceOrders = inventorySourceOrders
+    let sourceOrders = store.operatorSourceOrders
     let linkedReceipts = receiptsLinkedToInboxOrders
     let actionReceipts = receiptsNeedingInventoryAction
     let missingReceiptCount = inboxOrdersMissingReceipt.count
@@ -327,12 +327,9 @@ struct InventoryReceiptsView: View {
 
 
 
-  private var inventorySourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var receiptsLinkedToInboxOrders: [InventoryReceiptRecord] {
-    let orderIDs = Set(inventorySourceOrders.map(\.id))
+    let orderIDs = Set(store.operatorSourceOrders.map(\.id))
     return store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -348,7 +345,7 @@ struct InventoryReceiptsView: View {
     let receiptOrderIDs = Set(receiptsLinkedToInboxOrders.compactMap { receipt -> UUID? in
       receipt.orderID ?? (receipt.linkedEntityType == .order ? UUID(uuidString: receipt.linkedEntityID) : nil)
     })
-    return inventorySourceOrders.filter { !receiptOrderIDs.contains($0.id) }
+    return store.operatorSourceOrders.filter { !receiptOrderIDs.contains($0.id) }
   }
 
 

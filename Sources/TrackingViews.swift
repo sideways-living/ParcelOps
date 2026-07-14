@@ -164,7 +164,7 @@ struct TrackingView: View {
   }
 
   private var inboxTrackingCoverage: some View {
-    let inboxOrders = sourceOrders
+    let inboxOrders = store.operatorSourceOrders
     let linkedEvents = trackingEventsLinkedToInboxOrders
     let actionEvents = trackingEventsNeedingAction
     let missingTrackingCount = inboxOrdersMissingTracking.count
@@ -255,25 +255,22 @@ struct TrackingView: View {
 
 
 
-  private var sourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var trackingEventsLinkedToInboxOrders: [CarrierTrackingEvent] {
-    let orderIDs = Set(sourceOrders.map(\.id))
+    let orderIDs = Set(store.operatorSourceOrders.map(\.id))
     return store.carrierTrackingEvents.filter { orderIDs.contains($0.orderID) }
   }
 
   private var inboxOrdersMissingTracking: [TrackedOrder] {
     let trackingOrderIDs = Set(trackingEventsLinkedToInboxOrders.map(\.orderID))
-    return sourceOrders.filter { !trackingOrderIDs.contains($0.id) }
+    return store.operatorSourceOrders.filter { !trackingOrderIDs.contains($0.id) }
   }
 
   private var inboxTrackingProviderRows: [(label: String, count: Int, detail: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
 
-    for order in sourceOrders {
+    for order in store.operatorSourceOrders {
       for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1

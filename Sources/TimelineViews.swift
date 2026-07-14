@@ -44,16 +44,13 @@ struct TimelineView: View {
 
 
 
-  private var sourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var sourceOrdersWithSourceTrail: [TrackedOrder] {
-    sourceOrders.filter { store.sourceTrailCount(for: $0) > 0 }
+    store.operatorSourceOrders.filter { store.sourceTrailCount(for: $0) > 0 }
   }
 
   private var sourceOrdersMissingSourceTrail: [TrackedOrder] {
-    sourceOrders.filter { store.sourceTrailCount(for: $0) == 0 }
+    store.operatorSourceOrders.filter { store.sourceTrailCount(for: $0) == 0 }
   }
 
   private var inboxSourceTimelineActivities: [TimelineActivity] {
@@ -219,7 +216,7 @@ struct TimelineView: View {
 
   @ViewBuilder
   private var inboxSourceTrailTimelinePanel: some View {
-    if !sourceOrders.isEmpty || !inboxSourceTimelineActivities.isEmpty {
+    if !store.operatorSourceOrders.isEmpty || !inboxSourceTimelineActivities.isEmpty {
       SettingsPanel(title: "Inbox/Wishlist source trail timeline", symbol: "link.badge.plus") {
         VStack(alignment: .leading, spacing: 12) {
           Text("Use this before closing handoff work: Inbox-created and Wishlist-linked orders should remain traceable to intake, import, acceptance, or purchase handoff context.")
@@ -236,7 +233,7 @@ struct TimelineView: View {
           ])
 
           if sourceOrdersMissingSourceTrail.isEmpty {
-            Label(sourceOrders.isEmpty ? "No Inbox-created or Wishlist-linked orders exist yet." : "All current Inbox-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
+            Label(store.operatorSourceOrders.isEmpty ? "No Inbox-created or Wishlist-linked orders exist yet." : "All current Inbox-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.green)
           } else {

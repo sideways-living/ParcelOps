@@ -316,12 +316,9 @@ struct ScanSessionsView: View {
 
 
 
-  private var scanSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var scansLinkedToInboxOrders: [ScanSessionRecord] {
-    let orderIDs = Set(scanSourceOrders.map(\.id))
+    let orderIDs = Set(store.operatorSourceOrders.map(\.id))
     let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -360,7 +357,7 @@ struct ScanSessionsView: View {
     let scanOrderIDs = Set(scansLinkedToInboxOrders.compactMap { record -> UUID? in
       record.orderID ?? (record.linkedEntityType == .order ? UUID(uuidString: record.linkedEntityID) : nil)
     })
-    return scanSourceOrders.filter { !scanOrderIDs.contains($0.id) }
+    return store.operatorSourceOrders.filter { !scanOrderIDs.contains($0.id) }
   }
 
   private var scansNeedingAction: [ScanSessionRecord] {

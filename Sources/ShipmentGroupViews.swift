@@ -126,7 +126,7 @@ struct ShipmentGroupsView: View {
   }
 
   private var inboxShipmentGroupCoverage: some View {
-    let sourceOrders = shipmentGroupSourceOrders
+    let sourceOrders = store.operatorSourceOrders
     let wishlistOrders = store.wishlistLinkedOrders
 
     return SettingsPanel(title: "Inbox and Wishlist shipment group coverage", symbol: "shippingbox.and.arrow.backward.fill") {
@@ -215,20 +215,17 @@ struct ShipmentGroupsView: View {
 
 
 
-  private var shipmentGroupSourceOrders: [TrackedOrder] {
-    store.operatorSourceOrders
-  }
 
   private var groupsLinkedToInboxOrders: [ShipmentGroup] {
     store.shipmentGroups.filter { group in
       let groupOrderIDs = Set(([group.primaryOrderID].compactMap { $0 } + group.relatedOrderIDs))
       return !group.relatedIntakeEmailIDs.isEmpty
-        || shipmentGroupSourceOrders.contains { groupOrderIDs.contains($0.id) }
+        || store.operatorSourceOrders.contains { groupOrderIDs.contains($0.id) }
     }
   }
 
   private var inboxOrdersMissingGroup: [TrackedOrder] {
-    shipmentGroupSourceOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       !store.shipmentGroups.contains { group in
         group.primaryOrderID == order.id || group.relatedOrderIDs.contains(order.id)
       }
