@@ -91,11 +91,11 @@ struct AuditView: View {
 
 
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
-    store.inboxCreatedOrders.filter { sourceTrailCount(for: $0) > 0 }
+    store.inboxCreatedOrders.filter { store.sourceTrailCount(for: $0) > 0 }
   }
 
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    store.inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
+    store.inboxCreatedOrders.filter { store.sourceTrailCount(for: $0) == 0 }
   }
 
   private var mailboxEvidenceEvents: [AuditEvent] {
@@ -1262,9 +1262,6 @@ struct AuditView: View {
     }
   }
 
-  private func sourceTrailCount(for order: TrackedOrder) -> Int {
-    store.sourceTrailCount(for: order)
-  }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
     store.linkedIntakeEmails(for: order)

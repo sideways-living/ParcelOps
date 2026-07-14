@@ -32,7 +32,7 @@ struct OrdersView: View {
   }
   private var inboxCreatedOrdersWithSourceTrailCount: Int {
     store.inboxCreatedOrders
-      .filter { sourceTrailCount(for: $0) > 0 }
+      .filter { store.sourceTrailCount(for: $0, includeWishlist: true) > 0 }
       .count
   }
   private var inboxCreatedOrdersMissingSourceTrailCount: Int {
@@ -583,13 +583,10 @@ struct OrdersView: View {
       tasks: store.tasks(for: .order, linkedEntityID: order.id.uuidString),
       manifests: store.suggestedShipmentManifestRecords(for: order),
       checklists: store.suggestedDispatchReadinessChecklists(for: order),
-      sourceTrailCount: sourceTrailCount(for: order)
+      sourceTrailCount: store.sourceTrailCount(for: order, includeWishlist: true)
     )
   }
 
-  private func sourceTrailCount(for order: TrackedOrder) -> Int {
-    store.sourceTrailCount(for: order, includeWishlist: true)
-  }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
     store.linkedIntakeEmails(for: order)

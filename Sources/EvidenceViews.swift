@@ -48,7 +48,7 @@ struct EvidenceView: View {
   }
 
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    store.inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
+    store.inboxCreatedOrders.filter { store.sourceTrailCount(for: $0) == 0 }
   }
 
   private var evidenceProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
@@ -448,9 +448,6 @@ struct EvidenceView: View {
     evidenceAttachmentsForOrder(order, in: store.evidenceAttachments, intakeEmails: store.intakeEmails)
   }
 
-  private func sourceTrailCount(for order: TrackedOrder) -> Int {
-    store.sourceTrailCount(for: order)
-  }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
     store.linkedIntakeEmails(for: order)
@@ -515,7 +512,7 @@ struct EvidenceAttachmentRow: View {
           if let linkedOrder, linkedOrder.isInboxCreatedLocalOrder || !linkedWishlistItems.isEmpty {
             EvidenceInboxSourceTrailCallout(
               evidenceCount: evidenceForLinkedOrder.count,
-              sourceTrailCount: sourceTrailCount(for: linkedOrder)
+              sourceTrailCount: store?.sourceTrailCount(for: linkedOrder) ?? 0
             )
           }
 
@@ -652,16 +649,12 @@ struct EvidenceAttachmentRow: View {
     if attachment.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || attachment.summary.localizedCaseInsensitiveContains("placeholder") {
       warnings.append("Evidence summary needs confirmation.")
     }
-    if let linkedOrder, linkedOrder.isInboxCreatedLocalOrder, sourceTrailCount(for: linkedOrder) == 0 {
+    if let linkedOrder, linkedOrder.isInboxCreatedLocalOrder, (store?.sourceTrailCount(for: linkedOrder) ?? 0) == 0 {
       warnings.append("Inbox-created order source trail is missing.")
     }
     return warnings
   }
 
-  private func sourceTrailCount(for order: TrackedOrder) -> Int {
-    guard let store else { return 0 }
-    return store.sourceTrailCount(for: order)
-  }
 
   private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
     store.linkedIntakeEmails(for: order)

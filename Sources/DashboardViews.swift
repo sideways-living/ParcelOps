@@ -462,10 +462,10 @@ struct DashboardView: View {
     store.reviewOrders.count + store.orders.filter { $0.status == .exception }.count + store.trackingWarningCount + store.criticalTrackingCount
   }
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
-    store.operatorSourceOrders.filter(hasOperatorSourceTrail)
+    store.operatorSourceOrders.filter { store.sourceTrailSummary(for: $0, includeWishlist: true).hasSourceTrail }
   }
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    store.operatorSourceOrders.filter { !hasOperatorSourceTrail($0) }
+    store.operatorSourceOrders.filter { !store.sourceTrailSummary(for: $0, includeWishlist: true).hasSourceTrail }
   }
   private var partialInboxOrderBlockers: [TrackedOrder] {
     store.inboxCreatedOrders.filter { order in
@@ -2615,9 +2615,6 @@ struct DashboardView: View {
     store.sourceTrailSummary(for: order).hasSourceTrail
   }
 
-  private func hasOperatorSourceTrail(_ order: TrackedOrder) -> Bool {
-    store.sourceTrailSummary(for: order, includeWishlist: true).hasSourceTrail
-  }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
     store.linkedIntakeEmails(for: order)

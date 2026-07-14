@@ -2023,7 +2023,7 @@ struct OperationsWorkbenchView: View {
             hasReopenedInboxDispatchHandoff: hasReopenedInboxDispatchHandoff(order),
             needsPreDispatchVerification: needsPreDispatchVerification(order),
             partialTaskCount: partialInboxTaskCount(for: order),
-            sourceTrailCount: sourceTrailCount(for: order),
+            sourceTrailCount: store.sourceTrailCount(for: order),
             store: store
           )
         }
@@ -2308,7 +2308,7 @@ struct OperationsWorkbenchView: View {
   private func inboxOrderFollowUpPriority(_ order: TrackedOrder) -> Int {
     if order.status == .exception { return 120 }
     if needsPreDispatchVerification(order) { return 115 }
-    if sourceTrailCount(for: order) == 0 { return 112 }
+    if store.sourceTrailCount(for: order) == 0 { return 112 }
     if order.reviewState != .accepted { return 110 }
     if needsDispatchSetup(order) { return 100 }
     if order.status == .inTransit { return 80 }
@@ -2347,9 +2347,6 @@ struct OperationsWorkbenchView: View {
     partialInboxTaskCount(for: order) > 0 || order.missingInboxOrderFieldCount > 0
   }
 
-  private func sourceTrailCount(for order: TrackedOrder) -> Int {
-    store.sourceTrailCount(for: order)
-  }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
     store.linkedIntakeEmails(for: order)

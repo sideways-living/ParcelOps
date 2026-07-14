@@ -9,11 +9,11 @@ struct SearchView: View {
 
 
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
-    store.inboxCreatedOrders.filter { sourceTrailCount(for: $0) > 0 }
+    store.inboxCreatedOrders.filter { store.sourceTrailCount(for: $0, includeWishlist: true) > 0 }
   }
 
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    store.inboxCreatedOrders.filter { sourceTrailCount(for: $0) == 0 }
+    store.inboxCreatedOrders.filter { store.sourceTrailCount(for: $0, includeWishlist: true) == 0 }
   }
 
   private var uncertainSpaceMailCount: Int {
@@ -160,9 +160,6 @@ struct SearchView: View {
     selectedReviewState = filter.reviewStateFilter
   }
 
-  private func sourceTrailCount(for order: TrackedOrder) -> Int {
-    store.sourceTrailCount(for: order, includeWishlist: true)
-  }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
     store.linkedIntakeEmails(for: order)

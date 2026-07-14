@@ -45,11 +45,11 @@ struct ReconciliationView: View {
   }
 
   private var sourceOrdersWithSourceTrail: [TrackedOrder] {
-    sourceOrders.filter { sourceTrailCount(for: $0) > 0 }
+    sourceOrders.filter { store.sourceTrailCount(for: $0, includeWishlist: true) > 0 }
   }
 
   private var sourceOrdersMissingSourceTrail: [TrackedOrder] {
-    sourceOrders.filter { sourceTrailCount(for: $0) == 0 }
+    sourceOrders.filter { store.sourceTrailCount(for: $0, includeWishlist: true) == 0 }
   }
 
   private var inboxLinkedReconciliationIssues: [ReconciliationIssue] {
@@ -434,9 +434,6 @@ struct ReconciliationView: View {
     return "envelope.open.fill"
   }
 
-  private func sourceTrailCount(for order: TrackedOrder) -> Int {
-    store.sourceTrailCount(for: order, includeWishlist: true)
-  }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
     store.linkedIntakeEmails(for: order)

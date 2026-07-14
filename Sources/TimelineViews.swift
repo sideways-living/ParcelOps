@@ -49,11 +49,11 @@ struct TimelineView: View {
   }
 
   private var sourceOrdersWithSourceTrail: [TrackedOrder] {
-    sourceOrders.filter { sourceTrailCount(for: $0) > 0 }
+    sourceOrders.filter { store.sourceTrailCount(for: $0) > 0 }
   }
 
   private var sourceOrdersMissingSourceTrail: [TrackedOrder] {
-    sourceOrders.filter { sourceTrailCount(for: $0) == 0 }
+    sourceOrders.filter { store.sourceTrailCount(for: $0) == 0 }
   }
 
   private var inboxSourceTimelineActivities: [TimelineActivity] {
@@ -489,9 +489,6 @@ struct TimelineView: View {
     return "envelope.open.fill"
   }
 
-  private func sourceTrailCount(for order: TrackedOrder) -> Int {
-    store.sourceTrailCount(for: order)
-  }
 
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
     store.linkedIntakeEmails(for: order)
