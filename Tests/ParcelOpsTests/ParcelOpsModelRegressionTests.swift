@@ -691,6 +691,36 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(closureTask.status, .open)
   }
 
+  func testWishlistClosureReadinessBatchRefreshesExistingTaskForGaps() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: UUID()
+    )
+    resetWishlistState(store)
+    resetWishlistOperationsTrail(store)
+    store.reviewTasks = []
+    store.wishlistItems = [item]
+
+    store.checkWishlistOperationsClosureReadinessBatch()
+    store.checkWishlistOperationsClosureReadinessBatch()
+
+    let closureTask = try XCTUnwrap(store.reviewTasks.first)
+
+    XCTAssertEqual(store.reviewTasks.count, 1)
+    XCTAssertEqual(closureTask.linkedEntityType, .wishlistItem)
+    XCTAssertEqual(closureTask.linkedEntityID, "wishlist-closure-readiness-batch")
+    XCTAssertEqual(closureTask.title, "Follow up Wishlist closure readiness")
+    XCTAssertTrue(closureTask.summary.contains("closure gaps"))
+    XCTAssertTrue(closureTask.summary.contains("local only"))
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Wishlist closure readiness follow-up task refreshed locally."
+        && event.afterDetail?.contains("updated instead of duplicated") == true
+    })
+  }
+
   func testWishlistOperationsTrailCarriesLinkedOrderContext() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     let linkedOrderID = UUID()

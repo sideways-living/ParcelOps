@@ -23864,14 +23864,40 @@ final class ParcelOpsStore {
       .map { "\($0.0.itemName): \($0.1.prefix(4).joined(separator: ", "))" }
 
     if !blocked.isEmpty {
-      createReviewTask(
-        linkedEntityType: .wishlistItem,
-        linkedEntityID: "wishlist-closure-readiness-batch",
-        label: "Wishlist closure readiness",
-        summary: "Review Wishlist operations closure readiness. \(blocked.count) item\(blocked.count == 1 ? "" : "s") still have local closure gaps: \(groupedGapCounts.prefix(6).map { "\($0.key) \($0.value)" }.joined(separator: "; ")). This task is local only and does not close orders, receive stock, book dispatch, mutate mailboxes, contact retailers, purchase, or pay.",
-        priority: blocked.count > 3 ? .high : .normal,
-        assignee: "Wishlist review"
-      )
+      let summary = "Review Wishlist operations closure readiness. \(blocked.count) item\(blocked.count == 1 ? "" : "s") still have local closure gaps: \(groupedGapCounts.prefix(6).map { "\($0.key) \($0.value)" }.joined(separator: "; ")). This task is local only and does not close orders, receive stock, book dispatch, mutate mailboxes, contact retailers, purchase, or pay."
+      let priority: TaskPriority = blocked.count > 3 ? .high : .normal
+      if let existingIndex = reviewTasks.firstIndex(where: {
+        $0.linkedEntityType == .wishlistItem
+          && $0.linkedEntityID == "wishlist-closure-readiness-batch"
+          && $0.status != .completed
+      }) {
+        let beforeDetail = reviewTasks[existingIndex].auditDetail
+        reviewTasks[existingIndex].title = "Follow up Wishlist closure readiness"
+        reviewTasks[existingIndex].summary = summary
+        reviewTasks[existingIndex].priority = priority
+        reviewTasks[existingIndex].dueDate = priority == .urgent ? "Today" : "Tomorrow"
+        reviewTasks[existingIndex].assignee = "Wishlist review"
+        reviewTasks[existingIndex].reviewState = .needsReview
+        persistReviewTasks()
+        logAudit(
+          action: .edited,
+          entityType: .reviewTask,
+          entityID: reviewTasks[existingIndex].id.uuidString,
+          entityLabel: reviewTasks[existingIndex].title,
+          summary: "Wishlist closure readiness follow-up task refreshed locally.",
+          beforeDetail: beforeDetail,
+          afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nExisting batch task was updated instead of duplicated. No order, receiving, inventory, dispatch, mailbox, retailer, payment, purchase, or external service action occurred."
+        )
+      } else {
+        createReviewTask(
+          linkedEntityType: .wishlistItem,
+          linkedEntityID: "wishlist-closure-readiness-batch",
+          label: "Wishlist closure readiness",
+          summary: summary,
+          priority: priority,
+          assignee: "Wishlist review"
+        )
+      }
     }
 
     logAudit(
