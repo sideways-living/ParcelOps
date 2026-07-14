@@ -92,9 +92,9 @@ struct ValidationView: View {
     let refreshedCount: Int
     switch tone {
     case "spacemail":
-      refreshedCount = store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+      refreshedCount = store.totalSpaceMailDuplicateRefreshedCount
     case "gmail":
-      refreshedCount = store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+      refreshedCount = store.totalGmailDuplicateRefreshedCount
     default:
       refreshedCount = 0
     }

@@ -1262,28 +1262,23 @@ private struct InboxSpaceMailDecisionGuide: View {
   @Binding var showParserDiagnosticsInTriage: Bool
 
   private var fetchedCount: Int {
-    store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
-      + store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+    store.totalMailboxFetchedCount
   }
 
   private var importedCount: Int {
-    store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
-      + store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
+    store.totalMailboxImportedCount
   }
 
   private var duplicateCount: Int {
-    store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
-      + store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+    store.totalMailboxDuplicateCount
   }
 
   private var filteredCount: Int {
-    store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
-      + store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+    store.totalMailboxFilteredSignalCount
   }
 
   private var uncertainCount: Int {
-    store.pendingSpaceMailUncertainReviewCount
-      + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
+    store.pendingSpaceMailUncertainReviewCount + store.pendingGmailUncertainMessageCount
   }
 
   private var parserIssueCount: Int {

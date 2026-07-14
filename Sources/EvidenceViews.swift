@@ -86,9 +86,9 @@ struct EvidenceView: View {
     let refreshedCount: Int
     switch tone {
     case "spacemail":
-      refreshedCount = store.spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+      refreshedCount = store.totalSpaceMailDuplicateRefreshedCount
     case "gmail":
-      refreshedCount = store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+      refreshedCount = store.totalGmailDuplicateRefreshedCount
     default:
       refreshedCount = 0
     }
@@ -264,7 +264,7 @@ struct EvidenceView: View {
             ("Gmail source rows", "\(gmailSourceTrailEmails.count)", gmailSourceTrailEmails.isEmpty ? .secondary : .blue),
             ("Gmail orders", "\(gmailSourceTrailOrders.count)", gmailSourceTrailOrders.isEmpty ? .secondary : .blue),
             ("Missing evidence", "\(gmailOrdersMissingEvidence.count)", gmailOrdersMissingEvidence.isEmpty ? .green : .orange),
-            ("Gmail refreshes", "\(store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount })", store.gmailIntakeHealthSummaries.isEmpty ? .secondary : .teal)
+            ("Gmail refreshes", "\(store.totalGmailFetchedCount)", store.gmailIntakeHealthSummaries.isEmpty ? .secondary : .teal)
           ])
 
           GmailReleaseBoundaryPanel(

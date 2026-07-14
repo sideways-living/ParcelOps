@@ -5508,50 +5508,43 @@ struct SpaceMailPrimaryStatusStrip: View {
   }
 
   private var fetchedCount: Int {
-    healthSummaries.reduce(0) { $0 + $1.fetchedCount }
-      + gmailHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+    store.totalMailboxFetchedCount
   }
 
   private var importedCount: Int {
-    healthSummaries.reduce(0) { $0 + $1.importedCount }
-      + gmailHealthSummaries.reduce(0) { $0 + $1.importedCount }
+    store.totalMailboxImportedCount
   }
 
   private var duplicateCount: Int {
-    healthSummaries.reduce(0) { $0 + $1.duplicateCount }
-      + gmailHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+    store.totalMailboxDuplicateCount
   }
 
   private var duplicateRefreshedCount: Int {
-    healthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
-      + gmailHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    store.totalMailboxDuplicateRefreshedCount
   }
 
   private var duplicateNoChangeCount: Int {
-    healthSummaries.reduce(0) { $0 + $1.duplicateNoChangeCount }
-      + gmailHealthSummaries.reduce(0) { $0 + $1.duplicateNoChangeCount }
+    store.totalMailboxDuplicateNoChangeCount
   }
 
   private var filteredCount: Int {
-    healthSummaries.reduce(0) { $0 + $1.filteredCount }
-      + gmailHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+    store.totalMailboxFilteredSignalCount
   }
 
   private var uncertainCount: Int {
-    healthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
-      + gmailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    store.totalMailboxUncertainSignalCount
   }
 
   private var gmailFetchedCount: Int {
-    gmailHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+    store.totalGmailFetchedCount
   }
 
   private var gmailImportedCount: Int {
-    gmailHealthSummaries.reduce(0) { $0 + $1.importedCount }
+    store.totalGmailImportedCount
   }
 
   private var gmailReviewCount: Int {
-    gmailHealthSummaries.reduce(0) { $0 + $1.pendingUncertainReviewCount + $1.filteredCount }
+    store.totalGmailUncertainSignalCount + store.totalGmailFilteredSignalCount
   }
 
   private var gmailStatusTone: String {

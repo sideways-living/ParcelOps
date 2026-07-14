@@ -1599,16 +1599,11 @@ final class ParcelOpsStore {
     let openReleaseGateTaskCount = releaseGateTasks.filter { $0.status != .completed }.count
     let completedReleaseGateTaskCount = releaseGateTasks.filter { $0.status == .completed }.count
     let refreshEvidenceCount = timeline.entries.count
-    let fetchedCount = spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
-      + gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
-    let importedCount = spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
-      + gmailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
-    let filteredCount = spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
-      + gmailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
-    let duplicateCount = spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
-      + gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
-    let uncertainCount = spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
-      + gmailIntakeHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let fetchedCount = totalMailboxFetchedCount
+    let importedCount = totalMailboxImportedCount
+    let filteredCount = totalMailboxFilteredSignalCount
+    let duplicateCount = totalMailboxDuplicateCount
+    let uncertainCount = totalMailboxUncertainSignalCount
     let generatedDate = Self.auditTimestamp()
 
     let gates = [
@@ -5983,6 +5978,106 @@ final class ParcelOpsStore {
         + (connection.filteredMessages?.count ?? 0)
         + (connection.lastRefreshUncertainCount ?? 0)
     }
+  }
+
+  var totalSpaceMailFetchedCount: Int {
+    spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  var totalSpaceMailImportedCount: Int {
+    spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  var totalSpaceMailDuplicateCount: Int {
+    spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+  }
+
+  var totalSpaceMailDuplicateRefreshedCount: Int {
+    spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+  }
+
+  var totalSpaceMailDuplicateNoChangeCount: Int {
+    spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateNoChangeCount }
+  }
+
+  var totalSpaceMailFilteredCount: Int {
+    spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+  }
+
+  var totalSpaceMailUncertainCount: Int {
+    spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+  }
+
+  var totalSpaceMailParserIssueCount: Int {
+    spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.parserIssueCount }
+  }
+
+  var totalSpaceMailPendingFilteredReviewCount: Int {
+    spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.pendingFilteredReviewCount }
+  }
+
+  var totalGmailFetchedCount: Int {
+    gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  var totalGmailImportedCount: Int {
+    gmailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  var totalGmailDuplicateCount: Int {
+    gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+  }
+
+  var totalGmailDuplicateRefreshedCount: Int {
+    gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+  }
+
+  var totalGmailDuplicateNoChangeCount: Int {
+    gmailIntakeHealthSummaries.reduce(0) { $0 + $1.duplicateNoChangeCount }
+  }
+
+  var totalGmailFilteredCount: Int {
+    gmailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+  }
+
+  var totalGmailUncertainCount: Int {
+    gmailIntakeHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+  }
+
+  var totalGmailFilteredSignalCount: Int {
+    max(totalGmailFilteredCount, pendingGmailFilteredReviewCount)
+  }
+
+  var totalGmailUncertainSignalCount: Int {
+    max(totalGmailUncertainCount, pendingGmailUncertainMessageCount)
+  }
+
+  var totalMailboxFetchedCount: Int {
+    totalSpaceMailFetchedCount + totalGmailFetchedCount
+  }
+
+  var totalMailboxImportedCount: Int {
+    totalSpaceMailImportedCount + totalGmailImportedCount
+  }
+
+  var totalMailboxDuplicateCount: Int {
+    totalSpaceMailDuplicateCount + totalGmailDuplicateCount
+  }
+
+  var totalMailboxDuplicateRefreshedCount: Int {
+    totalSpaceMailDuplicateRefreshedCount + totalGmailDuplicateRefreshedCount
+  }
+
+  var totalMailboxDuplicateNoChangeCount: Int {
+    totalSpaceMailDuplicateNoChangeCount + totalGmailDuplicateNoChangeCount
+  }
+
+  var totalMailboxFilteredSignalCount: Int {
+    totalSpaceMailFilteredCount + totalGmailFilteredSignalCount
+  }
+
+  var totalMailboxUncertainSignalCount: Int {
+    totalSpaceMailUncertainCount + totalGmailUncertainSignalCount
   }
 
   var gmailClassifierHintCount: Int {

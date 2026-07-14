@@ -180,31 +180,31 @@ struct AuditView: View {
   }
 
   private var spaceMailFetchedCount: Int {
-    spaceMailHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+    store.totalSpaceMailFetchedCount
   }
 
   private var spaceMailImportedCount: Int {
-    spaceMailHealthSummaries.reduce(0) { $0 + $1.importedCount }
+    store.totalSpaceMailImportedCount
   }
 
   private var spaceMailDuplicateCount: Int {
-    spaceMailHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+    store.totalSpaceMailDuplicateCount
   }
 
   private var spaceMailDuplicateRefreshedCount: Int {
-    spaceMailHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    store.totalSpaceMailDuplicateRefreshedCount
   }
 
   private var spaceMailFilteredCount: Int {
-    spaceMailHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+    store.totalSpaceMailFilteredCount
   }
 
   private var spaceMailUncertainCount: Int {
-    spaceMailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    store.totalSpaceMailUncertainCount
   }
 
   private var spaceMailParserIssueCount: Int {
-    spaceMailHealthSummaries.reduce(0) { $0 + $1.parserIssueCount }
+    store.totalSpaceMailParserIssueCount
   }
 
   private var spaceMailFilteredOnlyOutcome: Bool {
@@ -215,19 +215,19 @@ struct AuditView: View {
   }
 
   private var gmailFetchedCount: Int {
-    gmailHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+    store.totalGmailFetchedCount
   }
 
   private var gmailImportedCount: Int {
-    gmailHealthSummaries.reduce(0) { $0 + $1.importedCount }
+    store.totalGmailImportedCount
   }
 
   private var gmailDuplicateCount: Int {
-    gmailHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+    store.totalGmailDuplicateCount
   }
 
   private var gmailDuplicateRefreshedCount: Int {
-    gmailHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    store.totalGmailDuplicateRefreshedCount
   }
 
   private var pendingFilteredGmailCount: Int {
@@ -239,11 +239,11 @@ struct AuditView: View {
   }
 
   private var gmailFilteredCount: Int {
-    max(gmailHealthSummaries.reduce(0) { $0 + $1.filteredCount }, pendingFilteredGmailCount)
+    store.totalGmailFilteredSignalCount
   }
 
   private var gmailUncertainCount: Int {
-    max(gmailHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }, pendingUncertainGmailCount)
+    store.totalGmailUncertainSignalCount
   }
 
   private var mailboxFetchedCount: Int {

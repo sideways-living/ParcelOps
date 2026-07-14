@@ -3611,15 +3611,15 @@ private struct SettingsGmailManualRunbookPanel: View {
   }
 
   private var importedCount: Int {
-    store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
+    store.totalGmailImportedCount
   }
 
   private var filteredCount: Int {
-    store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.filteredCount }
+    store.totalGmailFilteredSignalCount
   }
 
   private var fetchedCount: Int {
-    store.gmailIntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+    store.totalGmailFetchedCount
   }
 
   private var headline: String {
