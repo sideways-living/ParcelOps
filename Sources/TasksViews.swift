@@ -291,33 +291,19 @@ struct TasksView: View {
   }
 
   private var pendingFilteredGmailCount: Int {
-    store.gmailMailboxConnections.reduce(0) { total, connection in
-      total + (connection.filteredMessages?.count ?? 0)
-    }
+    store.pendingGmailFilteredReviewCount
   }
 
   private var pendingUncertainGmailCount: Int {
-    store.gmailMailboxConnections.reduce(0) { total, connection in
-      total + (connection.uncertainMessages?.count ?? 0)
-    }
+    store.pendingGmailUncertainMessageCount
   }
 
   private var gmailClassifierHintCount: Int {
-    store.gmailMailboxConnections.reduce(0) { total, connection in
-      total
-        + (connection.trustedSenderHints ?? []).count
-        + (connection.importKeywordHints ?? []).count
-        + (connection.uncertainKeywordHints ?? []).count
-        + (connection.filterKeywordHints ?? []).count
-    }
+    store.gmailClassifierHintCount
   }
 
   private var gmailClassifierTestIssueCount: Int {
-    store.gmailMailboxConnections.reduce(0) { total, connection in
-      total + (connection.classifierTestResults ?? []).filter {
-        $0.decisionStatus.localizedCaseInsensitiveContains("needs review")
-      }.count
-    }
+    store.gmailClassifierDecisionIssueCount
   }
 
   private var gmailClassifierTaskConnection: GmailMailboxConnection? {

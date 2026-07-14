@@ -5923,6 +5923,37 @@ final class ParcelOpsStore {
     gmailMailboxConnections.reduce(0) { $0 + max($1.filteredMessages?.count ?? 0, $1.lastRefreshFilteredNonOrderCount) }
   }
 
+  var pendingGmailUncertainMessageCount: Int {
+    gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
+  }
+
+  var pendingGmailReviewSignalCount: Int {
+    gmailMailboxConnections.reduce(0) { total, connection in
+      total
+        + (connection.uncertainMessages?.count ?? 0)
+        + (connection.filteredMessages?.count ?? 0)
+        + (connection.lastRefreshUncertainCount ?? 0)
+    }
+  }
+
+  var gmailClassifierHintCount: Int {
+    gmailMailboxConnections.reduce(0) { total, connection in
+      total
+        + (connection.trustedSenderHints ?? []).count
+        + (connection.importKeywordHints ?? []).count
+        + (connection.uncertainKeywordHints ?? []).count
+        + (connection.filterKeywordHints ?? []).count
+    }
+  }
+
+  var gmailClassifierDecisionIssueCount: Int {
+    gmailMailboxConnections.reduce(0) { total, connection in
+      total + (connection.classifierTestResults ?? []).filter {
+        $0.decisionStatus.localizedCaseInsensitiveContains("needs review")
+      }.count
+    }
+  }
+
   func uniqueOrdersByID(_ orders: [TrackedOrder]) -> [TrackedOrder] {
     var seen = Set<UUID>()
     return orders.filter { order in

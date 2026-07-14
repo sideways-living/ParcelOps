@@ -390,21 +390,11 @@ struct OperationsWorkbenchView: View {
   }
 
   private var gmailClassifierHintCount: Int {
-    store.gmailMailboxConnections.reduce(0) { total, connection in
-      total
-        + (connection.trustedSenderHints ?? []).count
-        + (connection.importKeywordHints ?? []).count
-        + (connection.uncertainKeywordHints ?? []).count
-        + (connection.filterKeywordHints ?? []).count
-    }
+    store.gmailClassifierHintCount
   }
 
   private var gmailClassifierTestIssueCount: Int {
-    store.gmailMailboxConnections.reduce(0) { total, connection in
-      total + (connection.classifierTestResults ?? []).filter {
-        $0.decisionStatus.localizedCaseInsensitiveContains("needs review")
-      }.count
-    }
+    store.gmailClassifierDecisionIssueCount
   }
 
   private var gmailClassifierTuningCount: Int {

@@ -3609,12 +3609,7 @@ private struct SettingsGmailManualRunbookPanel: View {
   }
 
   private var pendingReviewCount: Int {
-    store.gmailMailboxConnections.reduce(0) { total, connection in
-      total
-        + (connection.uncertainMessages?.count ?? 0)
-        + (connection.filteredMessages?.count ?? 0)
-        + (connection.lastRefreshUncertainCount ?? 0)
-    }
+    store.pendingGmailReviewSignalCount
   }
 
   private var importedCount: Int {
@@ -6036,12 +6031,7 @@ struct SettingsView: View {
   }
 
   private var setupUncertainReviewCount: Int {
-    store.spaceMailIMAPConnections.reduce(0) { total, connection in
-      total + connection.uncertainMessages.count
-    }
-      + store.gmailMailboxConnections.reduce(0) { total, connection in
-        total + (connection.uncertainMessages?.count ?? 0) + (connection.lastRefreshUncertainCount ?? 0)
-      }
+    store.pendingSpaceMailUncertainReviewCount + store.pendingGmailUncertainReviewCount
   }
 
   private var setupCompletionItems: [(title: String, detail: String, blockers: Int, destination: String, symbol: String, color: Color)] {

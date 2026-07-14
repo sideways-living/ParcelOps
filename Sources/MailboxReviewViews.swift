@@ -2036,9 +2036,7 @@ private struct MailboxGmailRunbookPanel: View {
   }
 
   private var pendingUncertainCount: Int {
-    store.gmailMailboxConnections.reduce(0) { total, connection in
-      total + (connection.uncertainMessages?.count ?? 0) + (connection.lastRefreshUncertainCount ?? 0)
-    }
+    store.pendingGmailUncertainReviewCount
   }
 
   private var filteredReviewCount: Int {

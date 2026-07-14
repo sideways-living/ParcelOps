@@ -231,15 +231,11 @@ struct AuditView: View {
   }
 
   private var pendingFilteredGmailCount: Int {
-    store.gmailMailboxConnections.reduce(0) { total, connection in
-      total + (connection.filteredMessages?.count ?? 0)
-    }
+    store.pendingGmailFilteredReviewCount
   }
 
   private var pendingUncertainGmailCount: Int {
-    store.gmailMailboxConnections.reduce(0) { total, connection in
-      total + (connection.uncertainMessages?.count ?? 0)
-    }
+    store.pendingGmailUncertainMessageCount
   }
 
   private var gmailFilteredCount: Int {
