@@ -6603,11 +6603,13 @@ final class ParcelOpsStore {
   }
 
   func createOrder(from candidate: AcceptanceCandidate) {
+    let sourceMailbox = sourceMailboxLabel(for: candidate)
+    let contactPoint = candidate.sourceType == .intakeEmail ? sourceMailbox : "Acceptance Review"
     let order = TrackedOrder(
       orderNumber: candidate.detectedOrderNumber.isPlaceholderValidationValue ? "ACC-\(4000 + orders.count + 1)" : candidate.detectedOrderNumber,
       store: candidate.detectedMerchant.isPlaceholderValidationValue ? "Accepted merchant" : candidate.detectedMerchant,
       recipientEmail: candidate.sourceType == .intakeEmail ? "captured-from-forward@parcelops.example" : "import-queue@parcelops.example",
-      checkedMailbox: candidate.sourceType == .intakeEmail ? "tracking-intake@parcelops.example" : "manual-import",
+      checkedMailbox: candidate.sourceType == .intakeEmail ? sourceMailbox : "manual-import",
       customer: "Operations",
       fulfillment: .delivery,
       carrier: candidate.detectedTrackingNumber.isPlaceholderValidationValue ? "Pending" : "Carrier pending",
@@ -6619,12 +6621,20 @@ final class ParcelOpsStore {
       reviewState: .needsReview,
       latestStatus: "Created from local acceptance review.",
       timeline: [TimelineEvent(title: "Acceptance review", detail: candidate.sourceLabel, time: "Now", symbol: "checkmark.rectangle.stack.fill")],
-      contactHistory: [ContactHistoryEvent(time: "Now", source: candidate.sourceType == .intakeEmail ? .mailbox : .manual, contactPoint: "Acceptance Review", summary: "Order created from acceptance workflow.", evidence: candidate.rawSummary, reviewState: .needsReview)]
+      contactHistory: [ContactHistoryEvent(time: "Now", source: candidate.sourceType == .intakeEmail ? .mailbox : .manual, contactPoint: contactPoint, summary: "Order created from acceptance workflow.", evidence: candidate.rawSummary, reviewState: .needsReview)]
     )
     orders.insert(order, at: 0)
     persistOrders()
     linkAcceptanceCandidate(candidate, to: order)
-    logAudit(action: .created, entityType: .order, entityID: order.id.uuidString, entityLabel: order.orderNumber, summary: "Order created from acceptance review.", afterDetail: order.auditDetail)
+    logAudit(action: .created, entityType: .order, entityID: order.id.uuidString, entityLabel: order.orderNumber, summary: "Order created from acceptance review.", afterDetail: "\(order.auditDetail)\nSource mailbox: \(sourceMailbox)")
+  }
+
+  private func sourceMailboxLabel(for candidate: AcceptanceCandidate) -> String {
+    guard candidate.sourceType == .intakeEmail,
+          let email = intakeEmails.first(where: { $0.id == candidate.sourceID }) else {
+      return "manual-import"
+    }
+    return sourceMailboxLabel(for: email)
   }
 
   func createShipmentGroup(from candidate: AcceptanceCandidate) {
