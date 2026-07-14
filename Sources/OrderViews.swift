@@ -16,8 +16,7 @@ struct OrdersView: View {
       }
   }
   private var inboxCreatedOrderItems: [OrderQueueItem] {
-    store.orders
-      .filter(\.isInboxCreatedLocalOrder)
+    store.inboxCreatedOrders
       .map(queueItem)
       .sorted { first, second in
         if first.inboxHandoffPriority == second.inboxHandoffPriority {
@@ -32,8 +31,7 @@ struct OrdersView: View {
     store.inboxCreatedOrders.count
   }
   private var inboxCreatedOrdersWithSourceTrailCount: Int {
-    store.orders
-      .filter(\.isInboxCreatedLocalOrder)
+    store.inboxCreatedOrders
       .filter { sourceTrailCount(for: $0) > 0 }
       .count
   }
@@ -41,19 +39,17 @@ struct OrdersView: View {
     max(inboxCreatedOrderCount - inboxCreatedOrdersWithSourceTrailCount, 0)
   }
   private var inboxCreatedOrdersActionableCount: Int {
-    store.orders
-      .filter(\.isInboxCreatedLocalOrder)
+    store.inboxCreatedOrders
       .map(queueItem)
       .filter(\.needsInboxHandoffAction)
       .count
   }
   private var inboxCreatedOrdersNeedingReviewCount: Int {
-    store.orders.filter { $0.isInboxCreatedLocalOrder && $0.reviewState != .accepted }.count
+    store.inboxCreatedOrders.filter { $0.reviewState != .accepted }.count
   }
   private var inboxCreatedOrdersMissingDispatchCount: Int {
-    store.orders.filter { order in
-      order.isInboxCreatedLocalOrder
-        && [.shipped, .inTransit, .exception].contains(order.status)
+    store.inboxCreatedOrders.filter { order in
+      [.shipped, .inTransit, .exception].contains(order.status)
         && store.suggestedShipmentManifestRecords(for: order).isEmpty
         && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
     }.count

@@ -336,7 +336,7 @@ struct ReceivingInspectionsView: View {
   }
 
   private var receivingSourceOrders: [TrackedOrder] {
-    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+    store.operatorSourceOrders
   }
 
   private var inspectionsLinkedToInboxOrders: [ReceivingInspectionRecord] {

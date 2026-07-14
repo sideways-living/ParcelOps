@@ -653,7 +653,7 @@ struct OperationsWorkbenchView: View {
   }
 
   private var releaseInboxOrderCount: Int {
-    store.orders.filter { $0.isInboxCreatedLocalOrder }.count
+    store.inboxCreatedOrders.count
   }
 
   private var releaseDispatchBlockerCount: Int {

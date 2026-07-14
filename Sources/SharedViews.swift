@@ -5959,7 +5959,7 @@ struct MailboxProviderQAMatrixCard: View {
   }
 
   private var inboxOrderCount: Int {
-    store.orders.filter { $0.isInboxCreatedLocalOrder || $0.source == .forwardedMailbox }.count
+    store.inboxCreatedOrders.count
   }
 
   private var providerAuditCount: Int {
@@ -6131,7 +6131,7 @@ struct OperatorSupportSnapshotCard: View {
   }
 
   private var inboxCreatedOrderCount: Int {
-    store.orders.filter(\.isInboxCreatedLocalOrder).count
+    store.inboxCreatedOrders.count
   }
 
   private var activeWishlistItems: [WishlistItem] {

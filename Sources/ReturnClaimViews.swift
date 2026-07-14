@@ -323,7 +323,7 @@ struct ReturnsClaimsView: View {
   }
 
   private var claimSourceOrders: [TrackedOrder] {
-    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+    store.operatorSourceOrders
   }
 
   private var claimsLinkedToInboxOrders: [ReturnClaimRecord] {

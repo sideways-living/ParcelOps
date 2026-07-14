@@ -326,7 +326,7 @@ struct ProcurementView: View {
   }
 
   private var procurementSourceOrders: [TrackedOrder] {
-    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+    store.operatorSourceOrders
   }
 
   private var requestsLinkedToInboxOrders: [ProcurementRequest] {

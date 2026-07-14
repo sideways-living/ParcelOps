@@ -359,11 +359,11 @@ struct AccountsView: View {
   }
 
   private var wishlistLinkedOrders: [TrackedOrder] {
-    store.orders.filter { !store.activeWishlistItemsLinked(to: $0).isEmpty }
+    store.wishlistLinkedOrders
   }
 
   private var accountSourceOrders: [TrackedOrder] {
-    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+    store.operatorSourceOrders
   }
 
   private var accountsLinkedToInboxOrders: [AccountCredentialRecord] {

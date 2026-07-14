@@ -836,7 +836,7 @@ final class ParcelOpsStore {
     let parserIssueCount = intakeParserDiagnostics.count
     let openInboxCount = reviewIntakeEmails.count
     let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
-    let inboxCreatedOrderCount = orders.filter(\.isInboxCreatedLocalOrder).count
+    let inboxCreatedOrderCount = inboxCreatedOrders.count
     var items: [MailboxProviderTestQueueItem] = []
 
     for provider in setup.providers {
@@ -1100,7 +1100,7 @@ final class ParcelOpsStore {
     let attentionCount = openQueueItems.filter { $0.tone == "attention" }.count
     let openInboxCount = reviewIntakeEmails.count
     let linkedOrderCount = Set(intakeEmails.compactMap(\.linkedOrderID)).count
-    let inboxOrderCount = orders.filter(\.isInboxCreatedLocalOrder).count
+    let inboxOrderCount = inboxCreatedOrders.count
     let openTaskCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
 
     let providerLines = comparison.providers.map { provider in
@@ -1247,7 +1247,7 @@ final class ParcelOpsStore {
     let gmailReadinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
     let gmailSignedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
     let linkedOrderCount = Set(intakeEmails.compactMap(\.linkedOrderID)).count
-    let inboxOrderCount = orders.filter(\.isInboxCreatedLocalOrder).count
+    let inboxOrderCount = inboxCreatedOrders.count
     var issues: [MailboxProviderTroubleshootingIssue] = []
 
     if spaceMailIMAPConnections.isEmpty && gmailMailboxConnections.isEmpty {
@@ -1590,7 +1590,7 @@ final class ParcelOpsStore {
     let releaseIncompleteCount = releasePlan.steps.filter { !$0.isComplete }.count
     let openInboxCount = reviewIntakeEmails.count
     let linkedOrderCount = Set(intakeEmails.compactMap(\.linkedOrderID)).count
-    let inboxCreatedOrderCount = orders.filter(\.isInboxCreatedLocalOrder).count
+    let inboxCreatedOrderCount = inboxCreatedOrders.count
     let openTaskHandoffCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
     let releaseGateTasks = reviewTasks.filter {
       $0.linkedEntityType == .integration
@@ -3737,7 +3737,7 @@ final class ParcelOpsStore {
       + gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
     let parserIssueCount = intakeParserDiagnostics.count
     let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
-    let inboxCreatedOrderCount = orders.filter(\.isInboxCreatedLocalOrder).count
+    let inboxCreatedOrderCount = inboxCreatedOrders.count
     let openTaskCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
     let latestRunHasAction = timeline.entries.contains { $0.tone == "attention" }
 
@@ -11503,7 +11503,7 @@ final class ParcelOpsStore {
     let refreshLine = latestSpaceMail.map {
       "Latest SpaceMail refresh: \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateCount) duplicate, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain."
     } ?? "Latest SpaceMail refresh: no summary available."
-    let handoffLine = "Current handoff: \(orders.filter(\.isInboxCreatedLocalOrder).count) Inbox-created orders, \(Set(intakeEmails.compactMap(\.linkedOrderID)).count) linked intake sources, \(openWorkbenchItems.count) open Workbench items, \(reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count) task/handoff items."
+    let handoffLine = "Current handoff: \(inboxCreatedOrders.count) Inbox-created orders, \(Set(intakeEmails.compactMap(\.linkedOrderID)).count) linked intake sources, \(openWorkbenchItems.count) open Workbench items, \(reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count) task/handoff items."
     let summaryLines = [
       readiness.verdict,
       readiness.detail,

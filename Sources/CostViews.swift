@@ -341,7 +341,7 @@ struct CostsBudgetsView: View {
   }
 
   private var costSourceOrders: [TrackedOrder] {
-    uniqueOrders(inboxCreatedOrders + wishlistLinkedOrders)
+    store.operatorSourceOrders
   }
 
   private var costsLinkedToInboxOrders: [CostRecord] {
