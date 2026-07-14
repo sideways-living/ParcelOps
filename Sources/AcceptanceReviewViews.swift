@@ -455,6 +455,10 @@ struct AcceptanceCandidateRow: View {
     }
   }
 
+  private var sourceContext: (label: String, detail: String, symbol: String) {
+    store.acceptanceSourceContext(for: candidate)
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .top, spacing: 12) {
@@ -496,6 +500,8 @@ struct AcceptanceCandidateRow: View {
           .font(.caption)
           .foregroundStyle(.secondary)
       }
+
+      AcceptanceSourceContextPanel(sourceContext: sourceContext)
 
       LinkedOrderContextPanel(
         order: linkedOrder,
@@ -596,6 +602,38 @@ struct AcceptanceCandidateRow: View {
       RoundedRectangle(cornerRadius: 8)
         .stroke(.quaternary)
     )
+  }
+}
+
+private struct AcceptanceSourceContextPanel: View {
+  var sourceContext: (label: String, detail: String, symbol: String)
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: sourceContext.symbol)
+        .foregroundStyle(.teal)
+        .frame(width: 22)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text("Source trail")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+          Text(sourceContext.label)
+            .font(.caption.weight(.semibold))
+          Badge("Preserved on order", color: .teal)
+        }
+        Text(sourceContext.detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Spacer(minLength: 0)
+    }
+    .padding(10)
+    .background(.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.teal.opacity(0.18)))
   }
 }
 

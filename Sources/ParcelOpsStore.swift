@@ -6602,6 +6602,41 @@ final class ParcelOpsStore {
     upsertAcceptanceRecord(from: candidate, decision: .ready, reviewState: .monitor, linkedOrderID: candidate.suggestedLinkedOrderID, linkedShipmentGroupID: group.id, summary: "Acceptance candidate linked to shipment group \(group.groupName).", action: .linked)
   }
 
+  func acceptanceSourceContext(for candidate: AcceptanceCandidate) -> (label: String, detail: String, symbol: String) {
+    switch candidate.sourceType {
+    case .intakeEmail:
+      guard let email = intakeEmails.first(where: { $0.id == candidate.sourceID }) else {
+        return (
+          "Missing intake source",
+          "The acceptance candidate points to an intake email that is no longer present. Reopen or ignore it before creating operational records.",
+          "exclamationmark.triangle.fill"
+        )
+      }
+      let mailbox = sourceMailboxLabel(for: email)
+      let provider = mailboxProviderLabel(for: email)
+      let linkState = email.linkedOrderID.flatMap(orderLabel(for:)).map { "Linked order: \($0)." } ?? "No linked order yet."
+      return (
+        mailbox,
+        "\(provider) intake captured \(email.receivedDate). \(linkState) Creating or linking from this row preserves \(mailbox) as the order source trail.",
+        "envelope.open.fill"
+      )
+    case .importQueueItem:
+      guard let item = importQueueItems.first(where: { $0.id == candidate.sourceID }) else {
+        return (
+          "Missing import source",
+          "The acceptance candidate points to an import queue item that is no longer present. Reopen or ignore it before creating operational records.",
+          "exclamationmark.triangle.fill"
+        )
+      }
+      let linkState = item.suggestedLinkedOrderID.flatMap(orderLabel(for:)).map { "Linked order: \($0)." } ?? "No linked order yet."
+      return (
+        item.sourceLabel,
+        "\(item.sourceType.rawValue) import captured \(item.capturedDate). \(linkState) Creating from this row uses manual import as the order source trail.",
+        "tray.and.arrow.down.fill"
+      )
+    }
+  }
+
   func createOrder(from candidate: AcceptanceCandidate) {
     let sourceMailbox = sourceMailboxLabel(for: candidate)
     let contactPoint = candidate.sourceType == .intakeEmail ? sourceMailbox : "Acceptance Review"
@@ -6635,6 +6670,25 @@ final class ParcelOpsStore {
       return "manual-import"
     }
     return sourceMailboxLabel(for: email)
+  }
+
+  private func mailboxProviderLabel(for email: ForwardedEmailIntake) -> String {
+    guard let ingestRecord = mailboxIngestRecords.first(where: { $0.intakeEmailID == email.id }) else {
+      return "Tracked mailbox"
+    }
+    if gmailMailboxConnections.contains(where: { $0.id == ingestRecord.sourceMailboxID }) {
+      return "Gmail"
+    }
+    if spaceMailIMAPConnections.contains(where: { $0.id == ingestRecord.sourceMailboxID }) {
+      return "SpaceMail IMAP"
+    }
+    if microsoft365MailboxConnections.contains(where: { $0.id == ingestRecord.sourceMailboxID }) {
+      return "Microsoft 365"
+    }
+    if mailboxes.contains(where: { $0.id == ingestRecord.sourceMailboxID }) {
+      return "Tracked mailbox"
+    }
+    return "Mailbox source"
   }
 
   func createShipmentGroup(from candidate: AcceptanceCandidate) {

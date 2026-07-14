@@ -2924,6 +2924,114 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     })
   }
 
+  func testAcceptanceCandidateSourceContextShowsGmailMailbox() {
+    let mailboxID = UUID()
+    let intake = ForwardedEmailIntake(
+      sender: "orders@example-store.test",
+      subject: "Example Store order TEST-123 shipped",
+      receivedDate: "Today",
+      rawBodyPreview: "Order TEST-123 shipped tracking ABC123 to 10 Market Street, Melbourne VIC.",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "TEST-123",
+      detectedTrackingNumber: "ABC123",
+      detectedDestinationAddress: "10 Market Street, Melbourne VIC",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    var gmailConnection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 1,
+      imported: 1,
+      filtered: 0,
+      uncertain: 0
+    )
+    gmailConnection.emailAddress = "gmail-orders@example.test"
+    let candidate = AcceptanceCandidate(
+      id: "intake-\(intake.id.uuidString)",
+      sourceType: .intakeEmail,
+      sourceID: intake.id,
+      sourceLabel: intake.subject,
+      capturedDate: intake.receivedDate,
+      rawSummary: intake.rawBodyPreview,
+      detectedMerchant: intake.detectedMerchant,
+      detectedOrderNumber: intake.detectedOrderNumber,
+      detectedTrackingNumber: intake.detectedTrackingNumber,
+      detectedDestinationAddress: intake.detectedDestinationAddress,
+      suggestedLinkedOrderID: nil,
+      suggestedShipmentGroupID: nil,
+      confidenceScore: 92,
+      decision: .ready,
+      reviewState: .needsReview,
+      notes: "Forwarded intake email awaiting local acceptance review."
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.gmailMailboxConnections = [gmailConnection]
+    store.intakeEmails = [intake]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "gmail-acceptance-source-context-1",
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .imported,
+        summary: "Imported from Gmail"
+      )
+    ]
+
+    let context = store.acceptanceSourceContext(for: candidate)
+
+    XCTAssertEqual(context.label, "gmail-orders@example.test")
+    XCTAssertTrue(context.detail.contains("Gmail intake"))
+    XCTAssertTrue(context.detail.contains("preserves gmail-orders@example.test"))
+  }
+
+  func testAcceptanceCandidateSourceContextShowsImportFallback() {
+    let item = ImportQueueItem(
+      sourceType: .manualEntry,
+      sourceLabel: "Manual test import",
+      capturedDate: "Today",
+      rawSummary: "Imported order TEST-456",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "TEST-456",
+      detectedTrackingNumber: "XYZ789",
+      detectedDestinationAddress: "20 Market Street, Melbourne VIC",
+      suggestedLinkedOrderID: nil,
+      suggestedShipmentGroupID: nil,
+      confidenceScore: 88,
+      importStatus: .staged,
+      reviewState: .needsReview,
+      notes: "Review before acceptance."
+    )
+    let candidate = AcceptanceCandidate(
+      id: "import-\(item.id.uuidString)",
+      sourceType: .importQueueItem,
+      sourceID: item.id,
+      sourceLabel: item.sourceLabel,
+      capturedDate: item.capturedDate,
+      rawSummary: item.rawSummary,
+      detectedMerchant: item.detectedMerchant,
+      detectedOrderNumber: item.detectedOrderNumber,
+      detectedTrackingNumber: item.detectedTrackingNumber,
+      detectedDestinationAddress: item.detectedDestinationAddress,
+      suggestedLinkedOrderID: nil,
+      suggestedShipmentGroupID: nil,
+      confidenceScore: item.confidenceScore,
+      decision: .ready,
+      reviewState: item.reviewState,
+      notes: item.notes
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.importQueueItems = [item]
+
+    let context = store.acceptanceSourceContext(for: candidate)
+
+    XCTAssertEqual(context.label, "Manual test import")
+    XCTAssertTrue(context.detail.contains("Manual entry import"))
+    XCTAssertTrue(context.detail.contains("manual import"))
+  }
+
   func testGmailConnectedRefreshStillSurfacesCompiledSetupBlockers() {
     let mailboxID = UUID()
     let connection = makeGmailConnection(
