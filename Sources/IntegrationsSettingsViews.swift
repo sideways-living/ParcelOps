@@ -5954,7 +5954,7 @@ struct SettingsView: View {
   }
 
   private var activeWishlistItems: [WishlistItem] {
-    store.wishlistItems.filter(store.isActiveWishlistItem)
+    store.activeWishlistItems
   }
 
   private var wishlistManualItemCount: Int {
@@ -5970,7 +5970,7 @@ struct SettingsView: View {
   }
 
   private var wishlistItemsWaitingForAgentScopeCount: Int {
-    store.wishlistResearchRequests.filter(store.isActiveWishlistResearchRequest).count
+    store.activeWishlistResearchRequests.count
   }
 
   private var wishlistItemsWithPurchaseHandoffCount: Int {

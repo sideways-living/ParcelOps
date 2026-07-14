@@ -128,16 +128,16 @@ struct MVPRemainingWorkPanel: View {
   }
 
   private var hasWishlistWorkflow: Bool {
-    store.wishlistItems.contains(where: store.isActiveWishlistItem)
+    !store.activeWishlistItems.isEmpty
       || !store.wishlistCaptureCandidates.isEmpty
       || !store.wishlistResearchRequests.isEmpty
   }
 
   private var wishlistNeedsHumanReviewCount: Int {
-    let activeItems = store.wishlistItems.filter(store.isActiveWishlistItem)
-    let stagedCaptureCount = store.wishlistCaptureCandidates.filter { $0.reviewState != .accepted }.count
+    let activeItems = store.activeWishlistItems
+    let stagedCaptureCount = store.stagedWishlistCaptureCandidates.count
     let researchScopeCount = store.wishlistResearchRequests.filter { store.isActiveWishlistResearchRequest($0) && !$0.agentBriefGaps.isEmpty }.count
-    let orderWatchCount = store.wishlistOrderWatchRecords.filter(store.isActiveWishlistOrderWatchRecord).count
+    let orderWatchCount = store.activeWishlistOrderWatchRecords.count
     let purchaseReadyCount = activeItems.filter {
       $0.status.localizedCaseInsensitiveContains("ready")
         || ($0.purchaseReadiness ?? "").localizedCaseInsensitiveContains("ready")
@@ -665,7 +665,7 @@ struct MVPWishlistWorkflowReadinessPanel: View {
   var store: ParcelOpsStore
 
   private var activeItems: [WishlistItem] {
-    store.wishlistItems.filter(store.isActiveWishlistItem)
+    store.activeWishlistItems
   }
 
   private var stagedCaptures: [WishlistCaptureCandidate] {
@@ -673,7 +673,7 @@ struct MVPWishlistWorkflowReadinessPanel: View {
   }
 
   private var activeResearchRequests: [WishlistResearchRequest] {
-    store.wishlistResearchRequests.filter(store.isActiveWishlistResearchRequest)
+    store.activeWishlistResearchRequests
   }
 
   private var agentReadyResearchRequests: [WishlistResearchRequest] {

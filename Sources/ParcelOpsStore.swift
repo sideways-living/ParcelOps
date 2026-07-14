@@ -5894,6 +5894,45 @@ final class ParcelOpsStore {
     orders.filter { !activeWishlistItemsLinked(to: $0).isEmpty }
   }
 
+  var activeWishlistItems: [WishlistItem] {
+    wishlistItems.filter(isActiveWishlistItem)
+  }
+
+  var stagedWishlistCaptureCandidates: [WishlistCaptureCandidate] {
+    wishlistCaptureCandidates.filter { $0.reviewState != .accepted }
+  }
+
+  var activeWishlistResearchRequests: [WishlistResearchRequest] {
+    wishlistResearchRequests.filter(isActiveWishlistResearchRequest)
+  }
+
+  var agentReadyWishlistResearchRequests: [WishlistResearchRequest] {
+    activeWishlistResearchRequests.filter(\.isAgentBriefReady)
+  }
+
+  var activeWishlistOrderWatchRecords: [WishlistOrderWatchRecord] {
+    wishlistOrderWatchRecords.filter(isActiveWishlistOrderWatchRecord)
+  }
+
+  var openWishlistOrderWatchRecords: [WishlistOrderWatchRecord] {
+    activeWishlistOrderWatchRecords.filter {
+      !$0.watchStatus.localizedCaseInsensitiveContains("closed")
+        && !$0.watchStatus.localizedCaseInsensitiveContains("matched")
+    }
+  }
+
+  var activeWishlistFollowUpCount: Int {
+    stagedWishlistCaptureCandidates.count
+      + activeWishlistResearchRequests.count
+      + activeWishlistOrderWatchRecords.count
+  }
+
+  var activeWishlistEvidenceCount: Int {
+    activeWishlistItems.count
+      + activeWishlistFollowUpCount
+      + wishlistLinkedOrders.count
+  }
+
   var operatorSourceOrders: [TrackedOrder] {
     uniqueOrdersByID(inboxCreatedOrders + intakeLinkedOrders + wishlistLinkedOrders)
   }

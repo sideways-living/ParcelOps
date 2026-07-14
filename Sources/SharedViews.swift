@@ -6124,15 +6124,15 @@ struct OperatorSupportSnapshotCard: View {
   }
 
   private var activeWishlistItems: [WishlistItem] {
-    store.wishlistItems.filter(store.isActiveWishlistItem)
+    store.activeWishlistItems
   }
 
   private var stagedWishlistCaptureCount: Int {
-    store.wishlistCaptureCandidates.filter { $0.reviewState != .accepted }.count
+    store.stagedWishlistCaptureCandidates.count
   }
 
   private var agentReadyWishlistResearchCount: Int {
-    store.wishlistResearchRequests.filter { store.isActiveWishlistResearchRequest($0) && $0.isAgentBriefReady }.count
+    store.agentReadyWishlistResearchRequests.count
   }
 
   private var openWishlistOrderWatchCount: Int {
@@ -6343,7 +6343,7 @@ struct OperatorTestSessionChecklistCard: View {
   }
 
   private var activeWishlistItems: [WishlistItem] {
-    store.wishlistItems.filter(store.isActiveWishlistItem)
+    store.activeWishlistItems
   }
 
   private var wishlistLinkedOrderCount: Int {
@@ -6352,9 +6352,9 @@ struct OperatorTestSessionChecklistCard: View {
 
   private var wishlistEvidenceCount: Int {
     activeWishlistItems.count
-      + store.wishlistCaptureCandidates.filter { $0.reviewState != .accepted }.count
+      + store.stagedWishlistCaptureCandidates.count
       + store.wishlistResearchRequests.filter { store.isActiveWishlistResearchRequest($0) }.count
-      + store.wishlistOrderWatchRecords.filter(store.isActiveWishlistOrderWatchRecord).count
+      + store.activeWishlistOrderWatchRecords.count
       + wishlistLinkedOrderCount
   }
 
@@ -6597,11 +6597,11 @@ struct OperatorHandoffBriefCard: View {
   }
 
   private var activeWishlistItems: [WishlistItem] {
-    store.wishlistItems.filter(store.isActiveWishlistItem)
+    store.activeWishlistItems
   }
 
   private var wishlistCaptureReviewCount: Int {
-    store.wishlistCaptureCandidates.filter { $0.reviewState != .accepted }.count
+    store.stagedWishlistCaptureCandidates.count
   }
 
   private var wishlistResearchReviewCount: Int {
