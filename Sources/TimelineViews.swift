@@ -614,7 +614,7 @@ struct TimelineActivityRow: View {
         ImportQueueContextStrip(items: importQueueItems)
       }
       if !acceptanceRecords.isEmpty {
-        AcceptanceHistoryStrip(records: acceptanceRecords)
+        AcceptanceHistoryStrip(records: acceptanceRecords, store: store)
       }
     }
     .padding(12)

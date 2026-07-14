@@ -599,6 +599,7 @@ extension AcceptanceCandidate {
 
 struct AcceptanceHistoryStrip: View {
   var records: [AcceptanceRecord]
+  var store: ParcelOpsStore? = nil
 
   var body: some View {
     if !records.isEmpty {
@@ -618,6 +619,14 @@ struct AcceptanceHistoryStrip: View {
               Text("\(record.decision.rawValue) • \(record.decidedDate)")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+              if let sourceContext = store?.acceptanceSourceContext(for: record) {
+                Label(sourceContext.label, systemImage: sourceContext.symbol)
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(.teal)
+                Text(sourceContext.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+              }
               Text(record.summary)
                 .font(.caption2)
                 .foregroundStyle(.secondary)

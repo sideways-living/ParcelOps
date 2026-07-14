@@ -514,7 +514,7 @@ struct ValidationIssueRow: View {
         ImportQueueContextStrip(items: importQueueItems)
       }
       if !acceptanceRecords.isEmpty {
-        AcceptanceHistoryStrip(records: acceptanceRecords)
+        AcceptanceHistoryStrip(records: acceptanceRecords, store: store)
       }
       if !playbooks.isEmpty {
         ExceptionPlaybookStrip(playbooks: playbooks)

@@ -3132,7 +3132,7 @@ private struct TaskInboxSourceTrail: View {
             Text("Acceptance context")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.secondary)
-            AcceptanceHistoryStrip(records: acceptanceRecords)
+            AcceptanceHistoryStrip(records: acceptanceRecords, store: store)
           }
         }
       }

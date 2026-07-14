@@ -5079,12 +5079,13 @@ struct CompactAcceptanceList: View {
   var body: some View {
     CompactList(title: "Acceptance history", symbol: "checkmark.rectangle.stack.fill") {
       ForEach(uniqueDashboardRecords(records)) { record in
+        let sourceContext = store.acceptanceSourceContext(for: record)
         NavigationLink {
           AcceptanceReviewView(store: store)
         } label: {
           CompactRow(
             title: record.sourceLabel,
-            detail: "\(record.sourceType.rawValue) • \(record.confidenceScore)% • \(record.decidedDate)",
+            detail: "\(sourceContext.label) • \(record.sourceType.rawValue) • \(record.confidenceScore)% • \(record.decidedDate)",
             badge: record.decision.rawValue,
             color: record.decision.color
           )

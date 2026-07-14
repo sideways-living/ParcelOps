@@ -3032,6 +3032,86 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(context.detail.contains("manual import"))
   }
 
+  func testAcceptanceRecordSourceContextShowsGmailMailbox() {
+    let mailboxID = UUID()
+    let orderID = UUID()
+    let intake = ForwardedEmailIntake(
+      sender: "orders@example-store.test",
+      subject: "Example Store order TEST-123 shipped",
+      receivedDate: "Today",
+      rawBodyPreview: "Order TEST-123 shipped tracking ABC123 to 10 Market Street, Melbourne VIC.",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "TEST-123",
+      detectedTrackingNumber: "ABC123",
+      detectedDestinationAddress: "10 Market Street, Melbourne VIC",
+      linkedOrderID: orderID,
+      reviewState: .reviewed
+    )
+    var gmailConnection = makeGmailConnection(
+      id: mailboxID,
+      oauthReadinessStatus: "Ready",
+      credentialStorageStatus: "GoogleSignIn cache available",
+      fetched: 1,
+      imported: 1,
+      filtered: 0,
+      uncertain: 0
+    )
+    gmailConnection.emailAddress = "gmail-orders@example.test"
+    let order = TrackedOrder(
+      id: orderID,
+      orderNumber: "TEST-123",
+      store: "Example Store",
+      recipientEmail: "ops@example.test",
+      checkedMailbox: "gmail-orders@example.test",
+      customer: "Operations",
+      fulfillment: .delivery,
+      carrier: "Carrier pending",
+      trackingNumber: "ABC123",
+      destination: "10 Market Street, Melbourne VIC",
+      eta: "Pending",
+      source: .forwardedMailbox,
+      status: .shipped,
+      reviewState: .needsReview,
+      latestStatus: "Created from local acceptance review.",
+      timeline: [],
+      contactHistory: []
+    )
+    let record = AcceptanceRecord(
+      sourceType: .intakeEmail,
+      sourceID: intake.id,
+      sourceLabel: intake.subject,
+      decidedDate: "Today",
+      confidenceScore: 92,
+      linkedOrderID: orderID,
+      linkedShipmentGroupID: nil,
+      decision: .accepted,
+      reviewState: .accepted,
+      summary: "Accepted into tracked order.",
+      notes: "Preserved source history."
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.orders = [order]
+    store.gmailMailboxConnections = [gmailConnection]
+    store.intakeEmails = [intake]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "gmail-acceptance-record-source-context-1",
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .imported,
+        summary: "Imported from Gmail"
+      )
+    ]
+
+    let context = store.acceptanceSourceContext(for: record)
+
+    XCTAssertEqual(context.label, "gmail-orders@example.test")
+    XCTAssertTrue(context.detail.contains("Gmail intake"))
+    XCTAssertTrue(context.detail.contains("Decision: Accepted"))
+    XCTAssertTrue(context.detail.contains("Linked order: Example Store TEST-123"))
+  }
+
   func testGmailConnectedRefreshStillSurfacesCompiledSetupBlockers() {
     let mailboxID = UUID()
     let connection = makeGmailConnection(

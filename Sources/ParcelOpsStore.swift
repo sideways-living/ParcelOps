@@ -6637,6 +6637,43 @@ final class ParcelOpsStore {
     }
   }
 
+  func acceptanceSourceContext(for record: AcceptanceRecord) -> (label: String, detail: String, symbol: String) {
+    let linkedOrder = record.linkedOrderID.flatMap(orderLabel(for:)).map { "Linked order: \($0)." } ?? "No linked order."
+    let linkedGroup = record.linkedShipmentGroupID.flatMap(shipmentGroupLabel(for:)).map { " Shipment group: \($0)." } ?? ""
+    let decision = "Decision: \(record.decision.rawValue)."
+
+    switch record.sourceType {
+    case .intakeEmail:
+      guard let email = intakeEmails.first(where: { $0.id == record.sourceID }) else {
+        return (
+          "Missing intake source",
+          "\(decision) The acceptance history points to an intake email that is no longer present. \(linkedOrder)\(linkedGroup)",
+          "exclamationmark.triangle.fill"
+        )
+      }
+      let mailbox = sourceMailboxLabel(for: email)
+      let provider = mailboxProviderLabel(for: email)
+      return (
+        mailbox,
+        "\(provider) intake captured \(email.receivedDate). \(decision) \(linkedOrder)\(linkedGroup)",
+        "envelope.open.fill"
+      )
+    case .importQueueItem:
+      guard let item = importQueueItems.first(where: { $0.id == record.sourceID }) else {
+        return (
+          "Missing import source",
+          "\(decision) The acceptance history points to an import queue item that is no longer present. \(linkedOrder)\(linkedGroup)",
+          "exclamationmark.triangle.fill"
+        )
+      }
+      return (
+        item.sourceLabel,
+        "\(item.sourceType.rawValue) import captured \(item.capturedDate). \(decision) \(linkedOrder)\(linkedGroup)",
+        "tray.and.arrow.down.fill"
+      )
+    }
+  }
+
   func createOrder(from candidate: AcceptanceCandidate) {
     let sourceMailbox = sourceMailboxLabel(for: candidate)
     let contactPoint = candidate.sourceType == .intakeEmail ? sourceMailbox : "Acceptance Review"

@@ -511,7 +511,7 @@ struct AcceptanceCandidateRow: View {
         store: store
       )
 
-      AcceptanceHistoryStrip(records: history)
+      AcceptanceHistoryStrip(records: history, store: store)
 
       if !playbooks.isEmpty {
         ExceptionPlaybookStrip(playbooks: playbooks)

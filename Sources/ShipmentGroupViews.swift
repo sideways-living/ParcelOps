@@ -559,7 +559,7 @@ struct ShipmentGroupRow: View {
       }
 
       if !acceptanceRecords.isEmpty {
-        AcceptanceHistoryStrip(records: acceptanceRecords)
+        AcceptanceHistoryStrip(records: acceptanceRecords, store: store)
       }
 
       if !playbooks.isEmpty {

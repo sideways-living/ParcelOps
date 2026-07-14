@@ -522,7 +522,7 @@ struct ReconciliationIssueRow: View {
         ImportQueueContextStrip(items: importQueueItems)
       }
       if !acceptanceRecords.isEmpty {
-        AcceptanceHistoryStrip(records: acceptanceRecords)
+        AcceptanceHistoryStrip(records: acceptanceRecords, store: store)
       }
       if !validationIssues.isEmpty {
         CompactValidationIssueList(issues: Array(validationIssues.prefix(3)), store: store)

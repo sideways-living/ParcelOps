@@ -1675,7 +1675,7 @@ struct OrderDetailView: View {
             Text("No local acceptance records matched this order.")
               .foregroundStyle(.secondary)
           } else {
-            AcceptanceHistoryStrip(records: records)
+            AcceptanceHistoryStrip(records: records, store: store)
           }
         }
 
@@ -2067,7 +2067,7 @@ struct OrderDetailView: View {
               Text("Acceptance history")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-              AcceptanceHistoryStrip(records: acceptance)
+              AcceptanceHistoryStrip(records: acceptance, store: store)
             }
           }
         }
