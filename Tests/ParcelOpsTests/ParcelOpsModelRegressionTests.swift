@@ -433,6 +433,45 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(waitingRecord.reviewState, .needsReview)
   }
 
+  func testWishlistOrderWatchBatchSkipsBlockedRecords() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let order = makeOrder(
+      orderNumber: "ORDER-456",
+      trackingNumber: "TRACK-456",
+      destination: "Melbourne VIC",
+      checkedMailbox: "caught@droctopus.net",
+      source: .forwardedMailbox,
+      latestStatus: "Known Australian retailer Replacement scanner dispatched."
+    )
+    resetWishlistState(store)
+    store.orders = [order]
+    store.wishlistItems = [item]
+    store.addWishlistOrderWatchRecord(item)
+    let record = try XCTUnwrap(store.wishlistOrderWatchRecords.first)
+    store.blockWishlistOrderWatchRecord(record)
+    store.auditEvents = []
+
+    store.checkOpenWishlistOrderWatchRecords()
+
+    let blockedRecord = try XCTUnwrap(store.wishlistOrderWatchRecords.first)
+    let blockedItem = try XCTUnwrap(store.wishlistItems.first)
+
+    XCTAssertNil(blockedRecord.linkedOrderID)
+    XCTAssertEqual(blockedRecord.watchStatus, "Blocked locally")
+    XCTAssertEqual(blockedRecord.reviewState, .needsReview)
+    XCTAssertNil(blockedItem.purchaseHandoff?.linkedOrderID)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Wishlist order watch batch check found no open records."
+        && event.afterDetail?.contains("Open watch rules checked: 0") == true
+    })
+  }
+
   func testWishlistOrderWatchReviewedAndBlockedStates() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     let unlinkedItem = makeReadyWishlistItem(
