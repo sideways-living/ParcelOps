@@ -365,16 +365,6 @@ struct LabelReferencesView: View {
     return labelSourceOrders.filter { !labelOrderIDs.contains($0.id) }
   }
 
-  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
-    var seen: Set<UUID> = []
-    var unique: [TrackedOrder] = []
-    for order in orders where seen.contains(order.id) == false {
-      seen.insert(order.id)
-      unique.append(order)
-    }
-    return unique
-  }
-
   private var labelsNeedingAction: [LabelReferenceRecord] {
     labelsLinkedToInboxOrders.filter { record in
       record.labelStatus == .draft

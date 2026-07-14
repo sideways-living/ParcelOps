@@ -255,16 +255,6 @@ struct ExceptionPlaybooksView: View {
     playbookSourceOrders.filter { exceptionPlaybook(playbook, matches: $0) }
   }
 
-  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
-    var seen: Set<UUID> = []
-    var unique: [TrackedOrder] = []
-    for order in orders where seen.contains(order.id) == false {
-      seen.insert(order.id)
-      unique.append(order)
-    }
-    return unique
-  }
-
   private func exceptionPlaybook(_ playbook: ExceptionPlaybook, matches order: TrackedOrder) -> Bool {
     if playbook.linkedEntityType == .order { return true }
     let missingTracking = order.trackingNumber.isPlaceholderValidationValue

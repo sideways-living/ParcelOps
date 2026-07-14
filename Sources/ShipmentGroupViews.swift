@@ -243,16 +243,6 @@ struct ShipmentGroupsView: View {
     }
   }
 
-  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
-    var seen: Set<UUID> = []
-    var unique: [TrackedOrder] = []
-    for order in orders where seen.contains(order.id) == false {
-      seen.insert(order.id)
-      unique.append(order)
-    }
-    return unique
-  }
-
   private var groupsMissingPrimaryOrder: [ShipmentGroup] {
     store.shipmentGroups.filter { group in
       guard let primaryOrderID = group.primaryOrderID else { return true }

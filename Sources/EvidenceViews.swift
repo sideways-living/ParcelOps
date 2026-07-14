@@ -458,16 +458,6 @@ struct EvidenceView: View {
     store.sourceTrailCount(for: order)
   }
 
-  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
-    var seen: Set<UUID> = []
-    var unique: [TrackedOrder] = []
-    for order in orders where seen.contains(order.id) == false {
-      seen.insert(order.id)
-      unique.append(order)
-    }
-    return unique
-  }
-
   private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
     store.linkedIntakeEmails(for: order)
   }

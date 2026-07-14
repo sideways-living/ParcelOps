@@ -357,15 +357,6 @@ struct InventoryReceiptsView: View {
     return inventorySourceOrders.filter { !receiptOrderIDs.contains($0.id) }
   }
 
-  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
-    var seen: Set<UUID> = []
-    var unique: [TrackedOrder] = []
-    for order in orders where !seen.contains(order.id) {
-      seen.insert(order.id)
-      unique.append(order)
-    }
-    return unique
-  }
 
   private var receiptsNeedingInventoryAction: [InventoryReceiptRecord] {
     receiptsLinkedToInboxOrders.filter { receipt in

@@ -349,15 +349,6 @@ struct TrackingView: View {
     store.linkedIntakeEmails(for: order)
   }
 
-  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
-    var seen = Set<UUID>()
-    return orders.filter { order in
-      guard !seen.contains(order.id) else { return false }
-      seen.insert(order.id)
-      return true
-    }
-  }
-
   private func trackingEvent(_ event: CarrierTrackingEvent, matches query: String) -> Bool {
     let order = store.orders.first { $0.id == event.orderID }
     let shipmentGroups = store.suggestedShipmentGroups(for: event)

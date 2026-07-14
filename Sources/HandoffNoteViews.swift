@@ -576,15 +576,6 @@ struct HandoffNotesView: View {
     store.linkedIntakeEmails(for: order)
   }
 
-  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
-    var seen = Set<UUID>()
-    return orders.filter { order in
-      guard !seen.contains(order.id) else { return false }
-      seen.insert(order.id)
-      return true
-    }
-  }
-
   private var handoffProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]

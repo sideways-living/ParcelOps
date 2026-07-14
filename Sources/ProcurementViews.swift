@@ -337,16 +337,6 @@ struct ProcurementView: View {
     }
   }
 
-  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
-    var seen: Set<UUID> = []
-    var unique: [TrackedOrder] = []
-    for order in orders where !seen.contains(order.id) {
-      seen.insert(order.id)
-      unique.append(order)
-    }
-    return unique
-  }
-
   private var requestsNeedingAction: [ProcurementRequest] {
     requestsLinkedToInboxOrders.filter { request in
       request.approvalStatus != .approved

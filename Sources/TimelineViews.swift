@@ -503,14 +503,6 @@ struct TimelineView: View {
     store.linkedIntakeEmails(for: order)
   }
 
-  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
-    var seen = Set<UUID>()
-    return orders.filter { order in
-      guard !seen.contains(order.id) else { return false }
-      seen.insert(order.id)
-      return true
-    }
-  }
 }
 
 struct TimelineActivityRow: View {

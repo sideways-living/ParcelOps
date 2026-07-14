@@ -358,16 +358,6 @@ struct VendorProfilesView: View {
     vendorSourceOrders.filter { vendorProfile(profile, matches: $0) }
   }
 
-  private func uniqueOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
-    var seen: Set<UUID> = []
-    var unique: [TrackedOrder] = []
-    for order in orders where seen.contains(order.id) == false {
-      seen.insert(order.id)
-      unique.append(order)
-    }
-    return unique
-  }
-
   private func vendorProfile(_ profile: VendorProfile, matches order: TrackedOrder) -> Bool {
     let organisation = profile.primaryOrganisation.trimmingCharacters(in: .whitespacesAndNewlines)
     let contactMatch = profile.defaultContactID.flatMap { contactID in
