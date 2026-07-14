@@ -535,6 +535,71 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(task.summary.contains("TEST-123"))
   }
 
+  func testWishlistOrderWatchCompletesCandidateTaskAfterOrderMatch() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    let candidate = ForwardedEmailIntake(
+      sender: "orders@known-retailer.example",
+      subject: "Order TEST-123 shipped tracking ABC123",
+      receivedDate: "Today",
+      rawBodyPreview: "Known Australian retailer confirmed Replacement scanner order TEST-123 shipped with tracking ABC123.",
+      detectedMerchant: "Known Australian retailer",
+      detectedOrderNumber: "TEST-123",
+      detectedTrackingNumber: "ABC123",
+      detectedDestinationAddress: "Brisbane QLD",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    let order = makeOrder(
+      orderNumber: "TEST-123",
+      trackingNumber: "ABC123",
+      destination: "Brisbane QLD",
+      checkedMailbox: "caught@droctopus.net",
+      source: .forwardedMailbox,
+      latestStatus: "Known Australian retailer Replacement scanner shipped with tracking ABC123."
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.orders = []
+    store.intakeEmails = [candidate]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.addWishlistOrderWatchRecord(item)
+    let pendingRecord = try XCTUnwrap(store.wishlistOrderWatchRecords.first)
+    store.checkWishlistOrderWatchRecord(pendingRecord)
+
+    var task = try XCTUnwrap(store.reviewTasks.first)
+    XCTAssertEqual(task.status, .open)
+    XCTAssertEqual(task.priority, .urgent)
+    XCTAssertTrue(task.summary.contains("Inbox candidates: 1"))
+
+    store.orders = [order]
+    let openRecord = try XCTUnwrap(store.wishlistOrderWatchRecords.first)
+    store.checkWishlistOrderWatchRecord(openRecord)
+
+    let matchedRecord = try XCTUnwrap(store.wishlistOrderWatchRecords.first)
+    let matchedItem = try XCTUnwrap(store.wishlistItems.first)
+    task = try XCTUnwrap(store.reviewTasks.first)
+
+    XCTAssertEqual(matchedRecord.linkedOrderID, order.id)
+    XCTAssertEqual(matchedRecord.watchStatus, "Matched local order")
+    XCTAssertEqual(matchedRecord.reviewState, .accepted)
+    XCTAssertEqual(matchedItem.purchaseHandoff?.linkedOrderID, order.id)
+    XCTAssertEqual(task.status, .completed)
+    XCTAssertEqual(task.reviewState, .accepted)
+    XCTAssertTrue(task.summary.contains("matched order \(order.orderNumber)"))
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Wishlist order confirmation follow-up task completed after local order match."
+        && event.afterDetail?.contains(order.orderNumber) == true
+    })
+  }
+
   func testWishlistClosureBlockedByMissingOperationsTrail() throws {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     let item = makeReadyWishlistItem(
