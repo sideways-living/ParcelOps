@@ -139,7 +139,7 @@ struct SLAPoliciesView: View {
   }
 
   private var inboxPolicyCoverage: some View {
-    let inboxOrders = inboxCreatedOrders
+    let inboxOrders = store.intakeLinkedOrders
     let wishlistOrders = store.wishlistLinkedOrders
     let linkedPolicies = policiesLinkedToInboxOrders
     let actionPolicies = linkedPolicies.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.priority == .high || $0.priority == .urgent }
@@ -226,7 +226,7 @@ struct SLAPoliciesView: View {
   private var slaProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in inboxCreatedOrders {
+    for order in store.intakeLinkedOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -290,9 +290,6 @@ struct SLAPoliciesView: View {
     return "envelope.open.fill"
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
-  }
 
 
   private var policySourceOrders: [TrackedOrder] {

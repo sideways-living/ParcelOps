@@ -135,7 +135,7 @@ struct ShipmentGroupsView: View {
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
-        Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+        Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
         Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
         Badge("\(groupsLinkedToInboxOrders.count) linked groups", color: .teal)
         Badge("\(inboxOrdersMissingGroup.count) orders without groups", color: inboxOrdersMissingGroup.isEmpty ? .green : .orange)
@@ -213,11 +213,6 @@ struct ShipmentGroupsView: View {
     }
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { order in
-      !linkedIntakeEmails(for: order).isEmpty
-    }
-  }
 
 
   private var shipmentGroupSourceOrders: [TrackedOrder] {
@@ -251,7 +246,7 @@ struct ShipmentGroupsView: View {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
 
-    for order in inboxCreatedOrders {
+    for order in store.intakeLinkedOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1

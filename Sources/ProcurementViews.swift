@@ -192,8 +192,8 @@ struct ProcurementView: View {
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
-        Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
-        Badge("\(wishlistLinkedOrders.count) Wishlist orders", color: .pink)
+        Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
+        Badge("\(store.wishlistLinkedOrders.count) Wishlist orders", color: .pink)
         Badge("\(requestsLinkedToInboxOrders.count) linked requests", color: .teal)
         Badge("\(requestsNeedingAction.count) need action", color: requestsNeedingAction.isEmpty ? .green : .orange)
         Badge("\(requestsMissingBudget.count) missing budget", color: requestsMissingBudget.isEmpty ? .green : .orange)
@@ -260,7 +260,7 @@ struct ProcurementView: View {
   private var procurementProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in inboxCreatedOrders {
+    for order in store.intakeLinkedOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -313,17 +313,7 @@ struct ProcurementView: View {
       .reduce(0) { total, row in total + row.count }
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { order in
-      !linkedIntakeEmails(for: order).isEmpty
-    }
-  }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.orders.filter { order in
-      !store.activeWishlistItemsLinked(to: order).isEmpty
-    }
-  }
 
   private var procurementSourceOrders: [TrackedOrder] {
     store.operatorSourceOrders

@@ -5891,12 +5891,16 @@ final class ParcelOpsStore {
     orders.filter(\.isInboxCreatedLocalOrder)
   }
 
+  var intakeLinkedOrders: [TrackedOrder] {
+    orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
+  }
+
   var wishlistLinkedOrders: [TrackedOrder] {
     orders.filter { !activeWishlistItemsLinked(to: $0).isEmpty }
   }
 
   var operatorSourceOrders: [TrackedOrder] {
-    uniqueOrdersByID(inboxCreatedOrders + wishlistLinkedOrders)
+    uniqueOrdersByID(inboxCreatedOrders + intakeLinkedOrders + wishlistLinkedOrders)
   }
 
   func uniqueOrdersByID(_ orders: [TrackedOrder]) -> [TrackedOrder] {

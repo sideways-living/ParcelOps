@@ -195,7 +195,7 @@ struct DispatchReadinessView: View {
   }
 
   private var inboxReadinessCoverage: some View {
-    let inboxOrders = inboxCreatedOrders
+    let inboxOrders = store.intakeLinkedOrders
     let linkedChecklists = checklistsLinkedToInboxOrders
     let actionChecklists = checklistsNeedingAction
     let missingChecklistCount = inboxOrdersMissingChecklist.count
@@ -264,18 +264,15 @@ struct DispatchReadinessView: View {
   }
 
   private var gmailReadinessSourceCount: Int {
-    inboxCreatedOrders
+    store.intakeLinkedOrders
       .flatMap { linkedIntakeEmails(for: $0) }
       .filter { store.intakeSourceSummary(for: $0).label.localizedCaseInsensitiveContains("Gmail") }
       .count
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
-  }
 
   private var checklistsLinkedToInboxOrders: [DispatchReadinessChecklist] {
-    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let orderIDs = Set(store.intakeLinkedOrders.map(\.id))
     let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -322,7 +319,7 @@ struct DispatchReadinessView: View {
 
   private var inboxOrdersMissingChecklist: [TrackedOrder] {
     let checklistOrderIDs = Set(checklistsLinkedToInboxOrders.flatMap(\.orderIDs))
-    return inboxCreatedOrders.filter { order in
+    return store.intakeLinkedOrders.filter { order in
       !checklistOrderIDs.contains(order.id)
         && !checklistsLinkedToInboxOrders.contains { checklist in
           checklist.linkedEntityType == .order && UUID(uuidString: checklist.linkedEntityID) == order.id

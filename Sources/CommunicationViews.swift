@@ -474,7 +474,7 @@ struct CommunicationView: View {
   }
 
   private var inboxDraftCoverage: some View {
-    let inboxOrders = inboxCreatedOrders
+    let inboxOrders = store.intakeLinkedOrders
     let linkedDrafts = draftsLinkedToInboxOrders
     let actionDrafts = linkedDrafts.filter { $0.status != .sentLocally || $0.reviewState != .accepted }
 
@@ -605,20 +605,17 @@ struct CommunicationView: View {
     return store.orders.first { $0.id == orderID }
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
-  }
 
   private var draftsLinkedToInboxOrders: [DraftMessage] {
     store.draftMessages.filter { draft in
-      inboxCreatedOrders.contains { order in
+      store.intakeLinkedOrders.contains { order in
         draftMessage(draft, matches: order)
       }
     }
   }
 
   private func inboxOrders(for draft: DraftMessage) -> [TrackedOrder] {
-    inboxCreatedOrders.filter { draftMessage(draft, matches: $0) }
+    store.intakeLinkedOrders.filter { draftMessage(draft, matches: $0) }
   }
 
   private func draftMessage(_ draft: DraftMessage, matches order: TrackedOrder) -> Bool {
@@ -727,7 +724,7 @@ struct CommunicationView: View {
   private var draftProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in inboxCreatedOrders {
+    for order in store.intakeLinkedOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1

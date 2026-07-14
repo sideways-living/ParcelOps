@@ -174,7 +174,7 @@ struct DestinationAddressesView: View {
   }
 
   private var inboxAddressCoverage: some View {
-    let inboxOrders = inboxCreatedOrders
+    let inboxOrders = store.intakeLinkedOrders
     let wishlistOrders = store.wishlistLinkedOrders
     let linkedAddresses = destinationAddressesLinkedToInboxOrders
     let actionAddresses = linkedAddresses.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.riskLevel == .high || $0.riskLevel == .critical }
@@ -262,7 +262,7 @@ struct DestinationAddressesView: View {
   private var addressProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in inboxCreatedOrders {
+    for order in store.intakeLinkedOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -298,9 +298,6 @@ struct DestinationAddressesView: View {
     }
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
-  }
 
 
   private var destinationSourceOrders: [TrackedOrder] {

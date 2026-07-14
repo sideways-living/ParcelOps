@@ -189,8 +189,8 @@ struct ReturnsClaimsView: View {
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
-        Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
-        Badge("\(wishlistLinkedOrders.count) Wishlist orders", color: .pink)
+        Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
+        Badge("\(store.wishlistLinkedOrders.count) Wishlist orders", color: .pink)
         Badge("\(claimsLinkedToInboxOrders.count) linked claims", color: .teal)
         Badge("\(claimsNeedingAction.count) need action", color: claimsNeedingAction.isEmpty ? .green : .orange)
         Badge("\(claimsMissingEvidence.count) missing evidence", color: claimsMissingEvidence.isEmpty ? .green : .orange)
@@ -257,7 +257,7 @@ struct ReturnsClaimsView: View {
   private var claimProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in inboxCreatedOrders {
+    for order in store.intakeLinkedOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -310,17 +310,7 @@ struct ReturnsClaimsView: View {
       .reduce(0) { total, row in total + row.count }
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { order in
-      !linkedIntakeEmails(for: order).isEmpty
-    }
-  }
 
-  private var wishlistLinkedOrders: [TrackedOrder] {
-    store.orders.filter { order in
-      !store.activeWishlistItemsLinked(to: order).isEmpty
-    }
-  }
 
   private var claimSourceOrders: [TrackedOrder] {
     store.operatorSourceOrders

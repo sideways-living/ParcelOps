@@ -147,7 +147,7 @@ struct ExceptionPlaybooksView: View {
   }
 
   private var inboxPlaybookCoverage: some View {
-    let inboxOrders = inboxCreatedOrders
+    let inboxOrders = store.intakeLinkedOrders
     let wishlistOrders = store.wishlistLinkedOrders
     let linkedPlaybooks = playbooksLinkedToInboxOrders
     let actionPlaybooks = linkedPlaybooks.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.priority == .high || $0.priority == .urgent }
@@ -231,9 +231,6 @@ struct ExceptionPlaybooksView: View {
     }
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
-  }
 
 
   private var playbookSourceOrders: [TrackedOrder] {
@@ -282,7 +279,7 @@ struct ExceptionPlaybooksView: View {
   private var playbookProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in inboxCreatedOrders {
+    for order in store.intakeLinkedOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1

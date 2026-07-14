@@ -203,7 +203,7 @@ struct ShipmentManifestsView: View {
   }
 
   private var inboxManifestCoverage: some View {
-    let inboxOrders = inboxCreatedOrders
+    let inboxOrders = store.intakeLinkedOrders
     let linkedManifests = manifestsLinkedToInboxOrders
     let actionManifests = manifestsNeedingAction
     let missingManifestCount = inboxOrdersMissingManifest.count
@@ -272,18 +272,15 @@ struct ShipmentManifestsView: View {
   }
 
   private var gmailManifestSourceCount: Int {
-    inboxCreatedOrders
+    store.intakeLinkedOrders
       .flatMap { linkedIntakeEmails(for: $0) }
       .filter { store.intakeSourceSummary(for: $0).label.localizedCaseInsensitiveContains("Gmail") }
       .count
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
-  }
 
   private var manifestsLinkedToInboxOrders: [ShipmentManifestRecord] {
-    let orderIDs = Set(inboxCreatedOrders.map(\.id))
+    let orderIDs = Set(store.intakeLinkedOrders.map(\.id))
     let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -321,7 +318,7 @@ struct ShipmentManifestsView: View {
 
   private var inboxOrdersMissingManifest: [TrackedOrder] {
     let manifestOrderIDs = Set(manifestsLinkedToInboxOrders.flatMap(\.includedOrderIDs))
-    return inboxCreatedOrders.filter { order in
+    return store.intakeLinkedOrders.filter { order in
       !manifestOrderIDs.contains(order.id)
         && !manifestsLinkedToInboxOrders.contains { manifest in
           manifest.linkedEntityType == .order && UUID(uuidString: manifest.linkedEntityID) == order.id

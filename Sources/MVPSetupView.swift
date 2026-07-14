@@ -715,7 +715,7 @@ struct MVPWishlistWorkflowReadinessPanel: View {
   }
 
   private var linkedWishlistOrderCount: Int {
-    store.orders.filter { !store.activeWishlistItemsLinked(to: $0).isEmpty }.count
+    store.wishlistLinkedOrders.count
   }
 
   private var readinessTone: Color {

@@ -181,7 +181,7 @@ struct ContactsView: View {
   }
 
   private var inboxContactCoverage: some View {
-    let inboxOrders = inboxCreatedOrders
+    let inboxOrders = store.intakeLinkedOrders
     let wishlistOrders = store.wishlistLinkedOrders
     let linkedContacts = contactsLinkedToInboxOrders
     let actionContacts = linkedContacts.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.email.isPlaceholderValidationValue }
@@ -269,7 +269,7 @@ struct ContactsView: View {
   private var contactProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in inboxCreatedOrders {
+    for order in store.intakeLinkedOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -338,9 +338,6 @@ struct ContactsView: View {
     return store.orders.first { $0.id == orderID }
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
-  }
 
 
   private var contactSourceOrders: [TrackedOrder] {

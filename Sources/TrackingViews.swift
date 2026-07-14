@@ -176,7 +176,7 @@ struct TrackingView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxCreatedOrders.count) Inbox orders", color: .blue)
+          Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
           Badge("\(store.wishlistLinkedOrders.count) Wishlist orders", color: .pink)
           Badge("\(linkedEvents.count) linked events", color: .teal)
           Badge("\(actionEvents.count) need action", color: actionEvents.isEmpty ? .green : .orange)
@@ -253,9 +253,6 @@ struct TrackingView: View {
     }
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
-  }
 
 
   private var sourceOrders: [TrackedOrder] {

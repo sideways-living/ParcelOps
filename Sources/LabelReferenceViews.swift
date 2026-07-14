@@ -152,7 +152,7 @@ struct LabelReferencesView: View {
   }
 
   private var inboxLabelCoverage: some View {
-    let inboxOrders = inboxCreatedOrders
+    let inboxOrders = store.intakeLinkedOrders
     let wishlistOrders = store.wishlistLinkedOrders
     let linkedLabels = labelsLinkedToInboxOrders
     let actionLabels = labelsNeedingAction
@@ -246,7 +246,7 @@ struct LabelReferencesView: View {
   private var labelProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in inboxCreatedOrders {
+    for order in store.intakeLinkedOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -317,9 +317,6 @@ struct LabelReferencesView: View {
     return store.orders.first { $0.id == orderID }
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
-  }
 
 
   private var labelSourceOrders: [TrackedOrder] {

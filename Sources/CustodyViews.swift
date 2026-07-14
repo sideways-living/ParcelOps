@@ -166,7 +166,7 @@ struct CustodyChainView: View {
   }
 
   private var inboxCustodyCoverage: some View {
-    let inboxOrders = inboxCreatedOrders
+    let inboxOrders = store.intakeLinkedOrders
     let wishlistOrders = store.wishlistLinkedOrders
     let linkedRecords = custodyLinkedToInboxOrders
     let actionRecords = custodyNeedingAction
@@ -260,7 +260,7 @@ struct CustodyChainView: View {
   private var custodyProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in inboxCreatedOrders {
+    for order in store.intakeLinkedOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -330,9 +330,6 @@ struct CustodyChainView: View {
     return store.orders.first { $0.id == orderID }
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
-  }
 
 
   private var custodySourceOrders: [TrackedOrder] {

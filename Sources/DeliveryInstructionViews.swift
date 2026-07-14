@@ -203,7 +203,7 @@ struct DeliveryInstructionsView: View {
   }
 
   private var inboxInstructionCoverage: some View {
-    let inboxOrders = inboxCreatedOrders
+    let inboxOrders = store.intakeLinkedOrders
     let wishlistOrders = store.wishlistLinkedOrders
     let linkedInstructions = deliveryInstructionsLinkedToInboxOrders
     let actionInstructions = linkedInstructions.filter { instruction in
@@ -297,7 +297,7 @@ struct DeliveryInstructionsView: View {
   private var instructionProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in inboxCreatedOrders {
+    for order in store.intakeLinkedOrders {
       for email in linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -333,9 +333,6 @@ struct DeliveryInstructionsView: View {
     }
   }
 
-  private var inboxCreatedOrders: [TrackedOrder] {
-    store.orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
-  }
 
 
   private var instructionSourceOrders: [TrackedOrder] {
