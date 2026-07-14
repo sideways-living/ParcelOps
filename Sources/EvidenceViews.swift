@@ -56,7 +56,7 @@ struct EvidenceView: View {
     var tones: [String: String] = [:]
 
     for order in store.inboxCreatedOrders {
-      for email in linkedIntakeEmails(for: order) {
+      for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
         tones[summary.label] = summary.tone
@@ -107,7 +107,7 @@ struct EvidenceView: View {
 
   private var gmailSourceTrailOrders: [TrackedOrder] {
     store.inboxCreatedOrders.filter { order in
-      linkedIntakeEmails(for: order).contains { email in
+      store.linkedIntakeEmails(for: order).contains { email in
         store.intakeSourceSummary(for: email).tone == "gmail"
       }
     }
@@ -449,9 +449,6 @@ struct EvidenceView: View {
   }
 
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 }
 
 struct EvidenceAttachmentRow: View {
@@ -530,7 +527,7 @@ struct EvidenceAttachmentRow: View {
           }
 
           if let store, let linkedOrder {
-            let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
+            let linkedEmails = store.linkedIntakeEmails(for: linkedOrder)
             if !linkedEmails.isEmpty || !linkedWishlistItems.isEmpty {
               VStack(alignment: .leading, spacing: 6) {
                 Label("Inbox/Wishlist evidence source", systemImage: "tray.and.arrow.down.fill")
@@ -656,9 +653,6 @@ struct EvidenceAttachmentRow: View {
   }
 
 
-  private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func sourceColor(for tone: String) -> Color {
     switch tone {

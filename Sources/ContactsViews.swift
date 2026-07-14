@@ -270,7 +270,7 @@ struct ContactsView: View {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
     for order in store.intakeLinkedOrders {
-      for email in linkedIntakeEmails(for: order) {
+      for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
         tones[summary.label] = summary.tone
@@ -384,9 +384,6 @@ struct ContactsView: View {
     return parts.isEmpty ? "Contact is enabled and reviewed." : parts.joined(separator: ", ")
   }
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func contactSearchParts(_ contact: ContactDirectoryEntry) -> [String] {
     let order = linkedOrder(for: contact)

@@ -308,7 +308,7 @@ struct PackageContentsView: View {
     var tones: [String: String] = [:]
 
     for order in store.intakeLinkedOrders {
-      for email in linkedIntakeEmails(for: order) {
+      for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
         tones[summary.label] = summary.tone
@@ -337,9 +337,6 @@ struct PackageContentsView: View {
       }
   }
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func linkedOrder(for content: PackageContentRecord) -> TrackedOrder? {
     let orderID = content.orderID ?? (content.linkedEntityType == .order ? UUID(uuidString: content.linkedEntityID) : nil)

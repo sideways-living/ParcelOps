@@ -258,7 +258,7 @@ struct ReturnsClaimsView: View {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
     for order in store.intakeLinkedOrders {
-      for email in linkedIntakeEmails(for: order) {
+      for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
         tones[summary.label] = summary.tone
@@ -338,9 +338,6 @@ struct ReturnsClaimsView: View {
     claimsLinkedToInboxOrders.filter { $0.evidenceAttachmentIDs.isEmpty }
   }
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func linkedOrder(for claim: ReturnClaimRecord) -> TrackedOrder? {
     let orderID = claim.orderID ?? (claim.linkedEntityType == .order ? UUID(uuidString: claim.linkedEntityID) : nil)

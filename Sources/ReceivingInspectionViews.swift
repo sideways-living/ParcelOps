@@ -271,7 +271,7 @@ struct ReceivingInspectionsView: View {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
     for order in store.intakeLinkedOrders {
-      for email in linkedIntakeEmails(for: order) {
+      for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
         tones[summary.label] = summary.tone
@@ -358,9 +358,6 @@ struct ReceivingInspectionsView: View {
   }
 
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func linkedOrder(for inspection: ReceivingInspectionRecord) -> TrackedOrder? {
     let orderID = inspection.orderID ?? (inspection.linkedEntityType == .order ? UUID(uuidString: inspection.linkedEntityID) : nil)

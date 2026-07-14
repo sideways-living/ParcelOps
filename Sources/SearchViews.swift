@@ -161,9 +161,6 @@ struct SearchView: View {
   }
 
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 }
 
 private struct SearchReadinessPanel: View {

@@ -1263,9 +1263,6 @@ struct AuditView: View {
   }
 
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func wishlistHandoffSanityGaps(for item: WishlistItem) -> [String] {
     guard item.purchaseHandoff != nil

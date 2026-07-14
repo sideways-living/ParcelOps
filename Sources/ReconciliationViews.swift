@@ -65,7 +65,7 @@ struct ReconciliationView: View {
     var tones: [String: String] = [:]
 
     for order in sourceOrders {
-      for email in linkedIntakeEmails(for: order) {
+      for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
         tones[summary.label] = summary.tone
@@ -435,9 +435,6 @@ struct ReconciliationView: View {
   }
 
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
 }
 

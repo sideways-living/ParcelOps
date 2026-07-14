@@ -257,7 +257,7 @@ struct InventoryReceiptsView: View {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
     for order in store.intakeLinkedOrders {
-      for email in linkedIntakeEmails(for: order) {
+      for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
         tones[summary.label] = summary.tone
@@ -406,9 +406,6 @@ struct InventoryReceiptsView: View {
     return "envelope.open.fill"
   }
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func inventoryReceipt(_ receipt: InventoryReceiptRecord, matches query: String) -> Bool {
     let order = linkedOrder(for: receipt)
@@ -548,7 +545,7 @@ struct InventoryReceiptRow: View {
       }
 
       if let store, let linkedOrder {
-        let linkedEmails = linkedIntakeEmails(for: linkedOrder, store: store)
+        let linkedEmails = store.linkedIntakeEmails(for: linkedOrder)
         let linkedWishlistItems = store.activeWishlistItemsLinked(to: linkedOrder)
         if !linkedEmails.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
@@ -686,9 +683,6 @@ struct InventoryReceiptRow: View {
     return warnings
   }
 
-  private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func sourceColor(for tone: String) -> Color {
     switch tone {

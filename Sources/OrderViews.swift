@@ -588,9 +588,6 @@ struct OrdersView: View {
   }
 
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
 }
 
@@ -1974,7 +1971,7 @@ struct OrderDetailView: View {
   }
 
   private func inboxSourceTrail(_ order: TrackedOrder) -> some View {
-    let emails = linkedIntakeEmails(for: order)
+    let emails = store.linkedIntakeEmails(for: order)
     let imports = store.importQueueItems(for: order)
     let acceptance = store.acceptanceRecords(for: order)
     let wishlistItems = store.activeWishlistItemsLinked(to: order)
@@ -2108,7 +2105,7 @@ struct OrderDetailView: View {
 
   private func orderOperationalTimelineActivities(for order: TrackedOrder) -> [TimelineActivity] {
     let orderID = order.id.uuidString
-    let intakeIDs = Set(linkedIntakeEmails(for: order).map { $0.id.uuidString })
+    let intakeIDs = Set(store.linkedIntakeEmails(for: order).map { $0.id.uuidString })
     let importIDs = Set(store.importQueueItems(for: order).map { $0.id.uuidString })
     let acceptanceIDs = Set(store.acceptanceRecords(for: order).map { $0.id.uuidString })
     let taskIDs = Set(store.tasks(for: .order, linkedEntityID: orderID).map { $0.id.uuidString })

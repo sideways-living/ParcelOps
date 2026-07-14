@@ -263,7 +263,7 @@ struct DestinationAddressesView: View {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
     for order in store.intakeLinkedOrders {
-      for email in linkedIntakeEmails(for: order) {
+      for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
         tones[summary.label] = summary.tone
@@ -376,9 +376,6 @@ struct DestinationAddressesView: View {
     return "envelope.open.fill"
   }
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func destinationAddressSearchParts(_ address: DestinationAddressRecord) -> [String] {
     let profile = address.customerProfileID.flatMap { profileID in

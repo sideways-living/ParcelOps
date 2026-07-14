@@ -2616,9 +2616,6 @@ struct DashboardView: View {
   }
 
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func inboxDispatchHandoffCompleted(_ order: TrackedOrder) -> Bool {
     if order.latestStatus.localizedCaseInsensitiveContains("Inbox dispatch handoff completed") {

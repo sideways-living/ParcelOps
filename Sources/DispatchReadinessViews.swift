@@ -265,7 +265,7 @@ struct DispatchReadinessView: View {
 
   private var gmailReadinessSourceCount: Int {
     store.intakeLinkedOrders
-      .flatMap { linkedIntakeEmails(for: $0) }
+      .flatMap { store.linkedIntakeEmails(for: $0) }
       .filter { store.intakeSourceSummary(for: $0).label.localizedCaseInsensitiveContains("Gmail") }
       .count
   }
@@ -364,9 +364,6 @@ struct DispatchReadinessView: View {
     return !missing.isEmpty && !missing.localizedCaseInsensitiveContains("no missing")
   }
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func dispatchChecklist(_ checklist: DispatchReadinessChecklist, matches query: String) -> Bool {
     let linkedOrders = linkedOrders(for: checklist)

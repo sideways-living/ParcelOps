@@ -273,7 +273,7 @@ struct ShipmentManifestsView: View {
 
   private var gmailManifestSourceCount: Int {
     store.intakeLinkedOrders
-      .flatMap { linkedIntakeEmails(for: $0) }
+      .flatMap { store.linkedIntakeEmails(for: $0) }
       .filter { store.intakeSourceSummary(for: $0).label.localizedCaseInsensitiveContains("Gmail") }
       .count
   }
@@ -358,9 +358,6 @@ struct ShipmentManifestsView: View {
     return parts.isEmpty ? "Manifest is ready for the current dispatch path." : parts.joined(separator: ", ")
   }
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func shipmentManifest(_ record: ShipmentManifestRecord, matches query: String) -> Bool {
     let linkedOrders = linkedOrders(for: record)

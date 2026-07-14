@@ -274,7 +274,7 @@ struct TrackingView: View {
     var tones: [String: String] = [:]
 
     for order in sourceOrders {
-      for email in linkedIntakeEmails(for: order) {
+      for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
         tones[summary.label] = summary.tone
@@ -339,9 +339,6 @@ struct TrackingView: View {
     return parts.isEmpty ? "Tracking event is informational and reviewed." : parts.joined(separator: ", ")
   }
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func trackingEvent(_ event: CarrierTrackingEvent, matches query: String) -> Bool {
     let order = store.orders.first { $0.id == event.orderID }
@@ -457,7 +454,7 @@ struct TrackingEventRow: View {
           }
 
           if let store, let order {
-            let linkedEmails = linkedIntakeEmails(for: order, store: store)
+            let linkedEmails = store.linkedIntakeEmails(for: order)
             let wishlistItems = store.activeWishlistItemsLinked(to: order)
             if !linkedEmails.isEmpty {
               VStack(alignment: .leading, spacing: 6) {
@@ -609,9 +606,6 @@ struct TrackingEventRow: View {
     return warnings
   }
 
-  private func linkedIntakeEmails(for order: TrackedOrder, store: ParcelOpsStore) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func sourceColor(for tone: String) -> Color {
     switch tone {

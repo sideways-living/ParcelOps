@@ -247,7 +247,7 @@ struct ShipmentGroupsView: View {
     var tones: [String: String] = [:]
 
     for order in store.intakeLinkedOrders {
-      for email in linkedIntakeEmails(for: order) {
+      for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
         tones[summary.label] = summary.tone
@@ -293,9 +293,6 @@ struct ShipmentGroupsView: View {
       .reduce(0) { total, row in total + row.count }
   }
 
-  private func linkedIntakeEmails(for order: TrackedOrder) -> [ForwardedEmailIntake] {
-    store.linkedIntakeEmails(for: order)
-  }
 
   private func clearFilters() {
     riskFilter = nil
