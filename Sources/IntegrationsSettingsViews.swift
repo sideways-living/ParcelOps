@@ -15,16 +15,14 @@ struct IntegrationsView: View {
     }
   }
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
   private var hasGmailSetup: Bool { !store.gmailMailboxConnections.isEmpty }
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
   private var hasGmailConnectedAuth: Bool {
-    store.gmailMailboxConnections.contains { connection in
-      store.gmailAuthSessionState(for: connection).status == .connected
-    }
+    store.hasGmailConnectedAuth
   }
   private var hasGmailCoreSetup: Bool {
     store.gmailMailboxConnections.contains { connection in
@@ -3567,7 +3565,7 @@ private struct SettingsGmailManualRunbookPanel: View {
   }
 
   private var latestSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var readiness: GmailOAuthReadinessSummary? {
@@ -5627,11 +5625,11 @@ struct SettingsReleaseCandidateCard: View {
   var store: ParcelOpsStore
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var hasMailboxSetup: Bool {
@@ -5646,9 +5644,7 @@ struct SettingsReleaseCandidateCard: View {
   }
 
   private var hasGmailConnectedAuth: Bool {
-    store.gmailMailboxConnections.contains { connection in
-      store.gmailAuthSessionState(for: connection).status == .connected
-    }
+    store.hasGmailConnectedAuth
   }
 
   private var hasManualCredentialOrAuth: Bool {
@@ -5873,12 +5869,10 @@ struct SettingsView: View {
   }
   private var hasGmailSetup: Bool { !store.gmailMailboxConnections.isEmpty }
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
   private var hasGmailConnectedAuth: Bool {
-    store.gmailMailboxConnections.contains { connection in
-      store.gmailAuthSessionState(for: connection).status == .connected
-    }
+    store.hasGmailConnectedAuth
   }
   private var hasGmailCoreSetup: Bool {
     store.gmailMailboxConnections.contains { connection in
@@ -5912,7 +5906,7 @@ struct SettingsView: View {
   }
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var settingsManualRefreshCount: Int {

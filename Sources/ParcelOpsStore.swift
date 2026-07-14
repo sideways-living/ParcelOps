@@ -5903,6 +5903,26 @@ final class ParcelOpsStore {
     uniqueOrdersByID(inboxCreatedOrders + intakeLinkedOrders + wishlistLinkedOrders)
   }
 
+  var latestSpaceMailIntakeHealthSummary: SpaceMailIntakeHealthSummary? {
+    spaceMailIntakeHealthSummaries.first
+  }
+
+  var latestGmailIntakeHealthSummary: GmailIntakeHealthSummary? {
+    gmailIntakeHealthSummaries.first
+  }
+
+  var hasSpaceMailCredentialReference: Bool {
+    spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus == SpaceMailCredentialStoreStatus.passwordReferenceAvailable.rawValue
+    }
+  }
+
+  var hasGmailConnectedAuth: Bool {
+    gmailMailboxConnections.contains { connection in
+      gmailAuthSessionState(for: connection).status == .connected
+    }
+  }
+
   var pendingSpaceMailUncertainReviewCount: Int {
     spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
   }

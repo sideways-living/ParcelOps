@@ -91,11 +91,11 @@ struct InboxView: View {
   }
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var latestGmailConnection: GmailMailboxConnection? {
@@ -146,9 +146,7 @@ struct InboxView: View {
   }
 
   private var hasGmailConnectedAuth: Bool {
-    store.gmailMailboxConnections.contains { connection in
-      store.gmailAuthSessionState(for: connection).status == .connected
-    }
+    store.hasGmailConnectedAuth
   }
 
   private var uncertainSpaceMailCount: Int {
@@ -2758,11 +2756,11 @@ struct DispatchView: View {
   }
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var dispatchGmailConnection: GmailMailboxConnection? {

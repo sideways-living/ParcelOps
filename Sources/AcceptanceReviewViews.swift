@@ -49,10 +49,10 @@ struct AcceptanceReviewView: View {
     }
   }
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
   private var acceptanceMailboxProviderRows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] {
     var rows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] = []

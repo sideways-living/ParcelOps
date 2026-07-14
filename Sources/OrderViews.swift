@@ -60,10 +60,10 @@ struct OrdersView: View {
     }.count
   }
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
   private var pendingUncertainMailboxCount: Int {
     (latestSpaceMailSummary?.pendingUncertainReviewCount ?? latestSpaceMailSummary?.uncertainCount ?? 0)

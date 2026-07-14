@@ -2302,9 +2302,7 @@ struct OperatorMVPReadinessCard: View {
       $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
         || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
     }
-    let hasGmailConnectedAuth = store.gmailMailboxConnections.contains { connection in
-      store.gmailAuthSessionState(for: connection).status == .connected
-    }
+    let hasGmailConnectedAuth = store.hasGmailConnectedAuth
     let hasMailboxSetup = hasSpaceMailSetup || hasGmailSetup
     let hasMailboxCredentialOrAuth = hasSpaceMailCredential || hasGmailConnectedAuth
     let hasMailboxRefresh = store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
@@ -5897,11 +5895,11 @@ struct MailboxProviderQAMatrixCard: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var hasSpaceMailSetup: Bool {
@@ -5920,9 +5918,7 @@ struct MailboxProviderQAMatrixCard: View {
   }
 
   private var hasGmailAuth: Bool {
-    store.gmailMailboxConnections.contains { connection in
-      store.gmailAuthSessionState(for: connection).status == .connected
-    }
+    store.hasGmailConnectedAuth
   }
 
   private var hasProviderSetup: Bool {
@@ -6111,11 +6107,11 @@ struct OperatorSupportSnapshotCard: View {
   }
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var activeSpaceMailConnection: SpaceMailIMAPConnection? {
@@ -6173,9 +6169,7 @@ struct OperatorSupportSnapshotCard: View {
       $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
         || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
     }
-    let hasGmailAuth = store.gmailMailboxConnections.contains { connection in
-      store.gmailAuthSessionState(for: connection).status == .connected
-    }
+    let hasGmailAuth = store.hasGmailConnectedAuth
     return hasSpaceMailCredential || hasGmailAuth
   }
 
@@ -6340,11 +6334,11 @@ struct OperatorTestSessionChecklistCard: View {
   }
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var inboxLinkedOrderCount: Int {
@@ -6396,9 +6390,7 @@ struct OperatorTestSessionChecklistCard: View {
     let hasAuditTrail = qa.checks.contains { $0.title == "Audit trail evidence" && $0.isComplete }
     let hasGmailRefresh = latestGmailSummary.map { $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0 || $0.lastRefreshDate != "Never" } ?? false
     let hasGmailFiltering = latestGmailSummary.map { $0.filteredCount > 0 || $0.pendingUncertainReviewCount > 0 || $0.uncertainCount > 0 } ?? false
-    let hasGmailAuth = store.gmailMailboxConnections.contains { connection in
-      store.gmailAuthSessionState(for: connection).status == .connected
-    }
+    let hasGmailAuth = store.hasGmailConnectedAuth
     let hasAnyProviderCredentialOrAuth = hasCredential || hasGmailAuth
     let dispatchWorkCount = store.blockedShipmentManifests.count
       + store.undispatchedShipmentManifests.count
@@ -6587,11 +6579,11 @@ struct OperatorHandoffBriefCard: View {
   var detail: String = "Use this before stopping work or handing the app to another operator."
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var inboxLinkedOrderCount: Int {

@@ -124,11 +124,11 @@ struct ParcelOpsRootView: View {
   }
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var hasSpaceMailSetup: Bool {
@@ -151,9 +151,7 @@ struct ParcelOpsRootView: View {
   }
 
   private var hasGmailConnectedAuth: Bool {
-    store.gmailMailboxConnections.contains { connection in
-      store.gmailAuthSessionState(for: connection).status == .connected
-    }
+    store.hasGmailConnectedAuth
   }
 
   private var hasLiveMailboxCredentialOrAuth: Bool {

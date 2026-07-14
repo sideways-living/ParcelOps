@@ -29,11 +29,11 @@ struct MailboxView: View {
   }
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var latestMailboxFetchedCount: Int {
@@ -1577,11 +1577,11 @@ private struct MailboxReviewStartPanel: View {
   var store: ParcelOpsStore
 
   private var latestSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var reviewEmailCount: Int {
@@ -1686,7 +1686,7 @@ private struct MailboxSpaceMailReadinessPanel: View {
   var store: ParcelOpsStore
 
   private var latestSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var hasSetup: Bool {
@@ -1816,7 +1816,7 @@ private struct MailboxSpaceMailRunbookPanel: View {
   var store: ParcelOpsStore
 
   private var latestSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var primaryConnection: SpaceMailIMAPConnection? {
@@ -1990,7 +1990,7 @@ private struct MailboxGmailRunbookPanel: View {
   var store: ParcelOpsStore
 
   private var latestSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var primaryConnection: GmailMailboxConnection? {
@@ -2196,7 +2196,7 @@ struct MailboxGmailReadinessPanel: View {
   var store: ParcelOpsStore
 
   private var latestSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var primaryConnection: GmailMailboxConnection? {

@@ -94,9 +94,7 @@ struct DashboardView: View {
     !store.gmailMailboxConnections.isEmpty
   }
   private var hasGmailConnectedAuth: Bool {
-    store.gmailMailboxConnections.contains { connection in
-      store.gmailAuthSessionState(for: connection).status == .connected
-    }
+    store.hasGmailConnectedAuth
   }
   private var hasGmailManualRefreshEvidence: Bool {
     store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
@@ -172,10 +170,10 @@ struct DashboardView: View {
     return "\(draft.subject) • \(draft.recipient). Use Tasks to mark the draft ready, sent locally, or reopened after the provider handoff is complete."
   }
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
   private var latestGmailConnection: GmailMailboxConnection? {
     guard let summary = latestGmailSummary else { return store.gmailMailboxConnections.first }
@@ -2643,11 +2641,11 @@ private struct DashboardReleaseReadinessSnapshot: View {
   var store: ParcelOpsStore
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var hasMailboxSetup: Bool {
@@ -2659,9 +2657,7 @@ private struct DashboardReleaseReadinessSnapshot: View {
       $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
         || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
     }
-      || store.gmailMailboxConnections.contains { connection in
-        store.gmailAuthSessionState(for: connection).status == .connected
-      }
+      || store.hasGmailConnectedAuth
   }
 
   private var latestFetchedCount: Int {
@@ -3513,17 +3509,15 @@ struct FirstLiveMailboxTestCard: View {
   }
 
   private var hasGmailConnectedAuth: Bool {
-    store.gmailMailboxConnections.contains { connection in
-      store.gmailAuthSessionState(for: connection).status == .connected
-    }
+    store.hasGmailConnectedAuth
   }
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.spaceMailIntakeHealthSummaries.first
+    store.latestSpaceMailIntakeHealthSummary
   }
 
   private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.gmailIntakeHealthSummaries.first
+    store.latestGmailIntakeHealthSummary
   }
 
   private var hasMailboxSetup: Bool {
