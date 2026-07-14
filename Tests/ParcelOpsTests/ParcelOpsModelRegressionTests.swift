@@ -138,6 +138,41 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     })
   }
 
+  func testInboxDispatchCompleteAndReopenSkipBeforeSetupExists() throws {
+    let order = makeOrder(
+      orderNumber: "TEST-000",
+      trackingNumber: "TRACK-000",
+      destination: "Perth WA",
+      checkedMailbox: "caught@droctopus.net",
+      source: .forwardedMailbox,
+      latestStatus: "Created from verified Inbox intake"
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.orders = [order]
+    store.shipmentManifestRecords = []
+    store.dispatchReadinessChecklists = []
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.completeInboxDispatchHandoff(for: order)
+    store.reopenInboxDispatchHandoff(for: order)
+
+    let updatedOrder = try XCTUnwrap(store.orders.first)
+    XCTAssertEqual(updatedOrder.latestStatus, "Created from verified Inbox intake")
+    XCTAssertEqual(updatedOrder.status, .intake)
+    XCTAssertTrue(store.shipmentManifestRecords.isEmpty)
+    XCTAssertTrue(store.dispatchReadinessChecklists.isEmpty)
+    XCTAssertTrue(store.reviewTasks.isEmpty)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Inbox dispatch handoff completion skipped."
+        && (event.afterDetail?.contains("No linked Inbox dispatch manifest or readiness checklist was found.") ?? false)
+    })
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Inbox dispatch handoff reopen skipped."
+        && (event.afterDetail?.contains("No linked Inbox dispatch manifest or readiness checklist was found.") ?? false)
+    })
+  }
+
   func testWishlistSellerEvidenceGapsAndScore() {
     let weakOption = WishlistComparisonOption(
       sellerName: "Unknown marketplace seller",
