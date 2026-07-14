@@ -636,54 +636,31 @@ struct DashboardView: View {
     }
   }
   private var wishlistReadinessBlockedItems: [WishlistItem] {
-    store.wishlistItems.filter { item in
-      store.isActiveWishlistItem(item) && (item.purchaseChecks ?? []).contains { $0.status != "Passed" }
-    }
+    store.wishlistReadinessBlockedItems
   }
   private var wishlistReadinessCriticalItems: [WishlistItem] {
-    wishlistReadinessBlockedItems.filter { item in
-      (item.purchaseChecks ?? []).contains { $0.status == "Blocked" || $0.severity == "High" }
-    }
+    store.wishlistReadinessCriticalItems
   }
   private var wishlistReleaseItems: [WishlistItem] {
-    store.wishlistItems.filter { item in
-      store.isActiveWishlistItem(item) && (
-        !(item.comparisonOptions ?? []).isEmpty
-        || item.purchaseDecision != nil
-        || item.purchaseHandoff != nil
-        || item.status.localizedCaseInsensitiveContains("purchase")
-        || item.status.localizedCaseInsensitiveContains("ready")
-      )
-    }
+    store.wishlistReleaseItems
   }
   private var wishlistReleaseReadyItems: [WishlistItem] {
-    wishlistReleaseItems.filter { item in
-      item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil && store.wishlistReleaseBlockers(for: item).isEmpty
-    }
+    store.wishlistReleaseReadyItems
   }
   private var wishlistReleaseBlockedItems: [WishlistItem] {
-    wishlistReleaseItems.filter { !wishlistReleaseBlockers(for: $0).isEmpty }
+    store.wishlistReleaseBlockedItems
   }
   private var wishlistReleaseOrderWatchItems: [WishlistItem] {
-    wishlistReleaseItems.filter { $0.purchaseHandoff != nil && $0.purchaseHandoff?.linkedOrderID == nil }
+    store.wishlistReleaseOrderWatchItems
   }
   private var wishlistHandoffSanityBlockedItems: [WishlistItem] {
-    wishlistReleaseItems.filter { !wishlistHandoffSanityGaps(for: $0).isEmpty }
+    store.wishlistHandoffSanityBlockedItems
   }
   private var wishlistPurchasedNeedsOrderLinkItems: [WishlistItem] {
-    wishlistReleaseItems.filter { item in
-      item.purchaseHandoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true
-        && item.purchaseHandoff?.linkedOrderID == nil
-    }
+    store.wishlistPurchasedNeedsOrderLinkItems
   }
   private var wishlistLinkedOrderDispatchGapItems: [WishlistItem] {
-    wishlistReleaseItems.filter { item in
-      item.purchaseHandoff?.linkedOrderID != nil
-        && (
-          store.suggestedShipmentManifestRecords(for: item).isEmpty
-            || store.suggestedDispatchReadinessChecklists(for: item).isEmpty
-        )
-    }
+    store.wishlistLinkedOrderDispatchGapItems
   }
   private var wishlistResearchAttentionRequests: [WishlistResearchRequest] {
     store.wishlistResearchRequests.filter {
@@ -704,15 +681,10 @@ struct DashboardView: View {
     !wishlistAgentReadyResearchRequests.isEmpty && wishlistBatchResearchDrafts.isEmpty
   }
   private var wishlistPurchasePacketNeededItems: [WishlistItem] {
-    wishlistReleaseItems.filter { item in
-      !(item.comparisonOptions ?? []).isEmpty && store.wishlistPurchasePacketDraft(for: item) == nil
-    }
+    store.wishlistPurchasePacketNeededItems
   }
   private var wishlistPurchasePacketDrafts: [DraftMessage] {
-    store.draftMessages.filter {
-      $0.linkedEntityType == .wishlistItem
-        && $0.subject.localizedCaseInsensitiveContains("wishlist purchase packet")
-    }
+    store.wishlistPurchasePacketDrafts
   }
   private var wishlistAgentReadiness: WishlistAgentReadinessSummary {
     store.wishlistAgentReadinessSummary

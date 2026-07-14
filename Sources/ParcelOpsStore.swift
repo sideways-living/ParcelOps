@@ -5970,6 +5970,44 @@ final class ParcelOpsStore {
     activeWishlistItems.filter(wishlistNeedsPurchasePacket)
   }
 
+  var wishlistReleaseItems: [WishlistItem] {
+    activeWishlistItems.filter { item in
+      !(item.comparisonOptions ?? []).isEmpty
+        || item.purchaseDecision != nil
+        || item.purchaseHandoff != nil
+        || item.status.localizedCaseInsensitiveContains("purchase")
+        || item.status.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  var wishlistReleaseReadyItems: [WishlistItem] {
+    wishlistReleaseItems.filter { item in
+      item.purchaseHandoff != nil
+        && item.purchaseHandoff?.linkedOrderID == nil
+        && wishlistReleaseBlockers(for: item).isEmpty
+    }
+  }
+
+  var wishlistReleaseBlockedItems: [WishlistItem] {
+    wishlistReleaseItems.filter { !wishlistReleaseBlockers(for: $0).isEmpty }
+  }
+
+  var wishlistReleaseOrderWatchItems: [WishlistItem] {
+    wishlistReleaseItems.filter { $0.purchaseHandoff != nil && $0.purchaseHandoff?.linkedOrderID == nil }
+  }
+
+  var wishlistReadinessBlockedItems: [WishlistItem] {
+    activeWishlistItems.filter { item in
+      (item.purchaseChecks ?? []).contains { $0.status != "Passed" }
+    }
+  }
+
+  var wishlistReadinessCriticalItems: [WishlistItem] {
+    wishlistReadinessBlockedItems.filter { item in
+      (item.purchaseChecks ?? []).contains { $0.status == "Blocked" || $0.severity == "High" }
+    }
+  }
+
   func wishlistHandoffPackGaps(for item: WishlistItem) -> [String] {
     var gaps: [String] = []
     guard item.purchaseHandoff != nil
@@ -6065,7 +6103,18 @@ final class ParcelOpsStore {
   }
 
   var wishlistLinkedOrderDispatchGapItems: [WishlistItem] {
-    activeWishlistItems.filter { !wishlistLinkedOrderDispatchGaps(for: $0).isEmpty }
+    wishlistReleaseItems.filter { !wishlistLinkedOrderDispatchGaps(for: $0).isEmpty }
+  }
+
+  var wishlistHandoffSanityBlockedItems: [WishlistItem] {
+    wishlistReleaseItems.filter { !wishlistHandoffSanityGaps(for: $0).isEmpty }
+  }
+
+  var wishlistPurchasedNeedsOrderLinkItems: [WishlistItem] {
+    wishlistReleaseItems.filter { item in
+      item.purchaseHandoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true
+        && item.purchaseHandoff?.linkedOrderID == nil
+    }
   }
 
   var operatorSourceOrders: [TrackedOrder] {
