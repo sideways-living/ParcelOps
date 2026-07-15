@@ -1821,14 +1821,7 @@ private extension AuditEvent {
   }
 
   var isWishlistPurchaseTrail: Bool {
-    let searchableText = [
-      summary,
-      entityLabel,
-      beforeDetail ?? "",
-      afterDetail ?? "",
-      entityType.rawValue,
-      action.rawValue
-    ].joined(separator: " ")
+    let searchableText = wishlistPurchaseTrailSearchableText
 
     let relevantEntity =
       entityType == .wishlistItem
@@ -1859,7 +1852,7 @@ private extension AuditEvent {
   }
 
   var wishlistPurchaseTrailLabel: String {
-    let searchableText = [summary, entityLabel, afterDetail ?? ""].joined(separator: " ")
+    let searchableText = wishlistPurchaseTrailDisplayText
     if searchableText.localizedCaseInsensitiveContains("purchase packet") { return "Purchase packet" }
     if searchableText.localizedCaseInsensitiveContains("handoff pack") { return "Handoff pack" }
     if searchableText.localizedCaseInsensitiveContains("purchase handoff") { return "Purchase handoff" }
@@ -1878,7 +1871,7 @@ private extension AuditEvent {
   }
 
   var wishlistPurchaseTrailGuidance: String {
-    let searchableText = [summary, entityLabel, afterDetail ?? ""].joined(separator: " ")
+    let searchableText = wishlistPurchaseTrailDisplayText
     if searchableText.localizedCaseInsensitiveContains("purchase packet") {
       return "Use this event to verify the local buying packet: preferred seller, AUD total, postage, trust, blockers, handoff, and order-watch state. It is not evidence of checkout or payment."
     }
@@ -1919,7 +1912,7 @@ private extension AuditEvent {
   }
 
   var wishlistPurchaseTrailSymbol: String {
-    let searchableText = [summary, entityLabel, afterDetail ?? ""].joined(separator: " ")
+    let searchableText = wishlistPurchaseTrailDisplayText
     if searchableText.localizedCaseInsensitiveContains("purchase packet") { return "doc.text.image.fill" }
     if searchableText.localizedCaseInsensitiveContains("handoff pack") { return "shippingbox.and.arrow.backward.fill" }
     if searchableText.localizedCaseInsensitiveContains("purchase handoff") { return "person.crop.circle.badge.checkmark" }
@@ -1936,7 +1929,7 @@ private extension AuditEvent {
   }
 
   var wishlistPurchaseTrailColor: Color {
-    let searchableText = [summary, afterDetail ?? "", action.rawValue].joined(separator: " ")
+    let searchableText = wishlistPurchaseTrailStatusText
     if searchableText.localizedCaseInsensitiveContains("blocked") || searchableText.localizedCaseInsensitiveContains("needs review") {
       return .orange
     }
@@ -1953,6 +1946,25 @@ private extension AuditEvent {
       return .blue
     }
     return .purple
+  }
+
+  private var wishlistPurchaseTrailSearchableText: String {
+    [
+      summary,
+      entityLabel,
+      beforeDetail ?? "",
+      afterDetail ?? "",
+      entityType.rawValue,
+      action.rawValue
+    ].joined(separator: " ")
+  }
+
+  private var wishlistPurchaseTrailDisplayText: String {
+    [summary, entityLabel, afterDetail ?? ""].joined(separator: " ")
+  }
+
+  private var wishlistPurchaseTrailStatusText: String {
+    [summary, afterDetail ?? "", action.rawValue].joined(separator: " ")
   }
 
   var isWorkflowAction: Bool {
