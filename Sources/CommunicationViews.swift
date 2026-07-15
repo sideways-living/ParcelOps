@@ -485,7 +485,7 @@ struct CommunicationView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
           Badge("\(linkedDrafts.count) linked drafts", color: .teal)
           Badge("\(actionDrafts.count) need action", color: actionDrafts.isEmpty ? .green : .orange)
           Badge("\(readyDrafts.count) ready", color: readyDrafts.isEmpty ? .green : .blue)

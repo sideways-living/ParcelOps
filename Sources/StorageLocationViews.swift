@@ -174,8 +174,8 @@ struct StorageLocationsView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
-          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedLocations.count) linked locations", color: .teal)
           Badge("\(actionLocations.count) need action", color: actionLocations.isEmpty ? .green : .orange)
           Badge("\(missingStorageCount) missing storage", color: missingStorageCount == 0 ? .green : .orange)

@@ -222,8 +222,8 @@ struct DeliveryInstructionsView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
-          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedInstructions.count) matched instructions", color: .teal)
           Badge("\(actionInstructions.count) need action", color: actionInstructions.isEmpty ? .green : .orange)
           Badge("\(missingCount) without instruction", color: missingCount == 0 ? .green : .orange)

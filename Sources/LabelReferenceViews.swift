@@ -165,8 +165,8 @@ struct LabelReferencesView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
-          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedLabels.count) linked labels", color: .teal)
           Badge("\(actionLabels.count) need action", color: actionLabels.isEmpty ? .green : .orange)
           Badge("\(missingLabelCount) missing labels", color: missingLabelCount == 0 ? .green : .orange)

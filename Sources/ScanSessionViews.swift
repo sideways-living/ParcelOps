@@ -163,8 +163,8 @@ struct ScanSessionsView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
-          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedScans.count) linked scans", color: .teal)
           Badge("\(actionScans.count) need action", color: actionScans.isEmpty ? .green : .orange)
           Badge("\(missingScanCount) missing scans", color: missingScanCount == 0 ? .green : .orange)

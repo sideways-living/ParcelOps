@@ -194,8 +194,8 @@ struct ContactsView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
-          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedContacts.count) matched contacts", color: .teal)
           Badge("\(actionContacts.count) need action", color: actionContacts.isEmpty ? .green : .orange)
           Badge("\(missingCount) without contact", color: missingCount == 0 ? .green : .orange)

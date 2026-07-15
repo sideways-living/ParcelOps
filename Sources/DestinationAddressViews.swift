@@ -187,8 +187,8 @@ struct DestinationAddressesView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
-          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedAddresses.count) matched addresses", color: .teal)
           Badge("\(actionAddresses.count) need action", color: actionAddresses.isEmpty ? .green : .orange)
           Badge("\(missingCount) without address", color: missingCount == 0 ? .green : .orange)

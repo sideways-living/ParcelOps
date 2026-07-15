@@ -210,8 +210,8 @@ struct AccountsView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
-          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedAccounts.count) matched accounts", color: .teal)
           Badge("\(actionAccounts.count) need action", color: actionAccounts.isEmpty ? .green : .orange)
           Badge("\(missingCount) without account", color: missingCount == 0 ? .green : .orange)

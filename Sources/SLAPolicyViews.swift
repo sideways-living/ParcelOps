@@ -151,8 +151,8 @@ struct SLAPoliciesView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
-          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedPolicies.count) matched policies", color: .teal)
           Badge("\(actionPolicies.count) need action", color: actionPolicies.isEmpty ? .green : .orange)
           Badge("\(store.policiesNeedingReview.count) review", color: store.policiesNeedingReview.isEmpty ? .green : .orange)

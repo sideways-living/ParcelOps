@@ -179,8 +179,8 @@ struct CustodyChainView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
-          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedRecords.count) linked custody", color: .teal)
           Badge("\(actionRecords.count) need action", color: actionRecords.isEmpty ? .green : .orange)
           Badge("\(missingCustodyCount) missing custody", color: missingCustodyCount == 0 ? .green : .orange)

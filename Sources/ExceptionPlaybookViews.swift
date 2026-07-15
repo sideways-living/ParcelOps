@@ -159,8 +159,8 @@ struct ExceptionPlaybooksView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
-          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedPlaybooks.count) matched playbooks", color: .teal)
           Badge("\(actionPlaybooks.count) need action", color: actionPlaybooks.isEmpty ? .green : .orange)
           Badge("\(store.playbooksNeedingReview.count) review", color: store.playbooksNeedingReview.isEmpty ? .green : .orange)

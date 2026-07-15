@@ -215,7 +215,7 @@ struct ShipmentManifestsView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
           Badge("\(linkedManifests.count) linked manifests", color: .teal)
           Badge("\(actionManifests.count) need action", color: actionManifests.isEmpty ? .green : .orange)
           Badge("\(missingManifestCount) missing manifests", color: missingManifestCount == 0 ? .green : .orange)

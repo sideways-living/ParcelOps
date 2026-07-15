@@ -187,8 +187,8 @@ struct VendorProfilesView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
-          Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedProfiles.count) matched vendors", color: .teal)
           Badge("\(actionProfiles.count) need action", color: actionProfiles.isEmpty ? .green : .orange)
           Badge("\(missingCount) without vendor", color: missingCount == 0 ? .green : .orange)

@@ -207,7 +207,7 @@ struct DispatchReadinessView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(inboxOrders.count) Inbox orders", color: .blue)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
           Badge("\(linkedChecklists.count) linked checks", color: .teal)
           Badge("\(actionChecklists.count) need action", color: actionChecklists.isEmpty ? .green : .orange)
           Badge("\(missingChecklistCount) missing checks", color: missingChecklistCount == 0 ? .green : .orange)
