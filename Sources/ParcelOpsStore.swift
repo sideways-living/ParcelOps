@@ -5976,7 +5976,7 @@ final class ParcelOpsStore {
   }
 
   var wishlistWorkbenchPurchaseFollowUpVisible: Bool {
-    !wishlistTaskContextItems.isEmpty
+    wishlistTaskContextItemCount > 0
       || !wishlistResearchAttentionRequests.isEmpty
       || wishlistBatchBriefNeeded
       || !wishlistBatchResearchDrafts.isEmpty
@@ -6236,8 +6236,12 @@ final class ParcelOpsStore {
     }
   }
 
-  var wishlistWorkbenchFollowUpCount: Int {
+  var wishlistTaskContextItemCount: Int {
     wishlistTaskContextItems.count
+  }
+
+  var wishlistWorkbenchFollowUpCount: Int {
+    wishlistTaskContextItemCount
       + wishlistResearchAttentionRequests.count
       + wishlistPurchasePacketNeededItemCount
       + (wishlistBatchBriefNeeded ? 1 : 0)
@@ -6306,7 +6310,7 @@ final class ParcelOpsStore {
   }
 
   var wishlistDailyAttentionCount: Int {
-    wishlistTaskContextItems.count
+    wishlistTaskContextItemCount
       + wishlistResearchAttentionRequests.count
       + wishlistReadinessBlockedItemCount
       + wishlistHandoffSanityBlockedItemCount
@@ -6342,8 +6346,8 @@ final class ParcelOpsStore {
       + activeWishlistHandoffNotes.count
       + activeWishlistDraftMessages.count
       + wishlistPurchasePacketNeededItemCount
-      + wishlistNeedsHandoffItems.count
-      + wishlistAwaitingOrderItems.count
+      + wishlistNeedsHandoffItemCount
+      + wishlistAwaitingOrderItemCount
       + wishlistLinkedOrderDispatchGapItemCount
   }
 
@@ -6362,11 +6366,19 @@ final class ParcelOpsStore {
     }
   }
 
+  var wishlistDashboardAttentionItemCount: Int {
+    wishlistDashboardAttentionItems.count
+  }
+
   var wishlistReadyPurchaseItems: [WishlistItem] {
     activeWishlistItems.filter { item in
       item.status.localizedCaseInsensitiveContains("ready to purchase")
         || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("ready for purchase")
     }
+  }
+
+  var wishlistReadyPurchaseItemCount: Int {
+    wishlistReadyPurchaseItems.count
   }
 
   var wishlistAttentionBlockerSummary: String {
@@ -6441,14 +6453,14 @@ final class ParcelOpsStore {
   }
 
   var wishlistDashboardNextAction: String {
-    if wishlistDashboardAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty {
+    if wishlistDashboardAttentionItemCount == 0 && wishlistResearchAttentionRequests.isEmpty {
       if wishlistBatchBriefNeeded { return "Create batch research brief" }
       if wishlistPurchasePacketNeededItemCount > 0 { return "Create Wishlist purchase packet" }
       if wishlistPurchasedNeedsOrderLinkItemCount > 0 { return "Link purchased Wishlist orders" }
       if wishlistLinkedOrderDispatchGapItemCount > 0 { return "Stage Wishlist dispatch setup" }
       if wishlistHandoffSanityBlockedItemCount > 0 { return "Complete purchase handoff sanity checks" }
       if wishlistReleaseReadyItemCount > 0 { return "Review ready purchase handoffs" }
-      return wishlistReadyPurchaseItems.isEmpty ? "No wishlist purchase follow-up" : "Review ready-to-buy items"
+      return wishlistReadyPurchaseItemCount == 0 ? "No wishlist purchase follow-up" : "Review ready-to-buy items"
     }
     return "Clear: \(wishlistAttentionBlockerSummary)"
   }
@@ -6472,8 +6484,8 @@ final class ParcelOpsStore {
     if wishlistHandoffSanityBlockedItemCount > 0 {
       return "\(wishlistHandoffSanityBlockedItemCount) Wishlist purchase handoff\(wishlistHandoffSanityBlockedItemCount == 1 ? "" : "s") need account, cost, receiving, or order-watch context."
     }
-    if !wishlistDashboardAttentionItems.isEmpty {
-      return "\(wishlistDashboardAttentionItems.count) wishlist item\(wishlistDashboardAttentionItems.count == 1 ? "" : "s") need follow-up: \(wishlistAttentionBlockerSummary)."
+    if wishlistDashboardAttentionItemCount > 0 {
+      return "\(wishlistDashboardAttentionItemCount) wishlist item\(wishlistDashboardAttentionItemCount == 1 ? "" : "s") need follow-up: \(wishlistAttentionBlockerSummary)."
     }
     return nil
   }
@@ -6792,8 +6804,16 @@ final class ParcelOpsStore {
     activeWishlistItems.filter { $0.purchaseDecision?.reviewState == .accepted && $0.purchaseHandoff == nil }
   }
 
+  var wishlistNeedsHandoffItemCount: Int {
+    wishlistNeedsHandoffItems.count
+  }
+
   var wishlistAwaitingOrderItems: [WishlistItem] {
     activeWishlistItems.filter { $0.purchaseHandoff != nil && $0.purchaseHandoff?.linkedOrderID == nil }
+  }
+
+  var wishlistAwaitingOrderItemCount: Int {
+    wishlistAwaitingOrderItems.count
   }
 
   var wishlistLinkedOrderDispatchGapItems: [WishlistItem] {
