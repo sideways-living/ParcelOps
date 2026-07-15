@@ -2687,7 +2687,7 @@ struct DispatchView: View {
 
   private var wishlistDispatchHandoffSanityGapCount: Int {
     inboxDispatchSetupOrders.reduce(0) { total, order in
-      total + store.activeWishlistItemsLinked(to: order).filter { !wishlistDispatchHandoffSanityGaps(for: $0).isEmpty }.count
+      total + store.wishlistHandoffSanityIssueCount(for: order)
     }
   }
 
@@ -3248,33 +3248,7 @@ struct DispatchView: View {
   }
 
   private func wishlistDispatchHandoffSanityGaps(for item: WishlistItem) -> [String] {
-    guard item.purchaseHandoff != nil
-      || item.purchaseDecision?.reviewState == .accepted
-      || item.status.localizedCaseInsensitiveContains("purchase")
-      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
-      return []
-    }
-
-    let handoff = item.purchaseHandoff
-    let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
-      store.orders.first { $0.id == orderID }
-    }
-    var gaps: [String] = []
-    let seller = handoff?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
-    if seller.isPlaceholderValidationValue { gaps.append("seller route") }
-    if handoff?.accountLabel.isPlaceholderValidationValue != false && store.suggestedAccounts(for: item).isEmpty {
-      gaps.append("account label")
-    }
-    if handoff?.expectedOrderSignals.isPlaceholderValidationValue != false {
-      gaps.append("order watch")
-    }
-    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
-    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
-    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
-    if linkedOrder == nil && handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
-      gaps.append("order link")
-    }
-    return gaps
+    store.wishlistHandoffSanityGaps(for: item)
   }
 }
 
@@ -3510,41 +3484,11 @@ private struct DispatchInboxOrderRow: View {
   }
 
   private func wishlistDispatchSetupGaps(for item: WishlistItem) -> [String] {
-    guard item.purchaseHandoff?.linkedOrderID != nil else { return [] }
-    var gaps: [String] = []
-    if store.suggestedShipmentManifestRecords(for: item).isEmpty { gaps.append("manifest") }
-    if store.suggestedDispatchReadinessChecklists(for: item).isEmpty { gaps.append("readiness checklist") }
-    return gaps
+    store.wishlistLinkedOrderDispatchGaps(for: item)
   }
 
   private func wishlistDispatchHandoffSanityGaps(for item: WishlistItem) -> [String] {
-    guard item.purchaseHandoff != nil
-      || item.purchaseDecision?.reviewState == .accepted
-      || item.status.localizedCaseInsensitiveContains("purchase")
-      || item.status.localizedCaseInsensitiveContains("order confirmation") else {
-      return []
-    }
-
-    let handoff = item.purchaseHandoff
-    let linkedOrder = handoff?.linkedOrderID.flatMap { orderID in
-      store.orders.first { $0.id == orderID }
-    }
-    var gaps: [String] = []
-    let seller = handoff?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
-    if seller.isPlaceholderValidationValue { gaps.append("seller route") }
-    if handoff?.accountLabel.isPlaceholderValidationValue != false && store.suggestedAccounts(for: item).isEmpty {
-      gaps.append("account label")
-    }
-    if handoff?.expectedOrderSignals.isPlaceholderValidationValue != false {
-      gaps.append("order watch")
-    }
-    if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
-    if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
-    if store.suggestedReceivingInspections(for: item).isEmpty { gaps.append("receiving") }
-    if linkedOrder == nil && handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true {
-      gaps.append("order link")
-    }
-    return gaps
+    store.wishlistHandoffSanityGaps(for: item)
   }
 }
 

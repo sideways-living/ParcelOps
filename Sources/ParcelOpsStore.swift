@@ -6033,6 +6033,12 @@ final class ParcelOpsStore {
     }
   }
 
+  func wishlistHandoffSanityIssueCount(for order: TrackedOrder) -> Int {
+    activeWishlistItemsLinked(to: order).filter {
+      !wishlistHandoffSanityGaps(for: $0).isEmpty
+    }.count
+  }
+
   var wishlistAgentReadinessIssueCount: Int {
     let summary = wishlistAgentReadinessSummary
     return summary.scopeGapCount
