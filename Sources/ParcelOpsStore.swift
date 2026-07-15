@@ -6006,6 +6006,10 @@ final class ParcelOpsStore {
     wishlistOrderWatchRecords.filter(isActiveWishlistOrderWatchRecord)
   }
 
+  var activeWishlistOrderWatchRecordCount: Int {
+    activeWishlistOrderWatchRecords.count
+  }
+
   var wishlistOrderWatchRecordCount: Int {
     wishlistOrderWatchRecords.count
   }
@@ -6020,7 +6024,7 @@ final class ParcelOpsStore {
   var activeWishlistFollowUpCount: Int {
     stagedWishlistCaptureCandidateCount
       + activeWishlistResearchRequestCount
-      + activeWishlistOrderWatchRecords.count
+      + activeWishlistOrderWatchRecordCount
   }
 
   var activeWishlistEvidenceCount: Int {

@@ -2268,7 +2268,7 @@ struct WishlistView: View {
     let sellerOptionCount = activeItems.reduce(0) { $0 + ($1.comparisonOptions?.count ?? 0) }
     let openCaptureCount = store.stagedWishlistCaptureCandidateCount
     let activeBriefCount = store.activeWishlistResearchRequestCount
-    let activeOrderWatchCount = store.activeWishlistOrderWatchRecords.count
+    let activeOrderWatchCount = store.activeWishlistOrderWatchRecordCount
 
     return SettingsPanel(title: "Wishlist next actions", symbol: "arrowshape.turn.up.right.fill") {
       VStack(alignment: .leading, spacing: 12) {

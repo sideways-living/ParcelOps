@@ -6334,7 +6334,7 @@ struct OperatorTestSessionChecklistCard: View {
     activeWishlistItems.count
       + store.stagedWishlistCaptureCandidateCount
       + store.wishlistResearchRequests.filter { store.isActiveWishlistResearchRequest($0) }.count
-      + store.activeWishlistOrderWatchRecords.count
+      + store.activeWishlistOrderWatchRecordCount
       + wishlistLinkedOrderCount
   }
 
