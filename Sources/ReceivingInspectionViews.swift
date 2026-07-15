@@ -190,7 +190,7 @@ struct ReceivingInspectionsView: View {
 
       CompactMetadataGrid(minimumWidth: 150) {
         Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
-        Badge("\(store.wishlistLinkedOrders.count) Wishlist orders", color: .pink)
+        Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
         Badge("\(inspectionsLinkedToInboxOrders.count) linked inspections", color: .teal)
         Badge("\(inspectionsNeedingAction.count) need action", color: inspectionsNeedingAction.isEmpty ? .green : .orange)
         Badge("\(inboxOrdersMissingInspection.count) missing inspections", color: inboxOrdersMissingInspection.isEmpty ? .green : .orange)
@@ -228,7 +228,7 @@ struct ReceivingInspectionsView: View {
         }
       }
 
-      if store.operatorSourceOrders.isEmpty {
+      if store.operatorSourceOrderCount == 0 {
         Text("No Inbox-created or Wishlist-linked orders need receiving inspection checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)

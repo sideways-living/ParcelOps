@@ -193,7 +193,7 @@ struct ProcurementView: View {
 
       CompactMetadataGrid(minimumWidth: 150) {
         Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
-        Badge("\(store.wishlistLinkedOrders.count) Wishlist orders", color: .pink)
+        Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
         Badge("\(requestsLinkedToInboxOrders.count) linked requests", color: .teal)
         Badge("\(requestsNeedingAction.count) need action", color: requestsNeedingAction.isEmpty ? .green : .orange)
         Badge("\(requestsMissingBudget.count) missing budget", color: requestsMissingBudget.isEmpty ? .green : .orange)
@@ -231,7 +231,7 @@ struct ProcurementView: View {
         }
       }
 
-      if store.operatorSourceOrders.isEmpty {
+      if store.operatorSourceOrderCount == 0 {
         Text("No Inbox-created or Wishlist-linked orders need procurement checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)

@@ -706,7 +706,7 @@ struct MVPWishlistWorkflowReadinessPanel: View {
   }
 
   private var linkedWishlistOrderCount: Int {
-    store.wishlistLinkedOrders.count
+    store.wishlistLinkedOrderCount
   }
 
   private var readinessTone: Color {

@@ -2075,9 +2075,9 @@ struct DashboardView: View {
               title: "Orders",
               count: problemOrdersCount,
               detail: "Review-needed orders, exceptions, warning tracking events, and orders created from Inbox or Wishlist handoff.",
-              nextAction: partialInboxOrderBlockers.isEmpty ? (store.operatorSourceOrders.isEmpty ? (problemOrdersCount == 0 ? "Orders look steady" : "Review problem orders") : "Review sourced orders") : "Verify missing Inbox details",
+              nextAction: partialInboxOrderBlockers.isEmpty ? (store.operatorSourceOrderCount == 0 ? (problemOrdersCount == 0 ? "Orders look steady" : "Review problem orders") : "Review sourced orders") : "Verify missing Inbox details",
               symbol: "shippingbox.fill",
-              tint: partialInboxOrderBlockers.isEmpty ? (store.operatorSourceOrders.isEmpty ? (problemOrdersCount == 0 ? .green : .red) : .purple) : .orange
+              tint: partialInboxOrderBlockers.isEmpty ? (store.operatorSourceOrderCount == 0 ? (problemOrdersCount == 0 ? .green : .red) : .purple) : .orange
             ) {
               OrdersView(store: store)
             }

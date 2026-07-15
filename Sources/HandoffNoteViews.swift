@@ -424,7 +424,7 @@ struct HandoffNotesView: View {
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
-          Badge("\(store.wishlistLinkedOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedNotes.count) linked notes", color: .teal)
           Badge("\(actionNotes.count) need action", color: actionNotes.isEmpty ? .green : .orange)
           Badge("\(missingCount) without handoff", color: missingCount == 0 ? .green : .orange)

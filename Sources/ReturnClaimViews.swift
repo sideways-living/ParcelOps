@@ -190,7 +190,7 @@ struct ReturnsClaimsView: View {
 
       CompactMetadataGrid(minimumWidth: 150) {
         Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
-        Badge("\(store.wishlistLinkedOrders.count) Wishlist orders", color: .pink)
+        Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
         Badge("\(claimsLinkedToInboxOrders.count) linked claims", color: .teal)
         Badge("\(claimsNeedingAction.count) need action", color: claimsNeedingAction.isEmpty ? .green : .orange)
         Badge("\(claimsMissingEvidence.count) missing evidence", color: claimsMissingEvidence.isEmpty ? .green : .orange)
@@ -228,7 +228,7 @@ struct ReturnsClaimsView: View {
         }
       }
 
-      if store.operatorSourceOrders.isEmpty {
+      if store.operatorSourceOrderCount == 0 {
         Text("No Inbox-created or Wishlist-linked orders need return or claim checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)

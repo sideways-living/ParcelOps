@@ -282,7 +282,7 @@ struct ValidationView: View {
         }
 
         if sourceOrdersMissingSourceTrail.isEmpty {
-          Label(store.operatorSourceOrders.isEmpty ? "No Inbox-created or Wishlist-linked orders exist yet." : "All current Inbox-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
+          Label(store.operatorSourceOrderCount == 0 ? "No Inbox-created or Wishlist-linked orders exist yet." : "All current Inbox-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.green)
         } else {

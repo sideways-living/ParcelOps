@@ -195,7 +195,7 @@ struct CostsBudgetsView: View {
 
       CompactMetadataGrid(minimumWidth: 150) {
         Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
-        Badge("\(store.wishlistLinkedOrders.count) Wishlist orders", color: .pink)
+        Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
         Badge("\(costsLinkedToInboxOrders.count) linked costs", color: .teal)
         Badge("\(costsNeedingAction.count) need action", color: costsNeedingAction.isEmpty ? .green : .orange)
         Badge("\(inboxOrdersMissingCost.count) missing costs", color: inboxOrdersMissingCost.isEmpty ? .green : .orange)
@@ -233,7 +233,7 @@ struct CostsBudgetsView: View {
         }
       }
 
-      if store.operatorSourceOrders.isEmpty {
+      if store.operatorSourceOrderCount == 0 {
         Text("No Inbox-created or Wishlist-linked orders need cost checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)

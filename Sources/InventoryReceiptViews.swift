@@ -176,7 +176,7 @@ struct InventoryReceiptsView: View {
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(inboxOrders.count) Inbox orders", color: .blue)
-          Badge("\(store.wishlistLinkedOrders.count) Wishlist orders", color: .pink)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedReceipts.count) linked receipts", color: .teal)
           Badge("\(actionReceipts.count) need action", color: actionReceipts.isEmpty ? .green : .orange)
           Badge("\(missingReceiptCount) missing receipt", color: missingReceiptCount == 0 ? .green : .orange)
