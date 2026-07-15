@@ -2266,8 +2266,8 @@ struct WishlistView: View {
     let leadingEntry = entries.first { $0.count > 0 } ?? entries.first
     let activeItems = store.activeWishlistItems
     let sellerOptionCount = activeItems.reduce(0) { $0 + ($1.comparisonOptions?.count ?? 0) }
-    let openCaptureCount = store.stagedWishlistCaptureCandidates.count
-    let activeBriefCount = store.activeWishlistResearchRequests.count
+    let openCaptureCount = store.stagedWishlistCaptureCandidateCount
+    let activeBriefCount = store.activeWishlistResearchRequestCount
     let activeOrderWatchCount = store.activeWishlistOrderWatchRecords.count
 
     return SettingsPanel(title: "Wishlist next actions", symbol: "arrowshape.turn.up.right.fill") {

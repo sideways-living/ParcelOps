@@ -5978,7 +5978,7 @@ struct SettingsView: View {
   }
 
   private var wishlistItemsWaitingForAgentScopeCount: Int {
-    store.activeWishlistResearchRequests.count
+    store.activeWishlistResearchRequestCount
   }
 
   private var wishlistItemsWithPurchaseHandoffCount: Int {
@@ -5986,7 +5986,7 @@ struct SettingsView: View {
   }
 
   private var wishlistOrderWatchRecordCount: Int {
-    store.wishlistOrderWatchRecords.count
+    store.wishlistOrderWatchRecordCount
   }
 
   private var wishlistAgentReadiness: WishlistAgentReadinessSummary {

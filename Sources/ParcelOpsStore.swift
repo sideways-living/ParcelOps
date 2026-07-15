@@ -5918,12 +5918,24 @@ final class ParcelOpsStore {
     wishlistCaptureCandidates.filter { $0.reviewState != .accepted }
   }
 
+  var stagedWishlistCaptureCandidateCount: Int {
+    stagedWishlistCaptureCandidates.count
+  }
+
   var activeWishlistResearchRequests: [WishlistResearchRequest] {
     wishlistResearchRequests.filter(isActiveWishlistResearchRequest)
   }
 
+  var activeWishlistResearchRequestCount: Int {
+    activeWishlistResearchRequests.count
+  }
+
   var agentReadyWishlistResearchRequests: [WishlistResearchRequest] {
     activeWishlistResearchRequests.filter(\.isAgentBriefReady)
+  }
+
+  var agentReadyWishlistResearchRequestCount: Int {
+    agentReadyWishlistResearchRequests.count
   }
 
   var wishlistResearchAttentionRequests: [WishlistResearchRequest] {
@@ -5994,6 +6006,10 @@ final class ParcelOpsStore {
     wishlistOrderWatchRecords.filter(isActiveWishlistOrderWatchRecord)
   }
 
+  var wishlistOrderWatchRecordCount: Int {
+    wishlistOrderWatchRecords.count
+  }
+
   var openWishlistOrderWatchRecords: [WishlistOrderWatchRecord] {
     activeWishlistOrderWatchRecords.filter {
       !$0.watchStatus.localizedCaseInsensitiveContains("closed")
@@ -6002,8 +6018,8 @@ final class ParcelOpsStore {
   }
 
   var activeWishlistFollowUpCount: Int {
-    stagedWishlistCaptureCandidates.count
-      + activeWishlistResearchRequests.count
+    stagedWishlistCaptureCandidateCount
+      + activeWishlistResearchRequestCount
       + activeWishlistOrderWatchRecords.count
   }
 
