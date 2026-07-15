@@ -6804,6 +6804,14 @@ final class ParcelOpsStore {
     hasSpaceMailCredentialReadiness || hasGmailConnectedAuth
   }
 
+  var mailboxProviderSetupCount: Int {
+    spaceMailIMAPConnections.count + gmailMailboxConnections.count
+  }
+
+  var hasMailboxProviderSetup: Bool {
+    mailboxProviderSetupCount > 0
+  }
+
   var pendingSpaceMailUncertainReviewCount: Int {
     spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count }
   }

@@ -98,7 +98,7 @@ struct MailboxView: View {
         .secondary
       )
     }
-    if hasSpaceMailSetup || hasGmailSetup {
+    if store.hasMailboxProviderSetup {
       return (
         "Run the active provider refresh",
         "Choose SpaceMail for IMAP-hosted mailboxes or Gmail for Google-hosted mailboxes, then run the explicit manual read-only refresh.",
@@ -1138,7 +1138,7 @@ private struct MailboxMissedOrderInvestigationPanel: View {
   }
 
   private var hasProviderSetup: Bool {
-    !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty
+    store.hasMailboxProviderSetup
   }
 
   private var reviewPreviews: [ReviewPreview] {
@@ -3844,7 +3844,7 @@ struct NeedsReviewView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
 
-            if store.spaceMailIMAPConnections.isEmpty && store.gmailMailboxConnections.isEmpty {
+            if !store.hasMailboxProviderSetup {
               MVPEmptyState(
                 title: "No mailbox setup exists",
                 detail: "Add a SpaceMail IMAP or Gmail setup before mixed-mailbox review can show uncertain or filtered examples.",

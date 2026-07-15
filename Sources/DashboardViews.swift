@@ -2334,7 +2334,7 @@ private struct DashboardReleaseReadinessSnapshot: View {
   }
 
   private var hasMailboxSetup: Bool {
-    !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty
+    store.hasMailboxProviderSetup
   }
 
   private var hasMailboxReady: Bool {
@@ -3189,7 +3189,7 @@ struct FirstLiveMailboxTestCard: View {
   }
 
   private var hasMailboxSetup: Bool {
-    hasSpaceMailSetup || hasGmailSetup
+    store.hasMailboxProviderSetup
   }
 
   private var hasMailboxCredentialOrAuth: Bool {

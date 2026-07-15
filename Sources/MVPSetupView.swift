@@ -155,13 +155,13 @@ struct MVPRemainingWorkPanel: View {
 
   private var mailboxStatus: String {
     if hasManualMailboxRefreshEvidence { return "Manual path active" }
-    if !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty { return "Setup exists" }
+    if store.hasMailboxProviderSetup { return "Setup exists" }
     return "Setup needed"
   }
 
   private var mailboxTone: Color {
     if hasManualMailboxRefreshEvidence { return .green }
-    if !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty { return .orange }
+    if store.hasMailboxProviderSetup { return .orange }
     return .secondary
   }
 
@@ -376,7 +376,7 @@ struct MVPMailboxProviderStatusPanel: View {
 
   private var statusTitle: String {
     if manualProviderReadyCount > 0 { return "Manual mailbox intake is ready for hands-on testing" }
-    if hasSpaceMailSetup || hasGmailSetup { return "Mailbox setup exists; finish credentials or sign-in" }
+    if store.hasMailboxProviderSetup { return "Mailbox setup exists; finish credentials or sign-in" }
     return "Add one manual mailbox provider before live intake testing"
   }
 
@@ -511,7 +511,7 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
   }
 
   private var hasManualMailboxSetup: Bool {
-    hasSpaceMailSetup || hasGmailSetup
+    store.hasMailboxProviderSetup
   }
 
   private var hasManualMailboxReady: Bool {
@@ -867,7 +867,7 @@ struct MVPDevelopmentStatusPanel: View {
   }
 
   private var hasManualMailboxSetup: Bool {
-    hasSpaceMailSetup || hasGmailSetup
+    store.hasMailboxProviderSetup
   }
 
   private var hasManualMailboxReady: Bool {
@@ -1045,7 +1045,7 @@ struct MVPUsableVersionPanel: View {
   }
 
   private var hasManualMailboxSetup: Bool {
-    hasSpaceMailSetup || hasGmailSetup
+    store.hasMailboxProviderSetup
   }
 
   private var hasManualMailboxReady: Bool {
@@ -1407,7 +1407,7 @@ struct MVPDevelopmentProgressPanel: View {
   }
 
   private var hasManualMailboxSetup: Bool {
-    hasSpaceMailSetup || hasGmailSetup
+    store.hasMailboxProviderSetup
   }
 
   private var hasManualMailboxReady: Bool {
@@ -1781,7 +1781,7 @@ struct MVPHandsOnReleaseChecklist: View {
   }
 
   private var hasManualMailboxSetup: Bool {
-    hasSpaceMailSetup || hasGmailSetup
+    store.hasMailboxProviderSetup
   }
 
   private var hasManualMailboxReady: Bool {
@@ -2765,7 +2765,7 @@ struct MVPHandsOnTroubleshootingGuide: View {
   }
 
   private var hasMailboxSetup: Bool {
-    hasSpaceMailSetup || hasGmailSetup
+    store.hasMailboxProviderSetup
   }
 
   private var hasMailboxCredentialOrAuth: Bool {

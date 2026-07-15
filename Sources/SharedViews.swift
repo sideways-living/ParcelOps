@@ -2303,7 +2303,7 @@ struct OperatorMVPReadinessCard: View {
         || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
     }
     let hasGmailConnectedAuth = store.hasGmailConnectedAuth
-    let hasMailboxSetup = hasSpaceMailSetup || hasGmailSetup
+    let hasMailboxSetup = store.hasMailboxProviderSetup
     let hasMailboxCredentialOrAuth = hasSpaceMailCredential || hasGmailConnectedAuth
     let hasMailboxRefresh = store.hasMailboxManualRefreshEvidence
     let mailboxProviderLabel: String = {
@@ -5619,7 +5619,7 @@ struct SpaceMailPrimaryStatusStrip: View {
           Label(title, systemImage: "mail.stack.fill")
             .font(.headline)
           Spacer()
-          Badge("\(store.spaceMailIMAPConnections.count + store.gmailMailboxConnections.count) providers", color: color)
+          Badge("\(store.mailboxProviderSetupCount) providers", color: color)
         }
       }
 
@@ -5907,7 +5907,7 @@ struct MailboxProviderQAMatrixCard: View {
   }
 
   private var hasProviderSetup: Bool {
-    hasSpaceMailSetup || hasGmailSetup
+    store.hasMailboxProviderSetup
   }
 
   private var hasCredentialOrAuth: Bool {
@@ -6103,7 +6103,7 @@ struct OperatorSupportSnapshotCard: View {
   }
 
   private var hasMailboxProviderSetup: Bool {
-    !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty
+    store.hasMailboxProviderSetup
   }
 
   private var inboxLinkedOrderCount: Int {

@@ -231,7 +231,7 @@ struct InboxView: View {
   }
 
   private var dailyFlowSteps: [(title: String, detail: String, symbol: String, color: Color, isComplete: Bool)] {
-    let hasMailboxSetup = hasSpaceMailSetup || hasGmailSetup
+    let hasMailboxSetup = store.hasMailboxProviderSetup
     let hasMailboxAuth = (hasSpaceMailSetup && hasSpaceMailCredentialReference) || (hasGmailSetup && hasGmailConnectedAuth)
     let hasRefreshEvidence = latestSpaceMailSummary != nil || latestGmailSummary != nil
     let hasMailboxDecisionEvidence = (latestSpaceMailSummary?.importedCount ?? 0) > 0
@@ -1332,7 +1332,7 @@ private struct InboxSpaceMailDecisionGuide: View {
           ("Filtered", "\(filteredCount)", filteredCount > 0 ? .teal : .secondary),
           ("Duplicates", "\(duplicateCount)", duplicateCount > 0 ? .orange : .secondary),
           ("Parser", "\(parserIssueCount)", parserIssueCount > 0 ? .orange : .secondary),
-          ("Providers", "\(store.spaceMailIMAPConnections.count + store.gmailMailboxConnections.count)", store.spaceMailIMAPConnections.isEmpty && store.gmailMailboxConnections.isEmpty ? .secondary : .blue)
+          ("Providers", "\(store.mailboxProviderSetupCount)", !store.hasMailboxProviderSetup ? .secondary : .blue)
         ])
 
         HStack(alignment: .top, spacing: 10) {
