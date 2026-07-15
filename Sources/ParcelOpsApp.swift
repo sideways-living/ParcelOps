@@ -560,7 +560,7 @@ struct ParcelOpsRootView: View {
     case .inbox:
       return store.reviewIntakeEmails.count
         + store.intakeParserDiagnostics.count
-        + store.pendingSpaceMailUncertainReviewCount
+        + store.pendingMailboxUncertainReviewCount
         + store.importQueueItemsNeedingReview.count
         + store.blockedImportQueueItems.count
         + store.acceptanceRecordsNeedingReview.count

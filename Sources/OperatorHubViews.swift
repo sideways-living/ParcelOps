@@ -1216,7 +1216,7 @@ private struct InboxSpaceMailDecisionGuide: View {
   }
 
   private var uncertainCount: Int {
-    store.pendingSpaceMailUncertainReviewCount + store.pendingGmailUncertainMessageCount
+    store.pendingMailboxUncertainReviewCount
   }
 
   private var parserIssueCount: Int {

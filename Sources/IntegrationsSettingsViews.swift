@@ -6035,7 +6035,7 @@ struct SettingsView: View {
   }
 
   private var setupUncertainReviewCount: Int {
-    store.pendingSpaceMailUncertainReviewCount + store.pendingGmailUncertainReviewCount
+    store.pendingMailboxUncertainReviewCount
   }
 
   private var setupCompletionItems: [(title: String, detail: String, blockers: Int, destination: String, symbol: String, color: Color)] {

@@ -1847,19 +1847,20 @@ struct OperationsWorkbenchView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
+        let hasParserOrUncertainDiagnostics = !store.intakeParserDiagnostics.isEmpty || store.pendingMailboxUncertainReviewCount > 0
         MetricStrip(items: [
           ("Parser checks", "\(store.intakeParserDiagnostics.count)", store.intakeParserDiagnostics.isEmpty ? .green : .orange),
-          ("Uncertain mail", "\(store.pendingSpaceMailUncertainReviewCount + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) })", store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } || store.gmailMailboxConnections.contains { ($0.uncertainMessages?.isEmpty == false) } ? .orange : .green),
+          ("Uncertain mail", "\(store.pendingMailboxUncertainReviewCount)", store.pendingMailboxUncertainReviewCount > 0 ? .orange : .green),
           ("Filtered mail", "\(store.pendingSpaceMailFilteredReviewCount + pendingGmailFilteredReviewCount)", .teal),
           ("Inbox review", "\(store.reviewIntakeEmails.count)", store.reviewIntakeEmails.isEmpty ? .green : .teal),
           ("Primary work", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .green : .blue)
         ])
 
-        Text(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } && !store.gmailMailboxConnections.contains { $0.uncertainMessages?.isEmpty == false }
+        Text(!hasParserOrUncertainDiagnostics
           ? "No parser or uncertain-message diagnostics are currently pulling attention away from the operator queue."
           : "Use Inbox for optional parser diagnostics and Mailbox Monitor for uncertain/filtered mailbox review. Do not treat filtered non-order mail as Workbench work.")
           .font(.caption.weight(.semibold))
-          .foregroundStyle(store.intakeParserDiagnostics.isEmpty && !store.spaceMailIMAPConnections.contains { !$0.uncertainMessages.isEmpty } && !store.gmailMailboxConnections.contains { $0.uncertainMessages?.isEmpty == false } ? .green : .orange)
+          .foregroundStyle(!hasParserOrUncertainDiagnostics ? .green : .orange)
           .fixedSize(horizontal: false, vertical: true)
       }
     }
