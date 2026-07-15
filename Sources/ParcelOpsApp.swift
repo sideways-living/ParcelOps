@@ -105,8 +105,7 @@ struct ParcelOpsRootView: View {
   private var dailyAttentionCount: Int {
     store.reviewIntakeEmails.count
       + store.intakeParserDiagnostics.count
-      + store.pendingSpaceMailUncertainReviewCount
-      + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
+      + store.pendingMailboxUncertainReviewCount
       + store.importQueueItemsNeedingReview.count
       + store.blockedImportQueueItems.count
       + store.acceptanceRecordsNeedingReview.count

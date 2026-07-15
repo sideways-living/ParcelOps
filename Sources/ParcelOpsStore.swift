@@ -6764,8 +6764,8 @@ final class ParcelOpsStore {
   }
 
   var latestMailboxUncertainCount: Int {
-    (latestSpaceMailIntakeHealthSummary?.pendingUncertainReviewCount ?? latestSpaceMailIntakeHealthSummary?.uncertainCount ?? 0)
-      + (latestGmailIntakeHealthSummary?.pendingUncertainReviewCount ?? latestGmailIntakeHealthSummary?.uncertainCount ?? 0)
+    (latestSpaceMailIntakeHealthSummary?.totalUncertainCount ?? 0)
+      + (latestGmailIntakeHealthSummary?.totalUncertainCount ?? 0)
   }
 
   var hasSpaceMailCredentialReference: Bool {
@@ -6802,6 +6802,10 @@ final class ParcelOpsStore {
 
   var pendingGmailUncertainMessageCount: Int {
     gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
+  }
+
+  var pendingMailboxUncertainReviewCount: Int {
+    pendingSpaceMailUncertainReviewCount + pendingGmailUncertainReviewCount
   }
 
   var pendingGmailReviewSignalCount: Int {
@@ -12549,7 +12553,7 @@ final class ParcelOpsStore {
     let incompleteQA = qa.checks.filter { !$0.isComplete }.map { "QA: \($0.title) - \($0.evidence)" }
     let latestSpaceMail = spaceMailIntakeHealthSummaries.first
     let refreshLine = latestSpaceMail.map {
-      "Latest SpaceMail refresh: \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateCount) duplicate, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain."
+      "Latest SpaceMail refresh: \($0.compactRefreshCountsText)."
     } ?? "Latest SpaceMail refresh: no summary available."
     let handoffLine = "Current handoff: \(inboxCreatedOrders.count) Inbox-created orders, \(Set(intakeEmails.compactMap(\.linkedOrderID)).count) linked intake sources, \(openWorkbenchItems.count) open Workbench items, \(reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count) task/handoff items."
     let summaryLines = [

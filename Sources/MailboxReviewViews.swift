@@ -1458,7 +1458,7 @@ private struct MailboxProviderRefreshSummaryGrid: View {
             duplicateRefreshed: $0.duplicateRefreshedCount,
             duplicateNoChange: $0.duplicateNoChangeCount,
             filtered: $0.filteredCount,
-            uncertain: $0.pendingUncertainReviewCount + $0.uncertainCount,
+            uncertain: $0.totalUncertainCount,
             lastRefresh: $0.lastRefreshDate
           )
         },
@@ -1481,7 +1481,7 @@ private struct MailboxProviderRefreshSummaryGrid: View {
             duplicateRefreshed: $0.duplicateRefreshedCount,
             duplicateNoChange: $0.duplicateNoChangeCount,
             filtered: $0.filteredCount,
-            uncertain: $0.pendingUncertainReviewCount + $0.uncertainCount,
+            uncertain: $0.totalUncertainCount,
             lastRefresh: $0.lastRefreshDate
           )
         },
@@ -1595,7 +1595,7 @@ private struct MailboxReviewStartPanel: View {
   }
 
   private var gmailUncertainCount: Int {
-    store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
+    store.pendingGmailUncertainReviewCount
   }
 
   private var gmailWarningCount: Int {
@@ -2250,7 +2250,7 @@ struct MailboxGmailReadinessPanel: View {
   }
 
   private var pendingUncertainCount: Int {
-    store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
+    store.pendingGmailUncertainReviewCount
   }
 
   private var warningCount: Int {
@@ -3446,8 +3446,7 @@ struct NeedsReviewView: View {
       + store.blockedImportQueueItems.count
       + store.reviewOrders.count
       + store.reviewMailEvents.count
-      + store.pendingSpaceMailUncertainReviewCount
-      + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
+      + store.pendingMailboxUncertainReviewCount
       + store.reviewIntakeEmails.count
       + store.reviewEvidenceAttachments.count
       + store.reviewCarrierTrackingEvents.count

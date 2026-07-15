@@ -1465,8 +1465,7 @@ struct MVPDevelopmentProgressPanel: View {
   private var openOperationalNoiseCount: Int {
     store.reviewIntakeEmails.count
       + store.intakeParserDiagnostics.count
-      + store.pendingSpaceMailUncertainReviewCount
-      + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
+      + store.pendingMailboxUncertainReviewCount
       + store.openWorkbenchItems.count
       + store.reviewTasksNeedingAttention.count
       + store.handoffNotesNeedingAttention.count

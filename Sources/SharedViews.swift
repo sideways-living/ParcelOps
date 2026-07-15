@@ -7367,8 +7367,7 @@ struct ActiveOperatorQueueFocusCard: View {
   }
 
   private var uncertainProviderCount: Int {
-    store.pendingSpaceMailUncertainReviewCount
-      + store.gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
+    store.pendingMailboxUncertainReviewCount
   }
 
   private var filteredProviderCount: Int {
