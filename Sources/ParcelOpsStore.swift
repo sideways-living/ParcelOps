@@ -6659,6 +6659,20 @@ final class ParcelOpsStore {
     return gaps
   }
 
+  func wishlistOrderDetailDispatchSummary(for item: WishlistItem) -> (title: String, detail: String, tone: String, missingManifest: Bool, missingReadiness: Bool) {
+    let manifestCount = suggestedShipmentManifestRecords(for: item).count
+    let readinessCount = suggestedDispatchReadinessChecklists(for: item).count
+    let missingManifest = manifestCount == 0
+    let missingReadiness = readinessCount == 0
+    return (
+      missingManifest || missingReadiness ? "Wishlist dispatch setup needs staging" : "Wishlist dispatch setup is staged",
+      "Manifest links: \(manifestCount) • readiness links: \(readinessCount)",
+      missingManifest || missingReadiness ? "warning" : "success",
+      missingManifest,
+      missingReadiness
+    )
+  }
+
   func wishlistReleaseBlockers(for item: WishlistItem) -> [String] {
     let options = item.comparisonOptions ?? []
     let preferred = item.preferredOptionID.flatMap { preferredID in

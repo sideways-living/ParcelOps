@@ -601,14 +601,6 @@ private struct OrderWishlistSourceRow: View {
     item.purchaseHandoff
   }
 
-  private var manifests: [ShipmentManifestRecord] {
-    store.suggestedShipmentManifestRecords(for: item)
-  }
-
-  private var checklists: [DispatchReadinessChecklist] {
-    store.suggestedDispatchReadinessChecklists(for: item)
-  }
-
   private var hasLinkedOrder: Bool {
     handoff?.linkedOrderID != nil
   }
@@ -655,28 +647,27 @@ private struct OrderWishlistSourceRow: View {
 
   @ViewBuilder
   private var wishlistDispatchStatus: some View {
-    let missingManifest = manifests.isEmpty
-    let missingReadiness = checklists.isEmpty
+    let summary = store.wishlistOrderDetailDispatchSummary(for: item)
 
     VStack(alignment: .leading, spacing: 5) {
-      Text(missingManifest || missingReadiness ? "Wishlist dispatch setup needs staging" : "Wishlist dispatch setup is staged")
+      Text(summary.title)
         .font(.caption2.weight(.semibold))
-        .foregroundStyle(missingManifest || missingReadiness ? .orange : .green)
+        .foregroundStyle(wishlistDispatchStatusColor(summary.tone))
         .fixedSize(horizontal: false, vertical: true)
-      Text("Manifest links: \(manifests.count) • readiness links: \(checklists.count)")
+      Text(summary.detail)
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
 
-      if missingManifest || missingReadiness {
+      if summary.missingManifest || summary.missingReadiness {
         CompactActionRow {
-          if missingManifest {
+          if summary.missingManifest {
             Button("Stage manifest", systemImage: "list.bullet.clipboard.fill") {
               store.createWishlistShipmentManifest(item)
               onFeedback("Wishlist dispatch manifest staged locally from order detail. No retailer, payment, carrier, mailbox, or external service was contacted.")
             }
           }
-          if missingReadiness {
+          if summary.missingReadiness {
             Button("Stage readiness", systemImage: "checkmark.rectangle.stack.fill") {
               store.createWishlistDispatchReadinessChecklist(item)
               onFeedback("Wishlist dispatch readiness checklist staged locally from order detail. Check Dispatch for the outbound queue.")
@@ -688,6 +679,14 @@ private struct OrderWishlistSourceRow: View {
       }
     }
     .padding(.top, 2)
+  }
+
+  private func wishlistDispatchStatusColor(_ tone: String) -> Color {
+    switch tone {
+    case "warning": return .orange
+    case "success": return .green
+    default: return .secondary
+    }
   }
 }
 
