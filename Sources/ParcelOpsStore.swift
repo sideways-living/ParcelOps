@@ -6455,6 +6455,17 @@ final class ParcelOpsStore {
     }
   }
 
+  func wishlistPurchaseReadinessTone(for item: WishlistItem) -> String {
+    switch wishlistPurchaseReadinessPriority(for: item) {
+    case 10: return "setup"
+    case 20, 30: return "warning"
+    case 35: return "critical"
+    case 40, 50, 60: return "decision"
+    case 70: return "handoff"
+    default: return "success"
+    }
+  }
+
   func runWishlistPurchaseReadinessAction(for item: WishlistItem) {
     switch wishlistPurchaseReadinessPriority(for: item) {
     case 10:

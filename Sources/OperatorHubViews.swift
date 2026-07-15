@@ -385,13 +385,18 @@ struct InboxView: View {
   }
 
   private func wishlistPurchaseReadinessColor(for item: WishlistItem) -> Color {
-    switch wishlistPurchaseReadinessPriority(for: item) {
-    case 10: return .blue
-    case 20, 30: return .orange
-    case 35: return .red
-    case 40, 50, 60: return .purple
-    case 70: return .teal
-    default: return .green
+    wishlistPurchaseReadinessToneColor(store.wishlistPurchaseReadinessTone(for: item))
+  }
+
+  private func wishlistPurchaseReadinessToneColor(_ tone: String) -> Color {
+    switch tone {
+    case "setup": return .blue
+    case "warning": return .orange
+    case "critical": return .red
+    case "decision": return .purple
+    case "handoff": return .teal
+    case "success": return .green
+    default: return .secondary
     }
   }
 
