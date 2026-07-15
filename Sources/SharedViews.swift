@@ -2305,8 +2305,7 @@ struct OperatorMVPReadinessCard: View {
     let hasGmailConnectedAuth = store.hasGmailConnectedAuth
     let hasMailboxSetup = hasSpaceMailSetup || hasGmailSetup
     let hasMailboxCredentialOrAuth = hasSpaceMailCredential || hasGmailConnectedAuth
-    let hasMailboxRefresh = store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
-      || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    let hasMailboxRefresh = store.hasMailboxManualRefreshEvidence
     let mailboxProviderLabel: String = {
       switch (hasSpaceMailSetup, hasGmailSetup) {
       case (true, true): return "SpaceMail and Gmail"

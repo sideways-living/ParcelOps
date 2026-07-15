@@ -6768,6 +6768,19 @@ final class ParcelOpsStore {
       + (latestGmailIntakeHealthSummary?.totalUncertainCount ?? 0)
   }
 
+  var hasMailboxManualRefreshEvidence: Bool {
+    spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  var hasLatestMailboxFetchEvidence: Bool {
+    latestMailboxFetchedCount > 0
+  }
+
+  var hasMailboxRefreshEvidence: Bool {
+    hasMailboxManualRefreshEvidence || hasLatestMailboxFetchEvidence
+  }
+
   var hasSpaceMailCredentialReference: Bool {
     spaceMailIMAPConnections.contains {
       $0.credentialStorageStatus == SpaceMailCredentialStoreStatus.passwordReferenceAvailable.rawValue

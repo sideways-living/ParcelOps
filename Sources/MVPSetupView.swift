@@ -523,8 +523,7 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
   }
 
   private var hasLiveRefreshEvidence: Bool {
-    (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
-      || (latestGmailSummary?.fetchedCount ?? 0) > 0
+    store.hasLatestMailboxFetchEvidence
   }
 
   private var hasInboxOrderHandoff: Bool {
@@ -1427,10 +1426,7 @@ struct MVPDevelopmentProgressPanel: View {
   }
 
   private var hasRefreshEvidence: Bool {
-    (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
-      || store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
-      || (latestGmailSummary?.fetchedCount ?? 0) > 0
-      || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    store.hasMailboxRefreshEvidence
   }
 
   private var latestManualFetchedCount: Int {

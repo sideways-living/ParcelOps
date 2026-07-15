@@ -2687,8 +2687,7 @@ struct MVPHandsOnDashboardStatus: View {
   }
 
   private var hasManualRefresh: Bool {
-    store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
-      || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    store.hasMailboxManualRefreshEvidence
   }
 
   private var manualMailboxRefreshCount: Int {
@@ -3229,10 +3228,7 @@ struct FirstLiveMailboxTestCard: View {
   }
 
   private var hasRealRefresh: Bool {
-    store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
-      || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
-      || (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
-      || (latestGmailSummary?.fetchedCount ?? 0) > 0
+    store.hasMailboxRefreshEvidence
   }
 
   private var hasImportEvidence: Bool {
