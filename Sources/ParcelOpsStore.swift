@@ -6339,10 +6339,18 @@ final class ParcelOpsStore {
     }
   }
 
+  var activeWishlistReviewTaskCount: Int {
+    activeWishlistReviewTasks.count
+  }
+
   var activeWishlistHandoffNotes: [HandoffNote] {
     handoffNotes.filter {
       isActiveWishlistHandoff($0) && ($0.status != .completed || $0.reviewState != .accepted)
     }
+  }
+
+  var activeWishlistHandoffNoteCount: Int {
+    activeWishlistHandoffNotes.count
   }
 
   var activeWishlistDraftMessages: [DraftMessage] {
@@ -6353,10 +6361,14 @@ final class ParcelOpsStore {
     }
   }
 
+  var activeWishlistDraftMessageCount: Int {
+    activeWishlistDraftMessages.count
+  }
+
   var wishlistTaskActionCount: Int {
-    activeWishlistReviewTasks.count
-      + activeWishlistHandoffNotes.count
-      + activeWishlistDraftMessages.count
+    activeWishlistReviewTaskCount
+      + activeWishlistHandoffNoteCount
+      + activeWishlistDraftMessageCount
       + wishlistPurchasePacketNeededItemCount
       + wishlistNeedsHandoffItemCount
       + wishlistAwaitingOrderItemCount
