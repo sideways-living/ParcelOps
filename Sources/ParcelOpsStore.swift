@@ -6186,6 +6186,123 @@ final class ParcelOpsStore {
       + wishlistLinkedOrderDispatchGapItems.count
   }
 
+  var wishlistDashboardAttentionItems: [WishlistItem] {
+    activeWishlistItems.filter { item in
+      item.status.localizedCaseInsensitiveContains("purchase blocked")
+        || item.status.localizedCaseInsensitiveContains("handoff")
+        || item.status.localizedCaseInsensitiveContains("awaiting order")
+        || item.status.localizedCaseInsensitiveContains("confirmation")
+        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("blocker")
+        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("review")
+        || wishlistSellerEvidenceGapCount(for: item) > 0
+        || wishlistNeedsPurchaseDecision(item)
+        || !wishlistHandoffPackGaps(for: item).isEmpty
+        || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
+    }
+  }
+
+  var wishlistReadyPurchaseItems: [WishlistItem] {
+    activeWishlistItems.filter { item in
+      item.status.localizedCaseInsensitiveContains("ready to purchase")
+        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("ready for purchase")
+    }
+  }
+
+  var wishlistAttentionBlockerSummary: String {
+    if wishlistBatchBriefNeeded {
+      return "batch research brief needed (\(agentReadyWishlistResearchRequests.count))"
+    }
+    if !wishlistPurchasePacketNeededItems.isEmpty {
+      return "purchase packet needed (\(wishlistPurchasePacketNeededItems.count))"
+    }
+    if !wishlistReadinessBlockedItems.isEmpty {
+      let criticalPrefix = wishlistReadinessCriticalItems.isEmpty ? "" : "\(wishlistReadinessCriticalItems.count) critical, "
+      return "\(criticalPrefix)\(wishlistReadinessBlockedItems.count) readiness-blocked"
+    }
+    if !wishlistPurchasedNeedsOrderLinkItems.isEmpty {
+      return "purchased needs order link (\(wishlistPurchasedNeedsOrderLinkItems.count))"
+    }
+    if !wishlistLinkedOrderDispatchGapItems.isEmpty {
+      let manifestGaps = wishlistLinkedOrderDispatchGapItems.filter { suggestedShipmentManifestRecords(for: $0).isEmpty }.count
+      let checklistGaps = wishlistLinkedOrderDispatchGapItems.filter { suggestedDispatchReadinessChecklists(for: $0).isEmpty }.count
+      return "linked order dispatch setup: manifest \(manifestGaps), readiness \(checklistGaps)"
+    }
+    if !wishlistHandoffSanityBlockedItems.isEmpty {
+      let grouped = Dictionary(grouping: wishlistHandoffSanityBlockedItems.flatMap { wishlistHandoffSanityGaps(for: $0) }, by: { $0 })
+        .map { (label: $0.key, count: $0.value.count) }
+        .sorted {
+          if $0.count == $1.count { return $0.label < $1.label }
+          return $0.count > $1.count
+        }
+        .prefix(2)
+        .map { "\($0.label) (\($0.count))" }
+        .joined(separator: ", ")
+      return grouped.isEmpty ? "handoff sanity check" : "handoff sanity: \(grouped)"
+    }
+    let blockers = wishlistDashboardAttentionItems.flatMap { item -> [String] in
+      var labels = item.operatorPurchaseBlockers
+      if wishlistSellerEvidenceGapCount(for: item) > 0 {
+        labels.append("seller evidence")
+      }
+      if wishlistNeedsPurchaseDecision(item) {
+        labels.append("purchase decision")
+      }
+      labels.append(contentsOf: wishlistHandoffPackGaps(for: item).map { "handoff \($0)" })
+      return labels
+    }
+    if !wishlistResearchAttentionRequests.isEmpty {
+      let gaps = wishlistResearchAttentionRequests.flatMap(\.agentBriefGaps)
+      let grouped = Dictionary(grouping: gaps, by: { $0 })
+        .map { (label: $0.key, count: $0.value.count) }
+        .sorted {
+          if $0.count == $1.count { return $0.label < $1.label }
+          return $0.count > $1.count
+        }
+        .prefix(2)
+        .map { "\($0.label) (\($0.count))" }
+        .joined(separator: ", ")
+      return grouped.isEmpty ? "review agent research briefs" : "research scope: \(grouped)"
+    }
+    guard !blockers.isEmpty else {
+      if !wishlistReleaseReadyItems.isEmpty { return "ready handoff (\(wishlistReleaseReadyItems.count))" }
+      return "review purchase release, handoff, or order confirmation"
+    }
+    let grouped = Dictionary(grouping: blockers, by: { $0 })
+      .map { (label: $0.key, count: $0.value.count) }
+      .sorted {
+        if $0.count == $1.count { return $0.label < $1.label }
+        return $0.count > $1.count
+      }
+      .prefix(3)
+      .map { "\($0.label) (\($0.count))" }
+      .joined(separator: ", ")
+    return grouped.isEmpty ? "review purchase release, handoff, or order confirmation" : grouped
+  }
+
+  var wishlistDashboardNextAction: String {
+    if wishlistDashboardAttentionItems.isEmpty && wishlistResearchAttentionRequests.isEmpty {
+      if wishlistBatchBriefNeeded { return "Create batch research brief" }
+      if !wishlistPurchasePacketNeededItems.isEmpty { return "Create Wishlist purchase packet" }
+      if !wishlistPurchasedNeedsOrderLinkItems.isEmpty { return "Link purchased Wishlist orders" }
+      if !wishlistLinkedOrderDispatchGapItems.isEmpty { return "Stage Wishlist dispatch setup" }
+      if !wishlistHandoffSanityBlockedItems.isEmpty { return "Complete purchase handoff sanity checks" }
+      if !wishlistReleaseReadyItems.isEmpty { return "Review ready purchase handoffs" }
+      return wishlistReadyPurchaseItems.isEmpty ? "No wishlist purchase follow-up" : "Review ready-to-buy items"
+    }
+    return "Clear: \(wishlistAttentionBlockerSummary)"
+  }
+
+  var wishlistDashboardCardDetail: String {
+    let readiness = wishlistAgentReadinessSummary
+    if wishlistDailyAttentionCount == 0 {
+      if wishlistBatchBriefNeeded {
+        return "\(agentReadyWishlistResearchRequests.count) agent-ready research brief\(agentReadyWishlistResearchRequests.count == 1 ? "" : "s") need one batch packet. Agent verdict: \(readiness.verdict)."
+      }
+      return "\(readiness.verdict). Purchase packets: \(wishlistPurchasePacketDrafts.count) drafted. Release checklist: \(wishlistReleaseReadyItems.count) ready handoff, \(wishlistReleaseBlockedItems.count) blocked, \(wishlistReleaseOrderWatchItems.count) watching for order confirmation."
+    }
+    return "Top blockers: \(wishlistAttentionBlockerSummary). Readiness checks: \(wishlistReadinessBlockedItems.count), purchase packets: \(wishlistPurchasePacketNeededItems.count), order links: \(wishlistPurchasedNeedsOrderLinkItems.count), dispatch setup: \(wishlistLinkedOrderDispatchGapItems.count), closure trail: \(readiness.operationsClosureGapCount)."
+  }
+
   var wishlistOrderWatchItems: [WishlistItem] {
     activeWishlistItems
       .filter { item in
