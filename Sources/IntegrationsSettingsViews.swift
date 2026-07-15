@@ -5687,8 +5687,7 @@ struct SettingsReleaseCandidateCard: View {
   }
 
   private var manualRefreshCount: Int {
-    store.spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count
-      + store.gmailMailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+    store.mailboxManualRefreshCount
   }
 
   private var unresolvedOperatorCount: Int {
@@ -5920,8 +5919,7 @@ struct SettingsView: View {
   }
 
   private var settingsManualRefreshCount: Int {
-    store.spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count
-      + store.gmailMailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+    store.mailboxManualRefreshCount
   }
 
   private var latestManualMailboxFetchedCount: Int {

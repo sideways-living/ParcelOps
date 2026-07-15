@@ -6815,6 +6815,11 @@ final class ParcelOpsStore {
       || gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
   }
 
+  var mailboxManualRefreshCount: Int {
+    spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+      + gmailMailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+  }
+
   var hasLatestMailboxFetchEvidence: Bool {
     latestMailboxFetchedCount > 0
   }

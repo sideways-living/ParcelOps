@@ -2681,8 +2681,7 @@ struct MVPHandsOnDashboardStatus: View {
   }
 
   private var manualMailboxRefreshCount: Int {
-    store.spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count
-      + store.gmailMailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+    store.mailboxManualRefreshCount
   }
 
   private var blockedDailyCount: Int {
