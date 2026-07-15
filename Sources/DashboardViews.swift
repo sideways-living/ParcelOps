@@ -611,35 +611,8 @@ struct DashboardView: View {
   private var operatorWorkbenchReviewItems: [WorkbenchItem] {
     operatorWorkbenchItems.filter { $0.reviewState == .needsReview }
   }
-  private var wishlistAttentionItems: [WishlistItem] {
-    store.wishlistDashboardAttentionItems
-  }
-  private var wishlistReadinessBlockedItems: [WishlistItem] {
-    store.wishlistReadinessBlockedItems
-  }
   private var wishlistReleaseReadyItems: [WishlistItem] {
     store.wishlistReleaseReadyItems
-  }
-  private var wishlistHandoffSanityBlockedItems: [WishlistItem] {
-    store.wishlistHandoffSanityBlockedItems
-  }
-  private var wishlistPurchasedNeedsOrderLinkItems: [WishlistItem] {
-    store.wishlistPurchasedNeedsOrderLinkItems
-  }
-  private var wishlistLinkedOrderDispatchGapItems: [WishlistItem] {
-    store.wishlistLinkedOrderDispatchGapItems
-  }
-  private var wishlistResearchAttentionRequests: [WishlistResearchRequest] {
-    store.wishlistResearchAttentionRequests
-  }
-  private var wishlistAgentReadyResearchRequests: [WishlistResearchRequest] {
-    store.agentReadyWishlistResearchRequests
-  }
-  private var wishlistBatchBriefNeeded: Bool {
-    store.wishlistBatchBriefNeeded
-  }
-  private var wishlistPurchasePacketNeededItems: [WishlistItem] {
-    store.wishlistPurchasePacketNeededItems
   }
   private var wishlistAgentReadiness: WishlistAgentReadinessSummary {
     store.wishlistAgentReadinessSummary
@@ -662,11 +635,11 @@ struct DashboardView: View {
       return .secondary
     }
   }
-  private var wishlistAttentionBlockerSummary: String {
-    store.wishlistAttentionBlockerSummary
-  }
   private var wishlistDashboardNextAction: String {
     store.wishlistDashboardNextAction
+  }
+  private var wishlistDashboardAttentionInsight: String? {
+    store.wishlistDashboardAttentionInsight
   }
   private var attentionNowCount: Int {
     incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount + wishlistDailyAttentionCount
@@ -754,26 +727,8 @@ struct DashboardView: View {
     if dispatchAttentionCount > 0 {
       return "\(dispatchAttentionCount) dispatch item needs preparation, readiness review, or blocked-manifest follow-up."
     }
-    if wishlistBatchBriefNeeded {
-      return "\(wishlistAgentReadyResearchRequests.count) Wishlist research brief\(wishlistAgentReadyResearchRequests.count == 1 ? "" : "s") are agent-ready and need one local batch packet before external comparison work."
-    }
-    if !wishlistPurchasePacketNeededItems.isEmpty {
-      return "\(wishlistPurchasePacketNeededItems.count) Wishlist item\(wishlistPurchasePacketNeededItems.count == 1 ? "" : "s") with seller options need a local purchase packet draft before any manual buying."
-    }
-    if !wishlistReadinessBlockedItems.isEmpty {
-      return "\(wishlistReadinessBlockedItems.count) Wishlist purchase readiness check\(wishlistReadinessBlockedItems.count == 1 ? "" : "s") need review before a buy decision."
-    }
-    if !wishlistPurchasedNeedsOrderLinkItems.isEmpty {
-      return "\(wishlistPurchasedNeedsOrderLinkItems.count) purchased Wishlist item\(wishlistPurchasedNeedsOrderLinkItems.count == 1 ? "" : "s") need an order link so delivery tracking can continue."
-    }
-    if !wishlistLinkedOrderDispatchGapItems.isEmpty {
-      return "\(wishlistLinkedOrderDispatchGapItems.count) linked Wishlist order\(wishlistLinkedOrderDispatchGapItems.count == 1 ? "" : "s") need local manifest or dispatch readiness setup before outbound handoff is treated as ready."
-    }
-    if !wishlistHandoffSanityBlockedItems.isEmpty {
-      return "\(wishlistHandoffSanityBlockedItems.count) Wishlist purchase handoff\(wishlistHandoffSanityBlockedItems.count == 1 ? "" : "s") need account, cost, receiving, or order-watch context."
-    }
-    if !wishlistAttentionItems.isEmpty {
-      return "\(wishlistAttentionItems.count) wishlist item\(wishlistAttentionItems.count == 1 ? "" : "s") need follow-up: \(wishlistAttentionBlockerSummary)."
+    if let wishlistDashboardAttentionInsight {
+      return wishlistDashboardAttentionInsight
     }
     if taskAttentionCount > 0 {
       return "\(taskAttentionCount) task, handoff, or draft message needs ownership, completion, local send status, or review."

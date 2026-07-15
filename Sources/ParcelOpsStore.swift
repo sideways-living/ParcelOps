@@ -6317,6 +6317,31 @@ final class ParcelOpsStore {
     return "Clear: \(wishlistAttentionBlockerSummary)"
   }
 
+  var wishlistDashboardAttentionInsight: String? {
+    if wishlistBatchBriefNeeded {
+      return "\(agentReadyWishlistResearchRequests.count) Wishlist research brief\(agentReadyWishlistResearchRequests.count == 1 ? "" : "s") are agent-ready and need one local batch packet before external comparison work."
+    }
+    if !wishlistPurchasePacketNeededItems.isEmpty {
+      return "\(wishlistPurchasePacketNeededItems.count) Wishlist item\(wishlistPurchasePacketNeededItems.count == 1 ? "" : "s") with seller options need a local purchase packet draft before any manual buying."
+    }
+    if !wishlistReadinessBlockedItems.isEmpty {
+      return "\(wishlistReadinessBlockedItems.count) Wishlist purchase readiness check\(wishlistReadinessBlockedItems.count == 1 ? "" : "s") need review before a buy decision."
+    }
+    if !wishlistPurchasedNeedsOrderLinkItems.isEmpty {
+      return "\(wishlistPurchasedNeedsOrderLinkItems.count) purchased Wishlist item\(wishlistPurchasedNeedsOrderLinkItems.count == 1 ? "" : "s") need an order link so delivery tracking can continue."
+    }
+    if !wishlistLinkedOrderDispatchGapItems.isEmpty {
+      return "\(wishlistLinkedOrderDispatchGapItems.count) linked Wishlist order\(wishlistLinkedOrderDispatchGapItems.count == 1 ? "" : "s") need local manifest or dispatch readiness setup before outbound handoff is treated as ready."
+    }
+    if !wishlistHandoffSanityBlockedItems.isEmpty {
+      return "\(wishlistHandoffSanityBlockedItems.count) Wishlist purchase handoff\(wishlistHandoffSanityBlockedItems.count == 1 ? "" : "s") need account, cost, receiving, or order-watch context."
+    }
+    if !wishlistDashboardAttentionItems.isEmpty {
+      return "\(wishlistDashboardAttentionItems.count) wishlist item\(wishlistDashboardAttentionItems.count == 1 ? "" : "s") need follow-up: \(wishlistAttentionBlockerSummary)."
+    }
+    return nil
+  }
+
   var wishlistDashboardCardDetail: String {
     let readiness = wishlistAgentReadinessSummary
     if wishlistDailyAttentionCount == 0 {
