@@ -6473,6 +6473,16 @@ final class ParcelOpsStore {
     return gaps
   }
 
+  func wishlistHandoffSanityDetail(for item: WishlistItem) -> String {
+    let gaps = wishlistHandoffSanityGaps(for: item)
+    let seller = item.purchaseHandoff?.sellerName
+      ?? item.purchaseDecision?.selectedSellerName
+      ?? item.storefront
+    let status = item.purchaseHandoff?.purchaseStatus ?? item.status
+    let sellerText = seller.isPlaceholderValidationValue ? "seller not confirmed" : seller
+    return "\(status) with \(gaps.joined(separator: ", ")) missing. Seller route: \(sellerText)."
+  }
+
   func wishlistLinkedOrderDispatchGaps(for item: WishlistItem) -> [String] {
     guard item.purchaseHandoff?.linkedOrderID != nil else { return [] }
     var gaps: [String] = []

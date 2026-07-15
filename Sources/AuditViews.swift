@@ -1261,13 +1261,7 @@ struct AuditView: View {
   }
 
   private func wishlistHandoffSanityDetail(for item: WishlistItem) -> String {
-    let gaps = wishlistHandoffSanityGaps(for: item)
-    let seller = item.purchaseHandoff?.sellerName
-      ?? item.purchaseDecision?.selectedSellerName
-      ?? item.storefront
-    let status = item.purchaseHandoff?.purchaseStatus ?? item.status
-    let sellerText = seller.isPlaceholderValidationValue ? "seller not confirmed" : seller
-    return "\(status) with \(gaps.joined(separator: ", ")) missing. Seller route: \(sellerText)."
+    store.wishlistHandoffSanityDetail(for: item)
   }
 }
 
