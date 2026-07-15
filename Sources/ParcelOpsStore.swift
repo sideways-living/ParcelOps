@@ -5964,6 +5964,10 @@ final class ParcelOpsStore {
     }
   }
 
+  var wishlistResearchAttentionRequestCount: Int {
+    wishlistResearchAttentionRequests.count
+  }
+
   var wishlistBatchResearchDrafts: [DraftMessage] {
     draftMessages.filter {
       $0.linkedEntityType == .wishlistItem
@@ -5971,17 +5975,21 @@ final class ParcelOpsStore {
     }
   }
 
+  var wishlistBatchResearchDraftCount: Int {
+    wishlistBatchResearchDrafts.count
+  }
+
   var wishlistBatchBriefNeeded: Bool {
-    !agentReadyWishlistResearchRequests.isEmpty && wishlistBatchResearchDrafts.isEmpty
+    agentReadyWishlistResearchRequestCount > 0 && wishlistBatchResearchDraftCount == 0
   }
 
   var wishlistWorkbenchPurchaseFollowUpVisible: Bool {
     wishlistTaskContextItemCount > 0
-      || !wishlistResearchAttentionRequests.isEmpty
+      || wishlistResearchAttentionRequestCount > 0
       || wishlistBatchBriefNeeded
-      || !wishlistBatchResearchDrafts.isEmpty
+      || wishlistBatchResearchDraftCount > 0
       || wishlistPurchasePacketNeededItemCount > 0
-      || !wishlistPurchasePacketDrafts.isEmpty
+      || wishlistPurchasePacketDraftCount > 0
   }
 
   var wishlistBatchBriefWorkbenchTitle: String {
@@ -5990,7 +5998,7 @@ final class ParcelOpsStore {
 
   var wishlistBatchBriefWorkbenchDetail: String {
     if wishlistBatchBriefNeeded {
-      return "\(agentReadyWishlistResearchRequests.count) agent-ready Wishlist research brief\(agentReadyWishlistResearchRequests.count == 1 ? "" : "s") can be combined into one local packet before future comparison work."
+      return "\(agentReadyWishlistResearchRequestCount) agent-ready Wishlist research brief\(agentReadyWishlistResearchRequestCount == 1 ? "" : "s") can be combined into one local packet before future comparison work."
     }
     return "Latest batch draft is ready for review in Drafts/Tasks. It remains local and does not run an external agent or retailer search."
   }
@@ -6013,9 +6021,9 @@ final class ParcelOpsStore {
       ("Dispatch setup", "\(wishlistLinkedOrderDispatchGapItemCount)", wishlistLinkedOrderDispatchGapItemCount == 0 ? "success" : "dispatch"),
       ("Closure trail", "\(wishlistAgentReadinessSummary.operationsClosureGapCount)", wishlistAgentReadinessSummary.operationsClosureGapCount == 0 ? "success" : "warning"),
       ("Purchase packets", "\(wishlistPurchasePacketNeededItemCount)", wishlistPurchasePacketNeededItemCount == 0 ? "success" : "packet"),
-      ("Packet drafts", "\(wishlistPurchasePacketDrafts.count)", wishlistPurchasePacketDrafts.isEmpty ? "muted" : "dispatch"),
-      ("Brief gaps", "\(wishlistResearchAttentionRequests.count)", wishlistResearchAttentionRequests.isEmpty ? "success" : "warning"),
-      ("Batch brief", "\(wishlistBatchResearchDrafts.count)", wishlistBatchBriefWorkbenchTone),
+      ("Packet drafts", "\(wishlistPurchasePacketDraftCount)", wishlistPurchasePacketDraftCount == 0 ? "muted" : "dispatch"),
+      ("Brief gaps", "\(wishlistResearchAttentionRequestCount)", wishlistResearchAttentionRequestCount == 0 ? "success" : "warning"),
+      ("Batch brief", "\(wishlistBatchResearchDraftCount)", wishlistBatchBriefWorkbenchTone),
       ("Evidence", "\(wishlistWorkbenchEvidenceIssueCount)", wishlistWorkbenchEvidenceIssueCount > 0 ? "warning" : "success"),
       ("Decision", "\(wishlistWorkbenchDecisionIssueCount)", wishlistWorkbenchDecisionIssueCount > 0 ? "decisionMuted" : "success"),
       ("Handoff gaps", "\(wishlistWorkbenchHandoffGapItemCount)", wishlistWorkbenchHandoffGapItemCount > 0 ? "attention" : "success")
@@ -6210,6 +6218,10 @@ final class ParcelOpsStore {
     }
   }
 
+  var wishlistPurchasePacketDraftCount: Int {
+    wishlistPurchasePacketDrafts.count
+  }
+
   var wishlistPurchasePacketNeededItems: [WishlistItem] {
     activeWishlistItems.filter(wishlistNeedsPurchasePacket)
   }
@@ -6242,7 +6254,7 @@ final class ParcelOpsStore {
 
   var wishlistWorkbenchFollowUpCount: Int {
     wishlistTaskContextItemCount
-      + wishlistResearchAttentionRequests.count
+      + wishlistResearchAttentionRequestCount
       + wishlistPurchasePacketNeededItemCount
       + (wishlistBatchBriefNeeded ? 1 : 0)
   }
@@ -6311,7 +6323,7 @@ final class ParcelOpsStore {
 
   var wishlistDailyAttentionCount: Int {
     wishlistTaskContextItemCount
-      + wishlistResearchAttentionRequests.count
+      + wishlistResearchAttentionRequestCount
       + wishlistReadinessBlockedItemCount
       + wishlistHandoffSanityBlockedItemCount
       + wishlistLinkedOrderDispatchGapItemCount
@@ -6383,7 +6395,7 @@ final class ParcelOpsStore {
 
   var wishlistAttentionBlockerSummary: String {
     if wishlistBatchBriefNeeded {
-      return "batch research brief needed (\(agentReadyWishlistResearchRequests.count))"
+      return "batch research brief needed (\(agentReadyWishlistResearchRequestCount))"
     }
     if wishlistPurchasePacketNeededItemCount > 0 {
       return "purchase packet needed (\(wishlistPurchasePacketNeededItemCount))"
@@ -6423,7 +6435,7 @@ final class ParcelOpsStore {
       labels.append(contentsOf: wishlistHandoffPackGaps(for: item).map { "handoff \($0)" })
       return labels
     }
-    if !wishlistResearchAttentionRequests.isEmpty {
+    if wishlistResearchAttentionRequestCount > 0 {
       let gaps = wishlistResearchAttentionRequests.flatMap(\.agentBriefGaps)
       let grouped = Dictionary(grouping: gaps, by: { $0 })
         .map { (label: $0.key, count: $0.value.count) }
@@ -6453,7 +6465,7 @@ final class ParcelOpsStore {
   }
 
   var wishlistDashboardNextAction: String {
-    if wishlistDashboardAttentionItemCount == 0 && wishlistResearchAttentionRequests.isEmpty {
+    if wishlistDashboardAttentionItemCount == 0 && wishlistResearchAttentionRequestCount == 0 {
       if wishlistBatchBriefNeeded { return "Create batch research brief" }
       if wishlistPurchasePacketNeededItemCount > 0 { return "Create Wishlist purchase packet" }
       if wishlistPurchasedNeedsOrderLinkItemCount > 0 { return "Link purchased Wishlist orders" }
@@ -6467,7 +6479,7 @@ final class ParcelOpsStore {
 
   var wishlistDashboardAttentionInsight: String? {
     if wishlistBatchBriefNeeded {
-      return "\(agentReadyWishlistResearchRequests.count) Wishlist research brief\(agentReadyWishlistResearchRequests.count == 1 ? "" : "s") are agent-ready and need one local batch packet before external comparison work."
+      return "\(agentReadyWishlistResearchRequestCount) Wishlist research brief\(agentReadyWishlistResearchRequestCount == 1 ? "" : "s") are agent-ready and need one local batch packet before external comparison work."
     }
     if wishlistPurchasePacketNeededItemCount > 0 {
       return "\(wishlistPurchasePacketNeededItemCount) Wishlist item\(wishlistPurchasePacketNeededItemCount == 1 ? "" : "s") with seller options need a local purchase packet draft before any manual buying."
@@ -6494,9 +6506,9 @@ final class ParcelOpsStore {
     let readiness = wishlistAgentReadinessSummary
     if wishlistDailyAttentionCount == 0 {
       if wishlistBatchBriefNeeded {
-        return "\(agentReadyWishlistResearchRequests.count) agent-ready research brief\(agentReadyWishlistResearchRequests.count == 1 ? "" : "s") need one batch packet. Agent verdict: \(readiness.verdict)."
+        return "\(agentReadyWishlistResearchRequestCount) agent-ready research brief\(agentReadyWishlistResearchRequestCount == 1 ? "" : "s") need one batch packet. Agent verdict: \(readiness.verdict)."
       }
-      return "\(readiness.verdict). Purchase packets: \(wishlistPurchasePacketDrafts.count) drafted. Release checklist: \(wishlistReleaseReadyItemCount) ready handoff, \(wishlistReleaseBlockedItemCount) blocked, \(wishlistReleaseOrderWatchItemCount) watching for order confirmation."
+      return "\(readiness.verdict). Purchase packets: \(wishlistPurchasePacketDraftCount) drafted. Release checklist: \(wishlistReleaseReadyItemCount) ready handoff, \(wishlistReleaseBlockedItemCount) blocked, \(wishlistReleaseOrderWatchItemCount) watching for order confirmation."
     }
     return "Top blockers: \(wishlistAttentionBlockerSummary). Readiness checks: \(wishlistReadinessBlockedItemCount), purchase packets: \(wishlistPurchasePacketNeededItemCount), order links: \(wishlistPurchasedNeedsOrderLinkItemCount), dispatch setup: \(wishlistLinkedOrderDispatchGapItemCount), closure trail: \(readiness.operationsClosureGapCount)."
   }
