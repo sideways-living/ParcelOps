@@ -477,10 +477,8 @@ struct OperationsWorkbenchView: View {
 
   private var dailyAttentionCount: Int {
     store.reviewIntakeEmails.count
-      + spaceMailUncertainCount
-      + pendingFilteredSpaceMailCount
-      + gmailUncertainCount
-      + pendingGmailFilteredReviewCount
+      + store.pendingMailboxUncertainReviewCount
+      + store.pendingMailboxFilteredReviewCount
       + store.importQueueItemsNeedingReview.count
       + store.blockedImportQueueItems.count
       + store.acceptanceRecordsNeedingReview.count
@@ -790,7 +788,7 @@ struct OperationsWorkbenchView: View {
       + store.importQueueItemsNeedingReview.count
       + store.blockedImportQueueItems.count
       + store.acceptanceRecordsNeedingReview.count
-    let mailboxReviewCount = spaceMailUncertainCount + pendingFilteredSpaceMailCount + gmailUncertainCount + pendingGmailFilteredReviewCount + store.intakeParserDiagnostics.count
+    let mailboxReviewCount = store.pendingMailboxUncertainReviewCount + store.pendingMailboxFilteredReviewCount + store.intakeParserDiagnostics.count
     let orderCount = inboxCreatedOrders.count + partialInboxOrderBlockers.count
     let dispatchCount = reopenedInboxDispatchHandoffCount + inboxDispatchReadinessOrders.count + store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count
     let taskCount = store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count + draftFollowUpItems.count
@@ -1851,7 +1849,7 @@ struct OperationsWorkbenchView: View {
         MetricStrip(items: [
           ("Parser checks", "\(store.intakeParserDiagnostics.count)", store.intakeParserDiagnostics.isEmpty ? .green : .orange),
           ("Uncertain mail", "\(store.pendingMailboxUncertainReviewCount)", store.pendingMailboxUncertainReviewCount > 0 ? .orange : .green),
-          ("Filtered mail", "\(store.pendingSpaceMailFilteredReviewCount + pendingGmailFilteredReviewCount)", .teal),
+          ("Filtered mail", "\(store.pendingMailboxFilteredReviewCount)", .teal),
           ("Inbox review", "\(store.reviewIntakeEmails.count)", store.reviewIntakeEmails.isEmpty ? .green : .teal),
           ("Primary work", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .green : .blue)
         ])

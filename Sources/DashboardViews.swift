@@ -1925,8 +1925,8 @@ struct DashboardView: View {
             ("Tasks", "\(openMailboxAssignedTasks.count)", openMailboxAssignedTasks.isEmpty ? .green : .orange),
             ("Gmail refresh", "\(openGmailRefreshTasks.count)", openGmailRefreshTasks.isEmpty ? .green : .purple),
             ("Handoffs", "\(openMailboxAssignedHandoffs.count)", openMailboxAssignedHandoffs.isEmpty ? .green : .blue),
-            ("Uncertain", "\(pendingSpaceMailUncertainCount + pendingGmailUncertainReviewCount)", pendingSpaceMailUncertainCount + pendingGmailUncertainReviewCount == 0 ? .green : .orange),
-            ("Filtered", "\(pendingSpaceMailFilteredCount + pendingGmailFilteredReviewCount)", pendingSpaceMailFilteredCount + pendingGmailFilteredReviewCount == 0 ? .secondary : .teal)
+            ("Uncertain", "\(store.pendingMailboxUncertainReviewCount)", store.pendingMailboxUncertainReviewCount == 0 ? .green : .orange),
+            ("Filtered", "\(store.pendingMailboxFilteredReviewCount)", store.pendingMailboxFilteredReviewCount == 0 ? .secondary : .teal)
           ])
 
           CompactSpaceMailDashboardFollowUp(

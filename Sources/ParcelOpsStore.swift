@@ -6808,6 +6808,10 @@ final class ParcelOpsStore {
     pendingSpaceMailUncertainReviewCount + pendingGmailUncertainReviewCount
   }
 
+  var pendingMailboxFilteredReviewCount: Int {
+    pendingSpaceMailFilteredReviewCount + pendingGmailFilteredReviewCount
+  }
+
   var pendingGmailReviewSignalCount: Int {
     gmailMailboxConnections.reduce(0) { total, connection in
       total

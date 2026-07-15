@@ -7371,8 +7371,7 @@ struct ActiveOperatorQueueFocusCard: View {
   }
 
   private var filteredProviderCount: Int {
-    store.pendingSpaceMailFilteredReviewCount
-      + store.pendingGmailFilteredReviewCount
+    store.pendingMailboxFilteredReviewCount
   }
 
   private var activeWorkbenchCount: Int {
