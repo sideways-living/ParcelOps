@@ -2203,7 +2203,7 @@ struct DashboardView: View {
               ("Active", "\(store.activeCount)", .teal),
               ("Review", "\(store.reviewOrders.count)", .orange),
               ("From Inbox", "\(store.inboxCreatedOrderCount)", store.inboxCreatedOrderCount == 0 ? .green : .purple),
-              ("From Wishlist", "\(store.wishlistLinkedOrders.count)", store.wishlistLinkedOrders.isEmpty ? .secondary : .pink),
+              ("From Wishlist", "\(store.wishlistLinkedOrderCount)", store.wishlistLinkedOrderCount == 0 ? .secondary : .pink),
               ("Source trail", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
               ("Verify first", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
               ("Tracking", "\(store.trackingWarningCount + store.criticalTrackingCount)", .red),

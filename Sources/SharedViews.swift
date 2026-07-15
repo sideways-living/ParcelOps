@@ -6135,7 +6135,7 @@ struct OperatorSupportSnapshotCard: View {
   }
 
   private var linkedWishlistOrderCount: Int {
-    store.wishlistLinkedOrders.count
+    store.wishlistLinkedOrderCount
   }
 
   private var openDailyWorkCount: Int {
@@ -6327,7 +6327,7 @@ struct OperatorTestSessionChecklistCard: View {
   }
 
   private var wishlistLinkedOrderCount: Int {
-    store.wishlistLinkedOrders.count
+    store.wishlistLinkedOrderCount
   }
 
   private var wishlistEvidenceCount: Int {
@@ -6597,7 +6597,7 @@ struct OperatorHandoffBriefCard: View {
   }
 
   private var linkedWishlistOrderCount: Int {
-    store.wishlistLinkedOrders.count
+    store.wishlistLinkedOrderCount
   }
 
   private var wishlistFollowUpCount: Int {
