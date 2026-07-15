@@ -6787,10 +6787,21 @@ final class ParcelOpsStore {
     }
   }
 
+  var hasSpaceMailCredentialReadiness: Bool {
+    spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
   var hasGmailConnectedAuth: Bool {
     gmailMailboxConnections.contains { connection in
       gmailAuthSessionState(for: connection).status == .connected
     }
+  }
+
+  var hasMailboxCredentialOrAuthReadiness: Bool {
+    hasSpaceMailCredentialReadiness || hasGmailConnectedAuth
   }
 
   var pendingSpaceMailUncertainReviewCount: Int {

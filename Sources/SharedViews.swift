@@ -5898,13 +5898,6 @@ struct MailboxProviderQAMatrixCard: View {
     !store.spaceMailIMAPConnections.isEmpty
   }
 
-  private var hasSpaceMailCredential: Bool {
-    store.spaceMailIMAPConnections.contains {
-      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
-        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
-    }
-  }
-
   private var hasGmailSetup: Bool {
     !store.gmailMailboxConnections.isEmpty
   }
@@ -5918,7 +5911,7 @@ struct MailboxProviderQAMatrixCard: View {
   }
 
   private var hasCredentialOrAuth: Bool {
-    hasSpaceMailCredential || hasGmailAuth
+    store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var fetchedCount: Int {
@@ -6156,12 +6149,7 @@ struct OperatorSupportSnapshotCard: View {
   }
 
   private var credentialReady: Bool {
-    let hasSpaceMailCredential = store.spaceMailIMAPConnections.contains {
-      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
-        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
-    }
-    let hasGmailAuth = store.hasGmailConnectedAuth
-    return hasSpaceMailCredential || hasGmailAuth
+    store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var hasProviderRefreshEvidence: Bool {

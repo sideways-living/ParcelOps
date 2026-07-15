@@ -2338,11 +2338,7 @@ private struct DashboardReleaseReadinessSnapshot: View {
   }
 
   private var hasMailboxReady: Bool {
-    store.spaceMailIMAPConnections.contains {
-      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
-        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
-    }
-      || store.hasGmailConnectedAuth
+    store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var latestFetchedCount: Int {
@@ -3184,17 +3180,6 @@ struct FirstLiveMailboxTestCard: View {
     !store.gmailMailboxConnections.isEmpty
   }
 
-  private var hasSpaceMailCredential: Bool {
-    store.spaceMailIMAPConnections.contains {
-      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
-        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
-    }
-  }
-
-  private var hasGmailConnectedAuth: Bool {
-    store.hasGmailConnectedAuth
-  }
-
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
     store.latestSpaceMailIntakeHealthSummary
   }
@@ -3208,7 +3193,7 @@ struct FirstLiveMailboxTestCard: View {
   }
 
   private var hasMailboxCredentialOrAuth: Bool {
-    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
+    store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var fetchedCount: Int {

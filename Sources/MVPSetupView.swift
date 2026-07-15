@@ -510,16 +510,12 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
     !store.gmailMailboxConnections.isEmpty
   }
 
-  private var hasGmailConnectedAuth: Bool {
-    store.hasGmailConnectedAuth
-  }
-
   private var hasManualMailboxSetup: Bool {
     hasSpaceMailSetup || hasGmailSetup
   }
 
   private var hasManualMailboxReady: Bool {
-    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
+    store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var hasLiveRefreshEvidence: Bool {
@@ -875,7 +871,7 @@ struct MVPDevelopmentStatusPanel: View {
   }
 
   private var hasManualMailboxReady: Bool {
-    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
+    store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var hasRealRefreshEvidence: Bool {
@@ -1032,13 +1028,6 @@ struct MVPUsableVersionPanel: View {
     !store.spaceMailIMAPConnections.isEmpty
   }
 
-  private var hasSpaceMailCredential: Bool {
-    store.spaceMailIMAPConnections.contains {
-      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
-        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
-    }
-  }
-
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
     store.latestSpaceMailIntakeHealthSummary
   }
@@ -1060,7 +1049,7 @@ struct MVPUsableVersionPanel: View {
   }
 
   private var hasManualMailboxReady: Bool {
-    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
+    store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var latestManualFetchedCount: Int {
@@ -1422,7 +1411,7 @@ struct MVPDevelopmentProgressPanel: View {
   }
 
   private var hasManualMailboxReady: Bool {
-    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
+    store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var hasRefreshEvidence: Bool {
@@ -1796,7 +1785,7 @@ struct MVPHandsOnReleaseChecklist: View {
   }
 
   private var hasManualMailboxReady: Bool {
-    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
+    store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var latestManualFetchedCount: Int {
@@ -2771,10 +2760,6 @@ struct MVPHandsOnTroubleshootingGuide: View {
     !store.gmailMailboxConnections.isEmpty
   }
 
-  private var hasGmailConnectedAuth: Bool {
-    store.hasGmailConnectedAuth
-  }
-
   private var latestGmailSummary: GmailIntakeHealthSummary? {
     store.latestGmailIntakeHealthSummary
   }
@@ -2784,7 +2769,7 @@ struct MVPHandsOnTroubleshootingGuide: View {
   }
 
   private var hasMailboxCredentialOrAuth: Bool {
-    (hasSpaceMailSetup && hasSpaceMailCredential) || (hasGmailSetup && hasGmailConnectedAuth)
+    store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var fetchedCount: Int {
