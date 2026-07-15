@@ -6776,6 +6776,40 @@ final class ParcelOpsStore {
       + (latestGmailIntakeHealthSummary?.totalUncertainCount ?? 0)
   }
 
+  var latestMailboxCompactRefreshText: String {
+    let spaceLine = latestSpaceMailIntakeHealthSummary.map {
+      "SpaceMail \($0.compactRefreshCountsText)"
+    } ?? "SpaceMail no refresh summary"
+    let gmailLine = latestGmailIntakeHealthSummary.map {
+      "Gmail \($0.compactRefreshCountsText)"
+    } ?? "Gmail no refresh summary"
+    return "\(spaceLine). \(gmailLine)."
+  }
+
+  var latestMailboxNamedRefreshDetail: String {
+    let summaries: [String] = [
+      latestSpaceMailIntakeHealthSummary.map { "SpaceMail: \($0.namedRefreshCountsText)" },
+      latestGmailIntakeHealthSummary.map { "Gmail: \($0.namedRefreshCountsText)" }
+    ].compactMap { $0 }
+    guard !summaries.isEmpty else {
+      return "No refresh summary yet. Start with the local demo workflow, then run the active mailbox provider only when credentials or sign-in are ready."
+    }
+    return summaries.joined(separator: " ")
+  }
+
+  var latestActiveMailboxEvidenceText: String {
+    if let latestGmailIntakeHealthSummary,
+       latestGmailIntakeHealthSummary.fetchedCount > 0 || latestGmailIntakeHealthSummary.importedCount > 0 || latestGmailIntakeHealthSummary.filteredCount > 0 {
+      return "Gmail latest: \(latestGmailIntakeHealthSummary.compactRefreshCountsText)."
+    }
+    if let latestSpaceMailIntakeHealthSummary,
+       latestSpaceMailIntakeHealthSummary.fetchedCount > 0 || latestSpaceMailIntakeHealthSummary.importedCount > 0 || latestSpaceMailIntakeHealthSummary.filteredCount > 0 {
+      return "SpaceMail latest: \(latestSpaceMailIntakeHealthSummary.compactRefreshCountsText)."
+    }
+    let hasMailboxSetup = !spaceMailIMAPConnections.isEmpty || !gmailMailboxConnections.isEmpty
+    return hasMailboxSetup ? "Mailbox setup exists, but no useful latest refresh evidence is available." : "No mailbox provider setup yet."
+  }
+
   var hasMailboxManualRefreshEvidence: Bool {
     spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
       || gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }

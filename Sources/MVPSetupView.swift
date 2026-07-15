@@ -1526,16 +1526,7 @@ struct MVPDevelopmentProgressPanel: View {
   }
 
   private var activeMailboxEvidence: String {
-    if let latestGmailSummary, latestGmailSummary.fetchedCount > 0 || latestGmailSummary.importedCount > 0 || latestGmailSummary.filteredCount > 0 {
-      return "Gmail: \(latestGmailSummary.compactRefreshCountsText)."
-    }
-    if let latestSpaceMailSummary, latestSpaceMailSummary.fetchedCount > 0 || latestSpaceMailSummary.importedCount > 0 || latestSpaceMailSummary.filteredCount > 0 {
-      return "SpaceMail: \(latestSpaceMailSummary.compactRefreshCountsText)."
-    }
-    if hasGmailSetup || hasSpaceMailSetup {
-      return "Mailbox setup exists, but no useful manual refresh evidence is available yet."
-    }
-    return "No active mailbox provider is configured for live intake yet."
+    store.latestActiveMailboxEvidenceText
   }
 
   private var remainingBlockers: [(title: String, detail: String, symbol: String, color: Color)] {
@@ -2785,14 +2776,7 @@ struct MVPHandsOnTroubleshootingGuide: View {
   }
 
   private var latestMailboxDetail: String {
-    let summaries: [String] = [
-      latestSpaceMailSummary.map { "SpaceMail: \($0.namedRefreshCountsText)" },
-      latestGmailSummary.map { "Gmail: \($0.namedRefreshCountsText)" }
-    ].compactMap { $0 }
-    guard !summaries.isEmpty else {
-      return "No refresh summary yet. Start with the local demo workflow, then run the active mailbox provider only when credentials or sign-in are ready."
-    }
-    return summaries.joined(separator: " ")
+    store.latestMailboxNamedRefreshDetail
   }
 
   private var issueTone: Color {

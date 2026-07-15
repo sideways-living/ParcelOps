@@ -2405,13 +2405,7 @@ private struct DashboardReleaseReadinessSnapshot: View {
   }
 
   private var mailboxEvidenceText: String {
-    if let latestGmailSummary, latestGmailSummary.fetchedCount > 0 || latestGmailSummary.importedCount > 0 || latestGmailSummary.filteredCount > 0 {
-      return "Gmail latest: \(latestGmailSummary.compactRefreshCountsText)."
-    }
-    if let latestSpaceMailSummary, latestSpaceMailSummary.fetchedCount > 0 || latestSpaceMailSummary.importedCount > 0 || latestSpaceMailSummary.filteredCount > 0 {
-      return "SpaceMail latest: \(latestSpaceMailSummary.compactRefreshCountsText)."
-    }
-    return hasMailboxSetup ? "Mailbox setup exists, but no useful latest refresh evidence is available." : "No mailbox provider setup yet."
+    store.latestActiveMailboxEvidenceText
   }
 
   private var readinessRows: [ReadinessRow] {

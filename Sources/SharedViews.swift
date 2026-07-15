@@ -6183,13 +6183,7 @@ struct OperatorSupportSnapshotCard: View {
   }
 
   private var latestRefreshText: String {
-    let spaceLine = latestSpaceMailSummary.map {
-      "SpaceMail \($0.compactRefreshCountsText)"
-    } ?? "SpaceMail no refresh summary"
-    let gmailLine = latestGmailSummary.map {
-      "Gmail \($0.compactRefreshCountsText)"
-    } ?? "Gmail no refresh summary"
-    return "\(spaceLine). \(gmailLine)."
+    store.latestMailboxCompactRefreshText
   }
 
   private var supportTiles: [(String, String, String, Color)] {
@@ -6389,10 +6383,7 @@ struct OperatorTestSessionChecklistCard: View {
       (
         "2. Run read-only refresh",
         "Manual mailbox refresh has completed or returned a clear safe result.",
-        [
-          latestSpaceMailSummary.map { "SpaceMail \($0.compactRefreshCountsText)." } ?? "SpaceMail no refresh summary.",
-          latestGmailSummary.map { "Gmail \($0.compactRefreshCountsText)." } ?? "Gmail no refresh summary."
-        ].joined(separator: " "),
+        store.latestMailboxCompactRefreshText,
         "mail.stack.fill",
         hasRefresh || hasGmailRefresh,
         hasRefresh || hasGmailRefresh ? .green : .orange
@@ -6618,13 +6609,7 @@ struct OperatorHandoffBriefCard: View {
   }
 
   private var mailboxLine: String {
-    let spaceLine = latestSpaceMailSummary.map {
-      "SpaceMail: \($0.namedRefreshCountsText)"
-    } ?? "SpaceMail: no refresh summary yet."
-    let gmailLine = latestGmailSummary.map {
-      "Gmail: \($0.namedRefreshCountsText)"
-    } ?? "Gmail: no refresh summary yet."
-    return "\(spaceLine) \(gmailLine)"
+    store.latestMailboxNamedRefreshDetail
   }
 
   private var handoffLines: [(String, String, String, Color)] {
