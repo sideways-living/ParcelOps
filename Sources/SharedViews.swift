@@ -5943,8 +5943,7 @@ struct MailboxProviderQAMatrixCard: View {
   }
 
   private var uncertainCount: Int {
-    (latestSpaceMailSummary.map(\.totalUncertainCount) ?? 0)
-      + (latestGmailSummary.map(\.totalUncertainCount) ?? 0)
+    store.latestMailboxUncertainCount
   }
 
   private var inboxOrderCount: Int {
