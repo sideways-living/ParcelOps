@@ -6005,10 +6005,10 @@ final class ParcelOpsStore {
       ("Agent verdict", wishlistAgentReadinessSummary.tone.capitalized, wishlistAgentReadinessSummary.tone),
       ("Blocked", "\(wishlistWorkbenchBlockedCount)", wishlistWorkbenchBlockedCount > 0 ? "critical" : "success"),
       ("Release ready", "\(wishlistReleaseReadyItemCount)", wishlistReleaseReadyItemCount == 0 ? "muted" : "success"),
-      ("Release blocked", "\(wishlistReleaseBlockedItems.count)", wishlistReleaseBlockedItems.isEmpty ? "success" : "warning"),
-      ("Readiness", "\(wishlistReadinessBlockedItems.count)", wishlistReadinessBlockedItems.isEmpty ? "success" : "warning"),
-      ("Critical checks", "\(wishlistReadinessCriticalItems.count)", wishlistReadinessCriticalItems.isEmpty ? "success" : "critical"),
-      ("Order watch", "\(wishlistReleaseOrderWatchItems.count)", wishlistReleaseOrderWatchItems.isEmpty ? "muted" : "handoff"),
+      ("Release blocked", "\(wishlistReleaseBlockedItemCount)", wishlistReleaseBlockedItemCount == 0 ? "success" : "warning"),
+      ("Readiness", "\(wishlistReadinessBlockedItemCount)", wishlistReadinessBlockedItemCount == 0 ? "success" : "warning"),
+      ("Critical checks", "\(wishlistReadinessCriticalItemCount)", wishlistReadinessCriticalItemCount == 0 ? "success" : "critical"),
+      ("Order watch", "\(wishlistReleaseOrderWatchItemCount)", wishlistReleaseOrderWatchItemCount == 0 ? "muted" : "handoff"),
       ("Handoff sanity", "\(wishlistHandoffSanityBlockedItems.count)", wishlistHandoffSanityBlockedItems.isEmpty ? "success" : "warning"),
       ("Dispatch setup", "\(wishlistLinkedOrderDispatchGapItems.count)", wishlistLinkedOrderDispatchGapItems.isEmpty ? "success" : "dispatch"),
       ("Closure trail", "\(wishlistAgentReadinessSummary.operationsClosureGapCount)", wishlistAgentReadinessSummary.operationsClosureGapCount == 0 ? "success" : "warning"),
@@ -6304,7 +6304,7 @@ final class ParcelOpsStore {
   var wishlistDailyAttentionCount: Int {
     wishlistTaskContextItems.count
       + wishlistResearchAttentionRequests.count
-      + wishlistReadinessBlockedItems.count
+      + wishlistReadinessBlockedItemCount
       + wishlistHandoffSanityBlockedItems.count
       + wishlistLinkedOrderDispatchGapItems.count
       + wishlistPurchasePacketNeededItems.count
@@ -6372,9 +6372,9 @@ final class ParcelOpsStore {
     if !wishlistPurchasePacketNeededItems.isEmpty {
       return "purchase packet needed (\(wishlistPurchasePacketNeededItems.count))"
     }
-    if !wishlistReadinessBlockedItems.isEmpty {
-      let criticalPrefix = wishlistReadinessCriticalItems.isEmpty ? "" : "\(wishlistReadinessCriticalItems.count) critical, "
-      return "\(criticalPrefix)\(wishlistReadinessBlockedItems.count) readiness-blocked"
+    if wishlistReadinessBlockedItemCount > 0 {
+      let criticalPrefix = wishlistReadinessCriticalItemCount == 0 ? "" : "\(wishlistReadinessCriticalItemCount) critical, "
+      return "\(criticalPrefix)\(wishlistReadinessBlockedItemCount) readiness-blocked"
     }
     if !wishlistPurchasedNeedsOrderLinkItems.isEmpty {
       return "purchased needs order link (\(wishlistPurchasedNeedsOrderLinkItems.count))"
@@ -6456,8 +6456,8 @@ final class ParcelOpsStore {
     if !wishlistPurchasePacketNeededItems.isEmpty {
       return "\(wishlistPurchasePacketNeededItems.count) Wishlist item\(wishlistPurchasePacketNeededItems.count == 1 ? "" : "s") with seller options need a local purchase packet draft before any manual buying."
     }
-    if !wishlistReadinessBlockedItems.isEmpty {
-      return "\(wishlistReadinessBlockedItems.count) Wishlist purchase readiness check\(wishlistReadinessBlockedItems.count == 1 ? "" : "s") need review before a buy decision."
+    if wishlistReadinessBlockedItemCount > 0 {
+      return "\(wishlistReadinessBlockedItemCount) Wishlist purchase readiness check\(wishlistReadinessBlockedItemCount == 1 ? "" : "s") need review before a buy decision."
     }
     if !wishlistPurchasedNeedsOrderLinkItems.isEmpty {
       return "\(wishlistPurchasedNeedsOrderLinkItems.count) purchased Wishlist item\(wishlistPurchasedNeedsOrderLinkItems.count == 1 ? "" : "s") need an order link so delivery tracking can continue."
@@ -6480,9 +6480,9 @@ final class ParcelOpsStore {
       if wishlistBatchBriefNeeded {
         return "\(agentReadyWishlistResearchRequests.count) agent-ready research brief\(agentReadyWishlistResearchRequests.count == 1 ? "" : "s") need one batch packet. Agent verdict: \(readiness.verdict)."
       }
-      return "\(readiness.verdict). Purchase packets: \(wishlistPurchasePacketDrafts.count) drafted. Release checklist: \(wishlistReleaseReadyItemCount) ready handoff, \(wishlistReleaseBlockedItems.count) blocked, \(wishlistReleaseOrderWatchItems.count) watching for order confirmation."
+      return "\(readiness.verdict). Purchase packets: \(wishlistPurchasePacketDrafts.count) drafted. Release checklist: \(wishlistReleaseReadyItemCount) ready handoff, \(wishlistReleaseBlockedItemCount) blocked, \(wishlistReleaseOrderWatchItemCount) watching for order confirmation."
     }
-    return "Top blockers: \(wishlistAttentionBlockerSummary). Readiness checks: \(wishlistReadinessBlockedItems.count), purchase packets: \(wishlistPurchasePacketNeededItems.count), order links: \(wishlistPurchasedNeedsOrderLinkItems.count), dispatch setup: \(wishlistLinkedOrderDispatchGapItems.count), closure trail: \(readiness.operationsClosureGapCount)."
+    return "Top blockers: \(wishlistAttentionBlockerSummary). Readiness checks: \(wishlistReadinessBlockedItemCount), purchase packets: \(wishlistPurchasePacketNeededItems.count), order links: \(wishlistPurchasedNeedsOrderLinkItems.count), dispatch setup: \(wishlistLinkedOrderDispatchGapItems.count), closure trail: \(readiness.operationsClosureGapCount)."
   }
 
   var wishlistOrderWatchItems: [WishlistItem] {
@@ -6642,8 +6642,16 @@ final class ParcelOpsStore {
     wishlistReleaseItems.filter { !wishlistReleaseBlockers(for: $0).isEmpty }
   }
 
+  var wishlistReleaseBlockedItemCount: Int {
+    wishlistReleaseBlockedItems.count
+  }
+
   var wishlistReleaseOrderWatchItems: [WishlistItem] {
     wishlistReleaseItems.filter { $0.purchaseHandoff != nil && $0.purchaseHandoff?.linkedOrderID == nil }
+  }
+
+  var wishlistReleaseOrderWatchItemCount: Int {
+    wishlistReleaseOrderWatchItems.count
   }
 
   var wishlistReadinessBlockedItems: [WishlistItem] {
@@ -6652,10 +6660,18 @@ final class ParcelOpsStore {
     }
   }
 
+  var wishlistReadinessBlockedItemCount: Int {
+    wishlistReadinessBlockedItems.count
+  }
+
   var wishlistReadinessCriticalItems: [WishlistItem] {
     wishlistReadinessBlockedItems.filter { item in
       (item.purchaseChecks ?? []).contains { $0.status == "Blocked" || $0.severity == "High" }
     }
+  }
+
+  var wishlistReadinessCriticalItemCount: Int {
+    wishlistReadinessCriticalItems.count
   }
 
   func wishlistHandoffPackGaps(for item: WishlistItem) -> [String] {
