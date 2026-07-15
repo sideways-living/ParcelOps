@@ -396,25 +396,7 @@ struct InboxView: View {
   }
 
   private func runWishlistPurchaseReadinessAction(for item: WishlistItem) {
-    switch wishlistPurchaseReadinessPriority(for: item) {
-    case 10:
-      store.createWishlistComparisonPlan(item)
-      store.createWishlistResearchRequest(from: item)
-    case 20:
-      store.evaluateWishlistComparisonOptions(item)
-    case 30, 35:
-      store.runWishlistPurchaseReadinessCheck(item)
-    case 40:
-      store.createWishlistPurchaseDecision(item)
-    case 50:
-      store.markWishlistPurchaseDecisionReviewed(item)
-    case 60:
-      store.prepareWishlistPurchaseHandoff(item)
-    case 70:
-      store.markWishlistOrderConfirmationSeen(item)
-    default:
-      break
-    }
+    store.runWishlistPurchaseReadinessAction(for: item)
   }
 
   @ViewBuilder

@@ -6455,6 +6455,28 @@ final class ParcelOpsStore {
     }
   }
 
+  func runWishlistPurchaseReadinessAction(for item: WishlistItem) {
+    switch wishlistPurchaseReadinessPriority(for: item) {
+    case 10:
+      createWishlistComparisonPlan(item)
+      createWishlistResearchRequest(from: item)
+    case 20:
+      evaluateWishlistComparisonOptions(item)
+    case 30, 35:
+      runWishlistPurchaseReadinessCheck(item)
+    case 40:
+      createWishlistPurchaseDecision(item)
+    case 50:
+      markWishlistPurchaseDecisionReviewed(item)
+    case 60:
+      prepareWishlistPurchaseHandoff(item)
+    case 70:
+      markWishlistOrderConfirmationSeen(item)
+    default:
+      break
+    }
+  }
+
   var wishlistReadyPacketItems: [WishlistItem] {
     activeWishlistItems.filter { item in
       item.operatorPurchaseBlockers.isEmpty
