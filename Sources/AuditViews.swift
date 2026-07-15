@@ -273,13 +273,21 @@ struct AuditView: View {
       && mailboxFilteredCount > 0
   }
 
+  private var spaceMailMailboxCountsText: String {
+    "\(spaceMailFetchedCount) fetched, \(spaceMailImportedCount) imported, \(spaceMailDuplicateCount) duplicate, \(spaceMailDuplicateRefreshedCount) refreshed, \(spaceMailFilteredCount) filtered, \(spaceMailUncertainCount) uncertain."
+  }
+
+  private var gmailMailboxCountsText: String {
+    "\(gmailFetchedCount) fetched, \(gmailImportedCount) imported, \(gmailDuplicateCount) duplicate, \(gmailDuplicateRefreshedCount) refreshed, \(gmailFilteredCount) filtered, \(gmailUncertainCount) uncertain."
+  }
+
   private var mailboxAuditProviderBreakdown: [(provider: String, detail: String, color: Color)] {
     var rows: [(provider: String, detail: String, color: Color)] = []
 
     if !spaceMailHealthSummaries.isEmpty {
       rows.append((
         "SpaceMail",
-        "\(spaceMailFetchedCount) fetched, \(spaceMailImportedCount) imported, \(spaceMailDuplicateCount) duplicate, \(spaceMailDuplicateRefreshedCount) refreshed, \(spaceMailFilteredCount) filtered, \(spaceMailUncertainCount) uncertain.",
+        spaceMailMailboxCountsText,
         spaceMailImportedCount > 0 ? .green : spaceMailUncertainCount > 0 ? .orange : spaceMailFilteredCount > 0 ? .teal : .secondary
       ))
     }
@@ -287,7 +295,7 @@ struct AuditView: View {
     if !gmailHealthSummaries.isEmpty {
       rows.append((
         "Gmail",
-        "\(gmailFetchedCount) fetched, \(gmailImportedCount) imported, \(gmailDuplicateCount) duplicate, \(gmailDuplicateRefreshedCount) refreshed, \(gmailFilteredCount) filtered, \(gmailUncertainCount) uncertain.",
+        gmailMailboxCountsText,
         gmailImportedCount > 0 ? .green : gmailUncertainCount > 0 ? .orange : gmailFilteredCount > 0 ? .teal : .secondary
       ))
     }

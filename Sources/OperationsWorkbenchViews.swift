@@ -311,6 +311,14 @@ struct OperationsWorkbenchView: View {
     store.totalMailboxDuplicateCount
   }
 
+  private var spaceMailMailboxCountsText: String {
+    "\(spaceMailFetchedCount) fetched, \(spaceMailImportedCount) imported, \(spaceMailDuplicateCount) duplicate, \(store.totalSpaceMailDuplicateRefreshedCount) refreshed, \(spaceMailFilteredCount) filtered, \(spaceMailUncertainCount) uncertain."
+  }
+
+  private var gmailMailboxCountsText: String {
+    "\(gmailFetchedCount) fetched, \(gmailImportedCount) imported, \(store.totalGmailDuplicateCount) duplicate, \(store.totalGmailDuplicateRefreshedCount) refreshed, \(gmailFilteredCount) filtered, \(gmailUncertainCount) uncertain."
+  }
+
   private var mailboxWarningCount: Int {
     gmailWarningCount + store.intakeParserDiagnostics.count
   }
@@ -447,7 +455,7 @@ struct OperationsWorkbenchView: View {
     if !spaceMailHealthSummaries.isEmpty {
       rows.append((
         "SpaceMail",
-        "\(spaceMailFetchedCount) fetched, \(spaceMailImportedCount) imported, \(spaceMailDuplicateCount) duplicate, \(store.totalSpaceMailDuplicateRefreshedCount) refreshed, \(spaceMailFilteredCount) filtered, \(spaceMailUncertainCount) uncertain.",
+        spaceMailMailboxCountsText,
         spaceMailImportedCount > 0 ? .green : spaceMailUncertainCount > 0 ? .orange : spaceMailFilteredCount > 0 ? .teal : .secondary
       ))
     }
@@ -455,7 +463,7 @@ struct OperationsWorkbenchView: View {
     if !gmailHealthSummaries.isEmpty {
       rows.append((
         "Gmail",
-        "\(gmailFetchedCount) fetched, \(gmailImportedCount) imported, \(store.totalGmailDuplicateCount) duplicate, \(store.totalGmailDuplicateRefreshedCount) refreshed, \(gmailFilteredCount) filtered, \(gmailUncertainCount) uncertain.",
+        gmailMailboxCountsText,
         gmailImportedCount > 0 ? .green : gmailUncertainCount > 0 ? .orange : gmailFilteredCount > 0 ? .teal : gmailWarningCount > 0 ? .orange : .secondary
       ))
     }
