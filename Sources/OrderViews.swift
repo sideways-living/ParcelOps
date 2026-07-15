@@ -87,32 +87,31 @@ struct OrdersView: View {
     var rows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] = []
 
     if let summary = latestSpaceMailSummary {
-      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
       let status: String
       let detail: String
       let color: Color
       if summary.importedCount > 0 {
-        status = "\(summary.importedCount) imported"
+        status = summary.primaryOutcomeStatus
         detail = "Open Inbox and create or link orders from the imported SpaceMail rows."
         color = .green
-      } else if uncertain > 0 {
-        status = "\(uncertain) uncertain"
+      } else if summary.totalUncertainCount > 0 {
+        status = summary.primaryOutcomeStatus
         detail = "Review uncertain SpaceMail previews in Mailbox Monitor before expecting Orders to change."
         color = .orange
       } else if summary.duplicateRefreshedCount > 0 {
-        status = "\(summary.duplicateRefreshedCount) refreshed"
+        status = summary.primaryOutcomeStatus
         detail = "Duplicate SpaceMail refreshed existing Inbox rows. Orders changes after the refreshed row is linked or created as an order."
         color = .green
       } else if summary.duplicateCount > 0 {
-        status = "\(summary.duplicateCount) duplicate"
+        status = summary.primaryOutcomeStatus
         detail = "SpaceMail fetched messages already captured locally; Orders changes only if an existing intake row is linked."
         color = .teal
       } else if summary.filteredCount > 0 {
-        status = "\(summary.filteredCount) filtered"
+        status = summary.primaryOutcomeStatus
         detail = "Mixed-mailbox filtering kept non-order SpaceMail out of Inbox and Orders."
         color = .teal
       } else {
-        status = "\(summary.fetchedCount) fetched"
+        status = summary.primaryOutcomeStatus
         detail = summary.nextAction
         color = .secondary
       }
@@ -120,32 +119,31 @@ struct OrdersView: View {
     }
 
     if let summary = latestGmailSummary {
-      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
       let status: String
       let detail: String
       let color: Color
       if summary.importedCount > 0 {
-        status = "\(summary.importedCount) imported"
+        status = summary.primaryOutcomeStatus
         detail = "Open Inbox and create or link orders from the imported Gmail rows."
         color = .green
-      } else if uncertain > 0 {
-        status = "\(uncertain) uncertain"
+      } else if summary.totalUncertainCount > 0 {
+        status = summary.primaryOutcomeStatus
         detail = "Review uncertain Gmail previews in Mailbox Monitor before expecting Orders to change."
         color = .orange
       } else if summary.duplicateRefreshedCount > 0 {
-        status = "\(summary.duplicateRefreshedCount) refreshed"
+        status = summary.primaryOutcomeStatus
         detail = "Duplicate Gmail refreshed existing Inbox rows. Orders changes after the refreshed row is linked or created as an order."
         color = .green
       } else if summary.duplicateCount > 0 {
-        status = "\(summary.duplicateCount) duplicate"
+        status = summary.primaryOutcomeStatus
         detail = "Gmail fetched messages already captured locally; Orders changes only if an existing intake row is linked."
         color = .teal
       } else if summary.filteredCount > 0 {
-        status = "\(summary.filteredCount) filtered"
+        status = summary.primaryOutcomeStatus
         detail = "Gmail filtering kept non-order mail out of Inbox and Orders."
         color = .teal
       } else {
-        status = "\(summary.fetchedCount) fetched"
+        status = summary.primaryOutcomeStatus
         detail = summary.nextAction
         color = .secondary
       }

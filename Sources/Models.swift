@@ -1927,6 +1927,36 @@ struct SpaceMailIntakeHealthSummary: Identifiable, Hashable {
   var pendingUncertainReviewCount: Int
   var lastRefreshDate: String
   var topReasonLabels: [String]
+
+  var totalUncertainCount: Int {
+    pendingUncertainReviewCount + uncertainCount
+  }
+
+  var primaryOutcomeStatus: String {
+    if importedCount > 0 { return "\(importedCount) imported" }
+    if totalUncertainCount > 0 { return "\(totalUncertainCount) uncertain" }
+    if filteredCount > 0 { return "\(filteredCount) filtered" }
+    if duplicateRefreshedCount > 0 { return "\(duplicateRefreshedCount) refreshed" }
+    if duplicateCount > 0 { return "\(duplicateCount) duplicate" }
+    return "\(fetchedCount) fetched"
+  }
+
+  var compactRefreshCountsText: String {
+    "\(fetchedCount) fetched, \(importedCount) imported, \(duplicateCount) duplicate, \(duplicateRefreshedCount) refreshed, \(filteredCount) filtered, \(totalUncertainCount) uncertain"
+  }
+
+  var namedRefreshCountsText: String {
+    "\(displayName): \(compactRefreshCountsText). \(nextAction)"
+  }
+
+  var dashboardOutcomeTitle: String {
+    if importedCount > 0 { return "Latest SpaceMail refresh imported order mail" }
+    if totalUncertainCount > 0 { return "Latest SpaceMail refresh needs uncertain review" }
+    if filteredCount > 0 && importedCount == 0 { return "Latest SpaceMail refresh filtered non-order mail" }
+    if duplicateRefreshedCount > 0 { return "Latest SpaceMail refresh updated existing Inbox rows" }
+    if duplicateCount > 0 { return "Latest SpaceMail refresh found duplicates" }
+    return verdict
+  }
 }
 
 struct GmailIntakeHealthSummary: Identifiable, Hashable {
@@ -1948,6 +1978,35 @@ struct GmailIntakeHealthSummary: Identifiable, Hashable {
   var pendingUncertainReviewCount: Int
   var lastRefreshDate: String
   var lastRefreshSummary: String
+
+  var totalUncertainCount: Int {
+    pendingUncertainReviewCount + uncertainCount
+  }
+
+  var primaryOutcomeStatus: String {
+    if importedCount > 0 { return "\(importedCount) imported" }
+    if totalUncertainCount > 0 { return "\(totalUncertainCount) uncertain" }
+    if filteredCount > 0 { return "\(filteredCount) filtered" }
+    if duplicateRefreshedCount > 0 { return "\(duplicateRefreshedCount) refreshed" }
+    if duplicateCount > 0 { return "\(duplicateCount) duplicate" }
+    return "\(fetchedCount) fetched"
+  }
+
+  var compactRefreshCountsText: String {
+    "\(fetchedCount) fetched, \(importedCount) imported, \(duplicateCount) duplicate, \(duplicateRefreshedCount) refreshed, \(filteredCount) filtered, \(totalUncertainCount) uncertain"
+  }
+
+  var namedRefreshCountsText: String {
+    "\(displayName): \(compactRefreshCountsText). \(nextAction)"
+  }
+
+  var dashboardOutcomeTitle: String {
+    if totalUncertainCount > 0 { return "Latest Gmail refresh needs uncertain review" }
+    if filteredCount > 0 && importedCount == 0 { return "Latest Gmail refresh has filtered examples" }
+    if duplicateRefreshedCount > 0 { return "Latest Gmail refresh updated existing Inbox rows" }
+    if duplicateCount > 0 { return "Latest Gmail refresh found duplicates" }
+    return verdict
+  }
 }
 
 struct GmailRefreshHistoryEntry: Identifiable, Hashable, Codable {

@@ -191,32 +191,31 @@ private struct SearchReadinessPanel: View {
     var rows: [(label: String, status: String, detail: String, symbol: String, color: Color)] = []
 
     if let summary = latestSpaceMailSummary {
-      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
       let status: String
       let detail: String
       let color: Color
       if summary.importedCount > 0 {
-        status = "\(summary.importedCount) imported"
+        status = summary.primaryOutcomeStatus
         detail = "Search Inbox intake, linked orders, and audit events for SpaceMail source evidence."
         color = .green
-      } else if uncertain > 0 {
-        status = "\(uncertain) uncertain"
+      } else if summary.totalUncertainCount > 0 {
+        status = summary.primaryOutcomeStatus
         detail = "Open Mailbox Monitor to import or dismiss uncertain SpaceMail previews before searching Inbox."
         color = .orange
       } else if summary.filteredCount > 0 {
-        status = "\(summary.filteredCount) filtered"
+        status = summary.primaryOutcomeStatus
         detail = "Filtered SpaceMail stayed out of Inbox. Search Audit or Mailbox Monitor filtered examples if an expected order email is missing."
         color = .teal
       } else if summary.duplicateRefreshedCount > 0 {
-        status = "\(summary.duplicateRefreshedCount) refreshed"
+        status = summary.primaryOutcomeStatus
         detail = "Duplicate SpaceMail refresh updated existing Inbox rows. Search by order/tracking text or inspect Audit for the refreshed intake source."
         color = .teal
       } else if summary.duplicateCount > 0 {
-        status = "\(summary.duplicateCount) duplicate"
+        status = summary.primaryOutcomeStatus
         detail = "Duplicate SpaceMail rows refresh existing intake only; search by order/tracking text or inspect Audit for duplicate refresh details."
         color = .teal
       } else {
-        status = "\(summary.fetchedCount) fetched"
+        status = summary.primaryOutcomeStatus
         detail = summary.nextAction
         color = .secondary
       }
@@ -224,32 +223,31 @@ private struct SearchReadinessPanel: View {
     }
 
     if let summary = latestGmailSummary {
-      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
       let status: String
       let detail: String
       let color: Color
       if summary.importedCount > 0 {
-        status = "\(summary.importedCount) imported"
+        status = summary.primaryOutcomeStatus
         detail = "Search Inbox intake, linked orders, and audit events for Gmail source evidence."
         color = .green
-      } else if uncertain > 0 {
-        status = "\(uncertain) uncertain"
+      } else if summary.totalUncertainCount > 0 {
+        status = summary.primaryOutcomeStatus
         detail = "Open Mailbox Monitor to import or dismiss uncertain Gmail previews before searching Inbox."
         color = .orange
       } else if summary.filteredCount > 0 {
-        status = "\(summary.filteredCount) filtered"
+        status = summary.primaryOutcomeStatus
         detail = "Filtered Gmail stayed out of Inbox. Search Audit or Mailbox Monitor filtered examples if an expected order email is missing."
         color = .teal
       } else if summary.duplicateRefreshedCount > 0 {
-        status = "\(summary.duplicateRefreshedCount) refreshed"
+        status = summary.primaryOutcomeStatus
         detail = "Duplicate Gmail refresh updated existing Inbox rows. Search by order/tracking text or inspect Audit for the refreshed intake source."
         color = .teal
       } else if summary.duplicateCount > 0 {
-        status = "\(summary.duplicateCount) duplicate"
+        status = summary.primaryOutcomeStatus
         detail = "Duplicate Gmail rows refresh existing intake only; search by order/tracking text or inspect Audit for duplicate refresh details."
         color = .teal
       } else {
-        status = "\(summary.fetchedCount) fetched"
+        status = summary.primaryOutcomeStatus
         detail = summary.nextAction
         color = .secondary
       }

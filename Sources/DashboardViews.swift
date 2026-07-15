@@ -305,12 +305,7 @@ struct DashboardView: View {
       if !hasSpaceMailCredentialReference { return "SpaceMail credential needed" }
       return "Run a manual SpaceMail refresh"
     }
-    if summary.importedCount > 0 { return "Latest SpaceMail refresh imported order mail" }
-    if summary.pendingUncertainReviewCount > 0 || summary.uncertainCount > 0 { return "Latest SpaceMail refresh needs uncertain review" }
-    if summary.filteredCount > 0 && summary.importedCount == 0 { return "Latest SpaceMail refresh filtered non-order mail" }
-    if summary.duplicateRefreshedCount > 0 { return "Latest SpaceMail refresh updated existing Inbox rows" }
-    if summary.duplicateCount > 0 { return "Latest SpaceMail refresh found duplicates" }
-    return summary.verdict
+    return summary.dashboardOutcomeTitle
   }
   private var latestSpaceMailDetail: String {
     guard let summary = latestSpaceMailSummary else {
@@ -322,16 +317,14 @@ struct DashboardView: View {
       }
       return "No real SpaceMail refresh summary is available yet. Run manual refresh from Mailbox Monitor."
     }
-    return "\(summary.displayName): \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.duplicateRefreshedCount) refreshed, \(summary.filteredCount) filtered, \(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain. \(summary.nextAction)"
+    return summary.namedRefreshCountsText
   }
   private var latestGmailTitle: String {
     guard let summary = latestGmailSummary else {
       if store.gmailMailboxConnections.isEmpty { return "Gmail setup not started" }
       return "Run a Gmail readiness check"
     }
-    if pendingGmailUncertainReviewCount > 0 { return "Latest Gmail refresh needs uncertain review" }
-    if pendingGmailFilteredReviewCount > 0 && summary.importedCount == 0 { return "Latest Gmail refresh has filtered examples" }
-    return summary.verdict
+    return summary.dashboardOutcomeTitle
   }
   private var latestGmailDetail: String {
     guard let summary = latestGmailSummary else {
@@ -341,7 +334,7 @@ struct DashboardView: View {
       return "No Gmail readiness or refresh summary is available yet. Use Mailbox Monitor to check setup."
     }
     let filteredDetail = pendingGmailFilteredReviewCount > 0 ? " \(pendingGmailFilteredReviewCount) filtered preview\(pendingGmailFilteredReviewCount == 1 ? "" : "s") can be reviewed in Mailbox Monitor if an expected order email is missing." : ""
-    return "\(summary.displayName): \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.duplicateCount) duplicate, \(summary.duplicateRefreshedCount) refreshed, \(summary.filteredCount) filtered, \(pendingGmailUncertainReviewCount) uncertain.\(filteredDetail) \(summary.nextAction)"
+    return "\(summary.namedRefreshCountsText)\(filteredDetail)"
   }
   private var dashboardGmailPrimaryLabel: String {
     guard let connection = latestGmailConnection else { return "None" }
