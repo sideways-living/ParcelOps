@@ -8,12 +8,8 @@ struct TasksView: View {
   @State private var mvpFeedbackMessage: String?
 
   private var queueItems: [TaskQueueItem] {
-    let tasks = store.reviewTasks
-      .filter { store.isActiveWishlistTask($0) && ($0.status != .completed || $0.reviewState != .accepted) }
-      .map(TaskQueueItem.task)
-    let notes = store.handoffNotes
-      .filter { store.isActiveWishlistHandoff($0) && ($0.status != .completed || $0.reviewState != .accepted) }
-      .map(TaskQueueItem.handoff)
+    let tasks = store.activeWishlistReviewTasks.map(TaskQueueItem.task)
+    let notes = store.activeWishlistHandoffNotes.map(TaskQueueItem.handoff)
 
     return (tasks + notes).sorted { first, second in
       if first.sortPriority == second.sortPriority {
@@ -48,11 +44,7 @@ struct TasksView: View {
     queueItems.filter { $0.linkedEntityType == .wishlistItem }
   }
   private var wishlistDraftItems: [DraftMessage] {
-    store.draftMessages.filter {
-      $0.linkedEntityType == .wishlistItem
-        && store.isActiveWishlistDraft($0)
-        && ($0.reviewState != .accepted || $0.status != .sentLocally || $0.linkedEntityID == "wishlist-research-batch")
-    }
+    store.activeWishlistDraftMessages
   }
   private var wishlistPurchasePacketNeededItems: [WishlistItem] {
     store.wishlistPurchasePacketNeededItems
@@ -78,12 +70,7 @@ struct TasksView: View {
   }
 
   private var wishlistTaskActionCount: Int {
-    wishlistLinkedQueueItems.count
-      + wishlistDraftItems.count
-      + wishlistPurchasePacketNeededItems.count
-      + wishlistNeedsHandoffItems.count
-      + wishlistAwaitingOrderItems.count
-      + wishlistLinkedOrderDispatchGapItems.count
+    store.wishlistTaskActionCount
   }
 
   private var wishlistEvidenceGapCount: Int {

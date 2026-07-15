@@ -6055,6 +6055,36 @@ final class ParcelOpsStore {
       + wishlistAgentReadinessIssueCount
   }
 
+  var activeWishlistReviewTasks: [ReviewTask] {
+    reviewTasks.filter {
+      isActiveWishlistTask($0) && ($0.status != .completed || $0.reviewState != .accepted)
+    }
+  }
+
+  var activeWishlistHandoffNotes: [HandoffNote] {
+    handoffNotes.filter {
+      isActiveWishlistHandoff($0) && ($0.status != .completed || $0.reviewState != .accepted)
+    }
+  }
+
+  var activeWishlistDraftMessages: [DraftMessage] {
+    draftMessages.filter {
+      $0.linkedEntityType == .wishlistItem
+        && isActiveWishlistDraft($0)
+        && ($0.reviewState != .accepted || $0.status != .sentLocally || $0.linkedEntityID == "wishlist-research-batch")
+    }
+  }
+
+  var wishlistTaskActionCount: Int {
+    activeWishlistReviewTasks.count
+      + activeWishlistHandoffNotes.count
+      + activeWishlistDraftMessages.count
+      + wishlistPurchasePacketNeededItems.count
+      + wishlistNeedsHandoffItems.count
+      + wishlistAwaitingOrderItems.count
+      + wishlistLinkedOrderDispatchGapItems.count
+  }
+
   var wishlistOrderWatchItems: [WishlistItem] {
     activeWishlistItems
       .filter { item in
