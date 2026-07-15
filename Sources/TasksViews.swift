@@ -223,10 +223,7 @@ struct TasksView: View {
   }
 
   private var pendingMailboxReviewCount: Int {
-    spaceMailUncertainCount
-      + pendingFilteredSpaceMailCount
-      + pendingUncertainGmailCount
-      + pendingFilteredGmailCount
+    store.pendingMailboxReviewCount
   }
 
   private var gmailWarningCount: Int {
