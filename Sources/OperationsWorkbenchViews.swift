@@ -118,23 +118,7 @@ struct OperationsWorkbenchView: View {
     return Array((providerDrafts + otherDrafts).prefix(5))
   }
   private var wishlistWorkbenchItems: [WishlistItem] {
-    store.wishlistItems.filter { item in
-      store.isActiveWishlistItem(item) && (
-        item.status.localizedCaseInsensitiveContains("purchase blocked")
-        || item.status.localizedCaseInsensitiveContains("handoff")
-        || item.status.localizedCaseInsensitiveContains("awaiting order")
-        || item.status.localizedCaseInsensitiveContains("confirmation")
-        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("blocker")
-        || (item.purchaseReadiness ?? "").localizedCaseInsensitiveContains("review")
-        || store.wishlistSellerEvidenceGapCount(for: item) > 0
-        || store.wishlistNeedsPurchaseDecision(item)
-        || store.wishlistNeedsPurchasePacket(item)
-        || !store.wishlistHandoffPackGaps(for: item).isEmpty
-        || !store.wishlistHandoffSanityGaps(for: item).isEmpty
-        || !store.wishlistLinkedOrderDispatchGaps(for: item).isEmpty
-        || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
-      )
-    }
+    store.wishlistTaskContextItems
   }
 
   private var wishlistResearchWorkbenchRequests: [WishlistResearchRequest] {

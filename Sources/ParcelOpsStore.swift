@@ -6055,6 +6055,83 @@ final class ParcelOpsStore {
       + wishlistAgentReadinessIssueCount
   }
 
+  var wishlistOrderWatchItems: [WishlistItem] {
+    activeWishlistItems
+      .filter { item in
+        item.purchaseHandoff != nil
+          && item.purchaseHandoff?.linkedOrderID == nil
+      }
+      .sorted { first, second in
+        let firstMatches = suggestedWishlistOrderConfirmations(for: first).count
+        let secondMatches = suggestedWishlistOrderConfirmations(for: second).count
+        if firstMatches == secondMatches {
+          return first.itemName.localizedCaseInsensitiveCompare(second.itemName) == .orderedAscending
+        }
+        return firstMatches > secondMatches
+      }
+  }
+
+  var wishlistOrderWatchMatchCount: Int {
+    wishlistOrderWatchItems.reduce(0) { partial, item in
+      partial + suggestedWishlistOrderConfirmations(for: item).count
+    }
+  }
+
+  var wishlistPurchaseReadinessItems: [WishlistItem] {
+    activeWishlistItems
+      .filter { item in
+        !item.operatorPurchaseBlockers.isEmpty
+          || (item.purchaseDecision?.reviewState == .accepted && item.purchaseHandoff == nil)
+          || (item.purchaseHandoff != nil && item.purchaseHandoff?.linkedOrderID == nil)
+      }
+      .sorted { first, second in
+        let firstPriority = wishlistPurchaseReadinessPriority(for: first)
+        let secondPriority = wishlistPurchaseReadinessPriority(for: second)
+        if firstPriority == secondPriority {
+          return first.itemName.localizedCaseInsensitiveCompare(second.itemName) == .orderedAscending
+        }
+        return firstPriority < secondPriority
+      }
+  }
+
+  var wishlistPurchaseDecisionGapCount: Int {
+    wishlistPurchaseReadinessItems.filter {
+      $0.purchaseDecision == nil || $0.purchaseDecision?.reviewState != .accepted
+    }.count
+  }
+
+  var wishlistPurchaseHandoffGapCount: Int {
+    wishlistPurchaseReadinessItems.filter {
+      $0.purchaseDecision?.reviewState == .accepted && $0.purchaseHandoff == nil
+    }.count
+  }
+
+  func wishlistPurchaseReadinessPriority(for item: WishlistItem) -> Int {
+    if item.comparisonOptions?.isEmpty != false { return 10 }
+    if item.preferredOptionID == nil { return 20 }
+    if item.purchaseChecks?.isEmpty != false { return 30 }
+    if item.purchaseChecks?.contains(where: { $0.status != "Passed" }) == true { return 35 }
+    if item.purchaseDecision == nil { return 40 }
+    if item.purchaseDecision?.reviewState != .accepted { return 50 }
+    if item.purchaseHandoff == nil { return 60 }
+    if item.purchaseHandoff?.linkedOrderID == nil { return 70 }
+    return 90
+  }
+
+  func wishlistPurchaseReadinessStage(for item: WishlistItem) -> String {
+    switch wishlistPurchaseReadinessPriority(for: item) {
+    case 10: return "Needs comparison"
+    case 20: return "Choose seller"
+    case 30: return "Run checks"
+    case 35: return "Clear checks"
+    case 40: return "Draft decision"
+    case 50: return "Review decision"
+    case 60: return "Prepare handoff"
+    case 70: return "Watch order"
+    default: return "Linked"
+    }
+  }
+
   var wishlistReadyPacketItems: [WishlistItem] {
     activeWishlistItems.filter { item in
       item.operatorPurchaseBlockers.isEmpty
