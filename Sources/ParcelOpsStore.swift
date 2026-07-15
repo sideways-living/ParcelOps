@@ -632,7 +632,7 @@ final class ParcelOpsStore {
       tone: tone,
       recommendedProvider: recommendedProvider,
       metrics: [
-        SpaceMailReleaseSnapshotMetric(title: "Providers", value: "\(spaceMailIMAPConnections.count + gmailMailboxConnections.count)", tone: anyProviderConfigured ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Providers", value: "\(mailboxProviderSetupCount)", tone: anyProviderConfigured ? "success" : "warning"),
         SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(spaceMailFetched + gmailFetched)", tone: anyRefreshEvidence ? "neutral" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(spaceMailImported + gmailImported)", tone: (spaceMailImported + gmailImported) > 0 ? "attention" : "neutral"),
         SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(spaceMailFiltered + gmailFiltered)", tone: (spaceMailFiltered + gmailFiltered) > 0 ? "success" : "neutral"),
@@ -3366,7 +3366,7 @@ final class ParcelOpsStore {
       tone: tone,
       metrics: [
         SpaceMailReleaseSnapshotMetric(title: "Checks", value: "\(completedChecks)/\(totalChecks)", tone: tone),
-        SpaceMailReleaseSnapshotMetric(title: "Providers", value: "\(spaceMailIMAPConnections.count + gmailMailboxConnections.count)", tone: providerBlockers == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Providers", value: "\(mailboxProviderSetupCount)", tone: providerBlockers == 0 ? "success" : "warning"),
         SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(totalFetched)", tone: totalFetched > 0 ? "neutral" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(totalImported)", tone: totalImported > 0 ? "success" : "neutral"),
         SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(totalFiltered)", tone: totalFiltered > 0 ? "success" : "neutral"),
@@ -3975,7 +3975,7 @@ final class ParcelOpsStore {
       detail: "Compare SpaceMail and Gmail prerequisites before running manual mailbox refreshes. This checklist reads local setup state only.",
       tone: summaryTone,
       metrics: [
-        SpaceMailReleaseSnapshotMetric(title: "Configured", value: "\(spaceMailIMAPConnections.count + gmailMailboxConnections.count)", tone: spaceMailIMAPConnections.isEmpty && gmailMailboxConnections.isEmpty ? "warning" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Configured", value: "\(mailboxProviderSetupCount)", tone: hasMailboxProviderSetup ? "success" : "warning"),
         SpaceMailReleaseSnapshotMetric(title: "Checks", value: "\(completedChecks)/\(totalChecks)", tone: completedChecks == totalChecks ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Warnings", value: "\(requiredWarnings)", tone: requiredWarnings == 0 ? "success" : "warning"),
         SpaceMailReleaseSnapshotMetric(title: "Refresh evidence", value: refreshEvidence ? "Yes" : "No", tone: refreshEvidence ? "success" : "attention")

@@ -5643,7 +5643,7 @@ struct SettingsReleaseCandidateCard: View {
   }
 
   private var hasMailboxSetup: Bool {
-    !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty
+    store.hasMailboxProviderSetup
   }
 
   private var hasSpaceMailCredentialReference: Bool {
