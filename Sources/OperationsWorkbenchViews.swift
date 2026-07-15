@@ -292,19 +292,19 @@ struct OperationsWorkbenchView: View {
   }
 
   private var mailboxFetchedCount: Int {
-    spaceMailFetchedCount + gmailFetchedCount
+    store.totalMailboxFetchedCount
   }
 
   private var mailboxImportedCount: Int {
-    spaceMailImportedCount + gmailImportedCount
+    store.totalMailboxImportedCount
   }
 
   private var mailboxFilteredCount: Int {
-    spaceMailFilteredCount + gmailFilteredCount
+    store.totalMailboxFilteredSignalCount
   }
 
   private var mailboxUncertainCount: Int {
-    spaceMailUncertainCount + gmailUncertainCount
+    store.totalMailboxUncertainSignalCount
   }
 
   private var mailboxDuplicateCount: Int {

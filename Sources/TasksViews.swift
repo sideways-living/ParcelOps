@@ -282,23 +282,23 @@ struct TasksView: View {
   }
 
   private var mailboxFetchedCount: Int {
-    spaceMailFetchedCount + gmailFetchedCount
+    store.totalMailboxFetchedCount
   }
 
   private var mailboxImportedCount: Int {
-    spaceMailImportedCount + gmailImportedCount
+    store.totalMailboxImportedCount
   }
 
   private var mailboxFilteredCount: Int {
-    spaceMailFilteredCount + gmailFilteredCount
+    store.totalMailboxFilteredSignalCount
   }
 
   private var mailboxDuplicateRefreshedCount: Int {
-    spaceMailDuplicateRefreshedCount + gmailDuplicateRefreshedCount
+    store.totalMailboxDuplicateRefreshedCount
   }
 
   private var mailboxUncertainCount: Int {
-    spaceMailUncertainCount + gmailUncertainCount
+    store.totalMailboxUncertainSignalCount
   }
 
   private var mailboxWarningCount: Int {
