@@ -128,7 +128,7 @@ struct MVPRemainingWorkPanel: View {
   }
 
   private var hasWishlistWorkflow: Bool {
-    !store.activeWishlistItems.isEmpty
+    store.activeWishlistItemCount > 0
       || !store.wishlistCaptureCandidates.isEmpty
       || !store.wishlistResearchRequests.isEmpty
   }

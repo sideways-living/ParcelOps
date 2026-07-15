@@ -5778,7 +5778,7 @@ struct WishlistView: View {
               store.addWishlistPriceSnapshot(item)
             }
           }
-          .disabled(store.activeWishlistItems.isEmpty)
+          .disabled(store.activeWishlistItemCount == 0)
 
           Button("Task for first snapshot", systemImage: "checklist") {
             if let snapshot = snapshots.first {
@@ -9374,7 +9374,7 @@ struct WishlistView: View {
               store.addWishlistPurchaseApprovalRecord(item)
             }
           }
-          .disabled(store.activeWishlistItems.isEmpty)
+          .disabled(store.activeWishlistItemCount == 0)
           NavigationLink {
             TasksView(store: store)
           } label: {
@@ -9466,7 +9466,7 @@ struct WishlistView: View {
               store.addWishlistPurchaseLinkRecord(item)
             }
           }
-          .disabled(store.activeWishlistItems.isEmpty)
+          .disabled(store.activeWishlistItemCount == 0)
           NavigationLink {
             TasksView(store: store)
           } label: {
@@ -9553,7 +9553,7 @@ struct WishlistView: View {
               store.addWishlistPurchaseAccountRecord(item)
             }
           }
-          .disabled(store.activeWishlistItems.isEmpty)
+          .disabled(store.activeWishlistItemCount == 0)
           NavigationLink {
             TasksView(store: store)
           } label: {
@@ -9853,7 +9853,7 @@ struct WishlistView: View {
               store.addWishlistOrderWatchRecord(item)
             }
           }
-          .disabled(store.activeWishlistItems.isEmpty)
+          .disabled(store.activeWishlistItemCount == 0)
           Button("Check open rules", systemImage: "magnifyingglass.circle") {
             store.checkOpenWishlistOrderWatchRecords()
           }
@@ -12048,7 +12048,7 @@ struct WishlistView: View {
               store.addWishlistSellerQuotePlaceholder(item)
             }
           }
-          .disabled(store.activeWishlistItems.isEmpty)
+          .disabled(store.activeWishlistItemCount == 0)
           NavigationLink {
             TasksView(store: store)
           } label: {
@@ -12140,7 +12140,7 @@ struct WishlistView: View {
               store.addWishlistPriceWatchRule(item)
             }
           }
-          .disabled(store.activeWishlistItems.isEmpty)
+          .disabled(store.activeWishlistItemCount == 0)
           NavigationLink {
             TasksView(store: store)
           } label: {
@@ -13493,7 +13493,7 @@ struct WishlistView: View {
           MetricStrip(items: [
             ("Gmail candidates", "\(gmailWishlistCandidateEmails.count)", gmailWishlistCandidateEmails.isEmpty ? .secondary : .blue),
             ("Ready signals", "\(gmailWishlistReadyCount)", gmailWishlistReadyCount == 0 ? .secondary : .teal),
-            ("Wishlist items", "\(store.activeWishlistItems.count)", store.activeWishlistItems.isEmpty ? .secondary : .green),
+            ("Wishlist items", "\(store.activeWishlistItemCount)", store.activeWishlistItemCount == 0 ? .secondary : .green),
             ("Needs review", "\(store.wishlistItems.filter { store.isActiveWishlistItem($0) && $0.status.localizedCaseInsensitiveContains("review") }.count)", store.wishlistItems.contains { store.isActiveWishlistItem($0) && $0.status.localizedCaseInsensitiveContains("review") } ? .orange : .green)
           ])
 

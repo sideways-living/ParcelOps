@@ -5910,6 +5910,10 @@ final class ParcelOpsStore {
     wishlistItems.filter(isActiveWishlistItem)
   }
 
+  var activeWishlistItemCount: Int {
+    activeWishlistItems.count
+  }
+
   var stagedWishlistCaptureCandidates: [WishlistCaptureCandidate] {
     wishlistCaptureCandidates.filter { $0.reviewState != .accepted }
   }
