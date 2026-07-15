@@ -614,26 +614,11 @@ struct DashboardView: View {
   private var wishlistAttentionItems: [WishlistItem] {
     store.wishlistDashboardAttentionItems
   }
-  private var wishlistReadyItems: [WishlistItem] {
-    store.wishlistReadyPurchaseItems
-  }
   private var wishlistReadinessBlockedItems: [WishlistItem] {
     store.wishlistReadinessBlockedItems
   }
-  private var wishlistReadinessCriticalItems: [WishlistItem] {
-    store.wishlistReadinessCriticalItems
-  }
-  private var wishlistReleaseItems: [WishlistItem] {
-    store.wishlistReleaseItems
-  }
   private var wishlistReleaseReadyItems: [WishlistItem] {
     store.wishlistReleaseReadyItems
-  }
-  private var wishlistReleaseBlockedItems: [WishlistItem] {
-    store.wishlistReleaseBlockedItems
-  }
-  private var wishlistReleaseOrderWatchItems: [WishlistItem] {
-    store.wishlistReleaseOrderWatchItems
   }
   private var wishlistHandoffSanityBlockedItems: [WishlistItem] {
     store.wishlistHandoffSanityBlockedItems
@@ -650,23 +635,14 @@ struct DashboardView: View {
   private var wishlistAgentReadyResearchRequests: [WishlistResearchRequest] {
     store.agentReadyWishlistResearchRequests
   }
-  private var wishlistBatchResearchDrafts: [DraftMessage] {
-    store.wishlistBatchResearchDrafts
-  }
   private var wishlistBatchBriefNeeded: Bool {
     store.wishlistBatchBriefNeeded
   }
   private var wishlistPurchasePacketNeededItems: [WishlistItem] {
     store.wishlistPurchasePacketNeededItems
   }
-  private var wishlistPurchasePacketDrafts: [DraftMessage] {
-    store.wishlistPurchasePacketDrafts
-  }
   private var wishlistAgentReadiness: WishlistAgentReadinessSummary {
     store.wishlistAgentReadinessSummary
-  }
-  private var wishlistAgentReadinessIssueCount: Int {
-    store.wishlistAgentReadinessIssueCount
   }
   private var wishlistDailyAttentionCount: Int {
     store.wishlistDailyAttentionCount
@@ -685,24 +661,6 @@ struct DashboardView: View {
     default:
       return .secondary
     }
-  }
-  private func wishlistSellerEvidenceGapCount(for item: WishlistItem) -> Int {
-    store.wishlistSellerEvidenceGapCount(for: item)
-  }
-  private func wishlistNeedsPurchaseDecision(_ item: WishlistItem) -> Bool {
-    store.wishlistNeedsPurchaseDecision(item)
-  }
-  private func wishlistPurchasePacketDraft(for item: WishlistItem) -> DraftMessage? {
-    store.wishlistPurchasePacketDraft(for: item)
-  }
-  private func wishlistHandoffPackGaps(for item: WishlistItem) -> [String] {
-    store.wishlistHandoffPackGaps(for: item)
-  }
-  private func wishlistHandoffSanityGaps(for item: WishlistItem) -> [String] {
-    store.wishlistHandoffSanityGaps(for: item)
-  }
-  private func wishlistReleaseBlockers(for item: WishlistItem) -> [String] {
-    store.wishlistReleaseBlockers(for: item)
   }
   private var wishlistAttentionBlockerSummary: String {
     store.wishlistAttentionBlockerSummary

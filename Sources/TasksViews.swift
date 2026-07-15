@@ -93,32 +93,6 @@ struct TasksView: View {
     store.wishlistLinkedOrderDispatchGapCount
   }
 
-  private func wishlistSellerEvidenceGapCount(for item: WishlistItem) -> Int {
-    store.wishlistSellerEvidenceGapCount(for: item)
-  }
-
-  private func wishlistNeedsPurchaseDecision(_ item: WishlistItem) -> Bool {
-    store.wishlistNeedsPurchaseDecision(item)
-  }
-  private func wishlistNeedsPurchasePacket(_ item: WishlistItem) -> Bool {
-    store.wishlistNeedsPurchasePacket(item)
-  }
-  private func wishlistPurchasePacketDraft(for item: WishlistItem) -> DraftMessage? {
-    store.wishlistPurchasePacketDraft(for: item)
-  }
-
-  private func wishlistHandoffPackGaps(for item: WishlistItem) -> [String] {
-    store.wishlistHandoffPackGaps(for: item)
-  }
-
-  private func wishlistHandoffSanityGaps(for item: WishlistItem) -> [String] {
-    store.wishlistHandoffSanityGaps(for: item)
-  }
-
-  private func wishlistLinkedOrderDispatchGaps(for item: WishlistItem) -> [String] {
-    store.wishlistLinkedOrderDispatchGaps(for: item)
-  }
-
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
     store.spaceMailIntakeHealthSummaries
   }
@@ -723,17 +697,13 @@ struct TasksView: View {
 
   private func wishlistTaskContextColor(for item: WishlistItem) -> Color {
     if item.status.localizedCaseInsensitiveContains("blocked") { return .red }
-    if !wishlistSellerEvidenceGaps(for: item).isEmpty { return .orange }
+    if !store.wishlistSellerEvidenceGaps(for: item).isEmpty { return .orange }
     if store.wishlistNeedsPurchaseDecision(item) { return .purple }
     if !store.wishlistHandoffSanityGaps(for: item).isEmpty { return .orange }
     if !store.wishlistHandoffPackGaps(for: item).isEmpty { return .orange }
     if !store.wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return .blue }
     if item.purchaseHandoff != nil { return .teal }
     return item.operatorPurchaseBlockers.isEmpty ? .green : .purple
-  }
-
-  private func wishlistSellerEvidenceGaps(for item: WishlistItem) -> [String] {
-    store.wishlistSellerEvidenceGaps(for: item)
   }
 
   private var overdueActionCount: Int {

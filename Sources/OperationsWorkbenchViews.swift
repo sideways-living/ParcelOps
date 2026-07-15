@@ -195,27 +195,8 @@ struct OperationsWorkbenchView: View {
   private func wishlistNeedsPurchaseDecision(_ item: WishlistItem) -> Bool {
     store.wishlistNeedsPurchaseDecision(item)
   }
-  private func wishlistNeedsPurchasePacket(_ item: WishlistItem) -> Bool {
-    store.wishlistNeedsPurchasePacket(item)
-  }
-  private func wishlistPurchasePacketDraft(for item: WishlistItem) -> DraftMessage? {
-    store.wishlistPurchasePacketDraft(for: item)
-  }
-
   private func wishlistHandoffPackGaps(for item: WishlistItem) -> [String] {
     store.wishlistHandoffPackGaps(for: item)
-  }
-
-  private func wishlistHandoffSanityGaps(for item: WishlistItem) -> [String] {
-    store.wishlistHandoffSanityGaps(for: item)
-  }
-
-  private func wishlistLinkedOrderDispatchGaps(for item: WishlistItem) -> [String] {
-    store.wishlistLinkedOrderDispatchGaps(for: item)
-  }
-
-  private func wishlistReleaseBlockers(for item: WishlistItem) -> [String] {
-    store.wishlistReleaseBlockers(for: item)
   }
 
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
