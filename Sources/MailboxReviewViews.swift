@@ -3446,7 +3446,7 @@ struct NeedsReviewView: View {
       + store.blockedImportQueueItems.count
       + store.reviewOrders.count
       + store.reviewMailEvents.count
-      + store.pendingMailboxUncertainReviewCount
+      + store.pendingMailboxReviewCount
       + store.reviewIntakeEmails.count
       + store.reviewEvidenceAttachments.count
       + store.reviewCarrierTrackingEvents.count

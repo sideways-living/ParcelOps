@@ -1465,7 +1465,7 @@ struct MVPDevelopmentProgressPanel: View {
   private var openOperationalNoiseCount: Int {
     store.reviewIntakeEmails.count
       + store.intakeParserDiagnostics.count
-      + store.pendingMailboxUncertainReviewCount
+      + store.pendingMailboxReviewCount
       + store.openWorkbenchItems.count
       + store.reviewTasksNeedingAttention.count
       + store.handoffNotesNeedingAttention.count
