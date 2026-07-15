@@ -56,6 +56,9 @@ struct TasksView: View {
   private var wishlistReadyPacketItems: [WishlistItem] {
     store.wishlistReadyPacketItems
   }
+  private var wishlistPacketFollowUpItems: [WishlistItem] {
+    store.wishlistPacketFollowUpItems
+  }
 
   private var wishlistNeedsHandoffItems: [WishlistItem] {
     store.wishlistNeedsHandoffItems
@@ -607,18 +610,12 @@ struct TasksView: View {
             .buttonStyle(.plain)
           }
 
-          let packetRows = (wishlistPurchasePacketNeededItems + wishlistNeedsHandoffItems + wishlistAwaitingOrderItems + wishlistReadyPacketItems + wishlistLinkedOrderDispatchGapItems)
-            .reduce(into: [WishlistItem]()) { result, item in
-              if !result.contains(where: { $0.id == item.id }) {
-                result.append(item)
-              }
-            }
-          if !packetRows.isEmpty {
+          if !wishlistPacketFollowUpItems.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
               Label("Purchase packet follow-up", systemImage: "doc.text.image.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.purple)
-              ForEach(packetRows.prefix(3)) { item in
+              ForEach(wishlistPacketFollowUpItems.prefix(3)) { item in
                 VStack(alignment: .leading, spacing: 6) {
                   CompactRow(
                     title: item.itemName,

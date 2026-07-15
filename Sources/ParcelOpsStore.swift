@@ -6438,6 +6438,19 @@ final class ParcelOpsStore {
     }
   }
 
+  var wishlistPacketFollowUpItems: [WishlistItem] {
+    (wishlistPurchasePacketNeededItems
+      + wishlistNeedsHandoffItems
+      + wishlistAwaitingOrderItems
+      + wishlistReadyPacketItems
+      + wishlistLinkedOrderDispatchGapItems)
+      .reduce(into: [WishlistItem]()) { result, item in
+        if !result.contains(where: { $0.id == item.id }) {
+          result.append(item)
+        }
+      }
+  }
+
   var wishlistReleaseItems: [WishlistItem] {
     activeWishlistItems.filter { item in
       !(item.comparisonOptions ?? []).isEmpty
