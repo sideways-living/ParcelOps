@@ -21,6 +21,12 @@ struct IntegrationsView: View {
   private var latestGmailSummary: GmailIntakeHealthSummary? {
     store.latestGmailIntakeHealthSummary
   }
+  private var hasSpaceMailUncertainReview: Bool {
+    (latestSpaceMailSummary?.totalUncertainCount ?? 0) > 0
+  }
+  private var hasGmailUncertainReview: Bool {
+    (latestGmailSummary?.totalUncertainCount ?? 0) > 0
+  }
   private var hasGmailConnectedAuth: Bool {
     store.hasGmailConnectedAuth
   }
@@ -116,10 +122,10 @@ struct IntegrationsView: View {
     if hasGmailSetup && !hasGmailConnectedAuth {
       return "Test Google sign-in"
     }
-    if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 {
+    if hasSpaceMailUncertainReview {
       return "Review uncertain mixed-mailbox messages"
     }
-    if let latestGmailSummary, latestGmailSummary.pendingUncertainReviewCount > 0 || latestGmailSummary.uncertainCount > 0 {
+    if hasGmailUncertainReview {
       return "Review uncertain Gmail messages"
     }
     return "Run manual mailbox refresh when needed"
@@ -138,10 +144,10 @@ struct IntegrationsView: View {
     if hasGmailSetup && !hasGmailConnectedAuth {
       return "Use readiness check and the explicit Google sign-in test before real Gmail refresh. ParcelOps keeps token values out of JSON and Audit."
     }
-    if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 {
+    if hasSpaceMailUncertainReview {
       return "Uncertain mixed-mailbox messages stay out of Inbox until an operator imports or dismisses them locally."
     }
-    if let latestGmailSummary, latestGmailSummary.pendingUncertainReviewCount > 0 || latestGmailSummary.uncertainCount > 0 {
+    if hasGmailUncertainReview {
       return "Uncertain Gmail previews stay out of Inbox until an operator imports or dismisses them locally."
     }
     return "Use explicit manual read-only refresh for the active mailbox provider. Microsoft 365, Shopify, watched folders, and login placeholders remain secondary planning surfaces."
@@ -151,8 +157,8 @@ struct IntegrationsView: View {
     if !hasSpaceMailSetup && !hasGmailSetup { return .orange }
     if hasSpaceMailSetup && !hasSpaceMailCredentialReference { return .orange }
     if hasGmailSetup && (!hasGmailCoreSetup || !hasGmailConnectedAuth) { return .orange }
-    if let latestSpaceMailSummary, latestSpaceMailSummary.pendingUncertainReviewCount > 0 || latestSpaceMailSummary.uncertainCount > 0 { return .orange }
-    if let latestGmailSummary, latestGmailSummary.pendingUncertainReviewCount > 0 || latestGmailSummary.uncertainCount > 0 { return .orange }
+    if hasSpaceMailUncertainReview { return .orange }
+    if hasGmailUncertainReview { return .orange }
     return .green
   }
 
@@ -1401,6 +1407,10 @@ struct GmailMailboxConnectionRow: View {
   @State private var classifierSubject = "Delivery question"
   @State private var classifierPreview = "Can you check whether this relates to an order? I do not have the tracking number yet."
 
+  private var totalUncertainCount: Int {
+    (connection.lastRefreshUncertainCount ?? 0) + (connection.uncertainMessages ?? []).count
+  }
+
   init(
     connection: GmailMailboxConnection,
     readiness: GmailOAuthReadinessSummary,
@@ -1513,7 +1523,7 @@ struct GmailMailboxConnectionRow: View {
             Badge(authState.status == .connected ? "Google signed in" : "Sign-in needed", color: authState.status == .connected ? .green : .orange)
             Badge(connection.lastManualRefreshDate == "Never" ? "No refresh" : "Refresh recorded", color: connection.lastManualRefreshDate == "Never" ? .secondary : .blue)
             Badge("\(connection.lastRefreshImportedCount) imported", color: connection.lastRefreshImportedCount > 0 ? .green : .secondary)
-            Badge("\((connection.lastRefreshUncertainCount ?? 0) + (connection.uncertainMessages ?? []).count) uncertain", color: ((connection.lastRefreshUncertainCount ?? 0) + (connection.uncertainMessages ?? []).count) > 0 ? .orange : .secondary)
+            Badge("\(totalUncertainCount) uncertain", color: totalUncertainCount > 0 ? .orange : .secondary)
             Badge("\(connection.lastRefreshFilteredNonOrderCount) filtered", color: connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary)
             Badge("\((connection.trustedSenderHints ?? []).count) trusted", color: (connection.trustedSenderHints ?? []).isEmpty ? .secondary : .purple)
             Badge("\((connection.importKeywordHints ?? []).count) import hints", color: (connection.importKeywordHints ?? []).isEmpty ? .secondary : .green)
@@ -1748,7 +1758,7 @@ struct GmailMailboxConnectionRow: View {
           ("Imported", "\(connection.lastRefreshImportedCount)", connection.lastRefreshImportedCount > 0 ? .green : .secondary),
           ("Duplicates", "\(connection.lastRefreshDuplicateCount)", connection.lastRefreshDuplicateCount > 0 ? .orange : .secondary),
           ("Filtered", "\(connection.lastRefreshFilteredNonOrderCount)", connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary),
-          ("Uncertain", "\(connection.lastRefreshUncertainCount ?? 0)", (connection.lastRefreshUncertainCount ?? 0) > 0 ? .orange : .secondary)
+          ("Uncertain", "\(totalUncertainCount)", totalUncertainCount > 0 ? .orange : .secondary)
         ])
         CompactMetadataGrid(minimumWidth: 145) {
           Badge("Label: \(gmailPrimaryLabelDisplay)", color: gmailLabelResolutionColor)
@@ -1864,7 +1874,7 @@ struct GmailMailboxConnectionRow: View {
         }
       }
       .padding(10)
-      .background((connection.lastRefreshUncertainCount ?? 0) > 0 ? Color.orange.opacity(0.10) : connection.lastRefreshFilteredNonOrderCount > 0 ? Color.teal.opacity(0.10) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      .background(totalUncertainCount > 0 ? Color.orange.opacity(0.10) : connection.lastRefreshFilteredNonOrderCount > 0 ? Color.teal.opacity(0.10) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
       if let history = connection.refreshHistory, !history.isEmpty {
         gmailRefreshHistory(history)
@@ -3140,7 +3150,7 @@ struct GmailMailboxConnectionRow: View {
     if connection.lastRefreshImportedCount > 0 {
       return "Refresh imported Inbox items"
     }
-    if connection.lastRefreshFilteredNonOrderCount > 0 || (connection.lastRefreshUncertainCount ?? 0) > 0 {
+    if connection.lastRefreshFilteredNonOrderCount > 0 || totalUncertainCount > 0 {
       return "Refresh completed with filtering"
     }
     if connection.connectionStatus.localizedCaseInsensitiveContains("No messages") {
@@ -3169,8 +3179,8 @@ struct GmailMailboxConnectionRow: View {
     if connection.lastRefreshImportedCount > 0 {
       return "\(connection.lastRefreshImportedCount) message\(connection.lastRefreshImportedCount == 1 ? "" : "s") entered Inbox intake. Review Inbox triage before creating or linking orders."
     }
-    if connection.lastRefreshFilteredNonOrderCount > 0 || (connection.lastRefreshUncertainCount ?? 0) > 0 {
-      let uncertainCount = connection.lastRefreshUncertainCount ?? 0
+    if connection.lastRefreshFilteredNonOrderCount > 0 || totalUncertainCount > 0 {
+      let uncertainCount = totalUncertainCount
       return "\(connection.lastRefreshFilteredNonOrderCount) non-order message\(connection.lastRefreshFilteredNonOrderCount == 1 ? "" : "s") stayed out of Inbox; \(uncertainCount) uncertain preview\(uncertainCount == 1 ? "" : "s") can be reviewed locally."
     }
     if connection.connectionStatus.localizedCaseInsensitiveContains("No messages") {
@@ -3195,7 +3205,7 @@ struct GmailMailboxConnectionRow: View {
       return "exclamationmark.triangle"
     }
     if connection.lastRefreshImportedCount > 0 { return "tray.and.arrow.down.fill" }
-    if connection.lastRefreshFilteredNonOrderCount > 0 || (connection.lastRefreshUncertainCount ?? 0) > 0 {
+    if connection.lastRefreshFilteredNonOrderCount > 0 || totalUncertainCount > 0 {
       return "line.3.horizontal.decrease.circle"
     }
     return "info.circle"
@@ -3211,7 +3221,7 @@ struct GmailMailboxConnectionRow: View {
     }
     if connection.lastRefreshImportedCount > 0 { return .green }
     if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
-    if (connection.lastRefreshUncertainCount ?? 0) > 0 { return .orange }
+    if totalUncertainCount > 0 { return .orange }
     return .secondary
   }
 
@@ -3294,7 +3304,7 @@ struct GmailMailboxConnectionRow: View {
     if hasMissingCoreGmailSetup || !readiness.isReady { return .orange }
     if authState.status != .connected { return .orange }
     if gmailRefreshGuidanceColor == .orange { return .orange }
-    if (connection.lastRefreshUncertainCount ?? 0) > 0 { return .orange }
+    if totalUncertainCount > 0 { return .orange }
     if connection.lastRefreshImportedCount > 0 { return .green }
     if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
     return .secondary
@@ -3368,7 +3378,7 @@ struct GmailMailboxConnectionRow: View {
       ))
     }
 
-    if (connection.lastRefreshUncertainCount ?? 0) > 0 || !(connection.uncertainMessages ?? []).isEmpty {
+    if totalUncertainCount > 0 {
       steps.append((
         "Review uncertain previews",
         "Uncertain Gmail previews stay out of Inbox until imported. Import genuine order mail, dismiss non-order mail, or create a task.",
@@ -6157,7 +6167,7 @@ struct SettingsView: View {
         summaryDetail: summary.detail,
         nextAction: summary.nextAction,
         importedCount: summary.importedCount,
-        uncertainCount: summary.pendingUncertainReviewCount + summary.uncertainCount,
+        uncertainCount: summary.totalUncertainCount,
         filteredCount: summary.filteredCount,
         duplicateCount: summary.duplicateCount,
         duplicateRefreshedCount: summary.duplicateRefreshedCount,
@@ -6171,7 +6181,7 @@ struct SettingsView: View {
         summaryDetail: summary.detail,
         nextAction: summary.nextAction,
         importedCount: summary.importedCount,
-        uncertainCount: summary.pendingUncertainReviewCount + summary.uncertainCount,
+        uncertainCount: summary.totalUncertainCount,
         filteredCount: summary.filteredCount,
         duplicateCount: summary.duplicateCount,
         duplicateRefreshedCount: summary.duplicateRefreshedCount,
