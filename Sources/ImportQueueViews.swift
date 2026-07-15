@@ -61,43 +61,55 @@ struct ImportQueueView: View {
     var rows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] = []
 
     if let summary = latestSpaceMailSummary {
-      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
-      if summary.importedCount > 0 {
-        rows.append(("SpaceMail", "\(summary.importedCount) imported", "Imported SpaceMail rows should be checked in Inbox before they become staged imports or orders.", "server.rack", .green))
-      } else if uncertain > 0 {
-        rows.append(("SpaceMail", "\(uncertain) uncertain", "Uncertain SpaceMail previews remain in Mailbox Monitor until imported or dismissed.", "server.rack", .orange))
-      } else if summary.filteredCount > 0 {
-        rows.append(("SpaceMail", "\(summary.filteredCount) filtered", "Filtered non-order SpaceMail messages should not appear in Import Queue.", "server.rack", .teal))
-      } else if summary.duplicateRefreshedCount > 0 {
-        rows.append(("SpaceMail", "\(summary.duplicateRefreshedCount) refreshed", "Duplicate SpaceMail messages updated existing Inbox rows. Stage an import only after those refreshed rows are promoted intentionally.", "server.rack", .teal))
-      } else if summary.duplicateCount > 0 {
-        rows.append(("SpaceMail", "\(summary.duplicateCount) duplicate", "Duplicate SpaceMail messages were already captured; staged imports only change if an existing intake row is promoted.", "server.rack", .teal))
-      } else {
-        rows.append(("SpaceMail", "\(summary.fetchedCount) fetched", summary.nextAction, "server.rack", .secondary))
-      }
+      rows.append(spaceMailImportRow(summary))
     }
 
     if let summary = latestGmailSummary {
-      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
-      if summary.importedCount > 0 {
-        rows.append(("Gmail", "\(summary.importedCount) imported", "Imported Gmail rows should be checked in Inbox before they become staged imports or orders.", "envelope.badge.shield.half.filled", .green))
-      } else if uncertain > 0 {
-        rows.append(("Gmail", "\(uncertain) uncertain", "Uncertain Gmail previews remain in Mailbox Monitor until imported or dismissed.", "envelope.badge.shield.half.filled", .orange))
-      } else if summary.filteredCount > 0 {
-        rows.append(("Gmail", "\(summary.filteredCount) filtered", "Filtered non-order Gmail messages should not appear in Import Queue.", "envelope.badge.shield.half.filled", .teal))
-      } else if summary.duplicateRefreshedCount > 0 {
-        rows.append(("Gmail", "\(summary.duplicateRefreshedCount) refreshed", "Duplicate Gmail messages updated existing Inbox rows. Stage an import only after those refreshed rows are promoted intentionally.", "envelope.badge.shield.half.filled", .teal))
-      } else if summary.duplicateCount > 0 {
-        rows.append(("Gmail", "\(summary.duplicateCount) duplicate", "Duplicate Gmail messages were already captured; staged imports only change if an existing intake row is promoted.", "envelope.badge.shield.half.filled", .teal))
-      } else {
-        rows.append(("Gmail", "\(summary.fetchedCount) fetched", summary.nextAction, "envelope.badge.shield.half.filled", .secondary))
-      }
+      rows.append(gmailImportRow(summary))
     }
 
     if rows.isEmpty {
       rows.append(("Mailbox", "No provider refresh", "Run an active mailbox provider refresh first, then promote confirmed intake into Import Queue only when staging is useful.", "envelope.badge.fill", .secondary))
     }
     return rows
+  }
+
+  private func spaceMailImportRow(_ summary: SpaceMailIntakeHealthSummary) -> (provider: String, status: String, detail: String, symbol: String, color: Color) {
+    if summary.importedCount > 0 {
+      return ("SpaceMail", summary.primaryOutcomeStatus, "Imported SpaceMail rows should be checked in Inbox before they become staged imports or orders.", "server.rack", .green)
+    }
+    if summary.totalUncertainCount > 0 {
+      return ("SpaceMail", summary.primaryOutcomeStatus, "Uncertain SpaceMail previews remain in Mailbox Monitor until imported or dismissed.", "server.rack", .orange)
+    }
+    if summary.filteredCount > 0 {
+      return ("SpaceMail", summary.primaryOutcomeStatus, "Filtered non-order SpaceMail messages should not appear in Import Queue.", "server.rack", .teal)
+    }
+    if summary.duplicateRefreshedCount > 0 {
+      return ("SpaceMail", summary.primaryOutcomeStatus, "Duplicate SpaceMail messages updated existing Inbox rows. Stage an import only after those refreshed rows are promoted intentionally.", "server.rack", .teal)
+    }
+    if summary.duplicateCount > 0 {
+      return ("SpaceMail", summary.primaryOutcomeStatus, "Duplicate SpaceMail messages were already captured; staged imports only change if an existing intake row is promoted.", "server.rack", .teal)
+    }
+    return ("SpaceMail", summary.primaryOutcomeStatus, summary.nextAction, "server.rack", .secondary)
+  }
+
+  private func gmailImportRow(_ summary: GmailIntakeHealthSummary) -> (provider: String, status: String, detail: String, symbol: String, color: Color) {
+    if summary.importedCount > 0 {
+      return ("Gmail", summary.primaryOutcomeStatus, "Imported Gmail rows should be checked in Inbox before they become staged imports or orders.", "envelope.badge.shield.half.filled", .green)
+    }
+    if summary.totalUncertainCount > 0 {
+      return ("Gmail", summary.primaryOutcomeStatus, "Uncertain Gmail previews remain in Mailbox Monitor until imported or dismissed.", "envelope.badge.shield.half.filled", .orange)
+    }
+    if summary.filteredCount > 0 {
+      return ("Gmail", summary.primaryOutcomeStatus, "Filtered non-order Gmail messages should not appear in Import Queue.", "envelope.badge.shield.half.filled", .teal)
+    }
+    if summary.duplicateRefreshedCount > 0 {
+      return ("Gmail", summary.primaryOutcomeStatus, "Duplicate Gmail messages updated existing Inbox rows. Stage an import only after those refreshed rows are promoted intentionally.", "envelope.badge.shield.half.filled", .teal)
+    }
+    if summary.duplicateCount > 0 {
+      return ("Gmail", summary.primaryOutcomeStatus, "Duplicate Gmail messages were already captured; staged imports only change if an existing intake row is promoted.", "envelope.badge.shield.half.filled", .teal)
+    }
+    return ("Gmail", summary.primaryOutcomeStatus, summary.nextAction, "envelope.badge.shield.half.filled", .secondary)
   }
 
   var body: some View {

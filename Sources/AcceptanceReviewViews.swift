@@ -58,43 +58,55 @@ struct AcceptanceReviewView: View {
     var rows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] = []
 
     if let summary = latestSpaceMailSummary {
-      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
-      if summary.importedCount > 0 {
-        rows.append(("SpaceMail", "\(summary.importedCount) imported", "Imported SpaceMail rows should be accepted only after order/tracking fields and linked order decisions are clear.", "server.rack", .green))
-      } else if uncertain > 0 {
-        rows.append(("SpaceMail", "\(uncertain) uncertain", "Uncertain SpaceMail previews are not acceptance candidates until imported from Mailbox Monitor.", "server.rack", .orange))
-      } else if summary.filteredCount > 0 {
-        rows.append(("SpaceMail", "\(summary.filteredCount) filtered", "Filtered non-order SpaceMail messages should not reach Acceptance Review.", "server.rack", .teal))
-      } else if summary.duplicateRefreshedCount > 0 {
-        rows.append(("SpaceMail", "\(summary.duplicateRefreshedCount) refreshed", "Duplicate SpaceMail messages refreshed existing Inbox rows. Accept only after those rows have clear order/tracking fields and link decisions.", "server.rack", .teal))
-      } else if summary.duplicateCount > 0 {
-        rows.append(("SpaceMail", "\(summary.duplicateCount) duplicate", "Duplicate SpaceMail messages should not create new acceptance candidates.", "server.rack", .teal))
-      } else {
-        rows.append(("SpaceMail", "\(summary.fetchedCount) fetched", summary.nextAction, "server.rack", .secondary))
-      }
+      rows.append(spaceMailAcceptanceRow(summary))
     }
 
     if let summary = latestGmailSummary {
-      let uncertain = summary.pendingUncertainReviewCount + summary.uncertainCount
-      if summary.importedCount > 0 {
-        rows.append(("Gmail", "\(summary.importedCount) imported", "Imported Gmail rows should be accepted only after order/tracking fields and linked order decisions are clear.", "envelope.badge.shield.half.filled", .green))
-      } else if uncertain > 0 {
-        rows.append(("Gmail", "\(uncertain) uncertain", "Uncertain Gmail previews are not acceptance candidates until imported from Mailbox Monitor.", "envelope.badge.shield.half.filled", .orange))
-      } else if summary.filteredCount > 0 {
-        rows.append(("Gmail", "\(summary.filteredCount) filtered", "Filtered non-order Gmail messages should not reach Acceptance Review.", "envelope.badge.shield.half.filled", .teal))
-      } else if summary.duplicateRefreshedCount > 0 {
-        rows.append(("Gmail", "\(summary.duplicateRefreshedCount) refreshed", "Duplicate Gmail messages refreshed existing Inbox rows. Accept only after those rows have clear order/tracking fields and link decisions.", "envelope.badge.shield.half.filled", .teal))
-      } else if summary.duplicateCount > 0 {
-        rows.append(("Gmail", "\(summary.duplicateCount) duplicate", "Duplicate Gmail messages should not create new acceptance candidates.", "envelope.badge.shield.half.filled", .teal))
-      } else {
-        rows.append(("Gmail", "\(summary.fetchedCount) fetched", summary.nextAction, "envelope.badge.shield.half.filled", .secondary))
-      }
+      rows.append(gmailAcceptanceRow(summary))
     }
 
     if rows.isEmpty {
       rows.append(("Mailbox", "No provider refresh", "Run an active mailbox provider refresh, then review imported Inbox rows before they become acceptance candidates.", "envelope.badge.fill", .secondary))
     }
     return rows
+  }
+
+  private func spaceMailAcceptanceRow(_ summary: SpaceMailIntakeHealthSummary) -> (provider: String, status: String, detail: String, symbol: String, color: Color) {
+    if summary.importedCount > 0 {
+      return ("SpaceMail", summary.primaryOutcomeStatus, "Imported SpaceMail rows should be accepted only after order/tracking fields and linked order decisions are clear.", "server.rack", .green)
+    }
+    if summary.totalUncertainCount > 0 {
+      return ("SpaceMail", summary.primaryOutcomeStatus, "Uncertain SpaceMail previews are not acceptance candidates until imported from Mailbox Monitor.", "server.rack", .orange)
+    }
+    if summary.filteredCount > 0 {
+      return ("SpaceMail", summary.primaryOutcomeStatus, "Filtered non-order SpaceMail messages should not reach Acceptance Review.", "server.rack", .teal)
+    }
+    if summary.duplicateRefreshedCount > 0 {
+      return ("SpaceMail", summary.primaryOutcomeStatus, "Duplicate SpaceMail messages refreshed existing Inbox rows. Accept only after those rows have clear order/tracking fields and link decisions.", "server.rack", .teal)
+    }
+    if summary.duplicateCount > 0 {
+      return ("SpaceMail", summary.primaryOutcomeStatus, "Duplicate SpaceMail messages should not create new acceptance candidates.", "server.rack", .teal)
+    }
+    return ("SpaceMail", summary.primaryOutcomeStatus, summary.nextAction, "server.rack", .secondary)
+  }
+
+  private func gmailAcceptanceRow(_ summary: GmailIntakeHealthSummary) -> (provider: String, status: String, detail: String, symbol: String, color: Color) {
+    if summary.importedCount > 0 {
+      return ("Gmail", summary.primaryOutcomeStatus, "Imported Gmail rows should be accepted only after order/tracking fields and linked order decisions are clear.", "envelope.badge.shield.half.filled", .green)
+    }
+    if summary.totalUncertainCount > 0 {
+      return ("Gmail", summary.primaryOutcomeStatus, "Uncertain Gmail previews are not acceptance candidates until imported from Mailbox Monitor.", "envelope.badge.shield.half.filled", .orange)
+    }
+    if summary.filteredCount > 0 {
+      return ("Gmail", summary.primaryOutcomeStatus, "Filtered non-order Gmail messages should not reach Acceptance Review.", "envelope.badge.shield.half.filled", .teal)
+    }
+    if summary.duplicateRefreshedCount > 0 {
+      return ("Gmail", summary.primaryOutcomeStatus, "Duplicate Gmail messages refreshed existing Inbox rows. Accept only after those rows have clear order/tracking fields and link decisions.", "envelope.badge.shield.half.filled", .teal)
+    }
+    if summary.duplicateCount > 0 {
+      return ("Gmail", summary.primaryOutcomeStatus, "Duplicate Gmail messages should not create new acceptance candidates.", "envelope.badge.shield.half.filled", .teal)
+    }
+    return ("Gmail", summary.primaryOutcomeStatus, summary.nextAction, "envelope.badge.shield.half.filled", .secondary)
   }
 
   var body: some View {
