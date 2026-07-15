@@ -428,13 +428,13 @@ struct MVPMailboxProviderStatusPanel: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
           providerBlock(
             title: "SpaceMail IMAP",
-            detail: latestSpaceMailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateRefreshedCount) refreshed, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. \($0.nextAction)" } ?? "Use for IMAP mailboxes. Real refresh is manual, read-only, and uses Keychain-backed credential status.",
+            detail: latestSpaceMailSummary.map(\.namedRefreshCountsText) ?? "Use for IMAP mailboxes. Real refresh is manual, read-only, and uses Keychain-backed credential status.",
             symbol: "server.rack",
             color: hasSpaceMailSetup && hasSpaceMailCredential ? .green : .orange
           )
           providerBlock(
             title: "Gmail",
-            detail: latestGmailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateRefreshedCount) refreshed, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. \($0.nextAction)" } ?? "Use for Google-hosted mailboxes. Real refresh is manual and read-only after readiness checks and explicit sign-in; mock refresh remains available.",
+            detail: latestGmailSummary.map(\.namedRefreshCountsText) ?? "Use for Google-hosted mailboxes. Real refresh is manual and read-only after readiness checks and explicit sign-in; mock refresh remains available.",
             symbol: "envelope.open.fill",
             color: hasGmailSetup && hasGmailConnectedAuth ? .green : .orange
           )
@@ -1543,10 +1543,10 @@ struct MVPDevelopmentProgressPanel: View {
 
   private var activeMailboxEvidence: String {
     if let latestGmailSummary, latestGmailSummary.fetchedCount > 0 || latestGmailSummary.importedCount > 0 || latestGmailSummary.filteredCount > 0 {
-      return "Gmail: \(latestGmailSummary.fetchedCount) fetched, \(latestGmailSummary.importedCount) imported, \(latestGmailSummary.filteredCount) filtered, \(latestGmailSummary.pendingUncertainReviewCount + latestGmailSummary.uncertainCount) uncertain."
+      return "Gmail: \(latestGmailSummary.compactRefreshCountsText)."
     }
     if let latestSpaceMailSummary, latestSpaceMailSummary.fetchedCount > 0 || latestSpaceMailSummary.importedCount > 0 || latestSpaceMailSummary.filteredCount > 0 {
-      return "SpaceMail: \(latestSpaceMailSummary.fetchedCount) fetched, \(latestSpaceMailSummary.importedCount) imported, \(latestSpaceMailSummary.filteredCount) filtered, \(latestSpaceMailSummary.pendingUncertainReviewCount + latestSpaceMailSummary.uncertainCount) uncertain."
+      return "SpaceMail: \(latestSpaceMailSummary.compactRefreshCountsText)."
     }
     if hasGmailSetup || hasSpaceMailSetup {
       return "Mailbox setup exists, but no useful manual refresh evidence is available yet."
@@ -2806,8 +2806,8 @@ struct MVPHandsOnTroubleshootingGuide: View {
 
   private var latestMailboxDetail: String {
     let summaries: [String] = [
-      latestSpaceMailSummary.map { "SpaceMail: \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateCount) duplicate, \($0.duplicateRefreshedCount) refreshed, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. \($0.nextAction)" },
-      latestGmailSummary.map { "Gmail: \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateCount) duplicate, \($0.duplicateRefreshedCount) refreshed, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. \($0.nextAction)" }
+      latestSpaceMailSummary.map { "SpaceMail: \($0.namedRefreshCountsText)" },
+      latestGmailSummary.map { "Gmail: \($0.namedRefreshCountsText)" }
     ].compactMap { $0 }
     guard !summaries.isEmpty else {
       return "No refresh summary yet. Start with the local demo workflow, then run the active mailbox provider only when credentials or sign-in are ready."

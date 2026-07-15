@@ -128,7 +128,7 @@ struct MailboxView: View {
       (
         "SpaceMail / IMAP",
         store.spaceMailIMAPConnections.isEmpty ? "Not set" : spaceMailCredentialReady ? "Ready" : "Credential needed",
-        latestSpaceMailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount) uncertain. \($0.nextAction)" }
+        latestSpaceMailSummary.map(\.namedRefreshCountsText)
           ?? "Use for SpaceMail or other IMAP-hosted mailboxes. Requires host, SSL/TLS, folder, username, and Keychain password reference.",
         "server.rack",
         store.spaceMailIMAPConnections.isEmpty ? .secondary : spaceMailCredentialReady ? .green : .orange
@@ -136,7 +136,7 @@ struct MailboxView: View {
       (
         "Gmail / Google Workspace",
         store.gmailMailboxConnections.isEmpty ? "Not set" : gmailSignedIn ? "Signed in" : gmailSetupReady ? "Sign-in needed" : "Setup needed",
-        latestGmailSummary.map { "\($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount) uncertain. \($0.nextAction)" }
+        latestGmailSummary.map(\.namedRefreshCountsText)
           ?? "Use only for Gmail or Google Workspace mailboxes. Requires matching Google client setup, explicit sign-in, and manual read-only refresh.",
         "envelope.badge.shield.half.filled",
         store.gmailMailboxConnections.isEmpty ? .secondary : gmailSignedIn ? .green : .orange
@@ -2045,7 +2045,7 @@ private struct MailboxGmailRunbookPanel: View {
     guard let latestSummary else {
       return "No Gmail refresh summary exists yet."
     }
-    return "Fetched \(latestSummary.fetchedCount), imported \(latestSummary.importedCount), duplicate \(latestSummary.duplicateCount), refreshed \(latestSummary.duplicateRefreshedCount), filtered \(latestSummary.filteredCount), uncertain \(latestSummary.pendingUncertainReviewCount)."
+    return "Fetched \(latestSummary.fetchedCount), imported \(latestSummary.importedCount), duplicate \(latestSummary.duplicateCount), refreshed \(latestSummary.duplicateRefreshedCount), filtered \(latestSummary.filteredCount), uncertain \(latestSummary.totalUncertainCount)."
   }
 
   private var runbookItems: [(title: String, detail: String, status: String, symbol: String, color: Color)] {

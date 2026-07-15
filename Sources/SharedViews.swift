@@ -5574,7 +5574,7 @@ struct SpaceMailPrimaryStatusStrip: View {
     guard let latest = gmailHealthSummaries.first else {
       return "Next: add Gmail setup placeholder"
     }
-    return "\(latest.fetchedCount) fetched, \(latest.importedCount) imported, \(latest.duplicateCount) duplicate, \(latest.duplicateRefreshedCount) refreshed, \(latest.filteredCount) filtered, \(latest.pendingUncertainReviewCount + latest.uncertainCount) uncertain. Next: \(latest.nextAction)"
+    return "\(latest.compactRefreshCountsText). Next: \(latest.nextAction)"
   }
 
   private var hasSpaceMailProvider: Bool {
@@ -6198,10 +6198,10 @@ struct OperatorSupportSnapshotCard: View {
 
   private var latestRefreshText: String {
     let spaceLine = latestSpaceMailSummary.map {
-      "SpaceMail \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain"
+      "SpaceMail \($0.compactRefreshCountsText)"
     } ?? "SpaceMail no refresh summary"
     let gmailLine = latestGmailSummary.map {
-      "Gmail \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain"
+      "Gmail \($0.compactRefreshCountsText)"
     } ?? "Gmail no refresh summary"
     return "\(spaceLine). \(gmailLine)."
   }
@@ -6404,8 +6404,8 @@ struct OperatorTestSessionChecklistCard: View {
         "2. Run read-only refresh",
         "Manual mailbox refresh has completed or returned a clear safe result.",
         [
-          latestSpaceMailSummary.map { "SpaceMail \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateRefreshedCount) refreshed, \($0.filteredCount) filtered." } ?? "SpaceMail no refresh summary.",
-          latestGmailSummary.map { "Gmail \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateRefreshedCount) refreshed, \($0.filteredCount) filtered." } ?? "Gmail no refresh summary."
+          latestSpaceMailSummary.map { "SpaceMail \($0.compactRefreshCountsText)." } ?? "SpaceMail no refresh summary.",
+          latestGmailSummary.map { "Gmail \($0.compactRefreshCountsText)." } ?? "Gmail no refresh summary."
         ].joined(separator: " "),
         "mail.stack.fill",
         hasRefresh || hasGmailRefresh,
@@ -6415,8 +6415,8 @@ struct OperatorTestSessionChecklistCard: View {
         "3. Review mixed mailbox decisions",
         "Filtered non-order mail stays out of Inbox, while uncertain mail is held in Mailbox Monitor.",
         [
-          latestSpaceMailSummary.map { "SpaceMail \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain." } ?? "SpaceMail no classifier evidence.",
-          latestGmailSummary.map { "Gmail \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain." } ?? "Gmail no classifier evidence."
+          latestSpaceMailSummary.map { "SpaceMail \($0.filteredCount) filtered, \($0.totalUncertainCount) uncertain." } ?? "SpaceMail no classifier evidence.",
+          latestGmailSummary.map { "Gmail \($0.filteredCount) filtered, \($0.totalUncertainCount) uncertain." } ?? "Gmail no classifier evidence."
         ].joined(separator: " "),
         "line.3.horizontal.decrease.circle",
         hasFiltering || hasGmailFiltering,
@@ -6633,10 +6633,10 @@ struct OperatorHandoffBriefCard: View {
 
   private var mailboxLine: String {
     let spaceLine = latestSpaceMailSummary.map {
-      "SpaceMail: \($0.displayName), \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateCount) duplicate, \($0.duplicateRefreshedCount) refreshed, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. Next: \($0.nextAction)"
+      "SpaceMail: \($0.namedRefreshCountsText)"
     } ?? "SpaceMail: no refresh summary yet."
     let gmailLine = latestGmailSummary.map {
-      "Gmail: \($0.displayName), \($0.fetchedCount) fetched, \($0.importedCount) imported, \($0.duplicateCount) duplicate, \($0.duplicateRefreshedCount) refreshed, \($0.filteredCount) filtered, \($0.pendingUncertainReviewCount + $0.uncertainCount) uncertain. Next: \($0.nextAction)"
+      "Gmail: \($0.namedRefreshCountsText)"
     } ?? "Gmail: no refresh summary yet."
     return "\(spaceLine) \(gmailLine)"
   }
