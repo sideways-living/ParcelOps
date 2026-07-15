@@ -5943,8 +5943,8 @@ struct MailboxProviderQAMatrixCard: View {
   }
 
   private var uncertainCount: Int {
-    (latestSpaceMailSummary.map { $0.pendingUncertainReviewCount + $0.uncertainCount } ?? 0)
-      + (latestGmailSummary.map { $0.pendingUncertainReviewCount + $0.uncertainCount } ?? 0)
+    (latestSpaceMailSummary.map(\.totalUncertainCount) ?? 0)
+      + (latestGmailSummary.map(\.totalUncertainCount) ?? 0)
   }
 
   private var inboxOrderCount: Int {

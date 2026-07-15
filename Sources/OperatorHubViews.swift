@@ -1451,7 +1451,7 @@ private struct InboxMailboxHealthRow: View {
         Badge("\(summary.importedCount) imported", color: summary.importedCount > 0 ? .green : .secondary)
         Badge("\(summary.filteredCount) filtered", color: summary.filteredCount > 0 ? .teal : .secondary)
         Badge("\(summary.duplicateCount) duplicates", color: summary.duplicateCount > 0 ? .orange : .secondary)
-        Badge("\(summary.uncertainCount) uncertain", color: summary.uncertainCount > 0 ? .orange : .secondary)
+        Badge("\(summary.totalUncertainCount) uncertain", color: summary.totalUncertainCount > 0 ? .orange : .secondary)
         Badge("\(summary.parserIssueCount) parser checks", color: summary.parserIssueCount > 0 ? .orange : .secondary)
       }
       Text(summary.nextAction)
@@ -1505,7 +1505,7 @@ private struct InboxGmailHealthRow: View {
         Badge("\(summary.importedCount) imported", color: summary.importedCount > 0 ? .green : .secondary)
         Badge("\(summary.filteredCount) filtered", color: summary.filteredCount > 0 ? .teal : .secondary)
         Badge("\(summary.duplicateCount) duplicates", color: summary.duplicateCount > 0 ? .orange : .secondary)
-        Badge("\(summary.pendingUncertainReviewCount + summary.uncertainCount) uncertain", color: summary.pendingUncertainReviewCount + summary.uncertainCount > 0 ? .orange : .secondary)
+        Badge("\(summary.totalUncertainCount) uncertain", color: summary.totalUncertainCount > 0 ? .orange : .secondary)
       }
       Text(summary.nextAction)
         .font(.caption.weight(.semibold))

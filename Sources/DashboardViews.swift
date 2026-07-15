@@ -2410,10 +2410,10 @@ private struct DashboardReleaseReadinessSnapshot: View {
 
   private var mailboxEvidenceText: String {
     if let latestGmailSummary, latestGmailSummary.fetchedCount > 0 || latestGmailSummary.importedCount > 0 || latestGmailSummary.filteredCount > 0 {
-      return "Gmail latest: \(latestGmailSummary.fetchedCount) fetched, \(latestGmailSummary.importedCount) imported, \(latestGmailSummary.filteredCount) filtered, \(latestGmailSummary.pendingUncertainReviewCount + latestGmailSummary.uncertainCount) uncertain."
+      return "Gmail latest: \(latestGmailSummary.compactRefreshCountsText)."
     }
     if let latestSpaceMailSummary, latestSpaceMailSummary.fetchedCount > 0 || latestSpaceMailSummary.importedCount > 0 || latestSpaceMailSummary.filteredCount > 0 {
-      return "SpaceMail latest: \(latestSpaceMailSummary.fetchedCount) fetched, \(latestSpaceMailSummary.importedCount) imported, \(latestSpaceMailSummary.filteredCount) filtered, \(latestSpaceMailSummary.pendingUncertainReviewCount + latestSpaceMailSummary.uncertainCount) uncertain."
+      return "SpaceMail latest: \(latestSpaceMailSummary.compactRefreshCountsText)."
     }
     return hasMailboxSetup ? "Mailbox setup exists, but no useful latest refresh evidence is available." : "No mailbox provider setup yet."
   }
