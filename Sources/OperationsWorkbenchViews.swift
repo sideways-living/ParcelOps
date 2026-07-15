@@ -125,16 +125,27 @@ struct OperationsWorkbenchView: View {
     store.wishlistResearchAttentionRequests
   }
 
-  private var wishlistAgentReadyResearchRequests: [WishlistResearchRequest] {
-    store.agentReadyWishlistResearchRequests
-  }
-
   private var wishlistBatchResearchDrafts: [DraftMessage] {
     store.wishlistBatchResearchDrafts
   }
 
   private var wishlistBatchBriefNeeded: Bool {
     store.wishlistBatchBriefNeeded
+  }
+
+  private var wishlistWorkbenchPurchaseFollowUpVisible: Bool {
+    store.wishlistWorkbenchPurchaseFollowUpVisible
+  }
+
+  private var wishlistBatchBriefWorkbenchColor: Color {
+    switch store.wishlistBatchBriefWorkbenchTone {
+    case "warning":
+      return .orange
+    case "success":
+      return .green
+    default:
+      return .secondary
+    }
   }
 
   private var wishlistAgentReadiness: WishlistAgentReadinessSummary {
@@ -1893,7 +1904,7 @@ struct OperationsWorkbenchView: View {
 
   @ViewBuilder
   private var wishlistPurchaseFollowUpPanel: some View {
-    if !wishlistWorkbenchItems.isEmpty || !wishlistResearchWorkbenchRequests.isEmpty || wishlistBatchBriefNeeded || !wishlistBatchResearchDrafts.isEmpty || !wishlistPurchasePacketNeededItems.isEmpty || !wishlistPurchasePacketDrafts.isEmpty {
+    if wishlistWorkbenchPurchaseFollowUpVisible {
       SettingsPanel(title: "Wishlist purchase follow-up", symbol: "star.square.fill") {
         Text("Wishlist items and comparison briefs become Workbench-visible when they are blocked before purchase, missing agent research scope, ready for a packet, prepared for manual handoff, purchased externally, or waiting for order confirmation. This is local planning only; no checkout, account login, browser automation, external agent, or mailbox monitoring runs here.")
           .font(.callout)
@@ -1945,14 +1956,12 @@ struct OperationsWorkbenchView: View {
         if wishlistBatchBriefNeeded || !wishlistBatchResearchDrafts.isEmpty {
           HStack(alignment: .top, spacing: 10) {
             Image(systemName: wishlistBatchBriefNeeded ? "doc.badge.plus" : "doc.text.fill")
-              .foregroundStyle(wishlistBatchBriefNeeded ? .orange : .green)
+              .foregroundStyle(wishlistBatchBriefWorkbenchColor)
               .frame(width: 24)
             VStack(alignment: .leading, spacing: 4) {
-              Text(wishlistBatchBriefNeeded ? "Batch comparison packet needed" : "Batch comparison packet drafted")
+              Text(store.wishlistBatchBriefWorkbenchTitle)
                 .font(.subheadline.weight(.semibold))
-              Text(wishlistBatchBriefNeeded
-                ? "\(wishlistAgentReadyResearchRequests.count) agent-ready Wishlist research brief\(wishlistAgentReadyResearchRequests.count == 1 ? "" : "s") can be combined into one local packet before future comparison work."
-                : "Latest batch draft is ready for review in Drafts/Tasks. It remains local and does not run an external agent or retailer search.")
+              Text(store.wishlistBatchBriefWorkbenchDetail)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1969,7 +1978,7 @@ struct OperationsWorkbenchView: View {
             }
           }
           .padding(10)
-          .background((wishlistBatchBriefNeeded ? Color.orange : Color.green).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          .background(wishlistBatchBriefWorkbenchColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
 
         ForEach(wishlistResearchWorkbenchRequests.prefix(3)) { request in

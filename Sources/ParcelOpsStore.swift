@@ -5927,6 +5927,30 @@ final class ParcelOpsStore {
     !agentReadyWishlistResearchRequests.isEmpty && wishlistBatchResearchDrafts.isEmpty
   }
 
+  var wishlistWorkbenchPurchaseFollowUpVisible: Bool {
+    !wishlistTaskContextItems.isEmpty
+      || !wishlistResearchAttentionRequests.isEmpty
+      || wishlistBatchBriefNeeded
+      || !wishlistBatchResearchDrafts.isEmpty
+      || !wishlistPurchasePacketNeededItems.isEmpty
+      || !wishlistPurchasePacketDrafts.isEmpty
+  }
+
+  var wishlistBatchBriefWorkbenchTitle: String {
+    wishlistBatchBriefNeeded ? "Batch comparison packet needed" : "Batch comparison packet drafted"
+  }
+
+  var wishlistBatchBriefWorkbenchDetail: String {
+    if wishlistBatchBriefNeeded {
+      return "\(agentReadyWishlistResearchRequests.count) agent-ready Wishlist research brief\(agentReadyWishlistResearchRequests.count == 1 ? "" : "s") can be combined into one local packet before future comparison work."
+    }
+    return "Latest batch draft is ready for review in Drafts/Tasks. It remains local and does not run an external agent or retailer search."
+  }
+
+  var wishlistBatchBriefWorkbenchTone: String {
+    wishlistBatchBriefNeeded ? "warning" : "success"
+  }
+
   var activeWishlistOrderWatchRecords: [WishlistOrderWatchRecord] {
     wishlistOrderWatchRecords.filter(isActiveWishlistOrderWatchRecord)
   }
