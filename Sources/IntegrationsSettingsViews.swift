@@ -5755,7 +5755,7 @@ struct SettingsReleaseCandidateCard: View {
       ),
       (
         "Mailbox classifier result",
-        latestManualFetchedCount > 0 ? "\(latestManualFetchedCount) fetched, \(latestManualImportedCount) imported, \(latestManualFilteredCount) filtered, \(latestManualUncertainCount) uncertain." : "No real refresh result is available yet.",
+        store.latestMailboxClassifierResultText,
         latestManualFetchedCount > 0,
         "line.3.horizontal.decrease.circle.fill"
       ),

@@ -6797,6 +6797,13 @@ final class ParcelOpsStore {
     return summaries.joined(separator: " ")
   }
 
+  var latestMailboxClassifierResultText: String {
+    guard latestMailboxMaxFetchedCount > 0 else {
+      return "No real refresh result is available yet."
+    }
+    return "\(latestMailboxMaxFetchedCount) fetched, \(latestMailboxImportedCount) imported, \(latestMailboxFilteredCount) filtered, \(latestMailboxUncertainCount) uncertain."
+  }
+
   var latestActiveMailboxEvidenceText: String {
     if let latestGmailIntakeHealthSummary,
        latestGmailIntakeHealthSummary.fetchedCount > 0 || latestGmailIntakeHealthSummary.importedCount > 0 || latestGmailIntakeHealthSummary.filteredCount > 0 {

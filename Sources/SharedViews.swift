@@ -5939,7 +5939,7 @@ struct MailboxProviderQAMatrixCard: View {
   }
 
   private var inboxOrderCount: Int {
-    store.inboxCreatedOrders.count
+    store.inboxCreatedOrderCount
   }
 
   private var providerAuditCount: Int {
