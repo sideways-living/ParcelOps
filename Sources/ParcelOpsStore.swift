@@ -5956,6 +5956,10 @@ final class ParcelOpsStore {
     }
   }
 
+  func wishlistSellerEvidenceGaps(for item: WishlistItem) -> [String] {
+    Array(Set((item.comparisonOptions ?? []).flatMap(\.operatorSellerEvidenceGaps))).sorted()
+  }
+
   func wishlistNeedsPurchaseDecision(_ item: WishlistItem) -> Bool {
     let options = item.comparisonOptions ?? []
     guard !options.isEmpty else { return false }
@@ -5974,6 +5978,97 @@ final class ParcelOpsStore {
 
   func wishlistNeedsPurchasePacket(_ item: WishlistItem) -> Bool {
     !(item.comparisonOptions ?? []).isEmpty && wishlistPurchasePacketDraft(for: item) == nil
+  }
+
+  func wishlistPacketTaskBadge(for item: WishlistItem) -> String {
+    if wishlistNeedsPurchasePacket(item) { return "Packet" }
+    if !wishlistHandoffSanityGaps(for: item).isEmpty { return "Sanity gaps" }
+    if !wishlistHandoffPackGaps(for: item).isEmpty { return "Handoff gaps" }
+    if !wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return "Dispatch setup" }
+    if wishlistNeedsPurchaseDecision(item) { return "Decision" }
+    if wishlistSellerEvidenceGapCount(for: item) > 0 { return "Evidence" }
+    if item.purchaseHandoff?.linkedOrderID != nil { return "Linked order" }
+    if item.purchaseHandoff != nil { return "Order watch" }
+    if item.purchaseDecision?.reviewState == .accepted { return "Handoff" }
+    if item.operatorPurchaseBlockers.isEmpty { return "Ready" }
+    return "Wishlist"
+  }
+
+  func wishlistPacketTaskDetail(for item: WishlistItem) -> String {
+    if wishlistNeedsPurchasePacket(item) {
+      let optionCount = (item.comparisonOptions ?? []).count
+      let seller = item.purchaseDecision?.selectedSellerName
+        ?? item.preferredOptionID.flatMap { preferredID in
+          item.comparisonOptions?.first { $0.id == preferredID }?.sellerName
+        }
+        ?? item.comparisonOptions?.first?.sellerName
+        ?? item.storefront
+      return "\(optionCount) seller option\(optionCount == 1 ? "" : "s") recorded. Create the local purchase packet before manual buying. Current seller: \(seller)."
+    }
+    let sanityGaps = wishlistHandoffSanityGaps(for: item)
+    if !sanityGaps.isEmpty {
+      return "Resolve handoff sanity before assigning purchase follow-up: \(sanityGaps.prefix(4).joined(separator: ", "))"
+    }
+    let handoffGaps = wishlistHandoffPackGaps(for: item)
+    if !handoffGaps.isEmpty {
+      return "Complete handoff pack: \(handoffGaps.prefix(4).joined(separator: ", "))"
+    }
+    let dispatchGaps = wishlistLinkedOrderDispatchGaps(for: item)
+    if !dispatchGaps.isEmpty {
+      return "Linked order exists. Stage dispatch setup before closing the purchase handoff: \(dispatchGaps.prefix(3).joined(separator: ", "))."
+    }
+    if wishlistNeedsPurchaseDecision(item) {
+      return "Ready for a local purchase decision before handoff."
+    }
+    let evidenceGaps = wishlistSellerEvidenceGaps(for: item)
+    if !evidenceGaps.isEmpty {
+      return "Seller evidence to check: \(evidenceGaps.prefix(4).joined(separator: ", "))"
+    }
+    let seller = item.purchaseHandoff?.sellerName
+      ?? item.purchaseDecision?.selectedSellerName
+      ?? item.preferredOptionID.flatMap { preferredID in
+        item.comparisonOptions?.first { $0.id == preferredID }?.sellerName
+      }
+      ?? item.storefront
+    let total = item.purchaseDecision?.totalAUDSummary
+      ?? item.preferredOptionID.flatMap { preferredID in
+        item.comparisonOptions?.first { $0.id == preferredID }?.estimatedAUDTotal
+      }
+      ?? item.estimatedCost
+    return "\(seller) • \(total) • \(item.operatorPurchaseNextAction)"
+  }
+
+  func wishlistTaskContextDetail(for item: WishlistItem) -> String {
+    let evidenceGaps = wishlistSellerEvidenceGaps(for: item)
+    if !evidenceGaps.isEmpty {
+      return "\(item.status) • Seller evidence: \(evidenceGaps.prefix(3).joined(separator: ", "))"
+    }
+    if wishlistNeedsPurchaseDecision(item) {
+      return "\(item.status) • Draft the local purchase decision before handoff."
+    }
+    let sanityGaps = wishlistHandoffSanityGaps(for: item)
+    if !sanityGaps.isEmpty {
+      return "\(item.status) • Handoff sanity: \(sanityGaps.prefix(3).joined(separator: ", "))"
+    }
+    let handoffGaps = wishlistHandoffPackGaps(for: item)
+    if !handoffGaps.isEmpty {
+      return "\(item.status) • Handoff pack: \(handoffGaps.prefix(3).joined(separator: ", "))"
+    }
+    let dispatchGaps = wishlistLinkedOrderDispatchGaps(for: item)
+    if !dispatchGaps.isEmpty {
+      return "\(item.status) • Dispatch setup: \(dispatchGaps.prefix(3).joined(separator: ", "))"
+    }
+    return "\(item.status) • \(item.operatorPurchaseNextAction)"
+  }
+
+  func wishlistTaskContextBadge(for item: WishlistItem) -> String {
+    if !wishlistSellerEvidenceGaps(for: item).isEmpty { return "Evidence" }
+    if wishlistNeedsPurchaseDecision(item) { return "Decision" }
+    if !wishlistHandoffSanityGaps(for: item).isEmpty { return "Sanity gaps" }
+    if !wishlistHandoffPackGaps(for: item).isEmpty { return "Handoff pack" }
+    if !wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return "Dispatch setup" }
+    if item.purchaseHandoff != nil { return "Order watch" }
+    return "Wishlist"
   }
 
   var wishlistPurchasePacketDrafts: [DraftMessage] {
