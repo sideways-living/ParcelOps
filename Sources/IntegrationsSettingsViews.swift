@@ -5942,7 +5942,7 @@ struct SettingsView: View {
   }
 
   private var settingsInboxCreatedOrdersCount: Int {
-    store.inboxCreatedOrders.count
+    store.inboxCreatedOrderCount
   }
 
   private var settingsOpenOperatorWorkCount: Int {

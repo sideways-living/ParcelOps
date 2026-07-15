@@ -6111,7 +6111,7 @@ struct OperatorSupportSnapshotCard: View {
   }
 
   private var inboxCreatedOrderCount: Int {
-    store.inboxCreatedOrders.count
+    store.inboxCreatedOrderCount
   }
 
   private var activeWishlistItems: [WishlistItem] {

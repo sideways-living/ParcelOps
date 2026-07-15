@@ -85,7 +85,7 @@ struct SearchView: View {
 
         SearchReadinessPanel(
           store: store,
-          inboxCreatedOrderCount: store.inboxCreatedOrders.count,
+          inboxCreatedOrderCount: store.inboxCreatedOrderCount,
           inboxCreatedOrdersWithSourceTrailCount: inboxCreatedOrdersWithSourceTrail.count,
           inboxCreatedOrdersMissingSourceTrail: Array(inboxCreatedOrdersMissingSourceTrail.prefix(3)),
           uncertainMailboxCount: uncertainMailboxCount,
