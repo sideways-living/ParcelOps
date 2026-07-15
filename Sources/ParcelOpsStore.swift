@@ -6021,6 +6021,10 @@ final class ParcelOpsStore {
     }
   }
 
+  var openWishlistOrderWatchRecordCount: Int {
+    openWishlistOrderWatchRecords.count
+  }
+
   var activeWishlistFollowUpCount: Int {
     stagedWishlistCaptureCandidateCount
       + activeWishlistResearchRequestCount

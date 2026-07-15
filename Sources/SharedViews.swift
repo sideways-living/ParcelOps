@@ -6208,9 +6208,9 @@ struct OperatorSupportSnapshotCard: View {
       ),
       (
         "Wishlist handoff",
-        "\(activeWishlistItems.count) active item\(activeWishlistItems.count == 1 ? "" : "s"), \(stagedWishlistCaptureCount) staged capture\(stagedWishlistCaptureCount == 1 ? "" : "s"), \(agentReadyWishlistResearchCount) agent-ready brief\(agentReadyWishlistResearchCount == 1 ? "" : "s"), \(openWishlistOrderWatchCount) order watch record\(openWishlistOrderWatchCount == 1 ? "" : "s").",
+        "\(store.activeWishlistItemCount) active item\(store.activeWishlistItemCount == 1 ? "" : "s"), \(stagedWishlistCaptureCount) staged capture\(stagedWishlistCaptureCount == 1 ? "" : "s"), \(agentReadyWishlistResearchCount) agent-ready brief\(agentReadyWishlistResearchCount == 1 ? "" : "s"), \(openWishlistOrderWatchCount) order watch record\(openWishlistOrderWatchCount == 1 ? "" : "s").",
         "star.square.fill",
-        stagedWishlistCaptureCount == 0 && openWishlistOrderWatchCount == 0 ? (activeWishlistItems.isEmpty ? .secondary : .teal) : .purple
+        stagedWishlistCaptureCount == 0 && openWishlistOrderWatchCount == 0 ? (store.activeWishlistItemCount == 0 ? .secondary : .teal) : .purple
       ),
       (
         "Local audit",
@@ -6246,7 +6246,7 @@ struct OperatorSupportSnapshotCard: View {
         ("Readiness", "\(readiness.completedCount)/\(readiness.totalCount)", readiness.completedCount == readiness.totalCount ? .green : .orange),
         ("Daily work", "\(openDailyWorkCount)", openDailyWorkCount == 0 ? .green : .orange),
         ("Linked orders", "\(inboxLinkedOrderCount)", inboxLinkedOrderCount == 0 ? .orange : .green),
-        ("Wishlist", "\(activeWishlistItems.count)", activeWishlistItems.isEmpty ? .secondary : .purple),
+        ("Wishlist", "\(store.activeWishlistItemCount)", store.activeWishlistItemCount == 0 ? .secondary : .purple),
         ("Wish orders", "\(linkedWishlistOrderCount)", linkedWishlistOrderCount == 0 ? .secondary : .green),
         ("Fetched", "\(store.latestMailboxFetchedCount)", latestSpaceMailSummary == nil && latestGmailSummary == nil ? .secondary : .blue),
         ("Refreshed", "\(store.latestMailboxDuplicateRefreshedCount)", (store.latestMailboxDuplicateRefreshedCount) == 0 ? .secondary : .green),
@@ -6331,9 +6331,9 @@ struct OperatorTestSessionChecklistCard: View {
   }
 
   private var wishlistEvidenceCount: Int {
-    activeWishlistItems.count
+    store.activeWishlistItemCount
       + store.stagedWishlistCaptureCandidateCount
-      + store.wishlistResearchRequests.filter { store.isActiveWishlistResearchRequest($0) }.count
+      + store.activeWishlistResearchRequestCount
       + store.activeWishlistOrderWatchRecordCount
       + wishlistLinkedOrderCount
   }
@@ -6426,7 +6426,7 @@ struct OperatorTestSessionChecklistCard: View {
       (
         "7. Check Wishlist path",
         "If the run includes a wanted item, confirm local capture, comparison scope, seller trust, purchase handoff, and order watch remain manual and auditable.",
-        wishlistEvidenceCount > 0 ? "\(activeWishlistItems.count) active item\(activeWishlistItems.count == 1 ? "" : "s"), \(wishlistLinkedOrderCount) linked order\(wishlistLinkedOrderCount == 1 ? "" : "s"), \(wishlistEvidenceCount) local evidence signal\(wishlistEvidenceCount == 1 ? "" : "s")." : "No Wishlist evidence needed for this mailbox-only test pass.",
+        wishlistEvidenceCount > 0 ? "\(store.activeWishlistItemCount) active item\(store.activeWishlistItemCount == 1 ? "" : "s"), \(wishlistLinkedOrderCount) linked order\(wishlistLinkedOrderCount == 1 ? "" : "s"), \(wishlistEvidenceCount) local evidence signal\(wishlistEvidenceCount == 1 ? "" : "s")." : "No Wishlist evidence needed for this mailbox-only test pass.",
         "star.square.fill",
         true,
         wishlistEvidenceCount > 0 ? .purple : .secondary
@@ -6469,7 +6469,7 @@ struct OperatorTestSessionChecklistCard: View {
         ("Inbox rows", "\(store.reviewIntakeEmails.count)", store.reviewIntakeEmails.isEmpty ? .secondary : .blue),
         ("Linked orders", "\(inboxLinkedOrderCount)", inboxLinkedOrderCount == 0 ? .orange : .green),
         ("Open work", "\(store.openWorkbenchItems.count)", store.openWorkbenchItems.isEmpty ? .secondary : .purple),
-        ("Wishlist", "\(activeWishlistItems.count)", activeWishlistItems.isEmpty ? .secondary : .purple),
+        ("Wishlist", "\(store.activeWishlistItemCount)", store.activeWishlistItemCount == 0 ? .secondary : .purple),
         ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .orange : .green)
       ])
 
@@ -6589,11 +6589,7 @@ struct OperatorHandoffBriefCard: View {
   }
 
   private var wishlistOrderWatchCount: Int {
-    store.wishlistOrderWatchRecords.filter {
-      store.isActiveWishlistOrderWatchRecord($0)
-        && !$0.watchStatus.localizedCaseInsensitiveContains("closed")
-        && !$0.watchStatus.localizedCaseInsensitiveContains("matched")
-    }.count
+    store.openWishlistOrderWatchRecordCount
   }
 
   private var linkedWishlistOrderCount: Int {
@@ -6605,7 +6601,7 @@ struct OperatorHandoffBriefCard: View {
   }
 
   private var wishlistLine: String {
-    "\(activeWishlistItems.count) active item\(activeWishlistItems.count == 1 ? "" : "s"); \(wishlistCaptureReviewCount) staged capture\(wishlistCaptureReviewCount == 1 ? "" : "s"); \(wishlistResearchReviewCount) research scope item\(wishlistResearchReviewCount == 1 ? "" : "s"); \(wishlistOrderWatchCount) order-watch record\(wishlistOrderWatchCount == 1 ? "" : "s"); \(linkedWishlistOrderCount) linked order\(linkedWishlistOrderCount == 1 ? "" : "s")."
+    "\(store.activeWishlistItemCount) active item\(store.activeWishlistItemCount == 1 ? "" : "s"); \(wishlistCaptureReviewCount) staged capture\(wishlistCaptureReviewCount == 1 ? "" : "s"); \(wishlistResearchReviewCount) research scope item\(wishlistResearchReviewCount == 1 ? "" : "s"); \(wishlistOrderWatchCount) order-watch record\(wishlistOrderWatchCount == 1 ? "" : "s"); \(linkedWishlistOrderCount) linked order\(linkedWishlistOrderCount == 1 ? "" : "s")."
   }
 
   private var mailboxLine: String {
@@ -6648,7 +6644,7 @@ struct OperatorHandoffBriefCard: View {
         "Wishlist",
         "\(wishlistLine) Capture, comparison, trust review, purchase handoff, and order watch are local/manual until an operator acts outside ParcelOps.",
         "star.square.fill",
-        wishlistFollowUpCount == 0 ? (activeWishlistItems.isEmpty ? .secondary : .teal) : .purple
+        wishlistFollowUpCount == 0 ? (store.activeWishlistItemCount == 0 ? .secondary : .teal) : .purple
       ),
       (
         "Audit",

@@ -6007,12 +6007,12 @@ struct SettingsView: View {
     case "success": return .green
     case "warning": return .orange
     case "attention": return .orange
-    default: return activeWishlistItems.isEmpty ? .secondary : .purple
+    default: return store.activeWishlistItemCount == 0 ? .secondary : .purple
     }
   }
 
   private var wishlistSettingsTitle: String {
-    if activeWishlistItems.isEmpty { return "Wishlist is ready for first manual items" }
+    if store.activeWishlistItemCount == 0 { return "Wishlist is ready for first manual items" }
     if wishlistWorkflowBlockerCount > 0 { return "Wishlist purchase planning needs local checks" }
     if wishlistItemsWithPurchaseHandoffCount > 0 { return "Wishlist handoff trail is active" }
     if wishlistItemsWithSellerOptionsCount > 0 { return "Wishlist comparison planning is active" }
@@ -6020,7 +6020,7 @@ struct SettingsView: View {
   }
 
   private var wishlistSettingsDetail: String {
-    if activeWishlistItems.isEmpty {
+    if store.activeWishlistItemCount == 0 {
       return "Add wanted items manually first. Browser extension, retailer research agents, live price comparison, currency lookup, postage lookup, account monitoring, and checkout automation are not active."
     }
     if wishlistWorkflowBlockerCount > 0 {
@@ -6461,7 +6461,7 @@ struct SettingsView: View {
     SettingsPanel(title: "Wishlist planning boundary", symbol: "star.square.fill") {
       VStack(alignment: .leading, spacing: 12) {
         HStack(alignment: .top, spacing: 12) {
-          Image(systemName: wishlistWorkflowBlockerCount == 0 && !activeWishlistItems.isEmpty ? "checkmark.seal.fill" : "star.square.on.square.fill")
+          Image(systemName: wishlistWorkflowBlockerCount == 0 && store.activeWishlistItemCount > 0 ? "checkmark.seal.fill" : "star.square.on.square.fill")
             .font(.title3)
             .foregroundStyle(wishlistSettingsTone)
             .frame(width: 28)
@@ -6476,11 +6476,11 @@ struct SettingsView: View {
           }
 
           Spacer(minLength: 8)
-          Badge(activeWishlistItems.isEmpty ? "Not started" : "\(activeWishlistItems.count) active", color: wishlistSettingsTone)
+          Badge(store.activeWishlistItemCount == 0 ? "Not started" : "\(store.activeWishlistItemCount) active", color: wishlistSettingsTone)
         }
 
         MetricStrip(items: [
-          ("Active items", "\(activeWishlistItems.count)", activeWishlistItems.isEmpty ? .secondary : .purple),
+          ("Active items", "\(store.activeWishlistItemCount)", store.activeWishlistItemCount == 0 ? .secondary : .purple),
           ("Manual", "\(wishlistManualItemCount)", wishlistManualItemCount == 0 ? .secondary : .blue),
           ("Captured", "\(wishlistCapturedItemCount)", wishlistCapturedItemCount == 0 ? .secondary : .teal),
           ("Seller options", "\(wishlistItemsWithSellerOptionsCount)", wishlistItemsWithSellerOptionsCount == 0 ? .orange : .green),
