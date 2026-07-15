@@ -188,17 +188,6 @@ struct OperationsWorkbenchView: View {
     store.wishlistReadinessCriticalItems
   }
 
-  private func wishlistSellerEvidenceGapCount(for item: WishlistItem) -> Int {
-    store.wishlistSellerEvidenceGapCount(for: item)
-  }
-
-  private func wishlistNeedsPurchaseDecision(_ item: WishlistItem) -> Bool {
-    store.wishlistNeedsPurchaseDecision(item)
-  }
-  private func wishlistHandoffPackGaps(for item: WishlistItem) -> [String] {
-    store.wishlistHandoffPackGaps(for: item)
-  }
-
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
     store.spaceMailIntakeHealthSummaries
   }
@@ -1912,9 +1901,9 @@ struct OperationsWorkbenchView: View {
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
-          ("Follow-up", "\(wishlistWorkbenchItems.count + wishlistResearchWorkbenchRequests.count + wishlistPurchasePacketNeededItems.count + (wishlistBatchBriefNeeded ? 1 : 0))", .purple),
+          ("Follow-up", "\(store.wishlistWorkbenchFollowUpCount)", .purple),
           ("Agent verdict", wishlistAgentReadiness.tone.capitalized, wishlistAgentReadinessTint),
-          ("Blocked", "\(wishlistWorkbenchItems.filter { $0.status.localizedCaseInsensitiveContains("blocked") }.count)", wishlistWorkbenchItems.contains { $0.status.localizedCaseInsensitiveContains("blocked") } ? .red : .green),
+          ("Blocked", "\(store.wishlistWorkbenchBlockedCount)", store.wishlistWorkbenchBlockedCount > 0 ? .red : .green),
           ("Release ready", "\(wishlistReleaseReadyItems.count)", wishlistReleaseReadyItems.isEmpty ? .secondary : .green),
           ("Release blocked", "\(wishlistReleaseBlockedItems.count)", wishlistReleaseBlockedItems.isEmpty ? .green : .orange),
           ("Readiness", "\(wishlistReadinessBlockedItems.count)", wishlistReadinessBlockedItems.isEmpty ? .green : .orange),
@@ -1927,9 +1916,9 @@ struct OperationsWorkbenchView: View {
           ("Packet drafts", "\(wishlistPurchasePacketDrafts.count)", wishlistPurchasePacketDrafts.isEmpty ? .secondary : .blue),
           ("Brief gaps", "\(wishlistResearchWorkbenchRequests.count)", wishlistResearchWorkbenchRequests.isEmpty ? .green : .orange),
           ("Batch brief", "\(wishlistBatchResearchDrafts.count)", wishlistBatchBriefNeeded ? .orange : (wishlistBatchResearchDrafts.isEmpty ? .secondary : .green)),
-          ("Evidence", "\(wishlistWorkbenchItems.filter { wishlistSellerEvidenceGapCount(for: $0) > 0 }.count)", wishlistWorkbenchItems.contains { wishlistSellerEvidenceGapCount(for: $0) > 0 } ? .orange : .green),
-          ("Decision", "\(wishlistWorkbenchItems.filter { wishlistNeedsPurchaseDecision($0) || $0.purchaseDecision?.reviewState == .needsReview }.count)", wishlistWorkbenchItems.contains { wishlistNeedsPurchaseDecision($0) || $0.purchaseDecision?.reviewState == .needsReview } ? .brown : .green),
-          ("Handoff gaps", "\(wishlistWorkbenchItems.filter { !wishlistHandoffPackGaps(for: $0).isEmpty }.count)", wishlistWorkbenchItems.contains { !wishlistHandoffPackGaps(for: $0).isEmpty } ? .purple : .green)
+          ("Evidence", "\(store.wishlistWorkbenchEvidenceIssueCount)", store.wishlistWorkbenchEvidenceIssueCount > 0 ? .orange : .green),
+          ("Decision", "\(store.wishlistWorkbenchDecisionIssueCount)", store.wishlistWorkbenchDecisionIssueCount > 0 ? .brown : .green),
+          ("Handoff gaps", "\(store.wishlistWorkbenchHandoffGapItemCount)", store.wishlistWorkbenchHandoffGapItemCount > 0 ? .purple : .green)
         ])
 
         HStack(alignment: .top, spacing: 10) {

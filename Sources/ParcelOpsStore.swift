@@ -6100,6 +6100,31 @@ final class ParcelOpsStore {
     }
   }
 
+  var wishlistWorkbenchFollowUpCount: Int {
+    wishlistTaskContextItems.count
+      + wishlistResearchAttentionRequests.count
+      + wishlistPurchasePacketNeededItems.count
+      + (wishlistBatchBriefNeeded ? 1 : 0)
+  }
+
+  var wishlistWorkbenchBlockedCount: Int {
+    wishlistTaskContextItems.filter { $0.status.localizedCaseInsensitiveContains("blocked") }.count
+  }
+
+  var wishlistWorkbenchEvidenceIssueCount: Int {
+    wishlistTaskContextItems.filter { wishlistSellerEvidenceGapCount(for: $0) > 0 }.count
+  }
+
+  var wishlistWorkbenchDecisionIssueCount: Int {
+    wishlistTaskContextItems.filter {
+      wishlistNeedsPurchaseDecision($0) || $0.purchaseDecision?.reviewState == .needsReview
+    }.count
+  }
+
+  var wishlistWorkbenchHandoffGapItemCount: Int {
+    wishlistTaskContextItems.filter { !wishlistHandoffPackGaps(for: $0).isEmpty }.count
+  }
+
   var wishlistEvidenceGapCount: Int {
     wishlistTaskContextItems.reduce(0) { total, item in
       total + wishlistSellerEvidenceGapCount(for: item)
