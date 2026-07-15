@@ -148,6 +148,37 @@ struct OperationsWorkbenchView: View {
     }
   }
 
+  private var wishlistWorkbenchMetrics: [(String, String, Color)] {
+    store.wishlistWorkbenchMetricSummaries.map { title, value, tone in
+      (title, value, wishlistWorkbenchMetricColor(tone))
+    }
+  }
+
+  private func wishlistWorkbenchMetricColor(_ tone: String) -> Color {
+    switch tone {
+    case "attention":
+      return .purple
+    case "critical":
+      return .red
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "handoff":
+      return .teal
+    case "dispatch":
+      return .blue
+    case "packet":
+      return .indigo
+    case "decisionMuted":
+      return .brown
+    case "muted":
+      return .secondary
+    default:
+      return .secondary
+    }
+  }
+
   private var wishlistAgentReadiness: WishlistAgentReadinessSummary {
     store.wishlistAgentReadinessSummary
   }
@@ -166,37 +197,6 @@ struct OperationsWorkbenchView: View {
   }
   private var wishlistPurchasePacketNeededItems: [WishlistItem] {
     store.wishlistPurchasePacketNeededItems
-  }
-  private var wishlistPurchasePacketDrafts: [DraftMessage] {
-    store.wishlistPurchasePacketDrafts
-  }
-
-  private var wishlistReleaseItems: [WishlistItem] {
-    store.wishlistReleaseItems
-  }
-
-  private var wishlistReleaseReadyItems: [WishlistItem] {
-    store.wishlistReleaseReadyItems
-  }
-
-  private var wishlistReleaseBlockedItems: [WishlistItem] {
-    store.wishlistReleaseBlockedItems
-  }
-
-  private var wishlistReleaseOrderWatchItems: [WishlistItem] {
-    store.wishlistReleaseOrderWatchItems
-  }
-  private var wishlistHandoffSanityBlockedItems: [WishlistItem] {
-    store.wishlistHandoffSanityBlockedItems
-  }
-  private var wishlistLinkedOrderDispatchGapItems: [WishlistItem] {
-    store.wishlistLinkedOrderDispatchGapItems
-  }
-  private var wishlistReadinessBlockedItems: [WishlistItem] {
-    store.wishlistReadinessBlockedItems
-  }
-  private var wishlistReadinessCriticalItems: [WishlistItem] {
-    store.wishlistReadinessCriticalItems
   }
 
   private var spaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
@@ -1911,26 +1911,7 @@ struct OperationsWorkbenchView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
-        MetricStrip(items: [
-          ("Follow-up", "\(store.wishlistWorkbenchFollowUpCount)", .purple),
-          ("Agent verdict", wishlistAgentReadiness.tone.capitalized, wishlistAgentReadinessTint),
-          ("Blocked", "\(store.wishlistWorkbenchBlockedCount)", store.wishlistWorkbenchBlockedCount > 0 ? .red : .green),
-          ("Release ready", "\(wishlistReleaseReadyItems.count)", wishlistReleaseReadyItems.isEmpty ? .secondary : .green),
-          ("Release blocked", "\(wishlistReleaseBlockedItems.count)", wishlistReleaseBlockedItems.isEmpty ? .green : .orange),
-          ("Readiness", "\(wishlistReadinessBlockedItems.count)", wishlistReadinessBlockedItems.isEmpty ? .green : .orange),
-          ("Critical checks", "\(wishlistReadinessCriticalItems.count)", wishlistReadinessCriticalItems.isEmpty ? .green : .red),
-          ("Order watch", "\(wishlistReleaseOrderWatchItems.count)", wishlistReleaseOrderWatchItems.isEmpty ? .secondary : .teal),
-          ("Handoff sanity", "\(wishlistHandoffSanityBlockedItems.count)", wishlistHandoffSanityBlockedItems.isEmpty ? .green : .orange),
-          ("Dispatch setup", "\(wishlistLinkedOrderDispatchGapItems.count)", wishlistLinkedOrderDispatchGapItems.isEmpty ? .green : .blue),
-          ("Closure trail", "\(wishlistAgentReadiness.operationsClosureGapCount)", wishlistAgentReadiness.operationsClosureGapCount == 0 ? .green : .orange),
-          ("Purchase packets", "\(wishlistPurchasePacketNeededItems.count)", wishlistPurchasePacketNeededItems.isEmpty ? .green : .indigo),
-          ("Packet drafts", "\(wishlistPurchasePacketDrafts.count)", wishlistPurchasePacketDrafts.isEmpty ? .secondary : .blue),
-          ("Brief gaps", "\(wishlistResearchWorkbenchRequests.count)", wishlistResearchWorkbenchRequests.isEmpty ? .green : .orange),
-          ("Batch brief", "\(wishlistBatchResearchDrafts.count)", wishlistBatchBriefNeeded ? .orange : (wishlistBatchResearchDrafts.isEmpty ? .secondary : .green)),
-          ("Evidence", "\(store.wishlistWorkbenchEvidenceIssueCount)", store.wishlistWorkbenchEvidenceIssueCount > 0 ? .orange : .green),
-          ("Decision", "\(store.wishlistWorkbenchDecisionIssueCount)", store.wishlistWorkbenchDecisionIssueCount > 0 ? .brown : .green),
-          ("Handoff gaps", "\(store.wishlistWorkbenchHandoffGapItemCount)", store.wishlistWorkbenchHandoffGapItemCount > 0 ? .purple : .green)
-        ])
+        MetricStrip(items: wishlistWorkbenchMetrics)
 
         HStack(alignment: .top, spacing: 10) {
           Image(systemName: wishlistAgentReadiness.tone == "success" ? "checkmark.seal.fill" : "sparkles.rectangle.stack.fill")

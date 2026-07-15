@@ -5951,6 +5951,29 @@ final class ParcelOpsStore {
     wishlistBatchBriefNeeded ? "warning" : "success"
   }
 
+  var wishlistWorkbenchMetricSummaries: [(String, String, String)] {
+    [
+      ("Follow-up", "\(wishlistWorkbenchFollowUpCount)", "attention"),
+      ("Agent verdict", wishlistAgentReadinessSummary.tone.capitalized, wishlistAgentReadinessSummary.tone),
+      ("Blocked", "\(wishlistWorkbenchBlockedCount)", wishlistWorkbenchBlockedCount > 0 ? "critical" : "success"),
+      ("Release ready", "\(wishlistReleaseReadyItems.count)", wishlistReleaseReadyItems.isEmpty ? "muted" : "success"),
+      ("Release blocked", "\(wishlistReleaseBlockedItems.count)", wishlistReleaseBlockedItems.isEmpty ? "success" : "warning"),
+      ("Readiness", "\(wishlistReadinessBlockedItems.count)", wishlistReadinessBlockedItems.isEmpty ? "success" : "warning"),
+      ("Critical checks", "\(wishlistReadinessCriticalItems.count)", wishlistReadinessCriticalItems.isEmpty ? "success" : "critical"),
+      ("Order watch", "\(wishlistReleaseOrderWatchItems.count)", wishlistReleaseOrderWatchItems.isEmpty ? "muted" : "handoff"),
+      ("Handoff sanity", "\(wishlistHandoffSanityBlockedItems.count)", wishlistHandoffSanityBlockedItems.isEmpty ? "success" : "warning"),
+      ("Dispatch setup", "\(wishlistLinkedOrderDispatchGapItems.count)", wishlistLinkedOrderDispatchGapItems.isEmpty ? "success" : "dispatch"),
+      ("Closure trail", "\(wishlistAgentReadinessSummary.operationsClosureGapCount)", wishlistAgentReadinessSummary.operationsClosureGapCount == 0 ? "success" : "warning"),
+      ("Purchase packets", "\(wishlistPurchasePacketNeededItems.count)", wishlistPurchasePacketNeededItems.isEmpty ? "success" : "packet"),
+      ("Packet drafts", "\(wishlistPurchasePacketDrafts.count)", wishlistPurchasePacketDrafts.isEmpty ? "muted" : "dispatch"),
+      ("Brief gaps", "\(wishlistResearchAttentionRequests.count)", wishlistResearchAttentionRequests.isEmpty ? "success" : "warning"),
+      ("Batch brief", "\(wishlistBatchResearchDrafts.count)", wishlistBatchBriefWorkbenchTone),
+      ("Evidence", "\(wishlistWorkbenchEvidenceIssueCount)", wishlistWorkbenchEvidenceIssueCount > 0 ? "warning" : "success"),
+      ("Decision", "\(wishlistWorkbenchDecisionIssueCount)", wishlistWorkbenchDecisionIssueCount > 0 ? "decisionMuted" : "success"),
+      ("Handoff gaps", "\(wishlistWorkbenchHandoffGapItemCount)", wishlistWorkbenchHandoffGapItemCount > 0 ? "attention" : "success")
+    ]
+  }
+
   var activeWishlistOrderWatchRecords: [WishlistOrderWatchRecord] {
     wishlistOrderWatchRecords.filter(isActiveWishlistOrderWatchRecord)
   }
