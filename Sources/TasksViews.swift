@@ -87,31 +87,23 @@ struct TasksView: View {
   }
 
   private var wishlistEvidenceGapCount: Int {
-    wishlistTaskContextItems.reduce(0) { total, item in
-      total + store.wishlistSellerEvidenceGapCount(for: item)
-    }
+    store.wishlistEvidenceGapCount
   }
 
   private var wishlistDecisionGapCount: Int {
-    wishlistTaskContextItems.filter { store.wishlistNeedsPurchaseDecision($0) }.count
+    store.wishlistDecisionGapCount
   }
 
   private var wishlistHandoffGapCount: Int {
-    wishlistTaskContextItems.reduce(0) { total, item in
-      total + store.wishlistHandoffPackGaps(for: item).count
-    }
+    store.wishlistHandoffGapCount
   }
 
   private var wishlistHandoffSanityGapCount: Int {
-    wishlistTaskContextItems.reduce(0) { total, item in
-      total + store.wishlistHandoffSanityGaps(for: item).count
-    }
+    store.wishlistHandoffSanityGapCount
   }
 
   private var wishlistLinkedOrderDispatchGapCount: Int {
-    wishlistLinkedOrderDispatchGapItems.reduce(0) { total, item in
-      total + store.wishlistLinkedOrderDispatchGaps(for: item).count
-    }
+    store.wishlistLinkedOrderDispatchGapCount
   }
 
   private func wishlistSellerEvidenceGapCount(for item: WishlistItem) -> Int {

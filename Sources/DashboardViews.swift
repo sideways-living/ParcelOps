@@ -684,23 +684,10 @@ struct DashboardView: View {
     store.wishlistAgentReadinessSummary
   }
   private var wishlistAgentReadinessIssueCount: Int {
-    wishlistAgentReadiness.scopeGapCount
-      + wishlistAgentReadiness.sellerOptionGapCount
-      + wishlistAgentReadiness.trustReviewCount
-      + wishlistAgentReadiness.purchaseHandoffGapCount
-      + wishlistAgentReadiness.orderWatchGapCount
-      + wishlistAgentReadiness.operationsClosureGapCount
+    store.wishlistAgentReadinessIssueCount
   }
   private var wishlistDailyAttentionCount: Int {
-    wishlistAttentionItems.count
-      + wishlistResearchAttentionRequests.count
-      + wishlistReadinessBlockedItems.count
-      + wishlistHandoffSanityBlockedItems.count
-      + wishlistLinkedOrderDispatchGapItems.count
-      + wishlistPurchasePacketNeededItems.count
-      + wishlistPurchasedNeedsOrderLinkItems.count
-      + (wishlistBatchBriefNeeded ? 1 : 0)
-      + wishlistAgentReadinessIssueCount
+    store.wishlistDailyAttentionCount
   }
   private var wishlistDailyAttentionClear: Bool {
     wishlistDailyAttentionCount == 0

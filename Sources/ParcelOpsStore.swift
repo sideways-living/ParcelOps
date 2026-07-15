@@ -6005,6 +6005,56 @@ final class ParcelOpsStore {
     }
   }
 
+  var wishlistEvidenceGapCount: Int {
+    wishlistTaskContextItems.reduce(0) { total, item in
+      total + wishlistSellerEvidenceGapCount(for: item)
+    }
+  }
+
+  var wishlistDecisionGapCount: Int {
+    wishlistTaskContextItems.filter(wishlistNeedsPurchaseDecision).count
+  }
+
+  var wishlistHandoffGapCount: Int {
+    wishlistTaskContextItems.reduce(0) { total, item in
+      total + wishlistHandoffPackGaps(for: item).count
+    }
+  }
+
+  var wishlistHandoffSanityGapCount: Int {
+    wishlistTaskContextItems.reduce(0) { total, item in
+      total + wishlistHandoffSanityGaps(for: item).count
+    }
+  }
+
+  var wishlistLinkedOrderDispatchGapCount: Int {
+    wishlistLinkedOrderDispatchGapItems.reduce(0) { total, item in
+      total + wishlistLinkedOrderDispatchGaps(for: item).count
+    }
+  }
+
+  var wishlistAgentReadinessIssueCount: Int {
+    let summary = wishlistAgentReadinessSummary
+    return summary.scopeGapCount
+      + summary.sellerOptionGapCount
+      + summary.trustReviewCount
+      + summary.purchaseHandoffGapCount
+      + summary.orderWatchGapCount
+      + summary.operationsClosureGapCount
+  }
+
+  var wishlistDailyAttentionCount: Int {
+    wishlistTaskContextItems.count
+      + wishlistResearchAttentionRequests.count
+      + wishlistReadinessBlockedItems.count
+      + wishlistHandoffSanityBlockedItems.count
+      + wishlistLinkedOrderDispatchGapItems.count
+      + wishlistPurchasePacketNeededItems.count
+      + wishlistPurchasedNeedsOrderLinkItems.count
+      + (wishlistBatchBriefNeeded ? 1 : 0)
+      + wishlistAgentReadinessIssueCount
+  }
+
   var wishlistReadyPacketItems: [WishlistItem] {
     activeWishlistItems.filter { item in
       item.operatorPurchaseBlockers.isEmpty
