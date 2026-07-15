@@ -5894,6 +5894,10 @@ final class ParcelOpsStore {
     orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
 
+  var intakeLinkedOrderCount: Int {
+    intakeLinkedOrders.count
+  }
+
   var wishlistLinkedOrders: [TrackedOrder] {
     orders.filter { !activeWishlistItemsLinked(to: $0).isEmpty }
   }

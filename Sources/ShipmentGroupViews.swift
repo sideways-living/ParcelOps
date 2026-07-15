@@ -135,7 +135,7 @@ struct ShipmentGroupsView: View {
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
-        Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
+        Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
         Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
         Badge("\(groupsLinkedToInboxOrders.count) linked groups", color: .teal)
         Badge("\(inboxOrdersMissingGroup.count) orders without groups", color: inboxOrdersMissingGroup.isEmpty ? .green : .orange)

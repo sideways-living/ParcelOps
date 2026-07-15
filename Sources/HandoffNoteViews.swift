@@ -423,7 +423,7 @@ struct HandoffNotesView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
           Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedNotes.count) linked notes", color: .teal)
           Badge("\(actionNotes.count) need action", color: actionNotes.isEmpty ? .green : .orange)

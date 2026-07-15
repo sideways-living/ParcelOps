@@ -176,7 +176,7 @@ struct TrackingView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
-          Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
+          Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
           Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedEvents.count) linked events", color: .teal)
           Badge("\(actionEvents.count) need action", color: actionEvents.isEmpty ? .green : .orange)

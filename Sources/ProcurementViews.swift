@@ -192,7 +192,7 @@ struct ProcurementView: View {
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
-        Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
+        Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
         Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
         Badge("\(requestsLinkedToInboxOrders.count) linked requests", color: .teal)
         Badge("\(requestsNeedingAction.count) need action", color: requestsNeedingAction.isEmpty ? .green : .orange)

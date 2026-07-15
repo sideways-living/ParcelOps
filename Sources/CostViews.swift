@@ -194,7 +194,7 @@ struct CostsBudgetsView: View {
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
-        Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
+        Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
         Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
         Badge("\(costsLinkedToInboxOrders.count) linked costs", color: .teal)
         Badge("\(costsNeedingAction.count) need action", color: costsNeedingAction.isEmpty ? .green : .orange)

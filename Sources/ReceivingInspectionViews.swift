@@ -189,7 +189,7 @@ struct ReceivingInspectionsView: View {
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
-        Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
+        Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
         Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
         Badge("\(inspectionsLinkedToInboxOrders.count) linked inspections", color: .teal)
         Badge("\(inspectionsNeedingAction.count) need action", color: inspectionsNeedingAction.isEmpty ? .green : .orange)

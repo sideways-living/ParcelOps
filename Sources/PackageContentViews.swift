@@ -198,7 +198,7 @@ struct PackageContentsView: View {
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
-        Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
+        Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
         Badge("\(wishlistOrders.count) Wishlist orders", color: .pink)
         Badge("\(contentsLinkedToInboxOrders.count) linked contents", color: .teal)
         Badge("\(unverifiedInboxContents.count) unverified", color: unverifiedInboxContents.isEmpty ? .green : .orange)

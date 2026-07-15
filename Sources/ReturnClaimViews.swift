@@ -189,7 +189,7 @@ struct ReturnsClaimsView: View {
         .foregroundStyle(.secondary)
 
       CompactMetadataGrid(minimumWidth: 150) {
-        Badge("\(store.intakeLinkedOrders.count) Inbox orders", color: .blue)
+        Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
         Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
         Badge("\(claimsLinkedToInboxOrders.count) linked claims", color: .teal)
         Badge("\(claimsNeedingAction.count) need action", color: claimsNeedingAction.isEmpty ? .green : .orange)
