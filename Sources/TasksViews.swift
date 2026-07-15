@@ -667,17 +667,7 @@ struct TasksView: View {
   }
 
   private func wishlistPacketTaskColor(for item: WishlistItem) -> Color {
-    if store.wishlistNeedsPurchasePacket(item) { return .indigo }
-    if !store.wishlistHandoffSanityGaps(for: item).isEmpty { return .orange }
-    if !store.wishlistHandoffPackGaps(for: item).isEmpty { return .orange }
-    if !store.wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return .blue }
-    if store.wishlistNeedsPurchaseDecision(item) { return .purple }
-    if store.wishlistSellerEvidenceGapCount(for: item) > 0 { return .orange }
-    if item.purchaseHandoff?.linkedOrderID != nil { return .green }
-    if item.purchaseHandoff != nil { return .orange }
-    if item.purchaseDecision?.reviewState == .accepted { return .purple }
-    if item.operatorPurchaseBlockers.isEmpty { return .green }
-    return .orange
+    wishlistToneColor(store.wishlistPacketTaskTone(for: item))
   }
 
   private func wishlistPacketTaskDetail(for item: WishlistItem) -> String {
@@ -693,14 +683,20 @@ struct TasksView: View {
   }
 
   private func wishlistTaskContextColor(for item: WishlistItem) -> Color {
-    if item.status.localizedCaseInsensitiveContains("blocked") { return .red }
-    if !store.wishlistSellerEvidenceGaps(for: item).isEmpty { return .orange }
-    if store.wishlistNeedsPurchaseDecision(item) { return .purple }
-    if !store.wishlistHandoffSanityGaps(for: item).isEmpty { return .orange }
-    if !store.wishlistHandoffPackGaps(for: item).isEmpty { return .orange }
-    if !store.wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return .blue }
-    if item.purchaseHandoff != nil { return .teal }
-    return item.operatorPurchaseBlockers.isEmpty ? .green : .purple
+    wishlistToneColor(store.wishlistTaskContextTone(for: item))
+  }
+
+  private func wishlistToneColor(_ tone: String) -> Color {
+    switch tone {
+    case "critical": return .red
+    case "packet": return .indigo
+    case "warning": return .orange
+    case "dispatch": return .blue
+    case "decision", "attention": return .purple
+    case "handoff": return .teal
+    case "success": return .green
+    default: return .secondary
+    }
   }
 
   private var overdueActionCount: Int {

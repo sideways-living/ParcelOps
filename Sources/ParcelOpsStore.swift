@@ -5994,6 +5994,20 @@ final class ParcelOpsStore {
     return "Wishlist"
   }
 
+  func wishlistPacketTaskTone(for item: WishlistItem) -> String {
+    if wishlistNeedsPurchasePacket(item) { return "packet" }
+    if !wishlistHandoffSanityGaps(for: item).isEmpty { return "warning" }
+    if !wishlistHandoffPackGaps(for: item).isEmpty { return "warning" }
+    if !wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return "dispatch" }
+    if wishlistNeedsPurchaseDecision(item) { return "decision" }
+    if wishlistSellerEvidenceGapCount(for: item) > 0 { return "warning" }
+    if item.purchaseHandoff?.linkedOrderID != nil { return "success" }
+    if item.purchaseHandoff != nil { return "warning" }
+    if item.purchaseDecision?.reviewState == .accepted { return "decision" }
+    if item.operatorPurchaseBlockers.isEmpty { return "success" }
+    return "warning"
+  }
+
   func wishlistPacketTaskDetail(for item: WishlistItem) -> String {
     if wishlistNeedsPurchasePacket(item) {
       let optionCount = (item.comparisonOptions ?? []).count
@@ -6069,6 +6083,17 @@ final class ParcelOpsStore {
     if !wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return "Dispatch setup" }
     if item.purchaseHandoff != nil { return "Order watch" }
     return "Wishlist"
+  }
+
+  func wishlistTaskContextTone(for item: WishlistItem) -> String {
+    if item.status.localizedCaseInsensitiveContains("blocked") { return "critical" }
+    if !wishlistSellerEvidenceGaps(for: item).isEmpty { return "warning" }
+    if wishlistNeedsPurchaseDecision(item) { return "decision" }
+    if !wishlistHandoffSanityGaps(for: item).isEmpty { return "warning" }
+    if !wishlistHandoffPackGaps(for: item).isEmpty { return "warning" }
+    if !wishlistLinkedOrderDispatchGaps(for: item).isEmpty { return "dispatch" }
+    if item.purchaseHandoff != nil { return "handoff" }
+    return item.operatorPurchaseBlockers.isEmpty ? "success" : "attention"
   }
 
   var wishlistPurchasePacketDrafts: [DraftMessage] {
