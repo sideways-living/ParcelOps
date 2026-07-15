@@ -6004,7 +6004,7 @@ final class ParcelOpsStore {
       ("Follow-up", "\(wishlistWorkbenchFollowUpCount)", "attention"),
       ("Agent verdict", wishlistAgentReadinessSummary.tone.capitalized, wishlistAgentReadinessSummary.tone),
       ("Blocked", "\(wishlistWorkbenchBlockedCount)", wishlistWorkbenchBlockedCount > 0 ? "critical" : "success"),
-      ("Release ready", "\(wishlistReleaseReadyItems.count)", wishlistReleaseReadyItems.isEmpty ? "muted" : "success"),
+      ("Release ready", "\(wishlistReleaseReadyItemCount)", wishlistReleaseReadyItemCount == 0 ? "muted" : "success"),
       ("Release blocked", "\(wishlistReleaseBlockedItems.count)", wishlistReleaseBlockedItems.isEmpty ? "success" : "warning"),
       ("Readiness", "\(wishlistReadinessBlockedItems.count)", wishlistReadinessBlockedItems.isEmpty ? "success" : "warning"),
       ("Critical checks", "\(wishlistReadinessCriticalItems.count)", wishlistReadinessCriticalItems.isEmpty ? "success" : "critical"),
@@ -6421,7 +6421,7 @@ final class ParcelOpsStore {
       return grouped.isEmpty ? "review agent research briefs" : "research scope: \(grouped)"
     }
     guard !blockers.isEmpty else {
-      if !wishlistReleaseReadyItems.isEmpty { return "ready handoff (\(wishlistReleaseReadyItems.count))" }
+      if wishlistReleaseReadyItemCount > 0 { return "ready handoff (\(wishlistReleaseReadyItemCount))" }
       return "review purchase release, handoff, or order confirmation"
     }
     let grouped = Dictionary(grouping: blockers, by: { $0 })
@@ -6443,7 +6443,7 @@ final class ParcelOpsStore {
       if !wishlistPurchasedNeedsOrderLinkItems.isEmpty { return "Link purchased Wishlist orders" }
       if !wishlistLinkedOrderDispatchGapItems.isEmpty { return "Stage Wishlist dispatch setup" }
       if !wishlistHandoffSanityBlockedItems.isEmpty { return "Complete purchase handoff sanity checks" }
-      if !wishlistReleaseReadyItems.isEmpty { return "Review ready purchase handoffs" }
+      if wishlistReleaseReadyItemCount > 0 { return "Review ready purchase handoffs" }
       return wishlistReadyPurchaseItems.isEmpty ? "No wishlist purchase follow-up" : "Review ready-to-buy items"
     }
     return "Clear: \(wishlistAttentionBlockerSummary)"
@@ -6480,7 +6480,7 @@ final class ParcelOpsStore {
       if wishlistBatchBriefNeeded {
         return "\(agentReadyWishlistResearchRequests.count) agent-ready research brief\(agentReadyWishlistResearchRequests.count == 1 ? "" : "s") need one batch packet. Agent verdict: \(readiness.verdict)."
       }
-      return "\(readiness.verdict). Purchase packets: \(wishlistPurchasePacketDrafts.count) drafted. Release checklist: \(wishlistReleaseReadyItems.count) ready handoff, \(wishlistReleaseBlockedItems.count) blocked, \(wishlistReleaseOrderWatchItems.count) watching for order confirmation."
+      return "\(readiness.verdict). Purchase packets: \(wishlistPurchasePacketDrafts.count) drafted. Release checklist: \(wishlistReleaseReadyItemCount) ready handoff, \(wishlistReleaseBlockedItems.count) blocked, \(wishlistReleaseOrderWatchItems.count) watching for order confirmation."
     }
     return "Top blockers: \(wishlistAttentionBlockerSummary). Readiness checks: \(wishlistReadinessBlockedItems.count), purchase packets: \(wishlistPurchasePacketNeededItems.count), order links: \(wishlistPurchasedNeedsOrderLinkItems.count), dispatch setup: \(wishlistLinkedOrderDispatchGapItems.count), closure trail: \(readiness.operationsClosureGapCount)."
   }
@@ -6632,6 +6632,10 @@ final class ParcelOpsStore {
         && item.purchaseHandoff?.linkedOrderID == nil
         && wishlistReleaseBlockers(for: item).isEmpty
     }
+  }
+
+  var wishlistReleaseReadyItemCount: Int {
+    wishlistReleaseReadyItems.count
   }
 
   var wishlistReleaseBlockedItems: [WishlistItem] {

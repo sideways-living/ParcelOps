@@ -604,8 +604,8 @@ struct DashboardView: View {
   private var operatorWorkbenchReviewItems: [WorkbenchItem] {
     operatorWorkbenchItems.filter { $0.reviewState == .needsReview }
   }
-  private var wishlistReleaseReadyItems: [WishlistItem] {
-    store.wishlistReleaseReadyItems
+  private var wishlistReleaseReadyItemCount: Int {
+    store.wishlistReleaseReadyItemCount
   }
   private var wishlistAgentReadiness: WishlistAgentReadinessSummary {
     store.wishlistAgentReadinessSummary
@@ -805,10 +805,10 @@ struct DashboardView: View {
       (
         "Wishlist",
         "Review purchase ideas, seller comparison, readiness checks, manual handoff, and order-confirmation follow-up.",
-        wishlistDailyAttentionCount + wishlistReleaseReadyItems.count,
+        wishlistDailyAttentionCount + wishlistReleaseReadyItemCount,
         "Wishlist",
         "star.square.fill",
-        wishlistDailyAttentionClear ? (wishlistReleaseReadyItems.isEmpty ? .green : .teal) : .purple
+        wishlistDailyAttentionClear ? (wishlistReleaseReadyItemCount == 0 ? .green : .teal) : .purple
       ),
       (
         "Tasks",
@@ -2125,7 +2125,7 @@ struct DashboardView: View {
           if dashboardMatches("wishlist", "purchase", "seller", "shopping", "handoff", "ready to buy", "batch", "research brief", "agent") {
             OperatorDashboardCard(
               title: "Wishlist",
-              count: wishlistDailyAttentionCount + wishlistReleaseReadyItems.count,
+              count: wishlistDailyAttentionCount + wishlistReleaseReadyItemCount,
               detail: store.wishlistDashboardCardDetail,
               nextAction: wishlistAgentReadiness.tone == "warning" ? "Open Wishlist readiness verdict" : wishlistDashboardNextAction,
               symbol: "star.square.fill",
