@@ -477,8 +477,7 @@ struct OperationsWorkbenchView: View {
 
   private var dailyAttentionCount: Int {
     store.reviewIntakeEmails.count
-      + store.pendingMailboxUncertainReviewCount
-      + store.pendingMailboxFilteredReviewCount
+      + store.pendingMailboxReviewCount
       + store.importQueueItemsNeedingReview.count
       + store.blockedImportQueueItems.count
       + store.acceptanceRecordsNeedingReview.count
@@ -788,7 +787,7 @@ struct OperationsWorkbenchView: View {
       + store.importQueueItemsNeedingReview.count
       + store.blockedImportQueueItems.count
       + store.acceptanceRecordsNeedingReview.count
-    let mailboxReviewCount = store.pendingMailboxUncertainReviewCount + store.pendingMailboxFilteredReviewCount + store.intakeParserDiagnostics.count
+    let mailboxReviewCount = store.pendingMailboxReviewCount + store.intakeParserDiagnostics.count
     let orderCount = inboxCreatedOrders.count + partialInboxOrderBlockers.count
     let dispatchCount = reopenedInboxDispatchHandoffCount + inboxDispatchReadinessOrders.count + store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count
     let taskCount = store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count + draftFollowUpItems.count
