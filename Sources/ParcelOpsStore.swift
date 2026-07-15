@@ -23747,6 +23747,10 @@ final class ParcelOpsStore {
     wishlistItemsLinked(to: order).filter(isActiveWishlistItem)
   }
 
+  func closedWishlistItemsLinked(to order: TrackedOrder) -> [WishlistItem] {
+    wishlistItemsLinked(to: order).filter { !isActiveWishlistItem($0) }
+  }
+
   func wishlistOrderConfirmationMatchDetail(item: WishlistItem, email: ForwardedEmailIntake) -> (score: Int, confidence: String, reasons: [String]) {
     let handoff = item.purchaseHandoff
     let searchable = [

@@ -1973,7 +1973,7 @@ struct OrderDetailView: View {
     let imports = store.importQueueItems(for: order)
     let acceptance = store.acceptanceRecords(for: order)
     let wishlistItems = store.activeWishlistItemsLinked(to: order)
-    let closedWishlistItems = store.wishlistItemsLinked(to: order).filter { !store.isActiveWishlistItem($0) }
+    let closedWishlistItems = store.closedWishlistItemsLinked(to: order)
 
     return Panel(title: "Inbox source trail", symbol: "envelope.open.fill") {
       VStack(alignment: .leading, spacing: 12) {
