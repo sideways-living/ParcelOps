@@ -5658,7 +5658,7 @@ struct SettingsReleaseCandidateCard: View {
   }
 
   private var hasManualCredentialOrAuth: Bool {
-    hasSpaceMailCredentialReference || hasGmailConnectedAuth
+    store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var latestManualFetchedCount: Int {
@@ -5897,7 +5897,7 @@ struct SettingsView: View {
     hasSpaceMailSetup || hasGmailSetup
   }
   private var hasLiveMailboxCredentialOrAuth: Bool {
-    hasSpaceMailCredentialReference || hasGmailConnectedAuth
+    store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var mailboxStatus: (String, Color) {

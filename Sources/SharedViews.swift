@@ -2304,7 +2304,7 @@ struct OperatorMVPReadinessCard: View {
     }
     let hasGmailConnectedAuth = store.hasGmailConnectedAuth
     let hasMailboxSetup = store.hasMailboxProviderSetup
-    let hasMailboxCredentialOrAuth = hasSpaceMailCredential || hasGmailConnectedAuth
+    let hasMailboxCredentialOrAuth = store.hasMailboxCredentialOrAuthReadiness
     let hasMailboxRefresh = store.hasMailboxManualRefreshEvidence
     let mailboxProviderLabel: String = {
       switch (hasSpaceMailSetup, hasGmailSetup) {
