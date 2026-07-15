@@ -6582,10 +6582,7 @@ struct OperatorHandoffBriefCard: View {
   }
 
   private var wishlistResearchReviewCount: Int {
-    store.wishlistResearchRequests.filter {
-      store.isActiveWishlistResearchRequest($0)
-        && (!$0.agentBriefGaps.isEmpty || $0.reviewState != .accepted)
-    }.count
+    store.activeWishlistResearchReviewQueueCount
   }
 
   private var wishlistOrderWatchCount: Int {

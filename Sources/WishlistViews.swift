@@ -4733,7 +4733,7 @@ struct WishlistView: View {
           Button("Create batch brief", systemImage: "doc.badge.plus") {
             store.createWishlistBatchResearchBriefDraft()
           }
-          .disabled(store.wishlistResearchRequests.filter { store.isActiveWishlistResearchRequest($0) && !$0.requestStatus.localizedCaseInsensitiveContains("blocked") }.isEmpty)
+          .disabled(store.activeWishlistUnblockedResearchRequestCount == 0)
           NavigationLink {
             TasksView(store: store)
           } label: {
@@ -13494,7 +13494,7 @@ struct WishlistView: View {
             ("Gmail candidates", "\(gmailWishlistCandidateEmails.count)", gmailWishlistCandidateEmails.isEmpty ? .secondary : .blue),
             ("Ready signals", "\(gmailWishlistReadyCount)", gmailWishlistReadyCount == 0 ? .secondary : .teal),
             ("Wishlist items", "\(store.activeWishlistItemCount)", store.activeWishlistItemCount == 0 ? .secondary : .green),
-            ("Needs review", "\(store.wishlistItems.filter { store.isActiveWishlistItem($0) && $0.status.localizedCaseInsensitiveContains("review") }.count)", store.wishlistItems.contains { store.isActiveWishlistItem($0) && $0.status.localizedCaseInsensitiveContains("review") } ? .orange : .green)
+            ("Needs review", "\(store.activeWishlistStatusReviewCount)", store.activeWishlistStatusReviewCount > 0 ? .orange : .green)
           ])
 
           if gmailWishlistCandidateEmails.isEmpty {

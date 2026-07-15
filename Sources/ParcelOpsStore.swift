@@ -5914,6 +5914,10 @@ final class ParcelOpsStore {
     activeWishlistItems.count
   }
 
+  var activeWishlistStatusReviewCount: Int {
+    activeWishlistItems.filter { $0.status.localizedCaseInsensitiveContains("review") }.count
+  }
+
   var stagedWishlistCaptureCandidates: [WishlistCaptureCandidate] {
     wishlistCaptureCandidates.filter { $0.reviewState != .accepted }
   }
@@ -5928,6 +5932,22 @@ final class ParcelOpsStore {
 
   var activeWishlistResearchRequestCount: Int {
     activeWishlistResearchRequests.count
+  }
+
+  var activeWishlistResearchScopeGapCount: Int {
+    activeWishlistResearchRequests.filter { !$0.agentBriefGaps.isEmpty }.count
+  }
+
+  var activeWishlistResearchReviewQueueCount: Int {
+    activeWishlistResearchRequests.filter {
+      !$0.agentBriefGaps.isEmpty || $0.reviewState != .accepted
+    }.count
+  }
+
+  var activeWishlistUnblockedResearchRequestCount: Int {
+    activeWishlistResearchRequests.filter {
+      !$0.requestStatus.localizedCaseInsensitiveContains("blocked")
+    }.count
   }
 
   var agentReadyWishlistResearchRequests: [WishlistResearchRequest] {

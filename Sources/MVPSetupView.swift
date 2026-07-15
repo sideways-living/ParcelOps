@@ -136,7 +136,7 @@ struct MVPRemainingWorkPanel: View {
   private var wishlistNeedsHumanReviewCount: Int {
     let activeItems = store.activeWishlistItems
     let stagedCaptureCount = store.stagedWishlistCaptureCandidateCount
-    let researchScopeCount = store.wishlistResearchRequests.filter { store.isActiveWishlistResearchRequest($0) && !$0.agentBriefGaps.isEmpty }.count
+    let researchScopeCount = store.activeWishlistResearchScopeGapCount
     let orderWatchCount = store.activeWishlistOrderWatchRecordCount
     let purchaseReadyCount = activeItems.filter {
       $0.status.localizedCaseInsensitiveContains("ready")
