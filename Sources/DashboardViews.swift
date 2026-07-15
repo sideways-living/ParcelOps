@@ -2202,7 +2202,7 @@ struct DashboardView: View {
             MetricStrip(items: [
               ("Active", "\(store.activeCount)", .teal),
               ("Review", "\(store.reviewOrders.count)", .orange),
-              ("From Inbox", "\(store.inboxCreatedOrders.count)", store.inboxCreatedOrders.isEmpty ? .green : .purple),
+              ("From Inbox", "\(store.inboxCreatedOrderCount)", store.inboxCreatedOrderCount == 0 ? .green : .purple),
               ("From Wishlist", "\(store.wishlistLinkedOrders.count)", store.wishlistLinkedOrders.isEmpty ? .secondary : .pink),
               ("Source trail", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange),
               ("Verify first", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
@@ -2210,7 +2210,7 @@ struct DashboardView: View {
               ("Delivered", "\(store.deliveredCount)", .green)
             ])
             CompactInboxSourceTrailCoverage(
-              total: store.operatorSourceOrders.count,
+              total: store.operatorSourceOrderCount,
               withSourceTrail: inboxCreatedOrdersWithSourceTrail.count,
               missingSourceTrailOrders: Array(inboxCreatedOrdersMissingSourceTrail.prefix(3)),
               store: store
@@ -2679,7 +2679,7 @@ struct MVPHandsOnDashboardStatus: View {
   }
 
   private var inboxCreatedOrdersCount: Int {
-    store.inboxCreatedOrders.count
+    store.inboxCreatedOrderCount
   }
 
   private var hasManualRefresh: Bool {

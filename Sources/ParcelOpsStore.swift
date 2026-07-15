@@ -5886,6 +5886,10 @@ final class ParcelOpsStore {
     orders.filter(\.isInboxCreatedLocalOrder)
   }
 
+  var inboxCreatedOrderCount: Int {
+    inboxCreatedOrders.count
+  }
+
   var intakeLinkedOrders: [TrackedOrder] {
     orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
@@ -6729,6 +6733,10 @@ final class ParcelOpsStore {
 
   var operatorSourceOrders: [TrackedOrder] {
     uniqueOrdersByID(inboxCreatedOrders + intakeLinkedOrders + wishlistLinkedOrders)
+  }
+
+  var operatorSourceOrderCount: Int {
+    operatorSourceOrders.count
   }
 
   var latestSpaceMailIntakeHealthSummary: SpaceMailIntakeHealthSummary? {

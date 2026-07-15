@@ -509,7 +509,7 @@ struct OperationsWorkbenchView: View {
   }
 
   private var releaseInboxOrderCount: Int {
-    store.inboxCreatedOrders.count
+    store.inboxCreatedOrderCount
   }
 
   private var releaseDispatchBlockerCount: Int {
