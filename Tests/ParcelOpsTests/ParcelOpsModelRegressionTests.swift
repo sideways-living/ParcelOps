@@ -851,9 +851,11 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(task.title, "Review Wishlist Inbox confirmation candidates: Replacement scanner")
     XCTAssertEqual(task.linkedEntityType, .wishlistItem)
     XCTAssertEqual(task.linkedEntityID, item.id.uuidString)
+    XCTAssertEqual(task.status, .open)
     XCTAssertEqual(task.priority, .urgent)
     XCTAssertTrue(task.summary.contains("Inbox candidates: 1"))
     XCTAssertTrue(task.summary.contains("TEST-123"))
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Wishlist order confirmation follow-up task refreshed locally." })
   }
 
   func testWishlistOrderWatchCompletesCandidateTaskAfterOrderMatch() throws {
