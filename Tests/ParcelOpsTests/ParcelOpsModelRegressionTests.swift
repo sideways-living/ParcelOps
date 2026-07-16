@@ -776,12 +776,16 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(reviewedUnlinked.reviewState, .accepted)
     XCTAssertEqual(reviewedLinked.watchStatus, "Reviewed and linked")
     XCTAssertEqual(reviewedLinked.reviewState, .accepted)
+    XCTAssertEqual(store.activeWishlistOrderWatchRecordCount, 2)
+    XCTAssertEqual(store.openWishlistOrderWatchRecordCount, 2)
 
     store.blockWishlistOrderWatchRecord(reviewedUnlinked)
 
     reviewedUnlinked = try XCTUnwrap(store.wishlistOrderWatchRecords.first { $0.wishlistItemID == unlinkedItem.id })
     XCTAssertEqual(reviewedUnlinked.watchStatus, "Blocked locally")
     XCTAssertEqual(reviewedUnlinked.reviewState, .needsReview)
+    XCTAssertEqual(store.activeWishlistOrderWatchRecordCount, 2)
+    XCTAssertEqual(store.openWishlistOrderWatchRecordCount, 2)
   }
 
   func testWishlistOrderWatchRemovalLogsWithoutDeletingItem() throws {
