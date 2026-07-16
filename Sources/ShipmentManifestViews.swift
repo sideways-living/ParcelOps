@@ -208,9 +208,9 @@ struct ShipmentManifestsView: View {
     let actionManifests = manifestsNeedingAction
     let missingManifestCount = inboxOrdersMissingManifest.count
 
-    return SettingsPanel(title: "Inbox manifest readiness", symbol: "list.bullet.clipboard.fill") {
+    return SettingsPanel(title: "Order manifest readiness", symbol: "list.bullet.clipboard.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have outbound manifest setup, included orders, handoff location, labels, scans, and dispatch status.")
+        Text("Checks whether orders created from mailbox intake or Wishlist handoffs have outbound manifest setup, included orders, handoff location, labels, scans, and dispatch status.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
@@ -222,11 +222,11 @@ struct ShipmentManifestsView: View {
         }
 
         if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking manifest readiness.")
+          Text("No source-created orders are present yet. Create or link an order from Inbox or Wishlist before checking manifest readiness.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedManifests.isEmpty {
-          Text("Inbox-created orders do not have shipment manifests yet. Add or create dispatch setup before outbound handoff.")
+          Text("Source-created orders do not have shipment manifests yet. Add or create dispatch setup before outbound handoff.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -264,7 +264,7 @@ struct ShipmentManifestsView: View {
     GmailReleaseBoundaryPanel(
       store: store,
       title: "Gmail manifest readiness",
-      lead: "Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence should not create shipment manifests directly. Manifest work starts after a confirmed Inbox row becomes an order or shipment group.",
+      lead: "Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence should not create shipment manifests directly. Manifest work starts after a confirmed Inbox row or Wishlist source becomes an order or shipment group.",
       sourceMetricTitle: "Gmail manifest sources",
       sourceCount: gmailManifestSourceCount,
       boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, call carrier APIs, book couriers, print labels, or change shipment manifests automatically."
@@ -501,10 +501,10 @@ struct ShipmentManifestRow: View {
 
       if record.isInboxDispatchHandoffSetup {
         LinkedOrdersContextPanel(
-          title: "Inbox-created order dispatch setup",
+          title: "Order source dispatch setup",
           linkedOrders: linkedOrders,
           sourceLabel: record.dispatchStatus.rawValue,
-          emptyDetail: "This manifest was created from Inbox handoff context, but no matching local order was found. Check the manifest before dispatching.",
+          emptyDetail: "This manifest was created from order source handoff context, but no matching local order was found. Check the manifest before dispatching.",
           linkedDetail: manifestHandoffDetail,
           tone: record.dispatchStatus.color,
           store: store
@@ -610,7 +610,7 @@ struct ShipmentManifestRow: View {
     case .dispatched:
       return "Manifest is dispatched. Confirm courier/internal handoff and monitor the linked order from Orders."
     case .handedOff:
-      return "Handoff is complete. The linked Inbox-created order can be monitored from Orders."
+      return "Handoff is complete. The linked source-created order can be monitored from Orders."
     case .blockedNeedsReview:
       return "Resolve the blocked handoff before progressing the linked order."
     }

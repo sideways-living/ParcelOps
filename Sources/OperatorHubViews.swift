@@ -3647,7 +3647,7 @@ private struct DispatchQueueItem: Identifiable {
         return "Handoff location is missing. Confirm where the parcel leaves custody before dispatch."
       }
       if record.isInboxHandoffSetup && (record.dispatchStatus == .draft || record.dispatchStatus == .reopened) {
-        return "This manifest came from Inbox-created order setup. Open the linked order and confirm intake details before dispatch."
+        return "This manifest came from order source setup. Open the linked order and confirm source details before dispatch."
       }
       switch record.dispatchStatus {
       case .draft, .reopened:
@@ -3672,7 +3672,7 @@ private struct DispatchQueueItem: Identifiable {
         return "Missing requirements are recorded: \(checklist.missingRequirementsSummary). Mark ready only after they are resolved."
       }
       if checklist.isInboxHandoffSetup && (checklist.checklistStatus == .draft || checklist.checklistStatus == .reopened) {
-        return "This checklist came from Inbox-created order setup. Confirm the linked order source trail before marking ready."
+        return "This checklist came from order source setup. Confirm the linked order source trail before marking ready."
       }
       switch checklist.checklistStatus {
       case .draft, .reopened:
@@ -4042,7 +4042,7 @@ private struct DispatchQueueInboxOrderContext: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Label(isReopened ? "Reopened Inbox dispatch handoff" : "Inbox-created order handoff", systemImage: isReopened ? "arrow.counterclockwise.circle.fill" : "tray.and.arrow.down.fill")
+      Label(isReopened ? "Reopened source dispatch handoff" : "Source-created order handoff", systemImage: isReopened ? "arrow.counterclockwise.circle.fill" : "tray.and.arrow.down.fill")
         .font(.caption.weight(.semibold))
         .foregroundStyle(isReopened ? .purple : .teal)
 
@@ -4055,8 +4055,8 @@ private struct DispatchQueueInboxOrderContext: View {
         }
 
         Text(isReopened
-          ? "Open the order to inspect the Inbox source trail and complete or block the reopened handoff."
-          : "This dispatch row is linked to an Inbox-created order. Use Open order when source context matters.")
+          ? "Open the order to inspect the order source trail and complete or block the reopened handoff."
+          : "This dispatch row is linked to a source-created order. Use Open order when source context matters.")
           .font(.caption2)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
