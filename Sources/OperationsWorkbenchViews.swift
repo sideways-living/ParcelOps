@@ -651,27 +651,27 @@ struct OperationsWorkbenchView: View {
 
   private var workbenchNextActionDetail: String {
     if urgentWorkbenchCount > 0 {
-      return "\(urgentWorkbenchCount) overdue or high-priority item is promoted. Open the first row, create a task or draft, then mark reviewed where supported."
+      return "\(urgentWorkbenchCount) overdue or high-priority item\(urgentWorkbenchCount == 1 ? " is" : "s are") promoted. Open the first row, create a task or draft, then mark reviewed where supported."
     }
     let blockedCount = defaultQueueItems.filter(\.isBlocked).count
     let needsReviewCount = defaultQueueItems.filter { $0.reviewState == .needsReview }.count
     if blockedCount > 0 {
-      return "\(blockedCount) item is blocked. Resolve the blocker or route it to the detailed screen before reviewing routine work."
+      return "\(blockedCount) item\(blockedCount == 1 ? " is" : "s are") blocked. Resolve the blocker or route it to the detailed screen before reviewing routine work."
     }
     if reopenedInboxDispatchHandoffCount > 0 {
-      return "\(reopenedInboxDispatchHandoffCount) source dispatch handoff record was reopened. Open the linked order and Dispatch context before closing it again."
+      return "\(reopenedInboxDispatchHandoffCount) source dispatch handoff record\(reopenedInboxDispatchHandoffCount == 1 ? " was" : "s were") reopened. Open the linked order and Dispatch context before closing \(reopenedInboxDispatchHandoffCount == 1 ? "it" : "them") again."
     }
     if !partialInboxOrderBlockers.isEmpty {
-      return "\(partialInboxOrderBlockers.count) source-created order has missing details or an open verification task. Open the order before dispatch setup."
+      return "\(partialInboxOrderBlockers.count) source-created order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "has" : "have") missing details or an open verification task. Open the order before dispatch setup."
     }
     if !inboxDispatchReadinessOrders.isEmpty {
-      return "\(inboxDispatchReadinessOrders.count) source-created order has local dispatch setup but still needs readiness, label, scan, custody, or handoff confirmation."
+      return "\(inboxDispatchReadinessOrders.count) source-created order\(inboxDispatchReadinessOrders.count == 1 ? "" : "s") \(inboxDispatchReadinessOrders.count == 1 ? "has" : "have") local dispatch setup but still \(inboxDispatchReadinessOrders.count == 1 ? "needs" : "need") readiness, label, scan, custody, or handoff confirmation."
     }
     if !inboxCreatedOrders.isEmpty {
-      return "\(inboxCreatedOrders.count) source-created order needs operational confirmation or dispatch setup before it disappears from daily follow-up."
+      return "\(inboxCreatedOrders.count) source-created order\(inboxCreatedOrders.count == 1 ? "" : "s") \(inboxCreatedOrders.count == 1 ? "needs" : "need") operational confirmation or dispatch setup before \(inboxCreatedOrders.count == 1 ? "it disappears" : "they disappear") from daily follow-up."
     }
     if !draftFollowUpItems.isEmpty {
-      return "\(draftFollowUpItems.count) draft needs review, sending, or reopening before the related work can be closed."
+      return "\(draftFollowUpItems.count) draft\(draftFollowUpItems.count == 1 ? "" : "s") \(draftFollowUpItems.count == 1 ? "needs" : "need") review, sending, or reopening before the related work can be closed."
     }
     if !setupPlaceholderReviewItems.isEmpty {
       return "\(setupPlaceholderReviewItems.count) setup placeholder needs local review or removal. Open Settings to confirm it remains planning-only."

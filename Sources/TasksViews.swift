@@ -858,16 +858,16 @@ struct TasksView: View {
 
   private var nextActionDetail: String {
     if overdueActionCount > 0 {
-      return "\(overdueActionCount) open task or handoff is overdue. Complete it, reassign it, or create a draft so the follow-up is visible."
+      return "\(overdueActionCount) open task or handoff\(overdueActionCount == 1 ? " is" : "s are") overdue. Complete, reassign, or create a draft so the follow-up is visible."
     }
     if blockedActionCount > 0 {
-      return "\(blockedActionCount) item is blocked. Open the row, resolve the blocker, or create a draft/task for the owner."
+      return "\(blockedActionCount) item\(blockedActionCount == 1 ? " is" : "s are") blocked. Open the row, resolve the blocker, or create a draft/task for the owner."
     }
     if urgentActionCount > 0 {
-      return "\(urgentActionCount) high-priority item needs attention before routine handoffs."
+      return "\(urgentActionCount) high-priority item\(urgentActionCount == 1 ? "" : "s") \(urgentActionCount == 1 ? "needs" : "need") attention before routine handoffs."
     }
     if inboxOrderActionCount > 0 {
-      return "\(inboxOrderActionCount) task is linked to a source-created order. Open the order, confirm dispatch context, then complete the follow-up."
+      return "\(inboxOrderActionCount) task\(inboxOrderActionCount == 1 ? " is" : "s are") linked to a source-created order. Open the order, confirm dispatch context, then complete the follow-up."
     }
     if wishlistTaskActionCount > 0 {
       return "\(wishlistTaskActionCount) Wishlist purchase follow-up item needs task attention: purchase packets, drafts, handoff prep, or order confirmation matching."

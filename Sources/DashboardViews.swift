@@ -708,19 +708,19 @@ struct DashboardView: View {
       return "Run one explicit read-only refresh for the active mailbox provider so Dashboard, Mailbox Monitor, and Audit have a real refresh result."
     }
     if incomingAttentionCount > 0 {
-      return "\(incomingAttentionCount) incoming item needs triage from mailbox intake, provider review, import queue, or acceptance review."
+      return "\(incomingAttentionCount) incoming item\(incomingAttentionCount == 1 ? "" : "s") \(incomingAttentionCount == 1 ? "needs" : "need") triage from mailbox intake, provider review, import queue, or acceptance review."
     }
     if !partialInboxOrderBlockers.isEmpty {
-      return "\(partialInboxOrderBlockers.count) source-created order has missing details or an open verification task. Confirm those before dispatch setup."
+      return "\(partialInboxOrderBlockers.count) source-created order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "has" : "have") missing details or an open verification task. Confirm those before dispatch setup."
     }
     if problemOrdersCount > 0 {
-      return "\(problemOrdersCount) order signal needs attention from review state, exceptions, tracking warnings, or source-created order handoff."
+      return "\(problemOrdersCount) order signal\(problemOrdersCount == 1 ? "" : "s") \(problemOrdersCount == 1 ? "needs" : "need") attention from review state, exceptions, tracking warnings, or source-created order handoff."
     }
     if highPriorityOperatorWorkbenchItems.count > 0 {
-      return "\(highPriorityOperatorWorkbenchItems.count) high-priority exception, validation, reconciliation, or operational workbench item is open."
+      return "\(highPriorityOperatorWorkbenchItems.count) high-priority exception, validation, reconciliation, or operational workbench item\(highPriorityOperatorWorkbenchItems.count == 1 ? " is" : "s are") open."
     }
     if reopenedInboxDispatchHandoffCount > 0 {
-      return "\(reopenedInboxDispatchHandoffCount) Inbox dispatch handoff record was reopened. Open Dispatch or the linked order to complete or block it."
+      return "\(reopenedInboxDispatchHandoffCount) Inbox dispatch handoff record\(reopenedInboxDispatchHandoffCount == 1 ? " was" : "s were") reopened. Open Dispatch or the linked order to complete or block \(reopenedInboxDispatchHandoffCount == 1 ? "it" : "them")."
     }
     if dispatchAttentionCount > 0 {
       return "\(dispatchAttentionCount) dispatch item needs preparation, readiness review, or blocked-manifest follow-up."
