@@ -2722,9 +2722,15 @@ final class ParcelOpsStore {
         gmailConnectionIDs.contains($0.linkedEntityID) &&
         $0.title.localizedCaseInsensitiveContains("Gmail release self-check")
     }
+    let releaseReadinessTasks = reviewTasks.filter {
+      $0.linkedEntityType == .integration &&
+        $0.linkedEntityID == "gmail-release-readiness"
+    }
     let openReleaseSelfCheckTaskCount = releaseSelfCheckTasks.filter { $0.status != .completed }.count
     let completedReleaseSelfCheckTaskCount = releaseSelfCheckTasks.filter { $0.status == .completed }.count
-    let hasOpenReleaseSelfCheckTask = gmailMailboxConnections.isEmpty || openReleaseSelfCheckTaskCount > 0
+    let openReleaseReadinessTaskCount = releaseReadinessTasks.filter { $0.status != .completed }.count
+    let completedReleaseReadinessTaskCount = releaseReadinessTasks.filter { $0.status == .completed }.count
+    let hasOpenReleaseTask = gmailMailboxConnections.isEmpty || openReleaseSelfCheckTaskCount + openReleaseReadinessTaskCount > 0
 
     let verdict: String
     let detail: String
@@ -2733,11 +2739,11 @@ final class ParcelOpsStore {
       verdict = "Gmail release snapshot: optional path not configured"
       detail = "Add Gmail only when a mailbox is hosted by Gmail or Google Workspace. Use whichever provider hosts the active mailbox."
       tone = "neutral"
-    } else if setupBlockers == 0 && signedInCount > 0 && !hasOpenReleaseSelfCheckTask {
+    } else if setupBlockers == 0 && signedInCount > 0 && !hasOpenReleaseTask {
       verdict = "Gmail release snapshot: release task needed"
-      detail = "Create and keep open a Gmail release self-check task before treating Gmail intake as release-ready."
+      detail = "Create and keep open a Gmail release self-check or release readiness task before treating Gmail intake as release-ready."
       tone = "attention"
-    } else if setupBlockers == 0 && signedInCount > 0 && fetchedCount > 0 && openHandoffLines == 0 && hasOpenReleaseSelfCheckTask {
+    } else if setupBlockers == 0 && signedInCount > 0 && fetchedCount > 0 && openHandoffLines == 0 && hasOpenReleaseTask {
       verdict = "Gmail release snapshot: ready for supervised testing"
       detail = "Gmail setup, sign-in, read-only refresh evidence, and handoff checks are clear enough for a focused hands-on pass."
       tone = "success"
@@ -2795,7 +2801,9 @@ final class ParcelOpsStore {
       "Parser diagnostics: \(parserDiagnostics)",
       "Open Gmail release self-check tasks: \(openReleaseSelfCheckTaskCount)",
       "Completed Gmail release self-check tasks: \(completedReleaseSelfCheckTaskCount)",
-      "Release task gate: \(hasOpenReleaseSelfCheckTask ? "open task present" : "open task needed")",
+      "Open Gmail release readiness tasks: \(openReleaseReadinessTaskCount)",
+      "Completed Gmail release readiness tasks: \(completedReleaseReadinessTaskCount)",
+      "Release task gate: \(hasOpenReleaseTask ? "open task present" : "open task needed")",
       "Promoted release blockers: \(releaseBlockers.count)",
       "",
       "Top release blocker:",
@@ -2841,7 +2849,7 @@ final class ParcelOpsStore {
         SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: fetchedCount > 0 ? "neutral" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "success" : "neutral"),
         SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(uncertainCount)", tone: uncertainCount == 0 ? "success" : "attention"),
-        SpaceMailReleaseSnapshotMetric(title: "Release task", value: "\(openReleaseSelfCheckTaskCount)", tone: gmailMailboxConnections.isEmpty ? "neutral" : hasOpenReleaseSelfCheckTask ? "success" : "attention")
+        SpaceMailReleaseSnapshotMetric(title: "Release task", value: "\(openReleaseSelfCheckTaskCount + openReleaseReadinessTaskCount)", tone: gmailMailboxConnections.isEmpty ? "neutral" : hasOpenReleaseTask ? "success" : "attention")
       ],
       reportText: reportLines.joined(separator: "\n")
     )
