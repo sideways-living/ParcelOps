@@ -18751,7 +18751,9 @@ final class ParcelOpsStore {
 
   func createGmailShiftHandoffNote() {
     let summary = gmailShiftHandoffSummary
-    let detail = gmailShiftHandoffDetail(summary)
+    let topBlocker = gmailReleaseBlockerSummary.blockers.first { $0.tone == "warning" || $0.tone == "attention" }
+    let blockerDetail = topBlocker.map { "Top release blocker: \($0.title). \($0.detail) Next action: \($0.nextAction)" } ?? "Top release blocker: none promoted."
+    let detail = "\(gmailShiftHandoffDetail(summary))\n\(blockerDetail)"
     let handoffID = "gmail-shift-handoff"
     let priority = gmailHandoffPriority(for: summary.tone)
 
@@ -18776,7 +18778,7 @@ final class ParcelOpsStore {
         entityLabel: handoffNotes[existingIndex].title,
         summary: "Existing Gmail shift handoff note refreshed.",
         beforeDetail: beforeDetail,
-        afterDetail: "\(handoffNotes[existingIndex].auditDetail)\nRefreshed from local Gmail shift summary. No duplicate handoff note was created. No Google sign-in, token request, Gmail API call, mailbox fetch, external service call, or mailbox mutation occurred."
+        afterDetail: "\(handoffNotes[existingIndex].auditDetail)\n\(blockerDetail)\nRefreshed from local Gmail shift summary. No duplicate handoff note was created. No Google sign-in, token request, Gmail API call, mailbox fetch, external service call, or mailbox mutation occurred."
       )
       return
     }
@@ -18811,7 +18813,9 @@ final class ParcelOpsStore {
     let summary = gmailShiftHandoffSummary
     let taskID = "gmail-shift-handoff"
     let priority = gmailHandoffPriority(for: summary.tone)
-    let taskSummary = "\(summary.title): \(summary.detail) \(summary.lastRefreshText)\n\(gmailShiftHandoffDetail(summary))"
+    let topBlocker = gmailReleaseBlockerSummary.blockers.first { $0.tone == "warning" || $0.tone == "attention" }
+    let blockerDetail = topBlocker.map { "Top release blocker: \($0.title). \($0.detail) Next action: \($0.nextAction)" } ?? "Top release blocker: none promoted."
+    let taskSummary = "\(summary.title): \(summary.detail) \(summary.lastRefreshText)\n\(gmailShiftHandoffDetail(summary))\n\(blockerDetail)"
 
     if let existingIndex = reviewTasks.firstIndex(where: {
       $0.linkedEntityType == .integration
@@ -18833,7 +18837,7 @@ final class ParcelOpsStore {
         entityLabel: reviewTasks[existingIndex].title,
         summary: "Existing Gmail shift review task refreshed.",
         beforeDetail: beforeDetail,
-        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from local Gmail shift summary. No duplicate task was created. No Google sign-in, token request, Gmail API call, mailbox fetch, external service call, or mailbox mutation occurred."
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\n\(blockerDetail)\nRefreshed from local Gmail shift summary. No duplicate task was created. No Google sign-in, token request, Gmail API call, mailbox fetch, external service call, or mailbox mutation occurred."
       )
       return
     }
@@ -18859,7 +18863,7 @@ final class ParcelOpsStore {
       entityID: taskID,
       entityLabel: "Gmail shift handoff",
       summary: "Gmail shift summary review task created locally.",
-      afterDetail: "\(gmailShiftHandoffDetail(summary))\nNo Google sign-in, token request, Gmail API call, mailbox fetch, external service call, or mailbox mutation occurred."
+      afterDetail: "\(gmailShiftHandoffDetail(summary))\n\(blockerDetail)\nNo Google sign-in, token request, Gmail API call, mailbox fetch, external service call, or mailbox mutation occurred."
     )
   }
 
