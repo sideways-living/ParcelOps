@@ -203,11 +203,11 @@ struct ScanSessionsView: View {
         }
 
         if inboxOrders.isEmpty && wishlistOrders.isEmpty {
-          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking scan readiness.")
+          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking scan readiness.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedScans.isEmpty {
-          Text("Inbox-created or Wishlist-linked orders do not have scan sessions yet. Add a session when label, order, custody, or inventory verification is needed.")
+          Text("Source-created or Wishlist-linked orders do not have scan sessions yet. Add a session when label, order, custody, or inventory verification is needed.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -228,7 +228,7 @@ struct ScanSessionsView: View {
           }
 
           if actionScans.isEmpty {
-            Text("Linked scan sessions look matched, completed, assigned, and reviewed for current Inbox-created and Wishlist-linked orders.")
+            Text("Linked scan sessions look matched, completed, assigned, and reviewed for current source-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionScans.count > 3 {

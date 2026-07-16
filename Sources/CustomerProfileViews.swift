@@ -230,15 +230,15 @@ struct CustomerProfilesView: View {
         }
 
         if inboxOrders.isEmpty && wishlistOrders.isEmpty {
-          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before using profile coverage checks.")
+          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before using profile coverage checks.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedProfiles.isEmpty {
-          Text("No customer profiles currently match Inbox-created or Wishlist-linked orders by email, customer/team, or destination text.")
+          Text("No customer profiles currently match source-created or Wishlist-linked orders by email, customer/team, or destination text.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionProfiles.isEmpty {
-          Text("Matched customer profiles are enabled and reviewed for current Inbox-created and Wishlist-linked orders.")
+          Text("Matched customer profiles are enabled and reviewed for current source-created and Wishlist-linked orders.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
@@ -544,10 +544,10 @@ struct CustomerProfileRow: View {
   private var profileWarnings: [String] {
     var warnings: [String] = []
     if !profile.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This profile matches an Inbox-created or Wishlist-linked order but is disabled.")
+      warnings.append("This profile matches a source-created or Wishlist-linked order but is disabled.")
     }
     if profile.reviewState != .accepted && !inboxOrders.isEmpty {
-      warnings.append("Profile needs review before relying on it for Inbox-created or Wishlist-linked order handoff.")
+      warnings.append("Profile needs review before relying on it for source-created or Wishlist-linked order handoff.")
     }
     if profile.primaryEmail.isPlaceholderValidationValue && !inboxOrders.isEmpty {
       warnings.append("Primary email is missing or placeholder.")

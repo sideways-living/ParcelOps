@@ -205,11 +205,11 @@ struct LabelReferencesView: View {
         }
 
         if inboxOrders.isEmpty && wishlistOrders.isEmpty {
-          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking label readiness.")
+          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking label readiness.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedLabels.isEmpty {
-          Text("Inbox-created or Wishlist-linked orders do not have label references yet. Add or link labels before scan or dispatch checks.")
+          Text("Source-created or Wishlist-linked orders do not have label references yet. Add or link labels before scan or dispatch checks.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -230,7 +230,7 @@ struct LabelReferencesView: View {
           }
 
           if actionLabels.isEmpty {
-            Text("Linked labels look valued, verified, linked, and reviewed for current Inbox-created and Wishlist-linked orders.")
+            Text("Linked labels look valued, verified, linked, and reviewed for current source-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionLabels.count > 3 {

@@ -175,11 +175,11 @@ struct ShipmentGroupsView: View {
       }
 
       if sourceOrders.isEmpty {
-        Text("No Inbox-created or Wishlist-linked orders need shipment group checks yet.")
+        Text("No source-created or Wishlist-linked orders need shipment group checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if inboxOrdersMissingGroup.isEmpty && groupsMissingPrimaryOrder.isEmpty {
-        Label("Inbox-created and Wishlist-linked orders have shipment group coverage for the current local workflow.", systemImage: "checkmark.seal.fill")
+        Label("Source-created and Wishlist-linked orders have shipment group coverage for the current local workflow.", systemImage: "checkmark.seal.fill")
           .font(.caption)
           .foregroundStyle(.green)
       } else {

@@ -199,11 +199,11 @@ struct ExceptionPlaybooksView: View {
         }
 
         if inboxOrders.isEmpty && wishlistOrders.isEmpty {
-          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking exception playbook coverage.")
+          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking exception playbook coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedPlaybooks.isEmpty {
-          Text("No exception playbooks currently match Inbox-created or Wishlist-linked order gaps, tracking issues, or dispatch context.")
+          Text("No exception playbooks currently match source-created or Wishlist-linked order gaps, tracking issues, or dispatch context.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionPlaybooks.isEmpty {
@@ -517,7 +517,7 @@ struct ExceptionPlaybookRow: View {
   private var playbookWarnings: [String] {
     var warnings: [String] = []
     if !playbook.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This playbook matches Inbox-created or Wishlist-linked order context but is disabled.")
+      warnings.append("This playbook matches source-created or Wishlist-linked order context but is disabled.")
     }
     if playbook.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Playbook needs review before relying on it for operator guidance.")

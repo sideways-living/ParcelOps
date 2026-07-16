@@ -215,11 +215,11 @@ struct InventoryReceiptsView: View {
         }
 
         if sourceOrders.isEmpty {
-          Text("No Inbox-created or Wishlist-linked orders are present yet. Create or link an order from Inbox/Wishlist to track receiving and stock handoff here.")
+          Text("No source-created or Wishlist-linked orders are present yet. Create or link an order from Inbox/Wishlist to track receiving and stock handoff here.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedReceipts.isEmpty {
-          Text("Inbox-created or Wishlist-linked orders do not have inventory receipts yet. Add a receipt when stock is received or handed to a team.")
+          Text("Source-created or Wishlist-linked orders do not have inventory receipts yet. Add a receipt when stock is received or handed to a team.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -240,7 +240,7 @@ struct InventoryReceiptsView: View {
           }
 
           if actionReceipts.isEmpty {
-            Text("Linked inventory receipts look stocked, assigned, and reviewed for the current Inbox-created and Wishlist-linked orders.")
+            Text("Linked inventory receipts look stocked, assigned, and reviewed for the current source-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionReceipts.count > 3 {

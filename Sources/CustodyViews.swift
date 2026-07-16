@@ -219,11 +219,11 @@ struct CustodyChainView: View {
         }
 
         if inboxOrders.isEmpty && wishlistOrders.isEmpty {
-          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before tracking custody.")
+          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before tracking custody.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedRecords.isEmpty {
-          Text("Inbox-created or Wishlist-linked orders do not have custody records yet. Add custody when responsibility or possession changes.")
+          Text("Source-created or Wishlist-linked orders do not have custody records yet. Add custody when responsibility or possession changes.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -244,7 +244,7 @@ struct CustodyChainView: View {
           }
 
           if actionRecords.isEmpty {
-            Text("Linked custody records look received/closed, assigned, located, and reviewed for current Inbox-created and Wishlist-linked orders.")
+            Text("Linked custody records look received/closed, assigned, located, and reviewed for current source-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionRecords.count > 3 {

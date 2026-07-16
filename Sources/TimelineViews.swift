@@ -219,7 +219,7 @@ struct TimelineView: View {
     if store.operatorSourceOrderCount > 0 || !inboxSourceTimelineActivities.isEmpty {
       SettingsPanel(title: "Inbox/Wishlist source trail timeline", symbol: "link.badge.plus") {
         VStack(alignment: .leading, spacing: 12) {
-          Text("Use this before closing handoff work: Inbox-created and Wishlist-linked orders should remain traceable to intake, import, acceptance, or purchase handoff context.")
+          Text("Use this before closing handoff work: source-created and Wishlist-linked orders should remain traceable to intake, import, acceptance, or purchase handoff context.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -233,7 +233,7 @@ struct TimelineView: View {
           ])
 
           if sourceOrdersMissingSourceTrail.isEmpty {
-            Label(store.operatorSourceOrderCount == 0 ? "No Inbox-created or Wishlist-linked orders exist yet." : "All current Inbox-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
+            Label(store.operatorSourceOrderCount == 0 ? "No source-created or Wishlist-linked orders exist yet." : "All current source-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.green)
           } else {
@@ -660,7 +660,7 @@ private extension TimelineActivity {
     case .dispatchChecklist:
       return "Readiness checklist generated from Inbox order handoff"
     case .order:
-      return "Inbox-created order in dispatch setup"
+      return "Source-created order in dispatch setup"
     case .reviewTask:
       return "Follow-up task for Inbox dispatch handoff"
     case .auditEvent:

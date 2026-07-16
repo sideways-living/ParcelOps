@@ -191,11 +191,11 @@ struct SLAPoliciesView: View {
         }
 
         if inboxOrders.isEmpty && wishlistOrders.isEmpty {
-          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking SLA coverage.")
+          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking SLA coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedPolicies.isEmpty {
-          Text("No SLA policies currently match Inbox-created or Wishlist-linked orders by linked record type or condition wording.")
+          Text("No SLA policies currently match source-created or Wishlist-linked orders by linked record type or condition wording.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionPolicies.isEmpty {
@@ -238,9 +238,9 @@ struct SLAPoliciesView: View {
       let detail: String
       switch tone {
       case "spacemail":
-        detail = "SpaceMail intake can suggest local response, resolution, and escalation policy context for Inbox-created orders."
+        detail = "SpaceMail intake can suggest local response, resolution, and escalation policy context for source-created orders."
       case "gmail":
-        detail = "Gmail intake can suggest local response, resolution, and escalation policy context for Inbox-created orders."
+        detail = "Gmail intake can suggest local response, resolution, and escalation policy context for source-created orders."
       case "mock":
         detail = "Mock mailbox intake supports local SLA testing. Confirm live provider context before relying on policy guidance."
       default:
@@ -513,7 +513,7 @@ struct SLAPolicyRow: View {
   private var policyWarnings: [String] {
     var warnings: [String] = []
     if !policy.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This SLA policy matches Inbox-created or Wishlist-linked order context but is disabled.")
+      warnings.append("This SLA policy matches source-created or Wishlist-linked order context but is disabled.")
     }
     if policy.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Policy needs review before relying on it for local response or escalation guidance.")

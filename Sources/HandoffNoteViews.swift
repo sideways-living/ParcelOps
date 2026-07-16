@@ -463,11 +463,11 @@ struct HandoffNotesView: View {
         }
 
         if inboxOrders.isEmpty {
-          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or link a Wishlist purchase before tracking handoff coverage.")
+          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or link a Wishlist purchase before tracking handoff coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedNotes.isEmpty {
-          Text("Inbox-created and Wishlist-linked orders do not have handoff notes yet. Add a note when another team or shift needs context.")
+          Text("Source-created and Wishlist-linked orders do not have handoff notes yet. Add a note when another team or shift needs context.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -488,7 +488,7 @@ struct HandoffNotesView: View {
           }
 
           if actionNotes.isEmpty {
-            Text("Linked handoff notes look assigned, current, reviewed, and closed or actively monitored for Inbox-created and Wishlist-linked orders.")
+            Text("Linked handoff notes look assigned, current, reviewed, and closed or actively monitored for source-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionNotes.count > 3 {
@@ -580,9 +580,9 @@ struct HandoffNotesView: View {
       let detail: String
       switch tone {
       case "spacemail":
-        detail = "SpaceMail intake can create handoff context when an Inbox-created or Wishlist-linked order needs shift, dispatch, or exception continuity."
+        detail = "SpaceMail intake can create handoff context when a source-created or Wishlist-linked order needs shift, dispatch, or exception continuity."
       case "gmail":
-        detail = "Gmail intake can create handoff context when an Inbox-created or Wishlist-linked order needs shift, dispatch, or exception continuity."
+        detail = "Gmail intake can create handoff context when a source-created or Wishlist-linked order needs shift, dispatch, or exception continuity."
       case "mock":
         detail = "Mock mailbox intake supports local handoff testing without contacting a mailbox provider."
       default:
