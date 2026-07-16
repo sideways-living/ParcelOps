@@ -1016,7 +1016,7 @@ struct WishlistView: View {
 
         MetricStrip(items: [
           ("Ready to buy", "\(readyToBuy.count)", readyToBuy.isEmpty ? .secondary : .blue),
-          ("Waiting", "\(waitingForConfirmation.count)", waitingForConfirmation.isEmpty ? .secondary : .green),
+          ("Need order link", "\(waitingForConfirmation.count)", waitingForConfirmation.isEmpty ? .secondary : .green),
           ("Inbox matches", "\(inboxCandidates)", inboxCandidates == 0 ? .secondary : .teal),
           ("Linked orders", "\(linkedOrders.count)", linkedOrders.isEmpty ? .secondary : .purple),
           ("Blocked", "\(blockers.count)", blockers.isEmpty ? .green : .orange)
@@ -1024,8 +1024,8 @@ struct WishlistView: View {
 
         LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 230 : 300), spacing: 10)], alignment: .leading, spacing: 10) {
           WishlistPurchaseStateCard(
-            title: "Next confirmation to find",
-            detail: primaryWaiting.map { "\($0.itemName): \($0.purchaseHandoff?.orderWatchStatus ?? $0.purchaseReadiness ?? "Watch Inbox and Orders")" } ?? "No externally purchased Wishlist item is currently waiting for confirmation.",
+            title: "Next order to link",
+            detail: primaryWaiting.map { "\($0.itemName): \($0.purchaseHandoff?.orderWatchStatus ?? $0.purchaseReadiness ?? "Refresh Inbox, then link the confirmation to an order")" } ?? "No externally purchased Wishlist item is currently waiting for an order confirmation link.",
             symbol: "envelope.badge.fill",
             color: waitingForConfirmation.isEmpty ? .secondary : .green
           )
@@ -1103,12 +1103,12 @@ struct WishlistView: View {
             selectedSource = nil
             selectedStatus = nil
           }
-          Button("Show watch queue", systemImage: "envelope.badge.fill") {
+          Button("Show order-link queue", systemImage: "envelope.badge.fill") {
             selectedWorkflowFocus = .watch
             selectedSource = nil
             selectedStatus = nil
           }
-          Button("Check open watches", systemImage: "magnifyingglass") {
+          Button("Check order links", systemImage: "magnifyingglass") {
             store.checkOpenWishlistOrderWatchRecords()
           }
         }
