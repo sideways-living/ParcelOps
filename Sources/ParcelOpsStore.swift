@@ -18609,6 +18609,9 @@ final class ParcelOpsStore {
   func createReviewTaskFromGmailReleaseSelfCheck(_ connection: GmailMailboxConnection) {
     let summary = gmailReleaseSelfCheckSummary(for: connection)
     let openItems = summary.items.filter { !$0.isComplete }
+    let releaseBlocker = gmailReleaseBlockerSummary.blockers.first {
+      ($0.tone == "warning" || $0.tone == "attention") && $0.source == connection.displayName
+    } ?? gmailReleaseBlockerSummary.blockers.first { $0.tone == "warning" || $0.tone == "attention" }
     let priority: TaskPriority
     if summary.tone == "warning" {
       priority = .high
@@ -18622,6 +18625,7 @@ final class ParcelOpsStore {
       summary.verdict,
       summary.detail,
       "Next action: \(summary.nextAction)",
+      releaseBlocker.map { "Top release blocker: \($0.title). \($0.detail) Next action: \($0.nextAction)" } ?? "Top release blocker: none promoted.",
       openItems.isEmpty
         ? "No incomplete self-check items at task creation time."
         : "Incomplete items: \(openItems.map { "\($0.title) - \($0.nextAction)" }.joined(separator: "; "))"
@@ -18647,7 +18651,7 @@ final class ParcelOpsStore {
         entityLabel: reviewTasks[existingIndex].title,
         summary: "Existing Gmail release self-check review task refreshed.",
         beforeDetail: beforeDetail,
-        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from local Gmail release self-check. No duplicate task was created. No Google sign-in, token request, Gmail API call, Keychain token access, mailbox fetch, external service call, or mailbox mutation occurred."
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRelease blocker at refresh: \(releaseBlocker.map { "\($0.title) - \($0.nextAction)" } ?? "none promoted").\nRefreshed from local Gmail release self-check. No duplicate task was created. No Google sign-in, token request, Gmail API call, Keychain token access, mailbox fetch, external service call, or mailbox mutation occurred."
       )
       return
     }
@@ -18665,7 +18669,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Review task created from Gmail release self-check.",
-      afterDetail: "\(gmailReleaseSelfCheckAuditDetail(summary))\nNo Google sign-in, token request, Gmail API call, Keychain token access, mailbox fetch, external service call, or mailbox mutation occurred."
+      afterDetail: "\(gmailReleaseSelfCheckAuditDetail(summary))\nRelease blocker at creation: \(releaseBlocker.map { "\($0.title) - \($0.nextAction)" } ?? "none promoted").\nNo Google sign-in, token request, Gmail API call, Keychain token access, mailbox fetch, external service call, or mailbox mutation occurred."
     )
   }
 
