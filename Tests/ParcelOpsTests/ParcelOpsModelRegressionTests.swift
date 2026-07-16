@@ -2101,6 +2101,8 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(updatedItem.status, "Order link needs review")
     XCTAssertEqual(updatedItem.purchaseReadiness, "Choose or create local order before downstream handoff")
     XCTAssertTrue(store.activeWishlistItemsLinked(to: unrelatedOrder).isEmpty)
+    XCTAssertEqual(store.wishlistLinkedOrderCount, 0)
+    XCTAssertTrue(store.wishlistLinkedOrders.isEmpty)
   }
 
   func testWishlistPurchaseHandoffPersistsAcrossRepositoryReload() throws {
