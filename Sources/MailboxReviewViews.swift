@@ -36,6 +36,24 @@ struct MailboxView: View {
     store.latestGmailIntakeHealthSummary
   }
 
+  private func gmailDomain(for emailAddress: String) -> String {
+    let parts = emailAddress
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .split(separator: "@", maxSplits: 1)
+    guard parts.count == 2 else { return "" }
+    return String(parts[1]).lowercased()
+  }
+
+  private var gmailProviderFitAttentionCount: Int {
+    store.gmailMailboxConnections.filter { connection in
+      let domain = gmailDomain(for: connection.emailAddress)
+      return !domain.isEmpty
+        && domain != "gmail.com"
+        && domain != "googlemail.com"
+        && !domain.hasSuffix(".example")
+    }.count
+  }
+
   private var latestMailboxFetchedCount: Int {
     store.latestMailboxFetchedCount
   }
@@ -101,7 +119,9 @@ struct MailboxView: View {
     if store.hasMailboxProviderSetup {
       return (
         "Run the active provider refresh",
-        "Choose SpaceMail for IMAP-hosted mailboxes or Gmail for Google-hosted mailboxes, then run the explicit manual read-only refresh.",
+        gmailProviderFitAttentionCount > 0
+          ? "Confirm custom-domain Gmail setup is actually Google Workspace-hosted before using Gmail refresh; otherwise use SpaceMail/IMAP."
+          : "Choose SpaceMail for IMAP-hosted mailboxes or Gmail for Google-hosted mailboxes, then run the explicit manual read-only refresh.",
         .blue
       )
     }
@@ -135,11 +155,13 @@ struct MailboxView: View {
       ),
       (
         "Gmail / Google Workspace",
-        store.gmailMailboxConnections.isEmpty ? "Not set" : gmailSignedIn ? "Signed in" : gmailSetupReady ? "Sign-in needed" : "Setup needed",
+        store.gmailMailboxConnections.isEmpty ? "Not set" : gmailProviderFitAttentionCount > 0 ? "Verify host" : gmailSignedIn ? "Signed in" : gmailSetupReady ? "Sign-in needed" : "Setup needed",
         latestGmailSummary.map(\.namedRefreshCountsText)
-          ?? "Use only for Gmail or Google Workspace mailboxes. Requires matching Google client setup, explicit sign-in, and manual read-only refresh.",
+          ?? (gmailProviderFitAttentionCount > 0
+            ? "Custom-domain Gmail setup needs Google Workspace hosting confirmation. Use IMAP/SpaceMail if the mailbox is not Google-hosted."
+            : "Use only for Gmail or Google Workspace mailboxes. Requires matching Google client setup, explicit sign-in, and manual read-only refresh."),
         "envelope.badge.shield.half.filled",
-        store.gmailMailboxConnections.isEmpty ? .secondary : gmailSignedIn ? .green : .orange
+        store.gmailMailboxConnections.isEmpty ? .secondary : gmailProviderFitAttentionCount > 0 ? .teal : gmailSignedIn ? .green : .orange
       )
     ]
   }
@@ -258,6 +280,14 @@ struct MailboxView: View {
           Spacer()
           Badge(mailboxProviderDecision.color == .green ? "Ready" : "Next", color: mailboxProviderDecision.color)
         }
+
+        MetricStrip(items: [
+          ("Fetched", "\(latestMailboxFetchedCount)", latestMailboxFetchedCount > 0 ? .blue : .secondary),
+          ("Imported", "\(latestMailboxImportedCount)", latestMailboxImportedCount > 0 ? .green : .secondary),
+          ("Filtered", "\(latestMailboxFilteredCount)", latestMailboxFilteredCount > 0 ? .teal : .secondary),
+          ("Uncertain", "\(latestMailboxUncertainCount)", latestMailboxUncertainCount > 0 ? .orange : .secondary),
+          ("Gmail host checks", "\(gmailProviderFitAttentionCount)", gmailProviderFitAttentionCount > 0 ? .teal : .green)
+        ])
 
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 10)], alignment: .leading, spacing: 10) {
           ForEach(mailboxProviderRows, id: \.name) { row in
