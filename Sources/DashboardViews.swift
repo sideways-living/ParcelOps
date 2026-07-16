@@ -2580,7 +2580,7 @@ private struct CompactInboxSourceTrailCoverage: View {
         DashboardOrderCompactLink(order: order, store: store) {
           CompactRow(
             title: "\(order.store) • \(order.orderNumber)",
-            detail: "No linked intake, import, or acceptance source found yet. Open the order to confirm the handoff trail.",
+            detail: "No linked intake, import, acceptance, or Wishlist purchase source found yet. Open the order to confirm the handoff trail.",
             badge: "Trace",
             color: .orange
           )
