@@ -475,6 +475,14 @@ struct TasksView: View {
     store.spaceMailReleaseSnapshot
   }
 
+  private var gmailReleaseSnapshot: SpaceMailReleaseSnapshot {
+    store.gmailReleaseReadinessSnapshot
+  }
+
+  private var mailboxReleaseSnapshot: SpaceMailReleaseSnapshot {
+    store.mailboxReleaseReadinessSnapshot
+  }
+
   private var releaseSnapshotTone: Color {
     switch releaseSnapshot.tone {
     case "success":
@@ -492,6 +500,22 @@ struct TasksView: View {
     mvpFollowUpItems.filter { item in
       item.linkedEntityID == "spacemail-release-snapshot" && item.status != .completed
     }.count
+  }
+
+  private var openGmailReleaseSnapshotTaskCount: Int {
+    mvpFollowUpItems.filter { item in
+      item.linkedEntityID == "gmail-release-readiness" && item.status != .completed
+    }.count
+  }
+
+  private var openMailboxReleaseSnapshotTaskCount: Int {
+    mvpFollowUpItems.filter { item in
+      item.linkedEntityID == "mailbox-release-readiness" && item.status != .completed
+    }.count
+  }
+
+  private var openProviderReleaseTaskCount: Int {
+    openReleaseSnapshotTaskCount + openGmailReleaseSnapshotTaskCount + openMailboxReleaseSnapshotTaskCount
   }
 
   private func linkedOrder(for draft: DraftMessage) -> TrackedOrder? {
@@ -1446,17 +1470,17 @@ struct TasksView: View {
     SettingsPanel(title: "MVP validation follow-up", symbol: "checkmark.seal.text.page.fill") {
       VStack(alignment: .leading, spacing: 12) {
         HStack(alignment: .top, spacing: 12) {
-          Image(systemName: openReleaseSnapshotTaskCount > 0 ? "checklist.checked" : "doc.badge.plus")
+          Image(systemName: openProviderReleaseTaskCount > 0 ? "checklist.checked" : "doc.badge.plus")
             .font(.title3)
             .foregroundStyle(releaseSnapshotTone)
             .frame(width: 28)
 
           VStack(alignment: .leading, spacing: 4) {
-            Text(openReleaseSnapshotTaskCount > 0 ? "Release snapshot task is active" : "Create a release snapshot task when QA starts")
+            Text(openProviderReleaseTaskCount > 0 ? "Provider release tasks are active" : "Create release snapshot tasks when QA starts")
               .font(.headline)
-            Text(openReleaseSnapshotTaskCount > 0
-              ? "The SpaceMail MVP release snapshot has an open task in this queue. Refresh it when setup or test evidence changes."
-              : "Use this to turn the current MVP snapshot into owned work before a hands-on test session.")
+            Text(openProviderReleaseTaskCount > 0
+              ? "SpaceMail, Gmail, and combined mailbox release snapshots can each have an owned task. Refresh them when setup, provider, or test evidence changes."
+              : "Use this to turn current provider release snapshots into owned work before a hands-on test session.")
               .font(.subheadline)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -1466,9 +1490,21 @@ struct TasksView: View {
           Badge(releaseSnapshot.tone.capitalized, color: releaseSnapshotTone)
         }
 
+        MetricStrip(items: [
+          ("SpaceMail task", "\(openReleaseSnapshotTaskCount)", openReleaseSnapshotTaskCount > 0 ? .green : .orange),
+          ("Gmail task", "\(openGmailReleaseSnapshotTaskCount)", openGmailReleaseSnapshotTaskCount > 0 ? .green : (store.gmailMailboxConnections.isEmpty ? .secondary : .orange)),
+          ("Mailbox task", "\(openMailboxReleaseSnapshotTaskCount)", openMailboxReleaseSnapshotTaskCount > 0 ? .green : .orange),
+          ("Open release tasks", "\(openProviderReleaseTaskCount)", openProviderReleaseTaskCount > 0 ? .green : .orange)
+        ])
+
         MetricStrip(items: releaseSnapshot.metrics.map { metric in
           (metric.title, metric.value, taskMetricColor(for: metric.tone))
         })
+
+        MetricStrip(items: [
+          ("Gmail", gmailReleaseSnapshot.tone.capitalized, taskMetricColor(for: gmailReleaseSnapshot.tone)),
+          ("Combined", mailboxReleaseSnapshot.tone.capitalized, taskMetricColor(for: mailboxReleaseSnapshot.tone))
+        ])
 
         Text(releaseSnapshot.detail)
           .font(.caption)
@@ -1476,13 +1512,29 @@ struct TasksView: View {
           .fixedSize(horizontal: false, vertical: true)
 
         CompactActionRow {
-          Button(openReleaseSnapshotTaskCount > 0 ? "Refresh QA task" : "Create QA task", systemImage: "checklist") {
+          Button(openReleaseSnapshotTaskCount > 0 ? "Refresh SpaceMail QA task" : "Create SpaceMail QA task", systemImage: "checklist") {
             store.createReviewTaskFromSpaceMailReleaseSnapshot()
             mvpFeedbackMessage = openReleaseSnapshotTaskCount > 0
               ? "Existing release snapshot task refreshed from current local state."
               : "Release snapshot QA task created. It now appears in the MVP follow-up section."
           }
           .buttonStyle(.borderedProminent)
+
+          Button(openGmailReleaseSnapshotTaskCount > 0 ? "Refresh Gmail QA task" : "Create Gmail QA task", systemImage: "envelope.badge.shield.half.filled") {
+            store.createReviewTaskFromGmailReleaseReadinessSnapshot()
+            mvpFeedbackMessage = openGmailReleaseSnapshotTaskCount > 0
+              ? "Existing Gmail release snapshot task refreshed from current local state."
+              : "Gmail release snapshot QA task created. It now appears in the MVP follow-up section."
+          }
+          .buttonStyle(.bordered)
+
+          Button(openMailboxReleaseSnapshotTaskCount > 0 ? "Refresh mailbox QA task" : "Create mailbox QA task", systemImage: "tray.full.fill") {
+            store.createReviewTaskFromMailboxReleaseReadinessSnapshot()
+            mvpFeedbackMessage = openMailboxReleaseSnapshotTaskCount > 0
+              ? "Existing mailbox release readiness task refreshed from current local state."
+              : "Mailbox release readiness QA task created. It now appears in the MVP follow-up section."
+          }
+          .buttonStyle(.bordered)
 
           NavigationLink {
             MVPSetupView(store: store)
