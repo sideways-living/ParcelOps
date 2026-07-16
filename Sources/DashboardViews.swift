@@ -683,7 +683,7 @@ struct DashboardView: View {
     if hasGmailSetup && !hasGmailConnectedAuth && !hasSpaceMailSetup { return "Connect Gmail sign-in" }
     if !hasReadyMailboxProviderPath { return "Run one manual mailbox refresh" }
     if incomingAttentionCount > 0 { return "Start in Inbox" }
-    if !partialInboxOrderBlockers.isEmpty { return "Verify Inbox-created orders" }
+    if !partialInboxOrderBlockers.isEmpty { return "Verify source-created orders" }
     if problemOrdersCount > 0 { return "Start with Orders" }
     if highPriorityOperatorWorkbenchItems.count > 0 { return "Start in Workbench" }
     if reopenedInboxDispatchHandoffCount > 0 { return "Review reopened dispatch handoffs" }
@@ -711,10 +711,10 @@ struct DashboardView: View {
       return "\(incomingAttentionCount) incoming item needs triage from mailbox intake, provider review, import queue, or acceptance review."
     }
     if !partialInboxOrderBlockers.isEmpty {
-      return "\(partialInboxOrderBlockers.count) Inbox-created order has missing details or an open verification task. Confirm those before dispatch setup."
+      return "\(partialInboxOrderBlockers.count) source-created order has missing details or an open verification task. Confirm those before dispatch setup."
     }
     if problemOrdersCount > 0 {
-      return "\(problemOrdersCount) order signal needs attention from review state, exceptions, tracking warnings, or Inbox-created order handoff."
+      return "\(problemOrdersCount) order signal needs attention from review state, exceptions, tracking warnings, or source-created order handoff."
     }
     if highPriorityOperatorWorkbenchItems.count > 0 {
       return "\(highPriorityOperatorWorkbenchItems.count) high-priority exception, validation, reconciliation, or operational workbench item is open."
@@ -785,7 +785,7 @@ struct DashboardView: View {
       ),
       (
         "Orders",
-        "Verify Inbox-created orders, source trails, tracking warnings, exceptions, and missing dispatch context.",
+        "Verify source-created orders, source trails, tracking warnings, exceptions, and missing dispatch context.",
         orderBlockers,
         "Orders",
         "shippingbox.fill",
@@ -881,7 +881,7 @@ struct DashboardView: View {
     if !hasReadyMailboxProviderPath { return "Run one explicit read-only mailbox refresh and inspect the result summary." }
     if weakInboxParseCount > 0 || blockedInboxSourceCount > 0 { return "Fix or reprocess weak Inbox rows before creating new orders." }
     if readyInboxLinkCount > 0 { return "Create or link one clean Inbox row to an order, then confirm it appears in Orders." }
-    if !partialInboxOrderBlockers.isEmpty { return "Open Orders and clear the Inbox-created order handoff gaps." }
+    if !partialInboxOrderBlockers.isEmpty { return "Open Orders and clear the source-created order handoff gaps." }
     if !wishlistDailyAttentionClear { return wishlistDashboardNextAction }
     return "Run a full hands-on QA pass from Dashboard through Audit, then note only real friction."
   }
@@ -2413,7 +2413,7 @@ private struct DashboardReleaseReadinessSnapshot: View {
       return "Run a focused hands-on pass, verify persistence after restart, and capture any confusing labels or screens before adding more integrations."
     }
     if readyCount >= 4 {
-      return "The app is usable for supervised testing. Work down active cleanup, prove one clean Inbox-created order, and keep integrations manual."
+      return "The app is usable for supervised testing. Work down active cleanup, prove one clean source-created order, and keep integrations manual."
     }
     return "Use Mailbox Monitor, Inbox, Orders, Dispatch, Tasks, and Audit to prove one complete local flow before expanding scope."
   }
@@ -2446,7 +2446,7 @@ private struct DashboardReleaseReadinessSnapshot: View {
         color: latestFetchedCount > 0 ? .green : .orange
       ),
       ReadinessRow(
-        title: "Inbox-created order",
+        title: "Source-created order",
         detail: inboxOrderCount > 0 ? "\(inboxOrderCount) order source exists from Inbox or manual import." : "Create or link one order from confirmed intake.",
         symbol: "shippingbox.fill",
         isReady: inboxOrderCount > 0,
@@ -3349,7 +3349,7 @@ struct FirstLiveMailboxTestCard: View {
       ),
       FirstLiveMailboxTestItem(
         title: hasOnlyNonOrderOutcome ? "Wait for order mail" : "Create order",
-        detail: hasOnlyNonOrderOutcome ? "No likely order email was imported. Use a clear order/tracking test email before expecting an Inbox-created order." : "At least one confirmed intake row has become a local order or linked order.",
+        detail: hasOnlyNonOrderOutcome ? "No likely order email was imported. Use a clear order/tracking test email before expecting a source-created order." : "At least one confirmed intake row has become a local order or linked order.",
         symbol: "shippingbox.fill",
         isComplete: hasInboxOrder
       ),
@@ -3705,10 +3705,10 @@ private func dashboardOrderTimelineDetail(for order: TrackedOrder, store: Parcel
   }.count
 
   if order.isInboxCreatedLocalOrder && (manifestCount + checklistCount) > 0 {
-    return "Inbox handoff linked to dispatch setup • \(order.trackingNumber)"
+    return "Source handoff linked to dispatch setup • \(order.trackingNumber)"
   }
   if order.isInboxCreatedLocalOrder {
-    return "Inbox-created order needs local follow-up • \(order.trackingNumber)"
+    return "Source-created order needs local follow-up • \(order.trackingNumber)"
   }
   if taskCount > 0 {
     return "\(taskCount) linked task signal • \(order.customer)"
@@ -3779,11 +3779,11 @@ struct CompactInboxCreatedOrderList: View {
   private var uniqueOrders: [TrackedOrder] { uniqueDashboardOrders(orders) }
 
   var body: some View {
-    CompactList(title: "Inbox-created orders", symbol: "tray.and.arrow.down.fill") {
+    CompactList(title: "Source-created orders", symbol: "tray.and.arrow.down.fill") {
       if uniqueOrders.isEmpty {
         CompactRow(
-          title: "No Inbox-created orders waiting",
-          detail: "Orders created from Inbox triage will appear here for quick follow-up.",
+          title: "No source-created orders waiting",
+          detail: "Orders created from Inbox triage or Wishlist source context will appear here for quick follow-up.",
           badge: "Clear",
           color: .green
         )
@@ -3814,8 +3814,8 @@ struct CompactPartialInboxOrderList: View {
     CompactList(title: "Verify before dispatch", symbol: "exclamationmark.triangle.fill") {
       if uniqueOrders.isEmpty {
         CompactRow(
-          title: "No partial Inbox order blockers",
-          detail: "Inbox-created orders have no promoted missing-detail blocker.",
+          title: "No partial source order blockers",
+          detail: "Source-created orders have no promoted missing-detail blocker.",
           badge: "Clear",
           color: .green
         )
@@ -3843,11 +3843,11 @@ struct CompactInboxDispatchGapList: View {
   private var uniqueOrders: [TrackedOrder] { uniqueDashboardOrders(orders) }
 
   var body: some View {
-    CompactList(title: "Inbox orders missing dispatch setup", symbol: "tray.and.arrow.down.fill") {
+    CompactList(title: "Source orders missing dispatch setup", symbol: "tray.and.arrow.down.fill") {
       if uniqueOrders.isEmpty {
         CompactRow(
-          title: "No Inbox dispatch gaps",
-          detail: "Reviewed or active Inbox-created orders have no promoted dispatch setup gap.",
+          title: "No source dispatch gaps",
+          detail: "Reviewed or active source-created orders have no promoted dispatch setup gap.",
           badge: "Clear",
           color: .green
         )
@@ -3875,11 +3875,11 @@ struct CompactInboxDispatchSetupList: View {
   private var uniqueOrders: [TrackedOrder] { uniqueDashboardOrders(orders) }
 
   var body: some View {
-    CompactList(title: "Inbox dispatch setup pending", symbol: "checkmark.rectangle.stack.fill") {
+    CompactList(title: "Source dispatch setup pending", symbol: "checkmark.rectangle.stack.fill") {
       if uniqueOrders.isEmpty {
         CompactRow(
-          title: "No Inbox dispatch setup pending",
-          detail: "Verified Inbox-created orders have no promoted readiness follow-up.",
+          title: "No source dispatch setup pending",
+          detail: "Verified source-created orders have no promoted readiness follow-up.",
           badge: "Clear",
           color: .green
         )
@@ -3908,11 +3908,11 @@ struct CompactReopenedInboxDispatchHandoffList: View {
   private var uniqueManifests: [ShipmentManifestRecord] { uniqueDashboardShipmentManifests(manifests) }
 
   var body: some View {
-    CompactList(title: "Reopened Inbox dispatch handoffs", symbol: "arrow.counterclockwise.circle.fill") {
+    CompactList(title: "Reopened source dispatch handoffs", symbol: "arrow.counterclockwise.circle.fill") {
       if uniqueManifests.isEmpty && checklists.isEmpty {
         CompactRow(
           title: "No reopened handoffs",
-          detail: "Inbox-created dispatch handoffs have no promoted reopened records.",
+          detail: "Source-created dispatch handoffs have no promoted reopened records.",
           badge: "Clear",
           color: .green
         )
