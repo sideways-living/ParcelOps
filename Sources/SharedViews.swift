@@ -3156,6 +3156,46 @@ struct MailboxReleaseBlockerCard: View {
   }
 }
 
+struct MailboxTopReleaseBlockerCallout: View {
+  var blocker: MailboxReleaseBlockerItem
+
+  private var color: Color {
+    switch blocker.tone {
+    case "warning":
+      return .red
+    case "attention":
+      return .orange
+    case "success":
+      return .green
+    default:
+      return .secondary
+    }
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: blocker.symbol)
+        .foregroundStyle(color)
+        .frame(width: 22)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(blocker.title)
+          .font(.caption.weight(.semibold))
+        Text(blocker.detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        Label(blocker.nextAction, systemImage: "arrow.forward.circle.fill")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(color)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct MailboxRunTimelineCard: View {
   var summary: MailboxRunTimelineSummary
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass

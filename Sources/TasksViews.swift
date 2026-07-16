@@ -1202,6 +1202,10 @@ struct TasksView: View {
           ("Release attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount > 0 ? .orange : .green)
         ])
 
+        if let blocker = store.gmailReleaseBlockerSummary.blockers.first(where: { $0.tone == "warning" || $0.tone == "attention" }) {
+          MailboxTopReleaseBlockerCallout(blocker: blocker)
+        }
+
         if gmailSetupCount > 0 && (gmailReadySetupCount < gmailSetupCount || gmailConnectedAuthCount == 0 || gmailManualRefreshCount == 0) {
           Label(gmailReadinessTaskHint, systemImage: "arrow.triangle.2.circlepath.circle.fill")
             .font(.caption.weight(.semibold))

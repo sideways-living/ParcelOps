@@ -1728,6 +1728,9 @@ struct DashboardView: View {
             ("Gmail filtered", "\(latestGmailSummary?.filteredCount ?? 0)", (latestGmailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
             ("Gmail uncertain", "\(pendingGmailUncertainReviewCount)", pendingGmailUncertainReviewCount > 0 ? .orange : .secondary)
           ])
+          if let blocker = store.gmailReleaseBlockerSummary.blockers.first(where: { $0.tone == "warning" || $0.tone == "attention" }) {
+            MailboxTopReleaseBlockerCallout(blocker: blocker)
+          }
           GmailReleaseBoundaryPanel(
             store: store,
             title: "Gmail dashboard readiness",

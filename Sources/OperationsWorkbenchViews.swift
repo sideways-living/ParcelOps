@@ -1325,6 +1325,10 @@ struct OperationsWorkbenchView: View {
           ("Host checks", "\(gmailProviderFitAttentionCount)", gmailProviderFitAttentionCount == 0 ? .green : .teal)
         ])
 
+        if let blocker = store.gmailReleaseBlockerSummary.blockers.first(where: { $0.tone == "warning" || $0.tone == "attention" }) {
+          MailboxTopReleaseBlockerCallout(blocker: blocker)
+        }
+
         if !activeGmailRefreshTasks.isEmpty {
           VStack(alignment: .leading, spacing: 8) {
             Label("Active Gmail refresh follow-up", systemImage: "checklist")
