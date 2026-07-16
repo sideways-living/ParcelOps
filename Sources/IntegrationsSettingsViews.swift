@@ -709,6 +709,10 @@ struct IntegrationsView: View {
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {
               store.markGmailMailboxConnectionReviewed(connection)
+            } onMarkHostVerified: {
+              store.markGmailProviderHostVerified(connection)
+            } onResetHostVerification: {
+              store.resetGmailProviderHostVerification(connection)
             } onMockRefresh: {
               store.importMockGmailMessages(for: connection)
             } onRealReadinessCheck: {
@@ -1395,6 +1399,8 @@ struct GmailMailboxConnectionRow: View {
   var activeRefreshTask: ReviewTask?
   var onSave: (GmailMailboxConnection) -> Void
   var onReviewed: () -> Void
+  var onMarkHostVerified: () -> Void
+  var onResetHostVerification: () -> Void
   var onMockRefresh: () -> Void
   var onRealReadinessCheck: () -> Void
   var onRealRefresh: () -> Void
@@ -1449,6 +1455,8 @@ struct GmailMailboxConnectionRow: View {
     activeRefreshTask: ReviewTask?,
     onSave: @escaping (GmailMailboxConnection) -> Void,
     onReviewed: @escaping () -> Void,
+    onMarkHostVerified: @escaping () -> Void,
+    onResetHostVerification: @escaping () -> Void,
     onMockRefresh: @escaping () -> Void,
     onRealReadinessCheck: @escaping () -> Void,
     onRealRefresh: @escaping () -> Void,
@@ -1492,6 +1500,8 @@ struct GmailMailboxConnectionRow: View {
     self.activeRefreshTask = activeRefreshTask
     self.onSave = onSave
     self.onReviewed = onReviewed
+    self.onMarkHostVerified = onMarkHostVerified
+    self.onResetHostVerification = onResetHostVerification
     self.onMockRefresh = onMockRefresh
     self.onRealReadinessCheck = onRealReadinessCheck
     self.onRealRefresh = onRealRefresh
@@ -2658,6 +2668,7 @@ struct GmailMailboxConnectionRow: View {
     if gmailEmailDomain.isEmpty { return "Confirm Gmail provider fit" }
     if gmailEmailDomain == "gmail.com" || gmailEmailDomain == "googlemail.com" { return "Consumer Gmail mailbox" }
     if gmailEmailDomain.hasSuffix(".example") { return "Sample Gmail setup record" }
+    if isGmailHostVerifiedLocally { return "Google Workspace host verified locally" }
     return "Google Workspace or custom-domain mailbox"
   }
 
@@ -2671,12 +2682,16 @@ struct GmailMailboxConnectionRow: View {
     if gmailEmailDomain.hasSuffix(".example") {
       return "This is sample data. Replace it with the real Google-hosted mailbox before testing sign-in or refresh."
     }
+    if isGmailHostVerifiedLocally {
+      return "This custom-domain mailbox has local operator verification recorded as Google-hosted. Use Gmail refresh only if that external hosting check remains true."
+    }
     return "A custom-domain address should use this Gmail path only if the domain is hosted by Google Workspace. If MX/mail hosting is SpaceMail or another IMAP provider, use the SpaceMail/IMAP path."
   }
 
   private var gmailProviderFitColor: Color {
     if gmailEmailDomain.isEmpty || gmailEmailDomain.hasSuffix(".example") { return .orange }
     if gmailEmailDomain == "gmail.com" || gmailEmailDomain == "googlemail.com" { return .green }
+    if isGmailHostVerifiedLocally { return .green }
     return .teal
   }
 
@@ -2684,7 +2699,19 @@ struct GmailMailboxConnectionRow: View {
     if gmailEmailDomain.isEmpty { return "Check" }
     if gmailEmailDomain == "gmail.com" || gmailEmailDomain == "googlemail.com" { return "Gmail" }
     if gmailEmailDomain.hasSuffix(".example") { return "Sample" }
+    if isGmailHostVerifiedLocally { return "Host verified" }
     return "Verify host"
+  }
+
+  private var isCustomDomainGmailSetup: Bool {
+    !gmailEmailDomain.isEmpty
+      && gmailEmailDomain != "gmail.com"
+      && gmailEmailDomain != "googlemail.com"
+      && !gmailEmailDomain.hasSuffix(".example")
+  }
+
+  private var isGmailHostVerifiedLocally: Bool {
+    connection.providerHostVerificationStatus.localizedCaseInsensitiveContains("verified")
   }
 
   private var gmailProviderFitCard: some View {
@@ -2706,9 +2733,22 @@ struct GmailMailboxConnectionRow: View {
       }
       CompactMetadataGrid(minimumWidth: 155) {
         Badge(gmailEmailDomain.isEmpty ? "No domain" : gmailEmailDomain, color: gmailProviderFitColor)
+        Badge(connection.providerHostVerificationStatus, color: isGmailHostVerifiedLocally ? .green : .secondary)
+        Badge("Checked: \(connection.providerHostVerifiedDate)", color: isGmailHostVerifiedLocally ? .green : .secondary)
         Badge("Gmail API only", color: .blue)
         Badge("Use IMAP if not Google-hosted", color: .orange)
         Badge("Manual refresh", color: .secondary)
+      }
+      Text(connection.providerHostVerificationNotes)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      if isCustomDomainGmailSetup {
+        CompactActionRow {
+          Button("Mark Google-hosted", systemImage: "checkmark.shield.fill", action: onMarkHostVerified)
+          Button("Reset host check", systemImage: "arrow.counterclockwise", action: onResetHostVerification)
+        }
+        .buttonStyle(.bordered)
       }
       Text("This is a local provider-choice check only. ParcelOps does not look up DNS, contact Google, contact IMAP servers, store tokens, or fetch mail from this card.")
         .font(.caption2.weight(.semibold))

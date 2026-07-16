@@ -2662,6 +2662,9 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
   var requestedScopesSummary: String
   var consentScreenNotes: String?
   var credentialStorageStatus: String
+  var providerHostVerificationStatus: String
+  var providerHostVerifiedDate: String
+  var providerHostVerificationNotes: String
   var mailboxMode: SpaceMailMailboxMode
   var lastRefreshFetchedCount: Int
   var lastRefreshImportedCount: Int
@@ -2698,6 +2701,9 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     requestedScopesSummary: String,
     consentScreenNotes: String? = nil,
     credentialStorageStatus: String,
+    providerHostVerificationStatus: String = "Not verified",
+    providerHostVerifiedDate: String = "Never",
+    providerHostVerificationNotes: String = "Local host verification not reviewed.",
     mailboxMode: SpaceMailMailboxMode = .mixedFiltered,
     lastRefreshFetchedCount: Int = 0,
     lastRefreshImportedCount: Int = 0,
@@ -2733,6 +2739,9 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     self.requestedScopesSummary = requestedScopesSummary
     self.consentScreenNotes = consentScreenNotes
     self.credentialStorageStatus = credentialStorageStatus
+    self.providerHostVerificationStatus = providerHostVerificationStatus
+    self.providerHostVerifiedDate = providerHostVerifiedDate
+    self.providerHostVerificationNotes = providerHostVerificationNotes
     self.mailboxMode = mailboxMode
     self.lastRefreshFetchedCount = lastRefreshFetchedCount
     self.lastRefreshImportedCount = lastRefreshImportedCount
@@ -2770,6 +2779,9 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     case requestedScopesSummary
     case consentScreenNotes
     case credentialStorageStatus
+    case providerHostVerificationStatus
+    case providerHostVerifiedDate
+    case providerHostVerificationNotes
     case mailboxMode
     case lastRefreshFetchedCount
     case lastRefreshImportedCount
@@ -2808,6 +2820,9 @@ struct GmailMailboxConnection: Identifiable, Hashable, Codable {
     requestedScopesSummary = try container.decodeIfPresent(String.self, forKey: .requestedScopesSummary) ?? "openid email profile https://www.googleapis.com/auth/gmail.readonly"
     consentScreenNotes = try container.decodeIfPresent(String.self, forKey: .consentScreenNotes)
     credentialStorageStatus = try container.decodeIfPresent(String.self, forKey: .credentialStorageStatus) ?? "GoogleSignIn cache pending"
+    providerHostVerificationStatus = try container.decodeIfPresent(String.self, forKey: .providerHostVerificationStatus) ?? "Not verified"
+    providerHostVerifiedDate = try container.decodeIfPresent(String.self, forKey: .providerHostVerifiedDate) ?? "Never"
+    providerHostVerificationNotes = try container.decodeIfPresent(String.self, forKey: .providerHostVerificationNotes) ?? "Local host verification not reviewed."
     mailboxMode = try container.decodeIfPresent(SpaceMailMailboxMode.self, forKey: .mailboxMode) ?? .mixedFiltered
     lastRefreshFetchedCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshFetchedCount) ?? 0
     lastRefreshImportedCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshImportedCount) ?? 0

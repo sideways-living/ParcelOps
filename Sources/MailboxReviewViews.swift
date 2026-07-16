@@ -569,6 +569,10 @@ struct MailboxView: View {
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {
               store.markGmailMailboxConnectionReviewed(connection)
+            } onMarkHostVerified: {
+              store.markGmailProviderHostVerified(connection)
+            } onResetHostVerification: {
+              store.resetGmailProviderHostVerification(connection)
             } onMockRefresh: {
               store.importMockGmailMessages(for: connection)
             } onRealReadinessCheck: {

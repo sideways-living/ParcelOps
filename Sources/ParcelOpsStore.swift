@@ -2381,6 +2381,7 @@ final class ParcelOpsStore {
     let isConsumer = domain == "gmail.com" || domain == "googlemail.com"
     let isSample = domain.hasSuffix(".example")
     let isCustomDomain = !domain.isEmpty && !isConsumer && !isSample
+    let hasManualHostVerification = connection.providerHostVerificationStatus.localizedCaseInsensitiveContains("verified")
     let hasGoogleEvidence = gmailAuthSessionState(for: connection).status == .connected ||
       connection.lastRefreshFetchedCount > 0 ||
       connection.lastRefreshImportedCount > 0 ||
@@ -2389,12 +2390,14 @@ final class ParcelOpsStore {
       (connection.lastRefreshUncertainCount ?? 0) > 0 ||
       connection.connectionStatus.localizedCaseInsensitiveContains("No messages") ||
       connection.connectionStatus.localizedCaseInsensitiveContains("Real Gmail")
-    let isReady = isConsumer || (isCustomDomain && hasGoogleEvidence)
+    let isReady = isConsumer || (isCustomDomain && (hasGoogleEvidence || hasManualHostVerification))
     let detail: String
     let nextAction: String
     if isCustomDomain {
       detail = isReady
-        ? "Saved mailbox uses custom domain \(domain), with Google sign-in or Gmail refresh evidence recorded locally."
+        ? (hasGoogleEvidence
+            ? "Saved mailbox uses custom domain \(domain), with Google sign-in or Gmail refresh evidence recorded locally."
+            : "Saved mailbox uses custom domain \(domain), with local operator host verification recorded.")
         : "Saved mailbox uses custom domain \(domain). Confirm it is hosted by Google Workspace before using Gmail API refresh."
       nextAction = isReady
         ? "Continue Gmail setup checks; use SpaceMail/IMAP only if this mailbox is not Google-hosted."
@@ -2414,7 +2417,7 @@ final class ParcelOpsStore {
       isConsumer,
       isSample,
       isCustomDomain,
-      hasGoogleEvidence,
+      hasGoogleEvidence || hasManualHostVerification,
       isReady,
       detail,
       nextAction,
@@ -25972,6 +25975,48 @@ final class ParcelOpsStore {
     mutate(&draft)
     gmailMailboxConnections[index] = draft
     persistIntegrations()
+  }
+
+  func markGmailProviderHostVerified(_ connection: GmailMailboxConnection) {
+    guard let index = gmailMailboxConnections.firstIndex(where: { $0.id == connection.id }) else { return }
+    let beforeDetail = gmailProviderHostVerificationAuditDetail(gmailMailboxConnections[index])
+    gmailMailboxConnections[index].providerHostVerificationStatus = "Google Workspace host verified locally"
+    gmailMailboxConnections[index].providerHostVerifiedDate = Self.auditTimestamp()
+    gmailMailboxConnections[index].providerHostVerificationNotes = "Operator locally confirmed this custom-domain mailbox is Google-hosted. This did not contact Google, run DNS lookup, open sign-in, request tokens, fetch Gmail messages, or mutate mailbox content."
+    gmailMailboxConnections[index].reviewState = .accepted
+    persistIntegrations()
+    logAudit(
+      action: .reviewed,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: gmailMailboxConnections[index].displayName,
+      summary: "Gmail provider host marked verified locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(gmailProviderHostVerificationAuditDetail(gmailMailboxConnections[index]))\nNo Google sign-in, token request, Gmail API call, DNS lookup, Keychain access, mailbox fetch, external service call, or mailbox mutation occurred."
+    )
+  }
+
+  func resetGmailProviderHostVerification(_ connection: GmailMailboxConnection) {
+    guard let index = gmailMailboxConnections.firstIndex(where: { $0.id == connection.id }) else { return }
+    let beforeDetail = gmailProviderHostVerificationAuditDetail(gmailMailboxConnections[index])
+    gmailMailboxConnections[index].providerHostVerificationStatus = "Not verified"
+    gmailMailboxConnections[index].providerHostVerifiedDate = "Never"
+    gmailMailboxConnections[index].providerHostVerificationNotes = "Local host verification reset. Confirm Google Workspace hosting before using Gmail API refresh for custom-domain mailboxes."
+    gmailMailboxConnections[index].reviewState = .needsReview
+    persistIntegrations()
+    logAudit(
+      action: .edited,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: gmailMailboxConnections[index].displayName,
+      summary: "Gmail provider host verification reset locally.",
+      beforeDetail: beforeDetail,
+      afterDetail: "\(gmailProviderHostVerificationAuditDetail(gmailMailboxConnections[index]))\nNo Google sign-in, token request, Gmail API call, DNS lookup, Keychain access, mailbox fetch, external service call, or mailbox mutation occurred."
+    )
+  }
+
+  private func gmailProviderHostVerificationAuditDetail(_ connection: GmailMailboxConnection) -> String {
+    "Display name: \(connection.displayName)\nEmail: \(connection.emailAddress)\nHost verification status: \(connection.providerHostVerificationStatus)\nHost verified date: \(connection.providerHostVerifiedDate)\nHost verification notes: \(connection.providerHostVerificationNotes)"
   }
 
   private func removeUncertainSpaceMailMessage(_ uncertainMessage: SpaceMailUncertainMessage, from connection: SpaceMailIMAPConnection) {
