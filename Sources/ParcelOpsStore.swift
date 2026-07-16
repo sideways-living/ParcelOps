@@ -1246,6 +1246,22 @@ final class ParcelOpsStore {
     let gmailUncertain = gmailHealth.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
     let gmailReadinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
     let gmailSignedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
+    let gmailCustomDomainNeedsVerification = gmailMailboxConnections.filter { connection in
+      let domain = gmailDomain(for: connection.emailAddress)
+      let isCustomDomain = !domain.isEmpty
+        && domain != "gmail.com"
+        && domain != "googlemail.com"
+        && !domain.hasSuffix(".example")
+      let authConnected = gmailAuthSessionState(for: connection).status == .connected
+      let hasRefreshEvidence = connection.lastRefreshFetchedCount > 0 ||
+        connection.lastRefreshImportedCount > 0 ||
+        connection.lastRefreshDuplicateCount > 0 ||
+        connection.lastRefreshFilteredNonOrderCount > 0 ||
+        (connection.lastRefreshUncertainCount ?? 0) > 0 ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("No messages") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Real Gmail")
+      return isCustomDomain && !authConnected && !hasRefreshEvidence
+    }
     let linkedOrderCount = Set(intakeEmails.compactMap(\.linkedOrderID)).count
     let inboxOrderCount = inboxCreatedOrders.count
     var issues: [MailboxProviderTroubleshootingIssue] = []
@@ -1362,6 +1378,20 @@ final class ParcelOpsStore {
     }
 
     if !gmailMailboxConnections.isEmpty {
+      if !gmailCustomDomainNeedsVerification.isEmpty {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "Gmail",
+            title: "Custom-domain Gmail host not verified",
+            symptom: "A custom-domain address is configured in Gmail setup, but no local Google sign-in or Gmail refresh evidence confirms it is Google-hosted.",
+            likelyCause: "The mailbox may be Google Workspace, or it may be hosted by IMAP/SpaceMail and should not use the Gmail API path.",
+            nextAction: "Verify Google Workspace hosting before Gmail refresh; otherwise move the mailbox to SpaceMail/IMAP setup.",
+            evidence: gmailCustomDomainNeedsVerification.prefix(3).map { "\($0.displayName): \(gmailDomain(for: $0.emailAddress))" }.joined(separator: " | "),
+            tone: "attention",
+            symbol: "server.rack"
+          )
+        )
+      }
       let compiledConfigBlockers = gmailMailboxConnections.compactMap { connection -> String? in
         let readiness = gmailOAuthReadinessSummary(for: connection)
         let hasCompiledBlocker = readiness.missingFields.contains { field in
@@ -2371,12 +2401,21 @@ final class ParcelOpsStore {
     let setupIssueCount = setupBlockers.count
     let firstSetupBlocker = setupBlockers.first
     let setupBlockerPreview = firstSetupBlocker?.missingFields.prefix(3).joined(separator: ", ")
-    let customDomainConnections = gmailMailboxConnections.filter { connection in
+    let customDomainConnectionsNeedingVerification = gmailMailboxConnections.filter { connection in
       let domain = gmailDomain(for: connection.emailAddress)
-      return !domain.isEmpty
+      let isCustomDomain = !domain.isEmpty
         && domain != "gmail.com"
         && domain != "googlemail.com"
         && !domain.hasSuffix(".example")
+      let authConnected = gmailAuthSessionState(for: connection).status == .connected
+      let hasRefreshOutcome = connection.lastRefreshFetchedCount > 0 ||
+        connection.lastRefreshImportedCount > 0 ||
+        connection.lastRefreshDuplicateCount > 0 ||
+        connection.lastRefreshFilteredNonOrderCount > 0 ||
+        (connection.lastRefreshUncertainCount ?? 0) > 0 ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("No messages") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Real Gmail")
+      return isCustomDomain && !authConnected && !hasRefreshOutcome
     }
 
     let items = [
@@ -2392,12 +2431,12 @@ final class ParcelOpsStore {
       ),
       GmailPostRefreshActionItem(
         title: "Confirm Gmail-hosted mailbox",
-        count: customDomainConnections.count,
-        detail: customDomainConnections.isEmpty
-          ? "Gmail setup records are consumer Gmail, sample data, or not configured as custom-domain mailboxes."
-          : "Custom-domain Gmail records must be verified as Google Workspace before using Gmail API refresh. Use IMAP/SpaceMail if the mailbox is hosted elsewhere.",
-        actionLabel: customDomainConnections.isEmpty ? "Provider fit clear" : "Verify Google Workspace hosting",
-        tone: customDomainConnections.isEmpty ? "success" : "attention",
+        count: customDomainConnectionsNeedingVerification.count,
+        detail: customDomainConnectionsNeedingVerification.isEmpty
+          ? "Gmail setup records are consumer Gmail, sample data, or custom-domain records with local Google sign-in/refresh evidence."
+          : "Custom-domain Gmail records need Google-hosted evidence before using Gmail API refresh. Use IMAP/SpaceMail if the mailbox is hosted elsewhere.",
+        actionLabel: customDomainConnectionsNeedingVerification.isEmpty ? "Provider fit clear" : "Verify Google Workspace hosting",
+        tone: customDomainConnectionsNeedingVerification.isEmpty ? "success" : "attention",
         symbol: "server.rack"
       ),
       GmailPostRefreshActionItem(
