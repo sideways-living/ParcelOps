@@ -529,6 +529,32 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(orderWatchItem?.detail.contains("order confirmation") == true)
   }
 
+  func testWishlistDailyAttentionCountMatchesComponentCounts() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    let expected =
+      store.wishlistTaskContextItemCount
+      + store.wishlistResearchAttentionRequestCount
+      + store.wishlistReadinessBlockedItemCount
+      + store.wishlistHandoffSanityBlockedItemCount
+      + store.wishlistLinkedOrderDispatchGapItemCount
+      + store.wishlistPurchasePacketNeededItemCount
+      + store.wishlistPurchasedNeedsOrderLinkItemCount
+      + (store.wishlistBatchBriefNeeded ? 1 : 0)
+      + store.wishlistAgentReadinessIssueCount
+
+    XCTAssertEqual(store.wishlistDailyAttentionCount, expected)
+    XCTAssertGreaterThan(store.wishlistDailyAttentionCount, 0)
+  }
+
   func testWishlistAgentReadinessSummaryClearsLinkedOrderWatchGap() {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     let item = makeReadyWishlistItem(
