@@ -697,12 +697,8 @@ struct MVPWishlistWorkflowReadinessPanel: View {
     }
   }
 
-  private var openOrderWatchRecords: [WishlistOrderWatchRecord] {
-    store.wishlistOrderWatchRecords.filter {
-      store.isActiveWishlistOrderWatchRecord($0)
-        && !$0.watchStatus.localizedCaseInsensitiveContains("closed")
-        && !$0.watchStatus.localizedCaseInsensitiveContains("matched")
-    }
+  private var openOrderWatchRecordCount: Int {
+    store.openWishlistOrderWatchRecordCount
   }
 
   private var linkedWishlistOrderCount: Int {
@@ -711,7 +707,7 @@ struct MVPWishlistWorkflowReadinessPanel: View {
 
   private var readinessTone: Color {
     if !stagedCaptures.isEmpty || !blockedResearchRequests.isEmpty { return .orange }
-    if !readyForPurchaseItems.isEmpty || !agentReadyResearchRequests.isEmpty || !openOrderWatchRecords.isEmpty { return .purple }
+    if !readyForPurchaseItems.isEmpty || !agentReadyResearchRequests.isEmpty || openOrderWatchRecordCount > 0 { return .purple }
     if !activeItems.isEmpty { return .teal }
     return .secondary
   }
@@ -722,7 +718,7 @@ struct MVPWishlistWorkflowReadinessPanel: View {
     if !blockedResearchRequests.isEmpty { return "Wishlist research scope needs cleanup" }
     if !agentReadyResearchRequests.isEmpty { return "Wishlist research briefs are agent-ready" }
     if !readyForPurchaseItems.isEmpty { return "Wishlist has purchase-ready items" }
-    if !openOrderWatchRecords.isEmpty { return "Wishlist order watch is active" }
+    if openOrderWatchRecordCount > 0 { return "Wishlist order watch is active" }
     return "Wishlist is ready for local comparison planning"
   }
 
@@ -742,8 +738,8 @@ struct MVPWishlistWorkflowReadinessPanel: View {
     if !readyForPurchaseItems.isEmpty {
       return "\(readyForPurchaseItems.count) item\(readyForPurchaseItems.count == 1 ? "" : "s") look ready for manual purchase handoff. Confirm account, seller trust, postage timing, and order-watch expectations."
     }
-    if !openOrderWatchRecords.isEmpty {
-      return "\(openOrderWatchRecords.count) order-watch record\(openOrderWatchRecords.count == 1 ? "" : "s") should be checked against Inbox and Orders after purchase confirmation arrives."
+    if openOrderWatchRecordCount > 0 {
+      return "\(openOrderWatchRecordCount) order-watch record\(openOrderWatchRecordCount == 1 ? "" : "s") should be checked against Inbox and Orders after purchase confirmation arrives."
     }
     return "\(activeItems.count) active Wishlist item\(activeItems.count == 1 ? "" : "s") can be scoped for comparison, seller trust review, purchase handoff, or order watch."
   }
@@ -773,7 +769,7 @@ struct MVPWishlistWorkflowReadinessPanel: View {
           ("Agent-ready", "\(agentReadyResearchRequests.count)", agentReadyResearchRequests.isEmpty ? .secondary : .blue),
           ("Blocked scope", "\(blockedResearchRequests.count)", blockedResearchRequests.isEmpty ? .green : .orange),
           ("Compared", "\(comparisonReadyItems.count)", comparisonReadyItems.isEmpty ? .secondary : .teal),
-          ("Order watch", "\(openOrderWatchRecords.count)", openOrderWatchRecords.isEmpty ? .secondary : .purple),
+          ("Order watch", "\(openOrderWatchRecordCount)", openOrderWatchRecordCount == 0 ? .secondary : .purple),
           ("Linked orders", "\(linkedWishlistOrderCount)", linkedWishlistOrderCount == 0 ? .secondary : .green)
         ])
 
