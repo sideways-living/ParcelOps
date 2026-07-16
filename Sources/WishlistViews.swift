@@ -2298,7 +2298,7 @@ struct WishlistView: View {
           ("Captures", "\(openCaptureCount)", openCaptureCount == 0 ? .green : .orange),
           ("Briefs", "\(activeBriefCount)", activeBriefCount == 0 ? .secondary : .blue),
           ("Seller options", "\(sellerOptionCount)", sellerOptionCount == 0 ? .secondary : .teal),
-          ("Order watch", "\(activeOrderWatchCount)", activeOrderWatchCount == 0 ? .secondary : .green)
+          ("Order links", "\(activeOrderWatchCount)", activeOrderWatchCount == 0 ? .secondary : .green)
         ])
 
         LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 220 : 280), spacing: 10)], alignment: .leading, spacing: 10) {
@@ -2631,7 +2631,7 @@ struct WishlistView: View {
               .font(.headline)
             Text(attentionEntries.isEmpty
               ? "Active Wishlist items either have linked order context or no counted readiness blocker."
-              : "This is the compact checklist for manual purchasing: compare, choose seller, run checks, review decision, prepare handoff, then watch for the order confirmation.")
+              : "This is the compact checklist for manual purchasing: compare, choose seller, run checks, review decision, prepare handoff, then link the order confirmation.")
               .font(.callout)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -2645,7 +2645,7 @@ struct WishlistView: View {
           ("To review", "\(attentionEntries.count)", attentionEntries.isEmpty ? .green : .orange),
           ("Check blocks", "\(blockedChecks)", blockedChecks == 0 ? .green : .red),
           ("Handoff", "\(handoffNeeded)", handoffNeeded == 0 ? .green : .purple),
-          ("Order watch", "\(watchNeeded)", watchNeeded == 0 ? .secondary : .teal),
+          ("Order link", "\(watchNeeded)", watchNeeded == 0 ? .secondary : .teal),
           ("Linked", "\(readyEntries.count)", readyEntries.isEmpty ? .secondary : .green)
         ])
 
@@ -2710,7 +2710,7 @@ struct WishlistView: View {
         MetricStrip(items: [
           ("Blocked", "\(blockedEntries.count)", blockedEntries.isEmpty ? .green : .orange),
           ("Handoff", "\(handoffEntries.count)", handoffEntries.isEmpty ? .secondary : .purple),
-          ("Order watch", "\(watchEntries.count)", watchEntries.isEmpty ? .secondary : .teal),
+          ("Order link", "\(watchEntries.count)", watchEntries.isEmpty ? .secondary : .teal),
           ("Linked", "\(linkedEntries.count)", linkedEntries.isEmpty ? .secondary : .green)
         ])
 
@@ -2930,8 +2930,8 @@ struct WishlistView: View {
         .buy
       ),
       (
-        "6. Order watch",
-        orderWatchItems == 0 ? "No watch queue" : "Watch confirmations",
+        "6. Order link",
+        orderWatchItems == 0 ? "No order-link queue" : "Link confirmations",
         orderWatchItems == 0 ? "No purchased Wishlist item is currently waiting for an order confirmation link." : "After external purchase, match Inbox/Orders confirmation back to the Wishlist handoff.",
         orderWatchItems,
         "envelope.badge.fill",
@@ -3074,7 +3074,7 @@ struct WishlistView: View {
           ("Seller gaps", "\(comparisonGaps)", comparisonGaps == 0 ? .green : .orange),
           ("Checks", "\(readinessGaps)", readinessGaps == 0 ? .green : .brown),
           ("Handoff", "\(handoffGaps)", handoffGaps == 0 ? .green : .purple),
-          ("Order watch", "\(openOrderWatch)", openOrderWatch == 0 ? .secondary : .teal),
+          ("Order link", "\(openOrderWatch)", openOrderWatch == 0 ? .secondary : .teal),
           ("Closure", "\(closureCandidates)", closureCandidates == 0 ? .secondary : .green)
         ])
 
@@ -3145,8 +3145,8 @@ struct WishlistView: View {
           )
 
           wishlistOperatorControlCard(
-            title: "6. Order watch",
-            detail: openOrderWatch == 0 ? "No open watch rules are waiting for local order matching." : "Check open Wishlist order-watch records against local Orders.",
+            title: "6. Order link",
+            detail: openOrderWatch == 0 ? "No open order-link records are waiting for local order matching." : "Check open Wishlist order-link records against local Orders.",
             count: openOrderWatch,
             color: openOrderWatch == 0 ? .secondary : .teal,
             symbol: "envelope.badge.fill",
