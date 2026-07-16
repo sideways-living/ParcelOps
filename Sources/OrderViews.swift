@@ -202,15 +202,15 @@ struct OrdersView: View {
   }
 
   private var inboxCreatedOrderHandoffPanel: some View {
-    SettingsPanel(title: "Inbox to Orders handoff", symbol: "tray.and.arrow.down.fill") {
+    SettingsPanel(title: "Source to Orders handoff", symbol: "tray.and.arrow.down.fill") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Orders created or linked from mailbox intake, import queue, or acceptance review appear here. Use this after confirming an Inbox row is genuinely order-related.")
+        Text("Orders created or linked from mailbox intake, import queue, or acceptance review appear here. Use this after confirming an Inbox row or Wishlist source is genuinely order-related.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
-          ("Inbox orders", "\(inboxCreatedOrderCount)", inboxCreatedOrderCount == 0 ? .secondary : .teal),
+          ("Source orders", "\(inboxCreatedOrderCount)", inboxCreatedOrderCount == 0 ? .secondary : .teal),
           ("Source trail", "\(inboxCreatedOrdersWithSourceTrailCount)", inboxCreatedOrdersMissingSourceTrailCount == 0 ? .green : .orange),
           ("Actionable", "\(inboxCreatedOrdersActionableCount)", inboxCreatedOrdersActionableCount == 0 ? .green : .orange),
           ("Mail fetched", "\(mailboxFetchedCount)", mailboxFetchedCount == 0 ? .secondary : .blue),
@@ -223,7 +223,7 @@ struct OrdersView: View {
         VStack(alignment: .leading, spacing: 8) {
           Label("Mailbox provider handoff", systemImage: "point.3.connected.trianglepath.dotted")
             .font(.subheadline.weight(.semibold))
-          Text("Orders only changes after an imported Inbox row is created or linked as an order. Provider rows explain why the latest mailbox refresh did or did not create order work.")
+          Text("Orders only change after an imported Inbox row or source record is created or linked as an order. Provider rows explain why the latest mailbox refresh did or did not create order work.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -270,7 +270,7 @@ struct OrdersView: View {
           )
         } else {
           Text(inboxCreatedOrdersActionableCount == 0
-            ? "Inbox-created orders are reviewed and have no promoted dispatch setup gap."
+            ? "Source-created orders are reviewed and have no promoted dispatch setup gap."
             : "The rows below are sorted by handoff risk: review gaps, missing dispatch setup, exceptions, then routine monitoring.")
             .font(.caption.weight(.semibold))
             .foregroundStyle(inboxCreatedOrdersActionableCount == 0 ? .green : .orange)
@@ -288,7 +288,7 @@ struct OrdersView: View {
     GmailReleaseBoundaryPanel(
       store: store,
       title: "Gmail order readiness",
-      lead: "Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence are provider-readiness work. Orders should only change after a confirmed Inbox row is created or linked as an order.",
+      lead: "Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence are provider-readiness work. Orders should only change after a confirmed Inbox row or source record is created or linked as an order.",
       sourceMetricTitle: "Gmail imported",
       sourceCount: latestGmailSummary?.importedCount ?? 0,
       boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create orders automatically, or mutate mailbox messages."
@@ -348,7 +348,7 @@ struct OrdersView: View {
   private var orderNextActionTitle: String {
     if exceptionOrderCount > 0 { return "Start with exception orders" }
     if blockedDispatchOrderCount > 0 { return "Clear blocked dispatch setup" }
-    if inboxCreatedOrderItems.count > 0 { return "Confirm Inbox-created orders" }
+    if inboxCreatedOrderItems.count > 0 { return "Confirm source-created orders" }
     if urgentTaskOrderCount > 0 { return "Resolve linked order tasks" }
     if reviewOrderCount > 0 { return "Review order details" }
     if trackingWarningOrderCount > 0 { return "Check tracking warnings" }
@@ -364,7 +364,7 @@ struct OrdersView: View {
       return "\(blockedDispatchOrderCount) order has blocked dispatch context. Open the order or Dispatch to fix manifest/readiness setup."
     }
     if inboxCreatedOrderItems.count > 0 {
-      return "\(inboxCreatedOrderItems.count) recently created Inbox order needs operator confirmation. Check customer, destination, tracking, and dispatch setup."
+      return "\(inboxCreatedOrderItems.count) recently created source order needs operator confirmation. Check customer, destination, tracking, and dispatch setup."
     }
     if urgentTaskOrderCount > 0 {
       return "\(urgentTaskOrderCount) order has overdue or high-priority linked task work. Resolve the task before routine monitoring."
@@ -397,7 +397,7 @@ struct OrdersView: View {
     return [
       (
         "Source trail",
-        "Inbox-created orders should link back to intake, import, or acceptance evidence before handoff is closed.",
+        "Source-created orders should link back to intake, import, acceptance, or Wishlist evidence before handoff is closed.",
         sourceTrailMissing,
         "Inbox or order detail",
         "tray.and.arrow.down.fill",
@@ -742,7 +742,7 @@ private struct OrdersInboxHandoffEmptyState: View {
     if duplicateCount > 0 { return "No new mailbox order handoff" }
     if filteredCount > 0 { return "No order mail reached Orders" }
     if fetchedCount > 0 { return "Mailbox refresh found no order handoff" }
-    return "No Inbox-created orders yet"
+    return "No source-created orders yet"
   }
 
   private var detail: String {
@@ -893,10 +893,10 @@ private struct OrderQueueItem: Identifiable {
       || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
   }
   var inboxHandoffLabel: String {
-    if order.source == .forwardedMailbox { return "Inbox-created order" }
+    if order.source == .forwardedMailbox { return "Mailbox-created order" }
     if order.latestStatus.localizedCaseInsensitiveContains("acceptance") { return "Acceptance-created order" }
     if order.latestStatus.localizedCaseInsensitiveContains("import queue") || order.checkedMailbox == "manual-import" { return "Import-created order" }
-    return "Inbox handoff"
+    return "Source handoff"
   }
   var inboxHandoffDetail: String {
     if partialInboxTaskCount > 0 {
@@ -1887,7 +1887,7 @@ struct OrderDetailView: View {
           )
           checklistLine(
             title: tasks.isEmpty ? "Create follow-up ownership" : "Follow-up task exists",
-            detail: tasks.isEmpty ? "Create a task when someone needs to verify this Inbox-created order." : tasks.prefix(2).map(\.title).joined(separator: "; "),
+            detail: tasks.isEmpty ? "Create a task when someone needs to verify this source-created order." : tasks.prefix(2).map(\.title).joined(separator: "; "),
             symbol: "checklist",
             color: tasks.isEmpty ? .orange : .purple
           )
