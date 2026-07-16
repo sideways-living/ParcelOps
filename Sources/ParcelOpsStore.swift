@@ -2887,6 +2887,22 @@ final class ParcelOpsStore {
     }
 
     for connection in gmailMailboxConnections {
+      let providerFit = gmailProviderFit(for: connection)
+      if providerFit.isCustomDomain && !providerFit.hasGoogleEvidence {
+        blockers.append(
+          MailboxReleaseBlockerItem(
+            source: connection.displayName,
+            title: "Google Workspace host not verified",
+            detail: providerFit.detail,
+            nextAction: providerFit.nextAction,
+            tone: providerFit.tone,
+            symbol: "server.rack"
+          )
+        )
+      }
+    }
+
+    for connection in gmailMailboxConnections {
       let authState = gmailAuthSessionState(for: connection)
       if authState.status != .connected {
         blockers.append(
@@ -2943,7 +2959,7 @@ final class ParcelOpsStore {
       )
     }
 
-    for line in handoff.handoffLines where line.tone == "warning" || line.tone == "attention" {
+    for line in handoff.handoffLines where (line.tone == "warning" || line.tone == "attention") && line.title != "Provider host fit" {
       blockers.append(
         MailboxReleaseBlockerItem(
           source: "Gmail handoff",
