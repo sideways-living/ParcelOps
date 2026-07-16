@@ -2070,7 +2070,9 @@ private struct TaskQueueItem: Identifiable {
       "operator-test-session",
       "spacemail-release-snapshot",
       "gmail-release-readiness",
-      "mailbox-release-readiness"
+      "mailbox-release-readiness",
+      "mailbox-provider-release-gate",
+      "mailbox-provider-handoff-packet"
     ]
     if knownIDs.contains(linkedEntityID) { return true }
 
@@ -2140,7 +2142,9 @@ private struct TaskQueueItem: Identifiable {
         "operator-test-session",
         "spacemail-release-snapshot",
         "gmail-release-readiness",
-        "mailbox-release-readiness"
+        "mailbox-release-readiness",
+        "mailbox-provider-release-gate",
+        "mailbox-provider-handoff-packet"
       ].contains(task.linkedEntityID)
     return TaskQueueItem(
       id: "task-\(task.id.uuidString)",
