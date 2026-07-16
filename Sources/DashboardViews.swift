@@ -228,6 +228,11 @@ struct DashboardView: View {
       total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
     }
   }
+  private var gmailProviderFitAttentionCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.title == "Provider fit" }.count
+    }
+  }
   private var gmailReleaseBlockerCount: Int {
     gmailReleaseWarningCount + gmailReleaseAttentionCount
   }
@@ -1717,6 +1722,7 @@ struct DashboardView: View {
           MetricStrip(items: [
             ("Gmail release", "\(gmailReleaseBlockerCount)", gmailReleaseBlockerCount > 0 ? (gmailReleaseWarningCount > 0 ? .red : .orange) : .green),
             ("OAuth setup", "\(gmailSetupBlockerCount)", gmailSetupBlockerCount > 0 ? .orange : .green),
+            ("Host checks", "\(gmailProviderFitAttentionCount)", gmailProviderFitAttentionCount > 0 ? .teal : .green),
             ("Gmail fetched", "\(latestGmailSummary?.fetchedCount ?? 0)", (latestGmailSummary?.fetchedCount ?? 0) > 0 ? .blue : .secondary),
             ("Gmail imported", "\(latestGmailSummary?.importedCount ?? 0)", (latestGmailSummary?.importedCount ?? 0) > 0 ? .green : .secondary),
             ("Gmail filtered", "\(latestGmailSummary?.filteredCount ?? 0)", (latestGmailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),

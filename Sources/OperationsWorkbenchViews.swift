@@ -283,6 +283,12 @@ struct OperationsWorkbenchView: View {
     }
   }
 
+  private var gmailProviderFitAttentionCount: Int {
+    gmailReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.title == "Provider fit" }.count
+    }
+  }
+
   private var activeGmailRefreshTasks: [ReviewTask] {
     store.reviewTasks.filter { task in
       task.linkedEntityType == .integration
@@ -1315,7 +1321,8 @@ struct OperationsWorkbenchView: View {
           ("Tuning", "\(gmailClassifierTuningCount)", gmailClassifierTuningCount == 0 ? .green : .orange),
           ("Refresh tasks", "\(activeGmailRefreshTasks.count)", activeGmailRefreshTasks.isEmpty ? .green : .purple),
           ("Release blockers", "\(gmailReleaseBlockingCount)", gmailReleaseBlockingCount == 0 ? .green : .red),
-          ("Release attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount == 0 ? .green : .orange)
+          ("Release attention", "\(gmailReleaseAttentionCount)", gmailReleaseAttentionCount == 0 ? .green : .orange),
+          ("Host checks", "\(gmailProviderFitAttentionCount)", gmailProviderFitAttentionCount == 0 ? .green : .teal)
         ])
 
         if !activeGmailRefreshTasks.isEmpty {
