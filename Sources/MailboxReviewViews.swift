@@ -351,7 +351,7 @@ struct MailboxView: View {
           MailboxProviderStepCard(number: "1", title: "Confirm provider", detail: "Use SpaceMail for IMAP mailboxes and Gmail only for Google-hosted mailboxes.")
           MailboxProviderStepCard(number: "2", title: "Run manual refresh", detail: "Refresh is explicit and read-only. No background mailbox watching starts here.")
           MailboxProviderStepCard(number: "3", title: "Review results", detail: "Imported rows go to Inbox; uncertain and filtered previews stay out until reviewed.")
-          MailboxProviderStepCard(number: "4", title: "Create or link order", detail: "Only confirmed Inbox rows should become Orders or linked source evidence.")
+          MailboxProviderStepCard(number: "4", title: "Create or link order", detail: "Only confirmed Inbox rows or source records should become Orders or linked source evidence.")
         }
       }
     }
@@ -785,7 +785,7 @@ struct MailboxView: View {
             .buttonStyle(.bordered)
             Badge("\(store.mailboxIngestRecords.count) ingest records", color: .blue)
           }
-          Text("Use the clear order test when you need one obvious Inbox row with an order number and tracking number before testing Create order, link order, and review actions.")
+          Text("Use the clear order test when you need one obvious order candidate with an order number and tracking number before testing Create order, link order, and review actions.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
@@ -1253,7 +1253,7 @@ private struct MailboxMissedOrderInvestigationPanel: View {
     if !hasProviderSetup { return "Set up a mailbox provider first" }
     if latestImportedCount > 0 { return "Latest refresh imported order candidates" }
     if latestUncertainCount > 0 { return "Review uncertain mailbox previews" }
-    if latestDuplicateRefreshedCount > 0 { return "Existing Inbox rows were refreshed" }
+    if latestDuplicateRefreshedCount > 0 { return "Existing intake rows were refreshed" }
     if latestFilteredCount > 0 { return "Check filtered examples if an order is missing" }
     if parserDiagnosticCount > 0 { return "Parser diagnostics need review" }
     if latestFetchedCount > 0 { return "Latest refresh found no order candidates" }
@@ -1271,7 +1271,7 @@ private struct MailboxMissedOrderInvestigationPanel: View {
       return "\(latestUncertainCount) uncertain preview\(latestUncertainCount == 1 ? "" : "s") stayed out of Inbox. Import true order mail or dismiss non-order mail locally."
     }
     if latestDuplicateRefreshedCount > 0 {
-      return "\(latestDuplicateRefreshedCount) duplicate message\(latestDuplicateRefreshedCount == 1 ? "" : "s") refreshed existing Inbox rows. Open Inbox to confirm whether the refreshed row is ready to create or link as an order."
+      return "\(latestDuplicateRefreshedCount) duplicate message\(latestDuplicateRefreshedCount == 1 ? "" : "s") refreshed existing intake rows. Open Inbox to confirm whether the refreshed intake row is ready to create or link as an order."
     }
     if latestFilteredCount > 0 {
       return "\(latestFilteredCount) fetched message\(latestFilteredCount == 1 ? "" : "s") were filtered as non-order. Use the examples below only when an expected order email is missing."
@@ -3588,8 +3588,8 @@ struct NeedsReviewView: View {
         }
 
         if showsInboxOrderHandoff && !inboxCreatedOrders.isEmpty {
-          SettingsPanel(title: "Inbox-created order handoff", symbol: "tray.and.arrow.down.fill") {
-            Text("Orders created from Inbox, Import Queue, or Acceptance Review stay in Needs Review until tracking, destination, ownership, and dispatch setup are confirmed.")
+          SettingsPanel(title: "Source-created order handoff", symbol: "tray.and.arrow.down.fill") {
+            Text("Orders created from Inbox, Import Queue, Acceptance Review, or Wishlist source context stay in Needs Review until tracking, destination, ownership, and dispatch setup are confirmed.")
               .font(.callout)
               .foregroundStyle(.secondary)
             ForEach(inboxCreatedOrders) { order in
@@ -4878,7 +4878,7 @@ private struct NeedsReviewInboxOrderRow: View {
     if !warningTrackingEvents.isEmpty {
       return "Timeline includes \(warningTrackingEvents.count) tracking warning signal."
     }
-    return "Timeline links the Inbox source trail to this order."
+    return "Timeline links the order source trail to this order."
   }
 
   private var rowTint: Color {
