@@ -437,7 +437,7 @@ struct OperationsWorkbenchView: View {
       return "\(mailboxUncertainCount) ambiguous mailbox preview\(mailboxUncertainCount == 1 ? "" : "s") is waiting outside Inbox. Import genuine order mail from Mailbox Monitor or dismiss it locally."
     }
     if !inboxCreatedOrders.isEmpty {
-      return "\(inboxCreatedOrders.count) Inbox-created order\(inboxCreatedOrders.count == 1 ? "" : "s") already exist. Confirm source trail, order detail, and dispatch setup before treating them as exceptions."
+      return "\(inboxCreatedOrders.count) source-created order\(inboxCreatedOrders.count == 1 ? "" : "s") already \(inboxCreatedOrders.count == 1 ? "exists" : "exist"). Confirm source trail, order detail, and dispatch setup before treating them as exceptions."
     }
     if mailboxFilteredOnlyOutcome {
       return "\(mailboxFilteredCount) mixed-mailbox message\(mailboxFilteredCount == 1 ? "" : "s") were filtered out of Inbox. There is no Workbench exception until order mail is imported, promoted, or created."

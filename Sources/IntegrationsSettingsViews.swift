@@ -5912,7 +5912,7 @@ struct SettingsReleaseCandidateCard: View {
   private var title: String {
     if !hasMailboxSetup { return "Mailbox setup needed" }
     if manualRefreshCount == 0 { return "Manual mailbox refresh needed" }
-    if inboxCreatedOrdersCount == 0 { return "Inbox-created order needed" }
+    if inboxCreatedOrdersCount == 0 { return "Source-created order needed" }
     if unresolvedOperatorCount > 0 { return "Open operator work remains" }
     return "Daily workflow is clean"
   }
@@ -6283,7 +6283,7 @@ struct SettingsView: View {
       ),
       (
         "Inbox to order handoff",
-        "At least one Inbox-created order confirms the operator path from live intake into Orders, Workbench, Tasks, and Audit.",
+        "At least one source-created order confirms the operator path from live intake into Orders, Workbench, Tasks, and Audit.",
         settingsInboxCreatedOrdersCount == 0 ? 1 : 0,
         "Inbox or Orders",
         "shippingbox.fill",

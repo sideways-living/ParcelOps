@@ -2814,13 +2814,13 @@ struct DispatchView: View {
       return "\(reopenedInboxDispatchHandoffCount) Inbox dispatch handoff record was reopened. Open the linked order, confirm the dispatch setup, then complete or block the handoff."
     }
     if partialInboxDispatchBlockerCount > 0 {
-      return "\(partialInboxDispatchBlockerCount) Inbox-created or Wishlist-linked order has missing intake details or an open verification task. Confirm those details before manifest or readiness setup."
+      return "\(partialInboxDispatchBlockerCount) source-created or Wishlist-linked order\(partialInboxDispatchBlockerCount == 1 ? "" : "s") \(partialInboxDispatchBlockerCount == 1 ? "has" : "have") missing intake details or an open verification task. Confirm those details before manifest or readiness setup."
     }
     if readyDispatchCount > 0 {
       return "Prepared manifests or ready checklists can move to dispatch, completion, handoff, or review."
     }
     if !inboxDispatchSetupOrders.isEmpty {
-      return "Create or link manifest/readiness context for Inbox-created and Wishlist-linked orders before treating them as dispatch-ready."
+      return "Create or link manifest/readiness context for source-created and Wishlist-linked orders before treating them as dispatch-ready."
     }
     if !dispatchItems.isEmpty {
       return "Work the highest-risk queue rows first, then open detailed views only when you need the full record."
@@ -2858,7 +2858,7 @@ struct DispatchView: View {
     return [
       (
         "Verify first",
-        "Inbox-created or Wishlist-linked orders with missing intake details or open verification tasks should not move to manifest/readiness setup yet.",
+        "Source-created or Wishlist-linked orders with missing intake details or open verification tasks should not move to manifest/readiness setup yet.",
         verifyFirstCount,
         "Orders",
         "checkmark.shield.fill",
@@ -2866,7 +2866,7 @@ struct DispatchView: View {
       ),
       (
         "Create setup",
-        "Inbox-created or Wishlist-linked shipped, in-transit, or exception orders need manifest or readiness context before dispatch is ready.",
+        "Source-created or Wishlist-linked shipped, in-transit, or exception orders need manifest or readiness context before dispatch is ready.",
         setupMissingCount,
         "Dispatch setup",
         "tray.and.arrow.down.fill",
@@ -3122,7 +3122,7 @@ struct DispatchView: View {
         } else if visibleDispatchItems.isEmpty {
           Label(
             dispatchItems.isEmpty
-              ? "No manifest or readiness rows need action yet. Inbox-created or Wishlist-linked orders needing dispatch setup are shown above."
+              ? "No manifest or readiness rows need action yet. Source-created or Wishlist-linked orders needing dispatch setup are shown above."
               : "No manifest or readiness rows match this search. Inbox/Wishlist order setup results are shown above when they match.",
             systemImage: "tray.and.arrow.down.fill"
           )

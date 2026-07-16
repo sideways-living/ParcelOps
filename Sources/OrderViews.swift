@@ -1004,7 +1004,7 @@ private struct OrderQueueItem: Identifiable {
       if warningTrackingCount > 0 {
         return "\(warningTrackingCount) tracking warning should be checked from the order detail or Tracking screen."
       }
-      return "This order is not marked as Inbox-created. Use the normal status, tracking, task, and dispatch context to decide the next step."
+      return "This order is not marked as source-created. Use the normal status, tracking, task, and dispatch context to decide the next step."
     }
     if partialInboxTaskCount > 0 {
       return "\(partialInboxTaskCount) verification task is open for missing intake details. Resolve it after order number, tracking, and destination are confirmed."

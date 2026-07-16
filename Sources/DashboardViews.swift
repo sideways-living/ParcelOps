@@ -867,7 +867,7 @@ struct DashboardView: View {
       return "\(readyInboxLinkCount) intake row\(readyInboxLinkCount == 1 ? "" : "s") look ready to create or link to an order. Use that as the next end-to-end test."
     }
     if !partialInboxOrderBlockers.isEmpty {
-      return "\(partialInboxOrderBlockers.count) Inbox-created order\(partialInboxOrderBlockers.count == 1 ? "" : "s") need source, customer, destination, or task cleanup before dispatch readiness should be trusted."
+      return "\(partialInboxOrderBlockers.count) source-created order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "needs" : "need") source, customer, destination, or task cleanup before dispatch readiness should be trusted."
     }
     if wishlistDailyAttentionCount > 0 {
       return "\(wishlistDailyAttentionCount) Wishlist signal\(wishlistDailyAttentionCount == 1 ? "" : "s") need purchase readiness, seller comparison, or order-watch follow-up."
@@ -2114,7 +2114,7 @@ struct DashboardView: View {
             OperatorDashboardCard(
               title: "Dispatch",
               count: dispatchAttentionCount,
-              detail: "Blocked manifests, reopened handoffs, undispatched batches, incomplete checklists, and Inbox-created orders that need verification or dispatch setup.",
+              detail: "Blocked manifests, reopened handoffs, undispatched batches, incomplete checklists, and source-created orders that need verification or dispatch setup.",
               nextAction: reopenedInboxDispatchHandoffCount > 0 ? "Review reopened handoffs" : partialInboxOrderBlockers.isEmpty ? (inboxDispatchGapOrders.isEmpty ? (dispatchAttentionCount == 0 ? "Dispatch queue is steady" : "Prepare outbound work") : "Add dispatch setup") : "Verify order details first",
               symbol: "shippingbox.and.arrow.backward.fill",
               tint: reopenedInboxDispatchHandoffCount > 0 ? .purple : partialInboxOrderBlockers.isEmpty ? (dispatchAttentionCount == 0 ? .green : .blue) : .orange

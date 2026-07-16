@@ -445,7 +445,7 @@ private struct SearchOperatorHintsPanel: View {
   var body: some View {
     SettingsPanel(title: "Useful operator searches", symbol: "sparkle.magnifyingglass") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Start with these shortcuts when tracing Inbox-created orders, dispatch handoffs, or parser follow-up. They only filter local JSON records.")
+        Text("Start with these shortcuts when tracing source-created orders, dispatch handoffs, or parser follow-up. They only filter local JSON records.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -702,7 +702,7 @@ struct SearchResultRow: View {
     else { return nil }
 
     return result.detail.lineOrSentence(after: "Inbox handoff:")
-      ?? "Inbox-created order. Open the order to inspect intake, import, acceptance, and dispatch handoff context."
+      ?? "Source-created order. Open the order to inspect intake, import, acceptance, and dispatch handoff context."
   }
 
   var body: some View {
