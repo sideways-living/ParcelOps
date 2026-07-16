@@ -1614,8 +1614,18 @@ final class ParcelOpsStore {
       $0.linkedEntityType == .integration
         && $0.linkedEntityID == "mailbox-provider-release-gate"
     }
+    let releaseSnapshotTasks = reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && [
+          "spacemail-release-snapshot",
+          "gmail-release-readiness",
+          "mailbox-release-readiness"
+        ].contains($0.linkedEntityID)
+    }
     let openReleaseGateTaskCount = releaseGateTasks.filter { $0.status != .completed }.count
     let completedReleaseGateTaskCount = releaseGateTasks.filter { $0.status == .completed }.count
+    let openReleaseSnapshotTaskCount = releaseSnapshotTasks.filter { $0.status != .completed }.count
+    let completedReleaseSnapshotTaskCount = releaseSnapshotTasks.filter { $0.status == .completed }.count
     let refreshEvidenceCount = timeline.entries.count
     let fetchedCount = totalMailboxFetchedCount
     let importedCount = totalMailboxImportedCount
@@ -1735,12 +1745,12 @@ final class ParcelOpsStore {
       MailboxProviderReleaseGateItem(
         title: "Release validation checkpoint recorded",
         requirement: "Before release-candidate use, capture the current mailbox provider gate as a local review task.",
-        evidence: "\(releaseGateTasks.count) release gate task\(releaseGateTasks.count == 1 ? "" : "s") recorded, \(openReleaseGateTaskCount) open, \(completedReleaseGateTaskCount) completed.",
-        nextAction: openReleaseGateTaskCount == 0
-          ? "Create a review task from the mailbox provider release gate before the next hands-on test pass."
-          : "Keep the release gate task current if provider setup or refresh evidence changes.",
-        isPassed: openReleaseGateTaskCount > 0,
-        tone: openReleaseGateTaskCount == 0 ? "attention" : "success",
+        evidence: "\(releaseGateTasks.count) release gate task\(releaseGateTasks.count == 1 ? "" : "s") recorded, \(openReleaseGateTaskCount) open, \(completedReleaseGateTaskCount) completed. \(releaseSnapshotTasks.count) provider snapshot task\(releaseSnapshotTasks.count == 1 ? "" : "s") recorded, \(openReleaseSnapshotTaskCount) open, \(completedReleaseSnapshotTaskCount) completed.",
+        nextAction: openReleaseGateTaskCount + openReleaseSnapshotTaskCount == 0
+          ? "Create a provider release gate task or a provider snapshot task before the next hands-on test pass."
+          : "Keep release gate and provider snapshot tasks current if setup or refresh evidence changes.",
+        isPassed: openReleaseGateTaskCount + openReleaseSnapshotTaskCount > 0,
+        tone: openReleaseGateTaskCount + openReleaseSnapshotTaskCount == 0 ? "attention" : "success",
         symbol: "checkmark.seal"
       )
     ]
