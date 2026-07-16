@@ -6008,9 +6008,10 @@ final class ParcelOpsStore {
   }
 
   var wishlistWorkbenchMetricSummaries: [(String, String, String)] {
-    [
+    let readiness = wishlistAgentReadinessSummary
+    return [
       ("Follow-up", "\(wishlistWorkbenchFollowUpCount)", "attention"),
-      ("Agent verdict", wishlistAgentReadinessSummary.tone.capitalized, wishlistAgentReadinessSummary.tone),
+      ("Agent verdict", readiness.tone.capitalized, readiness.tone),
       ("Blocked", "\(wishlistWorkbenchBlockedCount)", wishlistWorkbenchBlockedCount > 0 ? "critical" : "success"),
       ("Release ready", "\(wishlistReleaseReadyItemCount)", wishlistReleaseReadyItemCount == 0 ? "muted" : "success"),
       ("Release blocked", "\(wishlistReleaseBlockedItemCount)", wishlistReleaseBlockedItemCount == 0 ? "success" : "warning"),
@@ -6019,7 +6020,7 @@ final class ParcelOpsStore {
       ("Order watch", "\(wishlistReleaseOrderWatchItemCount)", wishlistReleaseOrderWatchItemCount == 0 ? "muted" : "handoff"),
       ("Handoff sanity", "\(wishlistHandoffSanityBlockedItemCount)", wishlistHandoffSanityBlockedItemCount == 0 ? "success" : "warning"),
       ("Dispatch setup", "\(wishlistLinkedOrderDispatchGapItemCount)", wishlistLinkedOrderDispatchGapItemCount == 0 ? "success" : "dispatch"),
-      ("Closure trail", "\(wishlistAgentReadinessSummary.operationsClosureGapCount)", wishlistAgentReadinessSummary.operationsClosureGapCount == 0 ? "success" : "warning"),
+      ("Closure trail", "\(readiness.operationsClosureGapCount)", readiness.operationsClosureGapCount == 0 ? "success" : "warning"),
       ("Purchase packets", "\(wishlistPurchasePacketNeededItemCount)", wishlistPurchasePacketNeededItemCount == 0 ? "success" : "packet"),
       ("Packet drafts", "\(wishlistPurchasePacketDraftCount)", wishlistPurchasePacketDraftCount == 0 ? "muted" : "dispatch"),
       ("Brief gaps", "\(wishlistResearchAttentionRequestCount)", wishlistResearchAttentionRequestCount == 0 ? "success" : "warning"),
