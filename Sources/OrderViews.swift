@@ -906,7 +906,7 @@ private struct OrderQueueItem: Identifiable {
       return "Detected order details are incomplete. Open the order and confirm missing values."
     }
     if sourceTrailCount == 0 {
-      return "No intake, import, or acceptance source trail is linked yet. Confirm where this order came from before closing the handoff."
+      return "No intake, import, acceptance, or Wishlist purchase source trail is linked yet. Confirm where this order came from before closing the handoff."
     }
     if order.reviewState != .accepted {
       return "Confirm customer, destination, tracking, and dispatch setup before marking reviewed."
@@ -1013,7 +1013,7 @@ private struct OrderQueueItem: Identifiable {
       return "\(missingDetectedFieldCount) key intake field is still missing or placeholder text. Edit the order before dispatch setup."
     }
     if sourceTrailCount == 0 {
-      return "No linked intake, import, or acceptance source matched this order yet. Confirm the source trail before marking the handoff reviewed."
+      return "No linked intake, import, acceptance, or Wishlist purchase source matched this order yet. Confirm the source trail before marking the handoff reviewed."
     }
     if order.reviewState != .accepted {
       return "Customer, destination, tracking, and source trail are present enough for a local review decision."
@@ -1973,7 +1973,7 @@ struct OrderDetailView: View {
     let wishlistItems = store.activeWishlistItemsLinked(to: order)
     let closedWishlistItems = store.closedWishlistItemsLinked(to: order)
 
-    return Panel(title: "Inbox source trail", symbol: "envelope.open.fill") {
+    return Panel(title: "Order source trail", symbol: "link.badge.plus") {
       VStack(alignment: .leading, spacing: 12) {
         Text("Trace the local intake, import, acceptance, and active Wishlist records that led to this order. Closed Wishlist links are retained as read-only history below so they do not look like active follow-up.")
           .font(.callout)
