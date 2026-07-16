@@ -2856,6 +2856,14 @@ struct GmailReleaseSelfCheckSummaryCard: View {
     return Array((blockers.isEmpty ? summary.items : blockers).prefix(horizontalSizeClass == .compact ? 3 : 4))
   }
 
+  private var providerFitItem: GmailReleaseSelfCheckItem? {
+    summary.items.first { $0.title == "Provider fit" }
+  }
+
+  private var providerFitNeedsReview: Bool {
+    providerFitItem.map { !$0.isComplete } ?? false
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .top, spacing: 10) {
@@ -2880,9 +2888,29 @@ struct GmailReleaseSelfCheckSummaryCard: View {
 
       MetricStrip(items: [
         ("Checks", "\(summary.completedCount)/\(summary.totalCount)", color),
+        ("Provider fit", providerFitNeedsReview ? "Review" : "OK", providerFitNeedsReview ? .teal : .green),
         ("Blocking", "\(summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count)", summary.items.contains { !$0.isComplete && $0.tone == "warning" } ? .red : .green),
         ("Attention", "\(summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count)", summary.items.contains { !$0.isComplete && $0.tone == "attention" } ? .orange : .green)
       ])
+
+      if let providerFitItem, providerFitNeedsReview {
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Confirm Gmail provider fit", systemImage: providerFitItem.symbolName)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.teal)
+          Text(providerFitItem.detail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(providerFitItem.nextAction)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.teal)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
 
       if !visibleItems.isEmpty {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 220), spacing: 8)], alignment: .leading, spacing: 8) {
