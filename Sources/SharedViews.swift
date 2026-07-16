@@ -6067,9 +6067,9 @@ struct MailboxProviderQAMatrixCard: View {
         color: uncertainCount > 0 ? .orange : .green
       ),
       QAMatrixRow(
-        title: "Inbox-to-order handoff",
+        title: "Source-to-order handoff",
         status: inboxOrderCount > 0 ? "\(inboxOrderCount) order" : "Pending",
-        detail: inboxOrderCount > 0 ? "Inbox-created or forwarded-mailbox orders are visible across the operator flow." : "Create or link one order from a confirmed Inbox row.",
+        detail: inboxOrderCount > 0 ? "Mailbox-created, forwarded-mailbox, or Wishlist-linked orders are visible across the operator flow." : "Create or link one order from a confirmed intake or Wishlist source.",
         symbol: "link.badge.plus",
         color: inboxOrderCount > 0 ? .green : .orange
       ),
@@ -6273,8 +6273,8 @@ struct OperatorSupportSnapshotCard: View {
         (store.latestMailboxFilteredCount) > 0 ? .teal : .secondary
       ),
       (
-        "Inbox-to-order trail",
-        "\(inboxLinkedOrderCount) intake source\(inboxLinkedOrderCount == 1 ? "" : "s") linked to order records; \(inboxCreatedOrderCount) Inbox-created order\(inboxCreatedOrderCount == 1 ? "" : "s") available for follow-up.",
+        "Source-to-order trail",
+        "\(inboxLinkedOrderCount) intake source\(inboxLinkedOrderCount == 1 ? "" : "s") linked to order records; \(inboxCreatedOrderCount) mailbox-created order\(inboxCreatedOrderCount == 1 ? "" : "s") available for follow-up.",
         "link.badge.plus",
         inboxLinkedOrderCount > 0 ? .green : .orange
       ),
@@ -6480,7 +6480,7 @@ struct OperatorTestSessionChecklistCard: View {
         hasParserEvidence ? .green : .orange
       ),
       (
-        "5. Prove Inbox-to-order handoff",
+        "5. Prove Source-to-order handoff",
         "Create or link one order from a confirmed intake row, then check Orders and order detail source trail.",
         hasOrderHandoff ? "\(inboxLinkedOrderCount) intake source\(inboxLinkedOrderCount == 1 ? "" : "s") linked to orders." : "No linked intake order evidence yet.",
         "shippingbox.fill",
@@ -8149,7 +8149,7 @@ struct LinkedOrdersContextPanel: View {
 
           if !sourceSummaries.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-              Label("Inbox source trail", systemImage: "tray.and.arrow.down.fill")
+              Label("Order source trail", systemImage: "tray.and.arrow.down.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(tone)
               ForEach(sourceSummaries, id: \.id) { summary in
