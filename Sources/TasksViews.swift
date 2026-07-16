@@ -41,7 +41,7 @@ struct TasksView: View {
     store.wishlistTaskContextItems
   }
   private var wishlistLinkedQueueItems: [TaskQueueItem] {
-    queueItems.filter { $0.linkedEntityType == .wishlistItem }
+    queueItems.filter(\.isWishlistFollowUp)
   }
   private var wishlistDraftItems: [DraftMessage] {
     store.activeWishlistDraftMessages
