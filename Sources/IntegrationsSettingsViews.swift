@@ -3489,6 +3489,38 @@ private struct GmailSetupChecklistStepRow: View {
 }
 
 struct GmailGoogleCloudSetupGuide: View {
+  private var compiledBundleID: String {
+    Bundle.main.bundleIdentifier ?? GoogleGmailAuthAdapter.bundleID
+  }
+
+  private var compiledClientID: String {
+    Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String ?? "Missing"
+  }
+
+  private var compiledURLSchemes: [String] {
+    guard let urlTypes = Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] else {
+      return []
+    }
+    return urlTypes.flatMap { entry in
+      (entry["CFBundleURLSchemes"] as? [String]) ?? []
+    }
+  }
+
+  private var gmailURLSchemes: [String] {
+    compiledURLSchemes.filter { scheme in
+      scheme.localizedCaseInsensitiveContains("googleusercontent")
+        || scheme.localizedCaseInsensitiveContains("gmail")
+    }
+  }
+
+  private var compiledConfigRows: [(label: String, value: String, color: Color)] {
+    [
+      ("Bundle ID", compiledBundleID, compiledBundleID == GoogleGmailAuthAdapter.bundleID ? .green : .orange),
+      ("GIDClientID", compiledClientID, compiledClientID == GoogleGmailAuthAdapter.placeholderClientID ? .orange : .green),
+      ("Callback scheme", gmailURLSchemes.isEmpty ? "Missing" : gmailURLSchemes.joined(separator: ", "), gmailURLSchemes.contains(GoogleGmailAuthAdapter.placeholderCallbackScheme) ? .orange : gmailURLSchemes.isEmpty ? .red : .green)
+    ]
+  }
+
   private let steps: [(number: String, title: String, detail: String, color: Color)] = [
     (
       "1",
@@ -3544,6 +3576,34 @@ struct GmailGoogleCloudSetupGuide: View {
         ForEach(steps, id: \.number) { step in
           GmailGoogleCloudSetupStep(number: step.number, title: step.title, detail: step.detail, color: step.color)
         }
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Compiled app values to match", systemImage: "app.badge.checkmark")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        CompactMetadataGrid(minimumWidth: 220) {
+          ForEach(compiledConfigRows, id: \.label) { row in
+            VStack(alignment: .leading, spacing: 4) {
+              Text(row.label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(row.color)
+              Text(row.value)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+        Text("If GIDClientID or callback scheme still shows a placeholder, update Project.json/App Info values and rebuild before real Google sign-in. These values are not secrets.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
 
       Text("Recommended sequence: save the Gmail setup record, run Check readiness, test real Google sign-in, then run manual real Gmail refresh. Keep mock refresh available for local workflow testing.")
