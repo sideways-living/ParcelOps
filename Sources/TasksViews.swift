@@ -778,8 +778,8 @@ struct TasksView: View {
         urgentActionCount == 0 ? .green : .orange
       ),
       (
-        "Inbox order handoff",
-        "Open the linked order, confirm the Inbox-created source trail and dispatch context, then complete the follow-up.",
+        "Order source handoff",
+        "Open the linked order, confirm the order source trail and dispatch context, then complete the follow-up.",
         inboxOrderActionCount,
         "Orders",
         "shippingbox.fill",
@@ -2946,7 +2946,7 @@ private struct TaskInboxSourceTrail: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Label("Inbox source for this task", systemImage: "tray.and.arrow.down.fill")
+      Label("Order source for this task", systemImage: "tray.and.arrow.down.fill")
         .font(.caption.weight(.semibold))
         .foregroundStyle(sourceTrailCount == 0 ? .orange : .teal)
 
@@ -2957,7 +2957,7 @@ private struct TaskInboxSourceTrail: View {
       }
 
       if sourceTrailCount == 0 {
-        Text("This order was created from Inbox workflow, but no intake, import, or acceptance source matched the current order number. Open the order source trail before closing this task.")
+        Text("This order needs a source-trail check, but no intake, import, acceptance, or Wishlist purchase source matched the current order number. Open the order source trail before closing this task.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
