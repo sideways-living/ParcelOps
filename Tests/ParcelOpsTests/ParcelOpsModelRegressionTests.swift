@@ -703,6 +703,8 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertNil(waitingRecord.linkedOrderID)
     XCTAssertEqual(waitingRecord.watchStatus, "No confirmation found yet")
     XCTAssertEqual(waitingRecord.reviewState, .needsReview)
+    XCTAssertEqual(store.activeWishlistOrderWatchRecordCount, 2)
+    XCTAssertEqual(store.openWishlistOrderWatchRecordCount, 1)
   }
 
   func testWishlistOrderWatchBatchSkipsBlockedRecords() throws {
