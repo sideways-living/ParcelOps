@@ -2990,6 +2990,10 @@ struct GmailReleaseBoundaryPanel: View {
     return connection
   }
 
+  private var topReleaseBlocker: MailboxReleaseBlockerItem? {
+    store.gmailReleaseBlockerSummary.blockers.first { $0.tone == "warning" || $0.tone == "attention" }
+  }
+
   private var color: Color {
     if blockingCount > 0 { return .red }
     if attentionCount > 0 { return .orange }
@@ -3016,6 +3020,10 @@ struct GmailReleaseBoundaryPanel: View {
 
           ForEach(summaries.prefix(2)) { summary in
             GmailReleaseSelfCheckSummaryCard(summary: summary)
+          }
+
+          if let topReleaseBlocker {
+            MailboxTopReleaseBlockerCallout(blocker: topReleaseBlocker)
           }
 
           if blockingCount > 0 || attentionCount > 0 {
