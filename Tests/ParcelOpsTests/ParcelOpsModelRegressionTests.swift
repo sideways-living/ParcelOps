@@ -354,6 +354,104 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.operationsClosureGapCount, 0)
   }
 
+  func testWishlistSharedCountsMatchSourceCollections() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+    store.wishlistResearchRequests = [
+      WishlistResearchRequest(
+        wishlistItemID: item.id,
+        itemName: item.itemName,
+        sourceURL: "",
+        regionScope: "",
+        sellerCriteria: "",
+        maxBudgetAUD: "",
+        postageRequirements: "",
+        trustRequirements: "",
+        requestStatus: "Needs scope review",
+        createdDate: "Today",
+        lastReviewedDate: "Never",
+        reviewState: .needsReview,
+        notes: "Local regression fixture."
+      )
+    ]
+    store.reviewTasks = [
+      ReviewTask(
+        title: "Review Wishlist handoff",
+        summary: "Confirm local purchase handoff context.",
+        linkedEntityType: .wishlistItem,
+        linkedEntityID: item.id.uuidString,
+        priority: .normal,
+        dueDate: "Today",
+        assignee: "Operations",
+        status: .open,
+        createdDate: "Today",
+        completedDate: nil,
+        reviewState: .needsReview
+      )
+    ]
+    store.handoffNotes = [
+      HandoffNote(
+        title: "Wishlist handoff note",
+        summary: "Follow local handoff before purchase.",
+        linkedEntityType: .wishlistItem,
+        linkedEntityID: item.id.uuidString,
+        priority: .normal,
+        assignee: "Operations",
+        createdDate: "Today",
+        dueDate: "Today",
+        status: .open,
+        reviewState: .needsReview,
+        notes: "Local regression fixture."
+      )
+    ]
+    store.draftMessages = [
+      DraftMessage(
+        linkedEntityType: .wishlistItem,
+        linkedEntityID: item.id.uuidString,
+        templateID: nil,
+        recipient: "ops@example.test",
+        subject: "Wishlist purchase packet ready",
+        body: "Local packet draft.",
+        channel: .email,
+        createdDate: "Today",
+        status: .draft,
+        reviewState: .needsReview
+      ),
+      DraftMessage(
+        linkedEntityType: .wishlistItem,
+        linkedEntityID: "wishlist-research-batch",
+        templateID: nil,
+        recipient: "ops@example.test",
+        subject: "Wishlist batch research brief",
+        body: "Local batch draft.",
+        channel: .email,
+        createdDate: "Today",
+        status: .draft,
+        reviewState: .needsReview
+      )
+    ]
+
+    XCTAssertEqual(store.wishlistTaskContextItemCount, 1)
+    XCTAssertEqual(store.wishlistTaskContextItemCount, store.wishlistTaskContextItems.count)
+    XCTAssertEqual(store.wishlistResearchAttentionRequestCount, store.wishlistResearchAttentionRequests.count)
+    XCTAssertEqual(store.wishlistBatchResearchDraftCount, store.wishlistBatchResearchDrafts.count)
+    XCTAssertEqual(store.wishlistPurchasePacketDraftCount, store.wishlistPurchasePacketDrafts.count)
+    XCTAssertEqual(store.activeWishlistReviewTaskCount, store.activeWishlistReviewTasks.count)
+    XCTAssertEqual(store.activeWishlistHandoffNoteCount, store.activeWishlistHandoffNotes.count)
+    XCTAssertEqual(store.activeWishlistDraftMessageCount, store.activeWishlistDraftMessages.count)
+    XCTAssertEqual(store.wishlistAwaitingOrderItemCount, 1)
+    XCTAssertEqual(store.wishlistAwaitingOrderItemCount, store.wishlistAwaitingOrderItems.count)
+    XCTAssertEqual(store.wishlistDashboardAttentionItemCount, store.wishlistDashboardAttentionItems.count)
+    XCTAssertGreaterThan(store.wishlistTaskActionCount, 0)
+  }
+
   func testWishlistAgentReadinessSummaryFlagsSellerEvidenceBlockers() {
     let weakOption = WishlistComparisonOption(
       sellerName: "Unknown overseas seller",
