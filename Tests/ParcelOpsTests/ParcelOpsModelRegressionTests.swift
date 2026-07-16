@@ -1441,6 +1441,8 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     let watchRecord = try XCTUnwrap(store.wishlistOrderWatchRecords.first)
 
     XCTAssertEqual(store.wishlistOrderWatchRecords.count, 1)
+    XCTAssertEqual(store.activeWishlistOrderWatchRecordCount, 1)
+    XCTAssertEqual(store.openWishlistOrderWatchRecordCount, 1)
     XCTAssertEqual(watchRecord.wishlistItemID, item.id)
     XCTAssertTrue(watchRecord.expectedOrderSignals.contains("Known Australian retailer"))
     XCTAssertTrue(watchRecord.expectedOrderSignals.contains("Replacement scanner"))
