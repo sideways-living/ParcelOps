@@ -694,6 +694,7 @@ struct IntegrationsView: View {
                 GmailReleaseSelfCheckSummaryCard(summary: store.gmailReleaseSelfCheckSummary(for: connection))
               }
             }
+            MailboxReleaseBlockerCard(summary: store.gmailReleaseBlockerSummary)
           }
           ForEach(store.gmailMailboxConnections) { connection in
             GmailMailboxConnectionRow(
