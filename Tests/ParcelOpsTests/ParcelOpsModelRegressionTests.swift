@@ -2002,6 +2002,8 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(updatedItem.status, "Order confirmation linked")
     XCTAssertTrue(updatedItem.operatorPurchaseBlockers.isEmpty)
     XCTAssertEqual(store.activeWishlistItemsLinked(to: createdOrder).map(\.id), [item.id])
+    XCTAssertEqual(store.wishlistLinkedOrderCount, 1)
+    XCTAssertEqual(store.wishlistLinkedOrders.map(\.id), [createdOrder.id])
   }
 
   func testWishlistConversionCreatesLocalOrderDraftAndLinksHandoff() throws {
@@ -2031,6 +2033,8 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(updatedItem.status, "Linked to order draft")
     XCTAssertEqual(updatedItem.purchaseReadiness, "Local order draft created from Wishlist")
     XCTAssertEqual(store.activeWishlistItemsLinked(to: createdOrder).map(\.id), [item.id])
+    XCTAssertEqual(store.wishlistLinkedOrderCount, 1)
+    XCTAssertEqual(store.wishlistLinkedOrders.map(\.id), [createdOrder.id])
     XCTAssertTrue(store.auditEvents.contains { $0.summary == "Order draft created from wishlist item." })
   }
 
@@ -2063,6 +2067,8 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(linkedItem.status, "Linked to existing order")
     XCTAssertEqual(linkedItem.purchaseReadiness, "Existing local order linked")
     XCTAssertEqual(store.activeWishlistItemsLinked(to: order).map(\.id), [item.id])
+    XCTAssertEqual(store.wishlistLinkedOrderCount, 1)
+    XCTAssertEqual(store.wishlistLinkedOrders.map(\.id), [order.id])
   }
 
   func testWishlistManualOrderLinkWithoutMatchFlagsReview() throws {
