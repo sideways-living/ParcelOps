@@ -348,7 +348,7 @@ struct AuditView: View {
       return "Wishlist purchase handoffs still have missing seller, account, order-watch, cost, procurement, receiving, or order-link context. Use Audit to confirm the visible trail before closing purchase follow-up."
     }
     if !inboxOrderHandoffEvents.isEmpty {
-      return "Check that created or linked orders still have a clear source trail back to Inbox, Import Queue, or Acceptance Review."
+      return "Check that created or linked orders still have a clear source trail back to Inbox, Import Queue, Acceptance Review, or Wishlist purchase context."
     }
     if !workflowEvents.isEmpty {
       return "Scan workflow actions for reviews, completions, handoffs, task creation, and draft work that may need follow-up."
@@ -769,9 +769,9 @@ struct AuditView: View {
   }
 
   private var inboxSourceTrailAuditPanel: some View {
-    SettingsPanel(title: "Inbox source trail audit", symbol: "link.badge.plus") {
+    SettingsPanel(title: "Order source trail audit", symbol: "link.badge.plus") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Current Inbox-created orders should remain traceable back to forwarded intake, Import Queue, or Acceptance Review. Use this check before relying on handoff history alone.")
+        Text("Current Inbox-created orders and Wishlist purchase handoffs should remain traceable back to forwarded intake, Import Queue, Acceptance Review, or Wishlist context. Use this check before relying on handoff history alone.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -798,7 +798,7 @@ struct AuditView: View {
                 VStack(alignment: .leading, spacing: 4) {
                   Text("\(order.store) • \(order.orderNumber)")
                     .font(.subheadline.weight(.semibold))
-                  Text("No linked intake, import, or acceptance source currently matches this order. Open the order source trail before closing related audit follow-up.")
+                  Text("No linked intake, import, acceptance, or Wishlist purchase source currently matches this order. Open the order source trail before closing related audit follow-up.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1717,7 +1717,7 @@ private extension AuditEvent {
 
   var inboxOrderHandoffGuidance: String {
     if entityType == .order && action == .created {
-      return "Open the order and confirm the Inbox source trail, tracking, destination, customer, and dispatch setup before treating it as operationally ready."
+      return "Open the order and confirm the order source trail, tracking, destination, customer, and dispatch setup before treating it as operationally ready."
     }
     if entityType == .intakeEmail && action == .linked {
       return "The intake email is now tied to local order context. Check the order source trail before marking related follow-up reviewed."
