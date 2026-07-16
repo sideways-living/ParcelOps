@@ -229,11 +229,11 @@ struct ReturnsClaimsView: View {
       }
 
       if store.operatorSourceOrderCount == 0 {
-        Text("No Inbox-created or Wishlist-linked orders need return or claim checks yet.")
+        Text("No source-created or Wishlist-linked orders need return or claim checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if claimsLinkedToInboxOrders.isEmpty {
-        Text("No return or claim records are linked to Inbox-created or Wishlist-linked orders. Create one only when a refund, replacement, damage, missing-item, or carrier claim is actually needed.")
+        Text("No return or claim records are linked to source-created or Wishlist-linked orders. Create one only when a refund, replacement, damage, missing-item, or carrier claim is actually needed.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if claimsNeedingAction.isEmpty && claimsMissingEvidence.isEmpty {
@@ -645,7 +645,7 @@ struct ReturnClaimRow: View {
       return "Wishlist purchase context is linked to this return or claim. Confirm seller, outcome, evidence, and replacement/refund tracking before closing."
     }
     if !claimFollowUpWarnings.isEmpty && !linkedIntakeEmails.isEmpty {
-      return "This claim is tied to an Inbox-created order and still needs local evidence, status, or review follow-up."
+      return "This claim is tied to a source-created order and still needs local evidence, status, or review follow-up."
     }
     if !claimFollowUpWarnings.isEmpty {
       return "This claim still needs local evidence, status, or review follow-up."

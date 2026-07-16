@@ -216,7 +216,7 @@ struct EvidenceView: View {
         }
 
         if inboxCreatedOrdersWithoutEvidence.isEmpty && inboxCreatedOrdersMissingSourceTrail.isEmpty {
-          Label(store.operatorSourceOrderCount == 0 ? "No Inbox-created or Wishlist-linked orders exist yet." : "Inbox-created and Wishlist-linked orders have evidence or source context available.", systemImage: "checkmark.seal.fill")
+          Label(store.operatorSourceOrderCount == 0 ? "No source-created or Wishlist-linked orders exist yet." : "Source-created and Wishlist-linked orders have evidence or source context available.", systemImage: "checkmark.seal.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.green)
         } else {
@@ -231,7 +231,7 @@ struct EvidenceView: View {
                 VStack(alignment: .leading, spacing: 4) {
                   Text("\(order.store) • \(order.orderNumber)")
                     .font(.subheadline.weight(.semibold))
-                  Text(evidenceForOrder(order).isEmpty ? "No local evidence attachment is linked to this Inbox-created or Wishlist-linked order. Check source trail before closing handoff work." : "Source trail is missing even though evidence exists. Open order detail to link or review the source context.")
+                  Text(evidenceForOrder(order).isEmpty ? "No local evidence attachment is linked to this source-created or Wishlist-linked order. Check source trail before closing handoff work." : "Source trail is missing even though evidence exists. Open order detail to link or review the source context.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -644,7 +644,7 @@ struct EvidenceAttachmentRow: View {
       warnings.append("Evidence summary needs confirmation.")
     }
     if let linkedOrder, linkedOrder.isInboxCreatedLocalOrder, (store?.sourceTrailCount(for: linkedOrder) ?? 0) == 0 {
-      warnings.append("Inbox-created order source trail is missing.")
+      warnings.append("Source-created order source trail is missing.")
     }
     return warnings
   }

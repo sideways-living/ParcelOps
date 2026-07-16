@@ -265,7 +265,7 @@ struct ReconciliationView: View {
   private var inboxSourceReconciliationPanel: some View {
     SettingsPanel(title: "Inbox/Wishlist source reconciliation", symbol: "link.badge.plus") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Use this before resolving mismatches for Inbox-created or Wishlist-linked orders. Missing source context can make order, import, acceptance, or Wishlist purchase conflicts look resolved when the handoff trail is incomplete.")
+        Text("Use this before resolving mismatches for source-created or Wishlist-linked orders. Missing source context can make order, import, acceptance, or Wishlist purchase conflicts look resolved when the handoff trail is incomplete.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -311,7 +311,7 @@ struct ReconciliationView: View {
         }
 
         if sourceOrdersMissingSourceTrail.isEmpty {
-          Label(store.operatorSourceOrderCount == 0 ? "No Inbox-created or Wishlist-linked orders exist yet." : "All current Inbox-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
+          Label(store.operatorSourceOrderCount == 0 ? "No source-created or Wishlist-linked orders exist yet." : "All current source-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.green)
         } else {

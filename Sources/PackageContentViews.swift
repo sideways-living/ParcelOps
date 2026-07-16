@@ -238,11 +238,11 @@ struct PackageContentsView: View {
       }
 
       if sourceOrders.isEmpty {
-        Text("No Inbox-created or Wishlist-linked orders need package content checks yet.")
+        Text("No source-created or Wishlist-linked orders need package content checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if inboxOrdersMissingContent.isEmpty && unverifiedInboxContents.isEmpty {
-        Label("Inbox-created and Wishlist-linked orders have verified package content coverage for this local workflow.", systemImage: "checkmark.seal.fill")
+        Label("Source-created and Wishlist-linked orders have verified package content coverage for this local workflow.", systemImage: "checkmark.seal.fill")
           .font(.caption)
           .foregroundStyle(.green)
       } else {
@@ -612,7 +612,7 @@ struct PackageContentRow: View {
 
   private var sourceTrailDescription: String {
     if needsInboxVerificationAttention {
-      return "This item record came from an Inbox-created or Wishlist-linked order and still needs local quantity/item verification before downstream work."
+      return "This item record came from a source-created or Wishlist-linked order and still needs local quantity/item verification before downstream work."
     }
     if !linkedWishlistItems.isEmpty && linkedIntakeEmails.isEmpty {
       return "Wishlist purchase context is linked to this package content record. Confirm item and quantity before downstream work."

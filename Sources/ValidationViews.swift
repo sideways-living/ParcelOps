@@ -236,7 +236,7 @@ struct ValidationView: View {
   private var inboxSourceValidationPanel: some View {
     SettingsPanel(title: "Inbox/Wishlist source validation", symbol: "link.badge.plus") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Use this check before resolving validation rows for Inbox-created or Wishlist-linked orders. The order should still be traceable to intake, import, acceptance, or Wishlist purchase context.")
+        Text("Use this check before resolving validation rows for source-created or Wishlist-linked orders. The order should still be traceable to intake, import, acceptance, or Wishlist purchase context.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -282,7 +282,7 @@ struct ValidationView: View {
         }
 
         if sourceOrdersMissingSourceTrail.isEmpty {
-          Label(store.operatorSourceOrderCount == 0 ? "No Inbox-created or Wishlist-linked orders exist yet." : "All current Inbox-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
+          Label(store.operatorSourceOrderCount == 0 ? "No source-created or Wishlist-linked orders exist yet." : "All current source-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.green)
         } else {

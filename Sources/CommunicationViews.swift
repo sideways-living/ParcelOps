@@ -480,7 +480,7 @@ struct CommunicationView: View {
 
     return SettingsPanel(title: "Inbox draft readiness", symbol: "envelope.open.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether Inbox-created orders have local draft follow-up. ParcelOps still does not send email; ready drafts must be sent outside the app.")
+        Text("Checks whether source-created orders have local draft follow-up. ParcelOps still does not send email; ready drafts must be sent outside the app.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
@@ -524,15 +524,15 @@ struct CommunicationView: View {
         }
 
         if inboxOrders.isEmpty {
-          Text("No Inbox-created orders are present yet. Create an order from Inbox before checking draft coverage.")
+          Text("No source-created orders are present yet. Create or link an order from Inbox or Wishlist before checking draft coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedDrafts.isEmpty {
-          Text("No drafts currently link to Inbox-created orders. Create a draft only when a customer, supplier, carrier, or team follow-up is needed.")
+          Text("No drafts currently link to source-created orders. Create a draft only when a customer, supplier, carrier, or team follow-up is needed.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if actionDrafts.isEmpty {
-          Text("Linked drafts for Inbox-created orders are reviewed and marked sent locally.")
+          Text("Linked drafts for source-created orders are reviewed and marked sent locally.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
@@ -1128,7 +1128,7 @@ struct DraftMessageRow: View {
       warnings.append("Draft is ready. Send it outside ParcelOps, then mark sent locally.")
     }
     if draft.status != .sentLocally && draft.status != .ready && !inboxOrders.isEmpty {
-      warnings.append("Draft is still open for an Inbox-created order.")
+      warnings.append("Draft is still open for a source-created order.")
     }
     if draft.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Draft needs review before related handoff work is closed.")
