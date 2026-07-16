@@ -369,8 +369,8 @@ struct OperationsWorkbenchView: View {
     if weakInboxParseCount > 0 { return "Inbox parser corrections before Workbench" }
     if readyInboxLinkCount > 0 { return "Inbox rows are ready to become order work" }
     if partialInboxParseCount > 0 { return "Partial Inbox parses need confirmation" }
-    if linkedInboxIntakeCount > 0 { return "Linked Inbox source trails are ready for review" }
-    return "No Inbox parser handoff is blocking Workbench"
+    if linkedInboxIntakeCount > 0 { return "Linked order source trails are ready for review" }
+    return "No mailbox intake handoff is blocking Workbench"
   }
 
   private var intakeParserQualityDetail: String {
@@ -386,7 +386,7 @@ struct OperationsWorkbenchView: View {
     if linkedInboxIntakeCount > 0 {
       return "\(linkedInboxIntakeCount) intake row\(linkedInboxIntakeCount == 1 ? "" : "s") already link to orders. Use Workbench only when the linked order has a real exception or follow-up."
     }
-    return "Inbox parser, link, and source-trail handoff counts are clear. Workbench can stay focused on real operational exceptions."
+    return "Mailbox parser, link, and source-trail handoff counts are clear. Workbench can stay focused on real operational exceptions."
   }
 
   private var pendingFilteredSpaceMailCount: Int {
@@ -823,7 +823,7 @@ struct OperationsWorkbenchView: View {
       ),
       (
         "Order handoff",
-        "Use Orders when an Inbox-created order needs source trail, customer, destination, tracking, or dispatch setup confirmation.",
+        "Use Orders when a mailbox-created or Wishlist-linked order needs source trail, customer, destination, tracking, or dispatch setup confirmation.",
         orderCount,
         "Orders",
         "shippingbox.fill",
@@ -1284,7 +1284,7 @@ struct OperationsWorkbenchView: View {
       return "\(spaceMailUncertainCount) ambiguous SpaceMail preview is waiting outside Inbox. Import genuine order mail from Mailbox Monitor or dismiss it locally."
     }
     if !inboxCreatedOrders.isEmpty {
-      return "\(inboxCreatedOrders.count) Inbox-created order is already in the handoff path. Confirm the order detail, source trail, and dispatch setup below."
+      return "\(inboxCreatedOrders.count) Mailbox-created order is already in the handoff path. Confirm the order detail, source trail, and dispatch setup below."
     }
     if spaceMailFilteredOnlyOutcome {
       return "\(spaceMailFilteredCount) mixed-mailbox message was filtered out of Inbox. There is no Workbench exception until an order email is imported, promoted, or created."
@@ -2344,10 +2344,10 @@ private struct WorkbenchInboxOrderRow: View {
       return "Next: inspect the reopened dispatch handoff from the order and Dispatch before closing it again."
     }
     if needsPreDispatchVerification {
-      return "Next: verify missing Inbox details from the order before dispatch setup."
+      return "Next: verify missing mailbox intake details from the order before dispatch setup."
     }
     if sourceTrailCount == 0 {
-      return "Next: confirm the local Inbox, Import Queue, or Acceptance source trail before closing this handoff."
+      return "Next: confirm the local Inbox, Import Queue, Acceptance, or Wishlist source trail before closing this handoff."
     }
     if needsDispatchSetup {
       return "Next: add or link dispatch manifest/readiness context."
