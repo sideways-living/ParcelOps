@@ -803,10 +803,14 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     store.auditEvents = []
     store.addWishlistOrderWatchRecord(item)
     let record = try XCTUnwrap(store.wishlistOrderWatchRecords.first)
+    XCTAssertEqual(store.activeWishlistOrderWatchRecordCount, 1)
+    XCTAssertEqual(store.openWishlistOrderWatchRecordCount, 1)
 
     store.removeWishlistOrderWatchRecord(record)
 
     XCTAssertTrue(store.wishlistOrderWatchRecords.isEmpty)
+    XCTAssertEqual(store.activeWishlistOrderWatchRecordCount, 0)
+    XCTAssertEqual(store.openWishlistOrderWatchRecordCount, 0)
     XCTAssertEqual(store.wishlistItems.map(\.id), [item.id])
     XCTAssertTrue(store.auditEvents.contains { $0.summary == "Wishlist order watch record removed locally." })
   }
