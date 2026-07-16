@@ -1063,6 +1063,12 @@ struct TasksView: View {
           } label: {
             Label("Record Gmail snapshot", systemImage: "camera.metering.center.weighted")
           }
+          Button {
+            store.createReviewTaskFromGmailReleaseReadinessSnapshot()
+            mvpFeedbackMessage = "Gmail release snapshot task created or refreshed."
+          } label: {
+            Label("Create Gmail snapshot task", systemImage: "checklist")
+          }
           NavigationLink {
             MailboxView(store: store)
           } label: {

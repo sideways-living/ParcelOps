@@ -2860,6 +2860,63 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTaskFromGmailReleaseReadinessSnapshot() {
+    let snapshot = gmailReleaseReadinessSnapshot
+    let taskPriority: TaskPriority
+    switch snapshot.tone {
+    case "warning":
+      taskPriority = .high
+    case "attention":
+      taskPriority = .normal
+    default:
+      taskPriority = .low
+    }
+
+    let taskTitle = snapshot.tone == "success" ? "Confirm Gmail release readiness" : "Resolve Gmail release readiness gaps"
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "gmail-release-readiness"
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = taskTitle
+      reviewTasks[existingIndex].summary = snapshot.reportText
+      reviewTasks[existingIndex].priority = taskPriority
+      reviewTasks[existingIndex].dueDate = taskPriority == .high ? "Today" : "Tomorrow"
+      reviewTasks[existingIndex].assignee = "Mailbox team"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing Gmail release readiness review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from current local Gmail release snapshot. No duplicate task was created. No Google sign-in, token request, Gmail API call, mailbox fetch, external service call, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: taskTitle,
+      summary: snapshot.reportText,
+      linkedEntityType: .integration,
+      linkedEntityID: "gmail-release-readiness",
+      priority: taskPriority,
+      dueDate: taskPriority == .high ? "Today" : "Tomorrow",
+      assignee: "Mailbox team",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from Gmail release readiness snapshot."
+    )
+  }
+
   var gmailReleaseBlockerSummary: MailboxReleaseBlockerSummary {
     let readinessSummaries = gmailMailboxConnections.map(gmailOAuthReadinessSummary(for:))
     let setupPlans = gmailMailboxConnections.map(gmailSetupTestChecklist(for:))
