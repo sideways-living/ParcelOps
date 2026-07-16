@@ -181,7 +181,7 @@ struct MVPRemainingWorkPanel: View {
       return "Run one manual read-only SpaceMail or Gmail refresh, then check the summary before adding more integrations."
     }
     if !hasInboxToOrderHandoff {
-      return "Create or link one order from a confirmed Inbox row and verify its source trail."
+      return "Create or link one order from a confirmed intake or Wishlist source and verify its source trail."
     }
     if wishlistNeedsHumanReviewCount > 0 {
       return "Review the active Wishlist capture, research, purchase, or order-watch items before treating Wishlist as routine."
@@ -221,7 +221,7 @@ struct MVPRemainingWorkPanel: View {
             title: "Daily operator MVP",
             detail: hasInboxToOrderHandoff
               ? "Dashboard, Inbox, Orders, Workbench, Dispatch, Tasks, Audit, and Settings have a usable local path. Remaining work is QA, copy/layout polish, and clearing old test noise."
-              : "The UI and records exist. The next proof point is one confirmed Inbox row becoming a linked order with a visible source trail.",
+              : "The UI and records exist. The next proof point is one confirmed intake or Wishlist source becoming a linked order with a visible source trail.",
             status: hasInboxToOrderHandoff ? "Mostly built" : "Needs proof",
             symbol: "square.grid.2x2.fill",
             color: hasInboxToOrderHandoff ? .green : .orange
@@ -539,7 +539,7 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
     if !hasManualMailboxSetup { return "Priority: choose the active mailbox provider" }
     if !hasManualMailboxReady { return "Priority: finish mailbox credential or sign-in" }
     if !hasLiveRefreshEvidence { return "Priority: capture one refresh result" }
-    if !hasInboxOrderHandoff { return "Priority: prove Inbox-to-order handoff" }
+    if !hasInboxOrderHandoff { return "Priority: prove source-to-order handoff" }
     if !qaEvidenceReady { return "Priority: complete QA evidence" }
     return "Priority: simplify and harden the operator loop"
   }
@@ -555,7 +555,7 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
       return "Run one manual read-only refresh from the active provider so the app has real fetched/imported/filtered/uncertain evidence."
     }
     if !hasInboxOrderHandoff {
-      return "Create or link one order from a confirmed Inbox row so Orders, Workbench, Dispatch, Tasks, and Audit have real context."
+      return "Create or link one order from a confirmed intake or Wishlist source so Orders, Workbench, Dispatch, Tasks, and Audit have real context."
     }
     if !qaEvidenceReady {
       return "Complete one repeatable test pass and confirm the result survives quit/reopen through local JSON persistence."
@@ -1072,7 +1072,7 @@ struct MVPUsableVersionPanel: View {
   private var readinessTitle: String {
     if !hasManualMailboxSetup { return "Usable locally, mailbox setup still needed" }
     if !hasManualMailboxReady { return "Usable locally, mailbox credential or sign-in needed" }
-    if inboxOrderCount == 0 { return "Ready for a supervised Inbox-to-order test" }
+    if inboxOrderCount == 0 { return "Ready for a supervised source-to-order test" }
     if operatorWorkCount > 0 { return "Usable for hands-on operator testing" }
     return "Primary MVP path is usable"
   }
@@ -1252,11 +1252,11 @@ struct MVPCompletionRoadmapPanel: View {
         color: hasActiveMailboxProvider && fetchedCount > 0 ? .green : .orange
       ),
       RoadmapItem(
-        title: "3. Inbox-to-order handoff",
+        title: "3. Source-to-order handoff",
         status: inboxOrderCount > 0 ? "Proven" : "Needs sample",
         detail: "The operator should be able to create or link an order from an imported intake row, then see the source trail in Orders, Dashboard, Workbench, Tasks, Dispatch, and Audit.",
-        evidence: "\(inboxOrderCount) Inbox-linked or forwarded-mailbox order\(inboxOrderCount == 1 ? "" : "s") found.",
-        nextAction: inboxOrderCount > 0 ? "Use one linked order for the next QA pass." : "Create or link one order from a confirmed Inbox row.",
+        evidence: "\(inboxOrderCount) source-linked or forwarded-mailbox order\(inboxOrderCount == 1 ? "" : "s") found.",
+        nextAction: inboxOrderCount > 0 ? "Use one linked order for the next QA pass." : "Create or link one order from a confirmed intake or Wishlist source.",
         symbol: "link.badge.plus",
         color: inboxOrderCount > 0 ? .green : .orange
       ),
@@ -1536,7 +1536,7 @@ struct MVPDevelopmentProgressPanel: View {
       items.append(("Run manual refresh", "Run one explicit read-only provider refresh to prove local intake without background sync.", "arrow.triangle.2.circlepath", .orange))
     }
     if !hasInboxOrderHandoff {
-      items.append(("Prove Inbox-to-order", "Create or link one order from a confirmed intake row and verify the source trail.", "shippingbox.fill", .orange))
+      items.append(("Prove source-to-order", "Create or link one order from a confirmed intake row and verify the source trail.", "shippingbox.fill", .orange))
     }
     if openOperationalNoiseCount >= 25 {
       items.append(("Reduce test noise", "Clear, review, or ignore old parser and mailbox test rows before judging the operator experience.", "line.3.horizontal.decrease.circle.fill", .teal))
@@ -1866,7 +1866,7 @@ struct MVPHandsOnReleaseChecklist: View {
       ),
       (
         "3. Confirm Orders",
-        "Open the created or linked order and verify the Inbox source trail, status, customer/destination, and tracking context.",
+        "Open the created or linked order and verify the order source trail, status, customer/destination, and tracking context.",
         "shippingbox.fill",
         inboxCreatedOrderCount == 0 ? .orange : .green,
         inboxCreatedOrderCount > 0
@@ -2077,7 +2077,7 @@ struct MVPReleaseCandidateQACard: View {
         latestDemoOrder != nil
       ),
       (
-        "Inbox source trail",
+        "Order source trail",
         linkedDemoIntakeCount == 0 ? "The demo order needs a linked intake email." : "\(linkedDemoIntakeCount) linked intake row exists for the demo order.",
         "link.badge.plus",
         linkedDemoIntakeCount == 0 ? .orange : .green,
@@ -2832,7 +2832,7 @@ struct MVPHandsOnTroubleshootingGuide: View {
   private var recoverySteps: [(String, String, String, Color)] {
     [
       ("1. Prove local flow", "Seed the demo workflow from Dashboard or MVP Setup. This avoids relying on live mailbox content while testing UI and persistence.", "wand.and.stars", .green),
-      ("2. Check source trail", "Open Inbox, Orders, and order detail. Confirm the source trail points back to intake/import/acceptance context.", "link.badge.plus", .blue),
+      ("2. Check source trail", "Open Inbox, Orders, and order detail. Confirm the source trail points back to intake, import, acceptance, or Wishlist context.", "link.badge.plus", .blue),
       ("3. Use Mailbox Monitor", "For the active provider, review latest refresh counts, uncertain examples, filtered examples, classifier tests, and credential or sign-in status before changing parser rules.", "server.rack", .teal),
       ("4. Confirm Audit", "Use Audit to verify local actions. Technical provider diagnostics can stay hidden unless you are debugging parser/provider internals.", "list.clipboard.fill", .purple),
       ("5. Keep generated noise out", "Do not commit xcuserdata, DerivedData, local signing/team changes, or accidental generated project folders unless the change is intentionally shared.", "xmark.bin.fill", .orange)
