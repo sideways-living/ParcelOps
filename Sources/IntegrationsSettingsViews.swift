@@ -58,6 +58,22 @@ struct IntegrationsView: View {
         || summary.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("does not include")
     }.count
   }
+  private func gmailDomain(for emailAddress: String) -> String {
+    let parts = emailAddress
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .split(separator: "@", maxSplits: 1)
+    guard parts.count == 2 else { return "" }
+    return String(parts[1]).lowercased()
+  }
+  private var gmailProviderFitAttentionCount: Int {
+    store.gmailMailboxConnections.filter { connection in
+      let domain = gmailDomain(for: connection.emailAddress)
+      return !domain.isEmpty
+        && domain != "gmail.com"
+        && domain != "googlemail.com"
+        && !domain.hasSuffix(".example")
+    }.count
+  }
   private var gmailReadinessBlockerDetails: [String] {
     store.gmailMailboxConnections.flatMap { connection in
       let summary = store.gmailOAuthReadinessSummary(for: connection)
@@ -73,6 +89,9 @@ struct IntegrationsView: View {
     }
     if gmailCompiledCallbackBlockerCount > 0 {
       return "Update Project.json and App/Info.plist to match the saved Google iOS client ID and reversed callback scheme, then rebuild."
+    }
+    if gmailProviderFitAttentionCount > 0 {
+      return "Confirm each custom-domain Gmail setup is hosted by Google Workspace; use IMAP/SpaceMail when it is not."
     }
     if !hasGmailConnectedAuth {
       return "Run Check readiness and Test real Google sign-in before running real Gmail refresh."
@@ -92,12 +111,12 @@ struct IntegrationsView: View {
       ),
       (
         "Gmail / Google Workspace",
-        hasGmailSetup ? (hasGmailConnectedAuth ? "Signed in" : "Sign-in/setup needed") : "Not configured",
+        hasGmailSetup ? (gmailProviderFitAttentionCount > 0 ? "Verify host" : hasGmailConnectedAuth ? "Signed in" : "Sign-in/setup needed") : "Not configured",
         hasGmailSetup
           ? gmailSetupNextAction
           : "Choose this only when the mailbox is hosted by Gmail or Google Workspace. It uses Google sign-in planning and the same Inbox intake path.",
         "envelope.badge.shield.half.filled",
-        hasGmailSetup ? (hasGmailConnectedAuth && gmailSetupBlockerCount == 0 ? .green : .orange) : .secondary
+        hasGmailSetup ? (gmailProviderFitAttentionCount > 0 ? .teal : hasGmailConnectedAuth && gmailSetupBlockerCount == 0 ? .green : .orange) : .secondary
       ),
       (
         "Microsoft 365",
@@ -118,6 +137,9 @@ struct IntegrationsView: View {
     }
     if hasGmailSetup && !hasGmailCoreSetup {
       return "Finish Gmail setup details"
+    }
+    if gmailProviderFitAttentionCount > 0 {
+      return "Verify Gmail mailbox hosting"
     }
     if hasGmailSetup && !hasGmailConnectedAuth {
       return "Test Google sign-in"
@@ -141,6 +163,9 @@ struct IntegrationsView: View {
     if hasGmailSetup && !hasGmailCoreSetup {
       return "Add Gmail address, labels, OAuth client placeholder, redirect/scheme, and read-only Gmail scope notes. Do not enter client secrets or token values."
     }
+    if gmailProviderFitAttentionCount > 0 {
+      return "One or more Gmail setup records use custom domains. Confirm those domains are hosted by Google Workspace before relying on Gmail API refresh; otherwise use SpaceMail/IMAP."
+    }
     if hasGmailSetup && !hasGmailConnectedAuth {
       return "Use readiness check and the explicit Google sign-in test before real Gmail refresh. ParcelOps keeps token values out of JSON and Audit."
     }
@@ -157,6 +182,7 @@ struct IntegrationsView: View {
     if !hasSpaceMailSetup && !hasGmailSetup { return .orange }
     if hasSpaceMailSetup && !hasSpaceMailCredentialReference { return .orange }
     if hasGmailSetup && (!hasGmailCoreSetup || !hasGmailConnectedAuth) { return .orange }
+    if gmailProviderFitAttentionCount > 0 { return .teal }
     if hasSpaceMailUncertainReview { return .orange }
     if hasGmailUncertainReview { return .orange }
     return .green
@@ -411,6 +437,7 @@ struct IntegrationsView: View {
                   Badge("\(gmailReadySetupCount) ready", color: gmailReadySetupCount > 0 ? .green : .secondary)
                   Badge("\(gmailSetupBlockerCount) setup blockers", color: gmailSetupBlockerCount == 0 ? .green : .orange)
                   Badge("\(gmailCompiledCallbackBlockerCount) callback blockers", color: gmailCompiledCallbackBlockerCount == 0 ? .green : .orange)
+                  Badge("\(gmailProviderFitAttentionCount) host checks", color: gmailProviderFitAttentionCount == 0 ? .green : .teal)
                   Badge(hasGmailConnectedAuth ? "Google signed in" : "Sign-in needed", color: hasGmailConnectedAuth ? .green : .orange)
                 }
 
