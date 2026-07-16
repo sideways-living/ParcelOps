@@ -25213,6 +25213,18 @@ final class ParcelOpsStore {
   }
 
   func checkOpenWishlistOrderWatchRecords() {
+    func activeLinkedOrderWatchCount() -> Int {
+      wishlistOrderWatchRecords.filter { isActiveWishlistOrderWatchRecord($0) && $0.linkedOrderID != nil }.count
+    }
+
+    func stillWaitingOrderWatchCount(candidateIDs: [UUID]) -> Int {
+      wishlistOrderWatchRecords.filter { record in
+        candidateIDs.contains(record.id)
+          && record.linkedOrderID == nil
+          && !record.watchStatus.localizedCaseInsensitiveContains("blocked")
+      }.count
+    }
+
     let candidateIDs = wishlistOrderWatchRecords
       .filter { record in
         isActiveWishlistOrderWatchRecord(record)
@@ -25220,7 +25232,7 @@ final class ParcelOpsStore {
           && !record.watchStatus.localizedCaseInsensitiveContains("blocked")
       }
       .map(\.id)
-    let beforeLinked = wishlistOrderWatchRecords.filter { isActiveWishlistOrderWatchRecord($0) && $0.linkedOrderID != nil }.count
+    let beforeLinked = activeLinkedOrderWatchCount()
     let beforeWaiting = candidateIDs.count
     guard !candidateIDs.isEmpty else {
       logAudit(
@@ -25240,12 +25252,8 @@ final class ParcelOpsStore {
       }
     }
 
-    let afterLinked = wishlistOrderWatchRecords.filter { isActiveWishlistOrderWatchRecord($0) && $0.linkedOrderID != nil }.count
-    let stillWaiting = wishlistOrderWatchRecords.filter { record in
-      candidateIDs.contains(record.id)
-        && record.linkedOrderID == nil
-        && !record.watchStatus.localizedCaseInsensitiveContains("blocked")
-    }.count
+    let afterLinked = activeLinkedOrderWatchCount()
+    let stillWaiting = stillWaitingOrderWatchCount(candidateIDs: candidateIDs)
     let matched = max(afterLinked - beforeLinked, 0)
     logAudit(
       action: .evaluated,
