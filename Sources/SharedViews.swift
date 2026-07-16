@@ -6127,11 +6127,7 @@ struct OperatorSupportSnapshotCard: View {
   }
 
   private var openWishlistOrderWatchCount: Int {
-    store.wishlistOrderWatchRecords.filter {
-      store.isActiveWishlistOrderWatchRecord($0)
-        && !$0.watchStatus.localizedCaseInsensitiveContains("closed")
-        && !$0.watchStatus.localizedCaseInsensitiveContains("matched")
-    }.count
+    store.openWishlistOrderWatchRecordCount
   }
 
   private var linkedWishlistOrderCount: Int {
