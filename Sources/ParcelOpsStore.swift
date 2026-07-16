@@ -2702,6 +2702,8 @@ final class ParcelOpsStore {
     let providerFits = gmailMailboxConnections.map(gmailProviderFit(for:))
     let hostVerificationNeededCount = providerFits.filter { $0.isCustomDomain && !$0.hasGoogleEvidence }.count
     let hostVerifiedCount = providerFits.filter { $0.isCustomDomain && $0.hasGoogleEvidence }.count
+    let releaseBlockers = gmailReleaseBlockerSummary.blockers.filter { $0.tone == "warning" || $0.tone == "attention" }
+    let topReleaseBlocker = releaseBlockers.first
     let parserDiagnostics = gmailMailboxConnections.reduce(0) { count, connection in
       let sourceIDs = Set(mailboxIngestRecords.filter { $0.sourceMailboxID == connection.id }.compactMap(\.intakeEmailID))
       return count + intakeParserDiagnostics.filter { sourceIDs.contains($0.intakeEmailID) }.count
@@ -2766,6 +2768,9 @@ final class ParcelOpsStore {
       "- \(summary.displayName): \(summary.verdict). \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.filteredCount) filtered, \(summary.uncertainCount + summary.pendingUncertainReviewCount) uncertain."
     }
     let handoffLines = handoff.handoffLines.map { "- \($0.title): \($0.detail)" }
+    let topReleaseBlockerLine = topReleaseBlocker.map {
+      "- \($0.source): \($0.title). \($0.detail) Next: \($0.nextAction)"
+    } ?? "- No warning or attention release blockers are currently promoted."
     let reportLines = [
       "ParcelOps Gmail local release snapshot",
       "Generated: \(generatedDate)",
@@ -2791,6 +2796,10 @@ final class ParcelOpsStore {
       "Open Gmail release self-check tasks: \(openReleaseSelfCheckTaskCount)",
       "Completed Gmail release self-check tasks: \(completedReleaseSelfCheckTaskCount)",
       "Release task gate: \(hasOpenReleaseSelfCheckTask ? "open task present" : "open task needed")",
+      "Promoted release blockers: \(releaseBlockers.count)",
+      "",
+      "Top release blocker:",
+      topReleaseBlockerLine,
       "",
       "Readiness:",
       readinessLines.isEmpty ? "- No Gmail setup records are configured." : readinessLines.joined(separator: "\n"),
@@ -2827,6 +2836,7 @@ final class ParcelOpsStore {
         SpaceMailReleaseSnapshotMetric(title: "Setups", value: "\(gmailMailboxConnections.count)", tone: gmailMailboxConnections.isEmpty ? "neutral" : "success"),
         SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(setupBlockers)", tone: setupBlockers == 0 ? "success" : "warning"),
         SpaceMailReleaseSnapshotMetric(title: "Host checks", value: "\(hostVerificationNeededCount)", tone: hostVerificationNeededCount == 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Release blockers", value: "\(releaseBlockers.count)", tone: releaseBlockers.isEmpty ? "success" : releaseBlockers.contains { $0.tone == "warning" } ? "warning" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Signed in", value: "\(signedInCount)", tone: signedInCount > 0 || gmailMailboxConnections.isEmpty ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: fetchedCount > 0 ? "neutral" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "success" : "neutral"),
