@@ -615,7 +615,7 @@ private struct OrderWishlistSourceRow: View {
           .font(.caption2)
           .foregroundStyle(.secondary)
         if let handoff {
-          Text("Order watch: \(handoff.orderWatchStatus)")
+          Text("Order link: \(handoff.orderWatchStatus)")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -707,7 +707,7 @@ private struct OrderClosedWishlistSourceRow: View {
           .font(.caption2)
           .foregroundStyle(.secondary)
         if let handoff {
-          Text("Historical order watch: \(handoff.orderWatchStatus)")
+          Text("Historical order link: \(handoff.orderWatchStatus)")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)

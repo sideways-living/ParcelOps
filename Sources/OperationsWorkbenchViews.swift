@@ -2680,7 +2680,7 @@ private struct WishlistWorkbenchFollowUpRow: View {
       gaps.append("account label")
     }
     if item.purchaseHandoff?.expectedOrderSignals.isPlaceholderValidationValue != false {
-      gaps.append("order watch")
+      gaps.append("order link")
     }
     if store.suggestedCostRecords(for: item).isEmpty { gaps.append("cost") }
     if store.suggestedProcurementRequests(for: item).isEmpty { gaps.append("procurement") }
@@ -2726,7 +2726,7 @@ private struct WishlistWorkbenchFollowUpRow: View {
       return "Stage dispatch setup for the linked order: \(linkedOrderDispatchGaps.prefix(2).joined(separator: ", "))."
     }
     if handoff != nil && handoff?.linkedOrderID == nil {
-      return "Ready for manual purchase handoff; watch for the order confirmation and link it locally."
+      return "Ready for manual purchase handoff; link the order confirmation when it appears locally."
     }
     if !item.operatorPurchaseBlockers.isEmpty {
       return item.operatorPurchaseNextAction
