@@ -320,7 +320,7 @@ struct AuditView: View {
       return "Check Wishlist handoff sanity"
     }
     if !inboxOrderHandoffEvents.isEmpty {
-      return "Confirm Inbox-to-order handoff"
+      return "Confirm source-to-order handoff"
     }
     if !workflowEvents.isEmpty {
       return "Review recent operator actions"
@@ -388,8 +388,8 @@ struct AuditView: View {
         mailboxEvidenceEvents.isEmpty ? .orange : .teal
       ),
       (
-        "Inbox-to-order handoff",
-        "Audit can explain when intake became a linked or created local order.",
+        "Source-to-order handoff",
+        "Audit can explain when intake or Wishlist context became a linked or created local order.",
         inboxOrderHandoffEvents.count,
         "link.badge.plus",
         inboxOrderHandoffEvents.isEmpty ? .orange : .blue
@@ -1203,7 +1203,7 @@ struct AuditView: View {
             store.createReviewTask(from: event)
           })
 
-          AuditFeedSection(title: "Inbox-to-order handoff", detail: "Order creation and review events from Inbox, Import Queue, and Acceptance Review.", events: inboxOrderHandoffEvents.prefix(8).map { $0 }, onCreateTask: { event in
+          AuditFeedSection(title: "Source-to-order handoff", detail: "Order creation and review events from Inbox, Import Queue, Acceptance Review, and Wishlist purchase context.", events: inboxOrderHandoffEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
 
@@ -1712,7 +1712,7 @@ private extension AuditEvent {
     if entityType == .intakeEmail && action == .linked { return "Intake linked to order" }
     if entityType == .importQueueItem { return "Import handoff" }
     if entityType == .acceptanceRecord { return "Acceptance handoff" }
-    return "Inbox-to-order handoff"
+    return "Source-to-order handoff"
   }
 
   var inboxOrderHandoffGuidance: String {
