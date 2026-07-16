@@ -2340,6 +2340,14 @@ final class ParcelOpsStore {
     )
   }
 
+  private func gmailDomain(for emailAddress: String) -> String {
+    let parts = emailAddress
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .split(separator: "@", maxSplits: 1)
+    guard parts.count == 2 else { return "" }
+    return String(parts[1]).lowercased()
+  }
+
   var gmailPostRefreshActionPlan: GmailPostRefreshActionPlan {
     let gmailMailboxIDs = Set(gmailMailboxConnections.map(\.id))
     let gmailIngestRecords = mailboxIngestRecords.filter { gmailMailboxIDs.contains($0.sourceMailboxID) }
@@ -2363,6 +2371,13 @@ final class ParcelOpsStore {
     let setupIssueCount = setupBlockers.count
     let firstSetupBlocker = setupBlockers.first
     let setupBlockerPreview = firstSetupBlocker?.missingFields.prefix(3).joined(separator: ", ")
+    let customDomainConnections = gmailMailboxConnections.filter { connection in
+      let domain = gmailDomain(for: connection.emailAddress)
+      return !domain.isEmpty
+        && domain != "gmail.com"
+        && domain != "googlemail.com"
+        && !domain.hasSuffix(".example")
+    }
 
     let items = [
       GmailPostRefreshActionItem(
@@ -2374,6 +2389,16 @@ final class ParcelOpsStore {
         actionLabel: setupIssueCount == 0 && connectedAuthCount > 0 ? "Setup ready" : "Review Gmail setup",
         tone: setupIssueCount == 0 && connectedAuthCount > 0 ? "success" : "warning",
         symbol: "person.badge.key.fill"
+      ),
+      GmailPostRefreshActionItem(
+        title: "Confirm Gmail-hosted mailbox",
+        count: customDomainConnections.count,
+        detail: customDomainConnections.isEmpty
+          ? "Gmail setup records are consumer Gmail, sample data, or not configured as custom-domain mailboxes."
+          : "Custom-domain Gmail records must be verified as Google Workspace before using Gmail API refresh. Use IMAP/SpaceMail if the mailbox is hosted elsewhere.",
+        actionLabel: customDomainConnections.isEmpty ? "Provider fit clear" : "Verify Google Workspace hosting",
+        tone: customDomainConnections.isEmpty ? "success" : "attention",
+        symbol: "server.rack"
       ),
       GmailPostRefreshActionItem(
         title: "Review imported Inbox rows",
