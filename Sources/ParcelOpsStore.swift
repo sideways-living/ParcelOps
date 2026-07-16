@@ -1246,21 +1246,9 @@ final class ParcelOpsStore {
     let gmailUncertain = gmailHealth.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
     let gmailReadinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
     let gmailSignedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
-    let gmailCustomDomainNeedsVerification = gmailMailboxConnections.filter { connection in
-      let domain = gmailDomain(for: connection.emailAddress)
-      let isCustomDomain = !domain.isEmpty
-        && domain != "gmail.com"
-        && domain != "googlemail.com"
-        && !domain.hasSuffix(".example")
-      let authConnected = gmailAuthSessionState(for: connection).status == .connected
-      let hasRefreshEvidence = connection.lastRefreshFetchedCount > 0 ||
-        connection.lastRefreshImportedCount > 0 ||
-        connection.lastRefreshDuplicateCount > 0 ||
-        connection.lastRefreshFilteredNonOrderCount > 0 ||
-        (connection.lastRefreshUncertainCount ?? 0) > 0 ||
-        connection.connectionStatus.localizedCaseInsensitiveContains("No messages") ||
-        connection.connectionStatus.localizedCaseInsensitiveContains("Real Gmail")
-      return isCustomDomain && !authConnected && !hasRefreshEvidence
+    let gmailCustomDomainNeedsVerification = gmailMailboxConnections.filter {
+      let providerFit = gmailProviderFit(for: $0)
+      return providerFit.isCustomDomain && !providerFit.hasGoogleEvidence
     }
     let linkedOrderCount = Set(intakeEmails.compactMap(\.linkedOrderID)).count
     let inboxOrderCount = inboxCreatedOrders.count
@@ -2378,6 +2366,62 @@ final class ParcelOpsStore {
     return String(parts[1]).lowercased()
   }
 
+  private func gmailProviderFit(for connection: GmailMailboxConnection) -> (
+    domain: String,
+    isConsumer: Bool,
+    isSample: Bool,
+    isCustomDomain: Bool,
+    hasGoogleEvidence: Bool,
+    isReady: Bool,
+    detail: String,
+    nextAction: String,
+    tone: String
+  ) {
+    let domain = gmailDomain(for: connection.emailAddress)
+    let isConsumer = domain == "gmail.com" || domain == "googlemail.com"
+    let isSample = domain.hasSuffix(".example")
+    let isCustomDomain = !domain.isEmpty && !isConsumer && !isSample
+    let hasGoogleEvidence = gmailAuthSessionState(for: connection).status == .connected ||
+      connection.lastRefreshFetchedCount > 0 ||
+      connection.lastRefreshImportedCount > 0 ||
+      connection.lastRefreshDuplicateCount > 0 ||
+      connection.lastRefreshFilteredNonOrderCount > 0 ||
+      (connection.lastRefreshUncertainCount ?? 0) > 0 ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("No messages") ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("Real Gmail")
+    let isReady = isConsumer || (isCustomDomain && hasGoogleEvidence)
+    let detail: String
+    let nextAction: String
+    if isCustomDomain {
+      detail = isReady
+        ? "Saved mailbox uses custom domain \(domain), with Google sign-in or Gmail refresh evidence recorded locally."
+        : "Saved mailbox uses custom domain \(domain). Confirm it is hosted by Google Workspace before using Gmail API refresh."
+      nextAction = isReady
+        ? "Continue Gmail setup checks; use SpaceMail/IMAP only if this mailbox is not Google-hosted."
+        : "Verify the mailbox is Google Workspace hosted; otherwise use SpaceMail/IMAP setup."
+    } else if isConsumer {
+      detail = "Saved mailbox uses consumer Gmail domain \(domain)."
+      nextAction = "Continue Gmail setup checks."
+    } else if isSample {
+      detail = "Saved mailbox is sample data and should be replaced before real Gmail testing."
+      nextAction = "Replace sample mailbox address with the real Gmail/Google Workspace address."
+    } else {
+      detail = "No valid Gmail mailbox domain is saved yet."
+      nextAction = "Replace missing mailbox address with the real Gmail/Google Workspace address."
+    }
+    return (
+      domain,
+      isConsumer,
+      isSample,
+      isCustomDomain,
+      hasGoogleEvidence,
+      isReady,
+      detail,
+      nextAction,
+      isReady ? (isCustomDomain ? "attention" : "success") : "warning"
+    )
+  }
+
   var gmailPostRefreshActionPlan: GmailPostRefreshActionPlan {
     let gmailMailboxIDs = Set(gmailMailboxConnections.map(\.id))
     let gmailIngestRecords = mailboxIngestRecords.filter { gmailMailboxIDs.contains($0.sourceMailboxID) }
@@ -2401,21 +2445,9 @@ final class ParcelOpsStore {
     let setupIssueCount = setupBlockers.count
     let firstSetupBlocker = setupBlockers.first
     let setupBlockerPreview = firstSetupBlocker?.missingFields.prefix(3).joined(separator: ", ")
-    let customDomainConnectionsNeedingVerification = gmailMailboxConnections.filter { connection in
-      let domain = gmailDomain(for: connection.emailAddress)
-      let isCustomDomain = !domain.isEmpty
-        && domain != "gmail.com"
-        && domain != "googlemail.com"
-        && !domain.hasSuffix(".example")
-      let authConnected = gmailAuthSessionState(for: connection).status == .connected
-      let hasRefreshOutcome = connection.lastRefreshFetchedCount > 0 ||
-        connection.lastRefreshImportedCount > 0 ||
-        connection.lastRefreshDuplicateCount > 0 ||
-        connection.lastRefreshFilteredNonOrderCount > 0 ||
-        (connection.lastRefreshUncertainCount ?? 0) > 0 ||
-        connection.connectionStatus.localizedCaseInsensitiveContains("No messages") ||
-        connection.connectionStatus.localizedCaseInsensitiveContains("Real Gmail")
-      return isCustomDomain && !authConnected && !hasRefreshOutcome
+    let customDomainConnectionsNeedingVerification = gmailMailboxConnections.filter {
+      let providerFit = gmailProviderFit(for: $0)
+      return providerFit.isCustomDomain && !providerFit.hasGoogleEvidence
     }
 
     let items = [
@@ -26667,33 +26699,15 @@ final class ParcelOpsStore {
     let completedReleaseSelfCheckTaskCount = releaseSelfCheckTasks.filter { $0.status == .completed }.count
     let hasActionableReview = connection.lastRefreshImportedCount > 0 || pendingUncertain > 0
     let filteredReviewStateClear = pendingUncertain == 0 && pendingFiltered == 0
-    let emailDomain = gmailDomain(for: connection.emailAddress)
-    let isConsumerGmail = emailDomain == "gmail.com" || emailDomain == "googlemail.com"
-    let isSampleGmail = emailDomain.hasSuffix(".example")
-    let hasCustomDomain = !emailDomain.isEmpty && !isConsumerGmail && !isSampleGmail
-    let providerFitReady = isConsumerGmail || (hasCustomDomain && (hasSignedIn || hasRefreshOutcome || hasRealRefreshEvidence))
+    let providerFit = gmailProviderFit(for: connection)
 
     let items = [
       GmailReleaseSelfCheckItem(
         title: "Provider fit",
-        detail: hasCustomDomain
-          ? (providerFitReady
-              ? "Saved mailbox uses custom domain \(emailDomain), with Google sign-in or Gmail refresh evidence recorded locally."
-              : "Saved mailbox uses custom domain \(emailDomain). Confirm it is hosted by Google Workspace before using Gmail API refresh.")
-          : isConsumerGmail
-            ? "Saved mailbox uses consumer Gmail domain \(emailDomain)."
-            : isSampleGmail
-              ? "Saved mailbox is sample data and should be replaced before real Gmail testing."
-              : "No valid Gmail mailbox domain is saved yet.",
-        nextAction: hasCustomDomain
-          ? (providerFitReady
-              ? "Continue Gmail setup checks; use SpaceMail/IMAP only if this mailbox is not Google-hosted."
-              : "Verify the mailbox is Google Workspace hosted; otherwise use SpaceMail/IMAP setup.")
-          : providerFitReady
-            ? "Continue Gmail setup checks."
-            : "Replace sample or missing mailbox address with the real Gmail/Google Workspace address.",
-        isComplete: providerFitReady,
-        tone: providerFitReady ? (hasCustomDomain ? "attention" : "success") : "warning",
+        detail: providerFit.detail,
+        nextAction: providerFit.nextAction,
+        isComplete: providerFit.isReady,
+        tone: providerFit.tone,
         symbolName: "server.rack"
       ),
       GmailReleaseSelfCheckItem(
