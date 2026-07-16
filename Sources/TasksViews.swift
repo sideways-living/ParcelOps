@@ -2068,7 +2068,9 @@ private struct TaskQueueItem: Identifiable {
     let knownIDs = [
       "local-data-hygiene",
       "operator-test-session",
-      "spacemail-release-snapshot"
+      "spacemail-release-snapshot",
+      "gmail-release-readiness",
+      "mailbox-release-readiness"
     ]
     if knownIDs.contains(linkedEntityID) { return true }
 
@@ -2136,7 +2138,9 @@ private struct TaskQueueItem: Identifiable {
       && [
         "local-data-hygiene",
         "operator-test-session",
-        "spacemail-release-snapshot"
+        "spacemail-release-snapshot",
+        "gmail-release-readiness",
+        "mailbox-release-readiness"
       ].contains(task.linkedEntityID)
     return TaskQueueItem(
       id: "task-\(task.id.uuidString)",
