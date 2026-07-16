@@ -555,6 +555,23 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertGreaterThan(store.wishlistDailyAttentionCount, 0)
   }
 
+  func testWishlistDashboardSummaryHighlightsPurchasePacketBlocker() {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let item = makeReadyWishlistItem(
+      optionID: UUID(),
+      itemName: "Replacement scanner",
+      sellerName: "Known Australian retailer",
+      linkedOrderID: nil
+    )
+    resetWishlistState(store)
+    store.wishlistItems = [item]
+
+    XCTAssertEqual(store.wishlistAttentionBlockerSummary, "purchase packet needed (1)")
+    XCTAssertEqual(store.wishlistDashboardNextAction, "Clear: purchase packet needed (1)")
+    XCTAssertTrue(store.wishlistDashboardAttentionInsight?.contains("need a local purchase packet draft") == true)
+    XCTAssertTrue(store.wishlistDashboardCardDetail.contains("Top blockers: purchase packet needed (1)"))
+  }
+
   func testWishlistAgentReadinessSummaryClearsLinkedOrderWatchGap() {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     let item = makeReadyWishlistItem(
