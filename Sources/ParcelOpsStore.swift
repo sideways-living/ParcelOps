@@ -2583,6 +2583,9 @@ final class ParcelOpsStore {
     let uncertainLastRefreshCount = gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) }
     let readinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
     let signedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
+    let providerFits = gmailMailboxConnections.map(gmailProviderFit(for:))
+    let hostVerificationNeededCount = providerFits.filter { $0.isCustomDomain && !$0.hasGoogleEvidence }.count
+    let hostVerifiedCount = providerFits.filter { $0.isCustomDomain && $0.hasGoogleEvidence }.count
     let latestRefresh = gmailMailboxConnections
       .filter { $0.lastManualRefreshDate != "Never" }
       .sorted { $0.lastManualRefreshDate > $1.lastManualRefreshDate }
@@ -2599,6 +2602,14 @@ final class ParcelOpsStore {
           : "\(readinessBlockers) Gmail setup\(readinessBlockers == 1 ? "" : "s") still have OAuth, callback, scope, or compiled app blockers.",
         tone: readinessBlockers == 0 ? "success" : "warning",
         symbol: "person.badge.key.fill"
+      ),
+      GmailShiftHandoffLine(
+        title: "Provider host fit",
+        detail: hostVerificationNeededCount == 0
+          ? "No custom-domain Gmail setup is waiting for host verification. \(hostVerifiedCount) custom-domain setup\(hostVerifiedCount == 1 ? "" : "s") have local Google-hosted evidence."
+          : "\(hostVerificationNeededCount) custom-domain Gmail setup\(hostVerificationNeededCount == 1 ? "" : "s") need Google Workspace host verification or should move to IMAP/SpaceMail.",
+        tone: hostVerificationNeededCount == 0 ? "success" : "attention",
+        symbol: "server.rack"
       ),
       GmailShiftHandoffLine(
         title: "Google sign-in",
@@ -2666,6 +2677,7 @@ final class ParcelOpsStore {
       keyCounts: [
         SpaceMailReleaseSnapshotMetric(title: "Setups", value: "\(gmailMailboxConnections.count)", tone: gmailMailboxConnections.isEmpty ? "neutral" : "success"),
         SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(readinessBlockers)", tone: readinessBlockers == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Host checks", value: "\(hostVerificationNeededCount)", tone: hostVerificationNeededCount == 0 ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Signed in", value: "\(signedInCount)", tone: signedInCount > 0 || gmailMailboxConnections.isEmpty ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: fetchedCount > 0 ? "neutral" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "attention" : "neutral"),
@@ -2687,6 +2699,9 @@ final class ParcelOpsStore {
     let duplicateCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshDuplicateCount }
     let filteredCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
     let uncertainCount = gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) + ($1.uncertainMessages?.count ?? 0) }
+    let providerFits = gmailMailboxConnections.map(gmailProviderFit(for:))
+    let hostVerificationNeededCount = providerFits.filter { $0.isCustomDomain && !$0.hasGoogleEvidence }.count
+    let hostVerifiedCount = providerFits.filter { $0.isCustomDomain && $0.hasGoogleEvidence }.count
     let parserDiagnostics = gmailMailboxConnections.reduce(0) { count, connection in
       let sourceIDs = Set(mailboxIngestRecords.filter { $0.sourceMailboxID == connection.id }.compactMap(\.intakeEmailID))
       return count + intakeParserDiagnostics.filter { sourceIDs.contains($0.intakeEmailID) }.count
@@ -2740,6 +2755,13 @@ final class ParcelOpsStore {
     let readinessLines = readinessSummaries.map { summary in
       "- \(summary.statusText). Missing/blocking: \(summary.missingFields.isEmpty ? "none" : summary.missingFields.joined(separator: ", ")). Compiled client: \(summary.compiledClientIDStatus). Callback: \(summary.compiledCallbackSchemeStatus)."
     }
+    let hostVerificationLines = gmailMailboxConnections.map { connection in
+      let providerFit = gmailProviderFit(for: connection)
+      let hostStatus = providerFit.isCustomDomain
+        ? (providerFit.hasGoogleEvidence ? "host evidence recorded" : "host verification needed")
+        : providerFit.isConsumer ? "consumer Gmail" : providerFit.isSample ? "sample setup" : "missing or invalid domain"
+      return "- \(connection.displayName): \(hostStatus). \(providerFit.detail)"
+    }
     let healthLines = healthSummaries.map { summary in
       "- \(summary.displayName): \(summary.verdict). \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.filteredCount) filtered, \(summary.uncertainCount + summary.pendingUncertainReviewCount) uncertain."
     }
@@ -2754,6 +2776,8 @@ final class ParcelOpsStore {
       "Gmail setup records: \(gmailMailboxConnections.count)",
       "Setup test steps: \(completedSetupSteps)/\(max(totalSetupSteps, 1))",
       "OAuth readiness blockers: \(setupBlockers)",
+      "Custom-domain host verified/evidenced: \(hostVerifiedCount)",
+      "Custom-domain host checks needed: \(hostVerificationNeededCount)",
       "Connected Google sign-ins: \(signedInCount)",
       "Latest refresh: \(latestRefreshLine)",
       "",
@@ -2770,6 +2794,9 @@ final class ParcelOpsStore {
       "",
       "Readiness:",
       readinessLines.isEmpty ? "- No Gmail setup records are configured." : readinessLines.joined(separator: "\n"),
+      "",
+      "Provider host fit:",
+      hostVerificationLines.isEmpty ? "- No Gmail setup records are configured." : hostVerificationLines.joined(separator: "\n"),
       "",
       "Health:",
       healthLines.isEmpty ? "- No Gmail health summaries are available." : healthLines.joined(separator: "\n"),
@@ -2799,6 +2826,7 @@ final class ParcelOpsStore {
       metrics: [
         SpaceMailReleaseSnapshotMetric(title: "Setups", value: "\(gmailMailboxConnections.count)", tone: gmailMailboxConnections.isEmpty ? "neutral" : "success"),
         SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(setupBlockers)", tone: setupBlockers == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Host checks", value: "\(hostVerificationNeededCount)", tone: hostVerificationNeededCount == 0 ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Signed in", value: "\(signedInCount)", tone: signedInCount > 0 || gmailMailboxConnections.isEmpty ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: fetchedCount > 0 ? "neutral" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "success" : "neutral"),
