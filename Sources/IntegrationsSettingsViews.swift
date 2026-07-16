@@ -5928,12 +5928,12 @@ struct SettingsReleaseCandidateCard: View {
       return "Run one explicit manual mailbox refresh from Mailbox Monitor. Active providers feed the same local Inbox intake path."
     }
     if inboxCreatedOrdersCount == 0 {
-      return "Create or link one order from Inbox so Orders, Workbench, Tasks, Dashboard, and Audit can show the handoff."
+      return "Create or link one order from a confirmed intake or Wishlist source so Orders, Workbench, Tasks, Dashboard, and Audit can show the handoff."
     }
     if unresolvedOperatorCount > 0 {
       return "Use Inbox, Workbench, Dispatch, Tasks, and Audit to clear or deliberately leave assigned follow-up work."
     }
-    return "Core local workflow has refresh evidence, Inbox-to-order handoff, and audit history. Keep integrations local/manual until the next approved implementation slice."
+    return "Core local workflow has refresh evidence, source-to-order handoff, and audit history. Keep integrations local/manual until the next approved implementation slice."
   }
 
   private var readinessChecklistRows: [(title: String, detail: String, isReady: Bool, symbol: String)] {
@@ -5963,8 +5963,8 @@ struct SettingsReleaseCandidateCard: View {
         "line.3.horizontal.decrease.circle.fill"
       ),
       (
-        "Inbox-to-order handoff",
-        inboxCreatedOrdersCount > 0 ? "\(inboxCreatedOrdersCount) order\(inboxCreatedOrdersCount == 1 ? "" : "s") linked to forwarded mailbox intake." : "Create or link one order from a confirmed Inbox row.",
+        "Source-to-order handoff",
+        inboxCreatedOrdersCount > 0 ? "\(inboxCreatedOrdersCount) order\(inboxCreatedOrdersCount == 1 ? "" : "s") linked to forwarded mailbox intake." : "Create or link one order from a confirmed intake or Wishlist source.",
         inboxCreatedOrdersCount > 0,
         "shippingbox.fill"
       ),
@@ -6358,7 +6358,7 @@ struct SettingsView: View {
     if settingsOpenOperatorWorkCount > 0 {
       return "Use Inbox, Workbench, Dispatch, Tasks, and Audit to clear or deliberately leave assigned follow-up work."
     }
-    return "Mailbox setup, manual refresh, Inbox-to-order handoff, local tasks, and audit trace are in place for hands-on MVP use."
+    return "Mailbox setup, manual refresh, source-to-order handoff, local tasks, and audit trace are in place for hands-on MVP use."
   }
 
   private var activeProviderCandidate: (provider: String, title: String, detail: String, tone: Color, rank: Int)? {
