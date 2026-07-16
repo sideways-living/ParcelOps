@@ -417,7 +417,7 @@ struct InboxView: View {
           ("To review", "\(wishlistPurchaseReadinessItems.count)", .orange),
           ("Decision", "\(wishlistPurchaseDecisionGapCount)", wishlistPurchaseDecisionGapCount == 0 ? .green : .purple),
           ("Handoff", "\(wishlistPurchaseHandoffGapCount)", wishlistPurchaseHandoffGapCount == 0 ? .green : .purple),
-          ("Order watch", "\(wishlistOrderWatchItems.count)", wishlistOrderWatchItems.isEmpty ? .secondary : .teal)
+          ("Order link", "\(wishlistOrderWatchItems.count)", wishlistOrderWatchItems.isEmpty ? .secondary : .teal)
         ])
 
         LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 230 : 310), spacing: 10)], alignment: .leading, spacing: 10) {
@@ -476,14 +476,14 @@ struct InboxView: View {
   @ViewBuilder
   private var wishlistOrderWatchPanel: some View {
     if !wishlistOrderWatchItems.isEmpty {
-      SettingsPanel(title: "Wishlist order watch", symbol: "star.square.on.square.fill") {
+      SettingsPanel(title: "Wishlist order links", symbol: "star.square.on.square.fill") {
         Text("Wishlist purchases with a local handoff but no linked order appear here. Match them to already-imported Inbox confirmations; ParcelOps does not monitor retailer accounts or fetch mail in the background.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
-          ("Watching", "\(wishlistOrderWatchItems.count)", .orange),
+          ("Need order link", "\(wishlistOrderWatchItems.count)", .orange),
           ("Inbox matches", "\(wishlistOrderWatchMatchCount)", wishlistOrderWatchMatchCount > 0 ? .green : .secondary),
           ("Source", "local intake", .blue)
         ])

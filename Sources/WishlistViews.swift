@@ -9,7 +9,12 @@ private enum WishlistWorkflowFocus: String, CaseIterable, Identifiable {
   case operations = "Operations"
 
   var id: String { rawValue }
-  var title: String { rawValue }
+  var title: String {
+    switch self {
+    case .watch: return "Order link"
+    default: return rawValue
+    }
+  }
 
   var detail: String {
     switch self {
@@ -22,7 +27,7 @@ private enum WishlistWorkflowFocus: String, CaseIterable, Identifiable {
     case .buy:
       return "Items are in purchase decision, checklist, or manual handoff preparation."
     case .watch:
-      return "Items have purchase handoff/order-watch state and need order confirmation linking."
+      return "Items have purchase handoff state and need an order confirmation linked."
     case .operations:
       return "Items are linked or confirmed enough to stage receiving, storage, custody, and dispatch records."
     }
@@ -1435,7 +1440,7 @@ struct WishlistView: View {
       ),
       WishlistNextActionEntry(
         title: "Clear purchase blockers",
-        detail: purchaseBlockers.isEmpty ? "No active item has local purchase blockers." : "Resolve missing seller choice, price, postage, trust, approval, account, or order-watch checks before buying externally.",
+        detail: purchaseBlockers.isEmpty ? "No active item has local purchase blockers." : "Resolve missing seller choice, price, postage, trust, approval, account, or order-link checks before buying externally.",
         count: purchaseBlockers.count,
         actionTitle: "Focus buy",
         actionSymbol: "cart.badge.plus",
@@ -1447,7 +1452,7 @@ struct WishlistView: View {
         title: "Match order confirmations",
         detail: orderWatchItems.isEmpty ? "No Wishlist purchase handoff is waiting for an order confirmation match." : "Match purchase handoffs to Inbox confirmations or Orders once the external purchase is complete.",
         count: orderWatchItems.count,
-        actionTitle: "Focus watch",
+        actionTitle: "Focus order link",
         actionSymbol: "envelope.badge.fill",
         symbol: "link.badge.plus",
         color: orderWatchItems.isEmpty ? .green : .teal,
