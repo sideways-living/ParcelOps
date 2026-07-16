@@ -26628,8 +26628,31 @@ final class ParcelOpsStore {
     let completedReleaseSelfCheckTaskCount = releaseSelfCheckTasks.filter { $0.status == .completed }.count
     let hasActionableReview = connection.lastRefreshImportedCount > 0 || pendingUncertain > 0
     let filteredReviewStateClear = pendingUncertain == 0 && pendingFiltered == 0
+    let emailDomain = gmailDomain(for: connection.emailAddress)
+    let isConsumerGmail = emailDomain == "gmail.com" || emailDomain == "googlemail.com"
+    let isSampleGmail = emailDomain.hasSuffix(".example")
+    let hasCustomDomain = !emailDomain.isEmpty && !isConsumerGmail && !isSampleGmail
+    let providerFitReady = !emailDomain.isEmpty && !isSampleGmail
 
     let items = [
+      GmailReleaseSelfCheckItem(
+        title: "Provider fit",
+        detail: hasCustomDomain
+          ? "Saved mailbox uses custom domain \(emailDomain). Confirm it is hosted by Google Workspace before using Gmail API refresh."
+          : isConsumerGmail
+            ? "Saved mailbox uses consumer Gmail domain \(emailDomain)."
+            : isSampleGmail
+              ? "Saved mailbox is sample data and should be replaced before real Gmail testing."
+              : "No valid Gmail mailbox domain is saved yet.",
+        nextAction: hasCustomDomain
+          ? "Verify the mailbox is Google Workspace hosted; otherwise use SpaceMail/IMAP setup."
+          : providerFitReady
+            ? "Continue Gmail setup checks."
+            : "Replace sample or missing mailbox address with the real Gmail/Google Workspace address.",
+        isComplete: providerFitReady,
+        tone: providerFitReady ? (hasCustomDomain ? "attention" : "success") : "warning",
+        symbolName: "server.rack"
+      ),
       GmailReleaseSelfCheckItem(
         title: "Setup and callback",
         detail: readiness.isReady ? "Gmail address, labels, OAuth client ID, callback scheme, scope, consent notes, and compiled callback checks are ready." : readiness.detailText,
