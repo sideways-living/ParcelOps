@@ -1102,6 +1102,17 @@ final class ParcelOpsStore {
     let linkedOrderCount = Set(intakeEmails.compactMap(\.linkedOrderID)).count
     let inboxOrderCount = inboxCreatedOrders.count
     let openTaskCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let releaseQATaskIDs = [
+      "spacemail-release-snapshot",
+      "gmail-release-readiness",
+      "mailbox-release-readiness",
+      "mailbox-provider-release-gate"
+    ]
+    let releaseQATasks = reviewTasks.filter {
+      $0.linkedEntityType == .integration && releaseQATaskIDs.contains($0.linkedEntityID)
+    }
+    let openReleaseQATaskCount = releaseQATasks.filter { $0.status != .completed }.count
+    let completedReleaseQATaskCount = releaseQATasks.filter { $0.status == .completed }.count
 
     let providerLines = comparison.providers.map { provider in
       "\(provider.providerName): \(provider.statusTitle). \(provider.fetchedCount) fetched, \(provider.importedCount) imported, \(provider.uncertainCount) uncertain, \(provider.blockedCount) blockers. Next: \(provider.nextAction)"
@@ -1121,6 +1132,23 @@ final class ParcelOpsStore {
     }
     let releaseLines = releasePlan.steps.filter { !$0.isComplete }.prefix(6).map { step in
       "\(step.title): \(step.nextAction)"
+    }
+    let releaseQALines = releaseQATaskIDs.map { taskID in
+      let tasks = releaseQATasks.filter { $0.linkedEntityID == taskID }
+      let open = tasks.filter { $0.status != .completed }.count
+      let completed = tasks.filter { $0.status == .completed }.count
+      let label: String
+      switch taskID {
+      case "spacemail-release-snapshot":
+        label = "SpaceMail release snapshot"
+      case "gmail-release-readiness":
+        label = "Gmail release readiness"
+      case "mailbox-release-readiness":
+        label = "Combined mailbox release readiness"
+      default:
+        label = "Mailbox provider release gate"
+      }
+      return "\(label): \(tasks.count) task\(tasks.count == 1 ? "" : "s"), \(open) open, \(completed) completed."
     }
 
     let sections = [
@@ -1165,6 +1193,13 @@ final class ParcelOpsStore {
         tone: releasePlan.tone,
         symbol: "checkmark.seal.fill",
         lines: releaseLines.isEmpty ? ["Release test plan has no incomplete local steps."] : releaseLines
+      ),
+      MailboxProviderHandoffPacketSection(
+        title: "Release QA tasks",
+        detail: "\(openReleaseQATaskCount) open provider release QA task\(openReleaseQATaskCount == 1 ? "" : "s"), \(completedReleaseQATaskCount) completed.",
+        tone: openReleaseQATaskCount > 0 ? "success" : "attention",
+        symbol: "checklist.checked",
+        lines: releaseQALines
       )
     ]
 
@@ -1200,6 +1235,7 @@ final class ParcelOpsStore {
       "Linked intake orders: \(linkedOrderCount)",
       "Inbox-created orders: \(inboxOrderCount)",
       "Open task/handoff items: \(openTaskCount)",
+      "Open provider release QA tasks: \(openReleaseQATaskCount)",
       "",
       "Sections:"
     ] + sections.flatMap { section in
@@ -1223,6 +1259,7 @@ final class ParcelOpsStore {
         SpaceMailReleaseSnapshotMetric(title: "Warnings", value: "\(warningCount)", tone: warningCount == 0 ? "success" : "warning"),
         SpaceMailReleaseSnapshotMetric(title: "Inbox", value: "\(openInboxCount)", tone: openInboxCount == 0 ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Orders", value: "\(linkedOrderCount + inboxOrderCount)", tone: linkedOrderCount + inboxOrderCount > 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Release QA", value: "\(openReleaseQATaskCount)", tone: openReleaseQATaskCount > 0 ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Tasks", value: "\(openTaskCount)", tone: openTaskCount == 0 ? "success" : "attention")
       ],
       sections: sections
