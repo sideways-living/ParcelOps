@@ -1545,6 +1545,8 @@ struct GmailMailboxConnectionRow: View {
         .font(.caption)
         .foregroundStyle(.secondary)
 
+      gmailProviderFitCard
+
       gmailCompiledConfigurationCard
 
       VStack(alignment: .leading, spacing: 8) {
@@ -2615,6 +2617,79 @@ struct GmailMailboxConnectionRow: View {
 
   private var gmailCompiledConfigurationColor: Color {
     readiness.isReady ? .green : .orange
+  }
+
+  private var gmailEmailDomain: String {
+    let parts = connection.emailAddress
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .split(separator: "@", maxSplits: 1)
+    guard parts.count == 2 else { return "" }
+    return String(parts[1]).lowercased()
+  }
+
+  private var gmailProviderFitTitle: String {
+    if gmailEmailDomain.isEmpty { return "Confirm Gmail provider fit" }
+    if gmailEmailDomain == "gmail.com" || gmailEmailDomain == "googlemail.com" { return "Consumer Gmail mailbox" }
+    if gmailEmailDomain.hasSuffix(".example") { return "Sample Gmail setup record" }
+    return "Google Workspace or custom-domain mailbox"
+  }
+
+  private var gmailProviderFitDetail: String {
+    if gmailEmailDomain.isEmpty {
+      return "Add the mailbox address before choosing Gmail. If the account is hosted by SpaceMail or another IMAP provider, use the IMAP setup instead."
+    }
+    if gmailEmailDomain == "gmail.com" || gmailEmailDomain == "googlemail.com" {
+      return "This address looks like consumer Gmail. Use Gmail setup with a Google iOS OAuth client and read-only Gmail scope."
+    }
+    if gmailEmailDomain.hasSuffix(".example") {
+      return "This is sample data. Replace it with the real Google-hosted mailbox before testing sign-in or refresh."
+    }
+    return "A custom-domain address should use this Gmail path only if the domain is hosted by Google Workspace. If MX/mail hosting is SpaceMail or another IMAP provider, use the SpaceMail/IMAP path."
+  }
+
+  private var gmailProviderFitColor: Color {
+    if gmailEmailDomain.isEmpty || gmailEmailDomain.hasSuffix(".example") { return .orange }
+    if gmailEmailDomain == "gmail.com" || gmailEmailDomain == "googlemail.com" { return .green }
+    return .teal
+  }
+
+  private var gmailProviderFitBadge: String {
+    if gmailEmailDomain.isEmpty { return "Check" }
+    if gmailEmailDomain == "gmail.com" || gmailEmailDomain == "googlemail.com" { return "Gmail" }
+    if gmailEmailDomain.hasSuffix(".example") { return "Sample" }
+    return "Verify host"
+  }
+
+  private var gmailProviderFitCard: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "server.rack")
+          .foregroundStyle(gmailProviderFitColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(gmailProviderFitTitle)
+            .font(.caption.weight(.semibold))
+          Text(gmailProviderFitDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(gmailProviderFitBadge, color: gmailProviderFitColor)
+      }
+      CompactMetadataGrid(minimumWidth: 155) {
+        Badge(gmailEmailDomain.isEmpty ? "No domain" : gmailEmailDomain, color: gmailProviderFitColor)
+        Badge("Gmail API only", color: .blue)
+        Badge("Use IMAP if not Google-hosted", color: .orange)
+        Badge("Manual refresh", color: .secondary)
+      }
+      Text("This is a local provider-choice check only. ParcelOps does not look up DNS, contact Google, contact IMAP servers, store tokens, or fetch mail from this card.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(gmailProviderFitColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   private var gmailOperatorNextStepCard: some View {
