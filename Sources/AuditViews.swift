@@ -314,7 +314,7 @@ struct AuditView: View {
       return "Check the latest mailbox intake result"
     }
     if !inboxDispatchHandoffEvents.isEmpty {
-      return "Confirm Inbox dispatch handoff trail"
+      return "Confirm source dispatch handoff trail"
     }
     if !wishlistHandoffSanityItems.isEmpty {
       return "Check Wishlist handoff sanity"
@@ -342,7 +342,7 @@ struct AuditView: View {
       return "Start with mailbox intake evidence to confirm fetches, filtering, parser decisions, duplicates, and imported order signals across the active providers."
     }
     if !inboxDispatchHandoffEvents.isEmpty {
-      return "Check reopened and completed dispatch handoff events together so Inbox-created order follow-up does not get lost across Orders, Dispatch, and Tasks."
+      return "Check reopened and completed dispatch handoff events together so source-created order follow-up does not get lost across Orders, Dispatch, and Tasks."
     }
     if !wishlistHandoffSanityItems.isEmpty {
       return "Wishlist purchase handoffs still have missing seller, account, order-watch, cost, procurement, receiving, or order-link context. Use Audit to confirm the visible trail before closing purchase follow-up."
@@ -396,7 +396,7 @@ struct AuditView: View {
       ),
       (
         "Dispatch handoff trail",
-        "Dispatch actions show whether Inbox-created orders gained manifest/readiness context.",
+        "Dispatch actions show whether source-created orders gained manifest/readiness context.",
         inboxDispatchHandoffEvents.count,
         "paperplane.fill",
         inboxDispatchHandoffEvents.isEmpty ? .secondary : .purple
@@ -771,19 +771,19 @@ struct AuditView: View {
   private var inboxSourceTrailAuditPanel: some View {
     SettingsPanel(title: "Order source trail audit", symbol: "link.badge.plus") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Current Inbox-created orders and Wishlist purchase handoffs should remain traceable back to forwarded intake, Import Queue, Acceptance Review, or Wishlist context. Use this check before relying on handoff history alone.")
+        Text("Current source-created orders and Wishlist purchase handoffs should remain traceable back to forwarded intake, Import Queue, Acceptance Review, or Wishlist context. Use this check before relying on handoff history alone.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
         MetricStrip(items: [
-          ("Inbox orders", "\(store.inboxCreatedOrderCount)", store.inboxCreatedOrderCount == 0 ? .secondary : .teal),
+          ("Source orders", "\(store.inboxCreatedOrderCount)", store.inboxCreatedOrderCount == 0 ? .secondary : .teal),
           ("With source", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersWithSourceTrail.isEmpty ? .secondary : .green),
           ("Missing source", "\(inboxCreatedOrdersMissingSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange)
         ])
 
         if inboxCreatedOrdersMissingSourceTrail.isEmpty {
-          Label(store.inboxCreatedOrderCount == 0 ? "No Inbox-created orders exist yet." : "All current Inbox-created orders have local source context.", systemImage: "checkmark.seal.fill")
+          Label(store.inboxCreatedOrderCount == 0 ? "No source-created orders exist yet." : "All current source-created orders have local source context.", systemImage: "checkmark.seal.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.green)
         } else {
@@ -1034,9 +1034,9 @@ struct AuditView: View {
   @ViewBuilder
   private var inboxDispatchHandoffTrailPanel: some View {
     if !inboxDispatchHandoffEvents.isEmpty {
-      SettingsPanel(title: "Inbox dispatch handoff trail", symbol: "arrow.triangle.2.circlepath.circle.fill") {
+      SettingsPanel(title: "Source dispatch handoff trail", symbol: "arrow.triangle.2.circlepath.circle.fill") {
         VStack(alignment: .leading, spacing: 12) {
-          Text("Recent local events that connect Inbox-created orders to Dispatch and Tasks. Use this trail when a handoff is reopened, completed, or resolved locally.")
+          Text("Recent local events that connect source-created orders to Dispatch and Tasks. Use this trail when a handoff is reopened, completed, or resolved locally.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -1207,7 +1207,7 @@ struct AuditView: View {
             store.createReviewTask(from: event)
           })
 
-          AuditFeedSection(title: "Inbox dispatch handoff trail", detail: "Reopened, completed, blocked, and resolved dispatch follow-up for Inbox-created orders.", events: visibleInboxDispatchHandoffEvents, onCreateTask: { event in
+          AuditFeedSection(title: "Source dispatch handoff trail", detail: "Reopened, completed, blocked, and resolved dispatch follow-up for source-created orders.", events: visibleInboxDispatchHandoffEvents, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
 
@@ -1800,7 +1800,7 @@ private extension AuditEvent {
       return "Open the linked order or Dispatch queue, confirm manifest/readiness setup, then complete or block the handoff locally."
     }
     if summary.localizedCaseInsensitiveContains("blocked") {
-      return "Resolve the blocked manifest or readiness checklist before treating the Inbox-created order as dispatch-ready."
+      return "Resolve the blocked manifest or readiness checklist before treating the source-created order as dispatch-ready."
     }
     if summary.localizedCaseInsensitiveContains("skipped") {
       return "No linked dispatch setup was found. Open the order to create or link the local manifest and readiness checklist."
@@ -1811,7 +1811,7 @@ private extension AuditEvent {
     if isCompletedInboxDispatchHandoffTrail {
       return "The local dispatch handoff is complete. Audit confirms no mailbox, carrier, label, scanner, or external service action occurred."
     }
-    return "Use this event to trace how an Inbox-created order moved through local dispatch follow-up."
+    return "Use this event to trace how a source-created order moved through local dispatch follow-up."
   }
 
   var inboxDispatchHandoffTrailSymbol: String {
