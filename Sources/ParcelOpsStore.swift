@@ -21,6 +21,7 @@ final class ParcelOpsStore {
   var microsoft365AuthSessionStates: [UUID: Microsoft365AuthSessionState] = [:]
   var gmailAuthSessionStates: [UUID: GmailAuthSessionState] = [:]
   private var activeMicrosoft365AuthAttempts: [UUID: UUID] = [:]
+  private var activeGmailAuthAttempts: [UUID: UUID] = [:]
   var shopifyConnections: [ShopifyConnection]
   var watchedFolders: [WatchedFolder]
   var wishlistItems: [WishlistItem]
@@ -19160,6 +19161,8 @@ final class ParcelOpsStore {
   }
 
   func testRealGmailSignIn(_ connection: GmailMailboxConnection) {
+    let attemptID = UUID()
+    activeGmailAuthAttempts[connection.id] = attemptID
     let previousState = gmailAuthSessionState(for: connection)
     let timestamp = Self.auditTimestamp()
     let startedState = GmailAuthSessionState(
@@ -19170,7 +19173,7 @@ final class ParcelOpsStore {
       lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
       tokenStoreStatus: previousState.tokenStoreStatus,
       tokenStoreDetail: previousState.tokenStoreDetail,
-      detailText: "Real Gmail sign-in test started. A browser sign-in may open, but ParcelOps will not store token values in JSON and will not fetch Gmail messages."
+      detailText: "Real Gmail sign-in test started. A browser sign-in may open, but ParcelOps will not store token values in JSON and will not fetch Gmail messages. Attempt ID: \(attemptID.uuidString)."
     )
     gmailAuthSessionStates[connection.id] = startedState
     logAudit(
@@ -19185,12 +19188,20 @@ final class ParcelOpsStore {
     Task {
       let result = await realGmailAuthClient.connect(connection: connection)
       await MainActor.run {
-        applyRealGmailAuthResult(result, to: connection)
+        applyRealGmailAuthResult(result, to: connection, attemptID: attemptID)
+      }
+    }
+
+    Task {
+      try? await Task.sleep(for: .seconds(120))
+      await MainActor.run {
+        completeTimedOutGmailAuthAttempt(connectionID: connection.id, attemptID: attemptID)
       }
     }
   }
 
-  private func applyRealGmailAuthResult(_ result: GmailAuthResult, to connection: GmailMailboxConnection) {
+  private func applyRealGmailAuthResult(_ result: GmailAuthResult, to connection: GmailMailboxConnection, attemptID: UUID? = nil) {
+    activeGmailAuthAttempts[connection.id] = nil
     let timestamp = Self.auditTimestamp()
     let previousState = gmailAuthSessionState(for: connection)
     let tokenStatus = connection.credentialStorageStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -19206,7 +19217,7 @@ final class ParcelOpsStore {
       tokenStoreDetail: result.status == .connected
         ? "GoogleSignIn completed sign-in and may manage its own token cache. ParcelOps did not write token values to JSON, custom Keychain storage, or audit logs."
         : "Real Gmail sign-in did not produce a connected session in ParcelOps. No Google token values were stored in JSON, custom Keychain storage, or audit logs.",
-      detailText: result.detailText
+      detailText: attemptID.map { "\(result.detailText) Attempt ID: \($0.uuidString)." } ?? result.detailText
     )
     gmailAuthSessionStates[connection.id] = state
     updateGmailMailboxConnection(connection) { draft in
@@ -19220,6 +19231,42 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: result.status == .connected ? "Real Gmail sign-in succeeded." : "Real Gmail sign-in did not connect.",
+      afterDetail: gmailAuthSessionAuditDetail(state)
+    )
+  }
+
+  private func completeTimedOutGmailAuthAttempt(connectionID: UUID, attemptID: UUID) {
+    guard activeGmailAuthAttempts[connectionID] == attemptID,
+          let connection = gmailMailboxConnections.first(where: { $0.id == connectionID }) else { return }
+
+    let previousState = gmailAuthSessionState(for: connection)
+    guard previousState.status == .connecting else {
+      activeGmailAuthAttempts[connectionID] = nil
+      return
+    }
+
+    activeGmailAuthAttempts[connectionID] = nil
+    let state = GmailAuthSessionState(
+      connectionID: connectionID,
+      status: .notConnected,
+      signedInAccount: previousState.signedInAccount,
+      lastAuthAttemptDate: previousState.lastAuthAttemptDate,
+      lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
+      tokenStoreStatus: previousState.tokenStoreStatus,
+      tokenStoreDetail: previousState.tokenStoreDetail,
+      detailText: "Timeout: ParcelOps did not receive a final GoogleSignIn completion after the browser sign-in window returned or stalled. Try Test real Google sign-in again from an active ParcelOps window. If this repeats, check the compiled Google callback URL scheme, Google Cloud OAuth client type, consent screen, Xcode signing, and GoogleSignIn callback routing. No Google access token, refresh token, ID token, auth code, client secret, password, raw callback URL, or Gmail message was stored in ParcelOps JSON or audit logs. No Gmail API mailbox call was made. Attempt ID: \(attemptID.uuidString)."
+    )
+    gmailAuthSessionStates[connectionID] = state
+    updateGmailMailboxConnection(connection) { draft in
+      draft.connectionStatus = "Real Gmail sign-in timed out"
+      draft.oauthReadinessStatus = "Real Gmail sign-in timed out"
+    }
+    logAudit(
+      action: .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connectionID.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Real Gmail sign-in timed out before completion.",
       afterDetail: gmailAuthSessionAuditDetail(state)
     )
   }
@@ -21080,13 +21127,19 @@ final class ParcelOpsStore {
     guard isGmailCallback else { return }
     let status = GoogleGmailAuthAdapter().callbackReadinessStatus(for: url)
     let connection = gmailMailboxConnections.first
+    let activeConnections = activeGmailAuthAttempts.keys.compactMap { id in
+      gmailMailboxConnections.first { $0.id == id }?.displayName
+    }
+    let activeDetail = activeConnections.isEmpty
+      ? "No active Gmail sign-in attempt was waiting in ParcelOps when this callback was handled."
+      : "Active Gmail sign-in attempts waiting for GoogleSignIn completion: \(activeConnections.joined(separator: ", "))."
     logAudit(
       action: .evaluated,
       entityType: .gmailMailboxConnection,
       entityID: connection?.id.uuidString ?? "gmail-auth-callback",
       entityLabel: connection?.displayName ?? "Gmail auth callback",
       summary: "Gmail auth callback readiness evaluated.",
-      afterDetail: "\(status)\nGmail callback handling accepts the placeholder scheme and real reversed Google OAuth client ID schemes registered in the compiled app. No Google access token, refresh token, auth code, client secret, password, raw callback URL, or Gmail message was stored in ParcelOps JSON or audit logs. No Gmail API mailbox call was made."
+      afterDetail: "\(status)\n\(activeDetail)\nGmail callback handling accepts the placeholder scheme and real reversed Google OAuth client ID schemes registered in the compiled app. No Google access token, refresh token, auth code, client secret, password, raw callback URL, or Gmail message was stored in ParcelOps JSON or audit logs. No Gmail API mailbox call was made."
     )
   }
 
