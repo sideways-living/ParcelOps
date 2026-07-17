@@ -464,6 +464,9 @@ struct GmailClassifierTestResult: Identifiable, Hashable, Codable {
   var detectedTrackingNumber: String
   var expectedDecision: String
   var decisionStatus: String
+  var expectedOrderNumber: String?
+  var expectedTrackingNumber: String?
+  var parserStatus: String?
 }
 
 struct SpaceMailClassifierReasonCount: Identifiable, Hashable, Codable {

@@ -2162,11 +2162,22 @@ struct GmailMailboxConnectionRow: View {
                 Text(result.decisionStatus)
                   .font(.caption2.weight(.semibold))
                   .foregroundStyle(result.decisionStatus.localizedCaseInsensitiveContains("needs review") ? .orange : .green)
+                if let parserStatus = result.parserStatus {
+                  Text(parserStatus)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(parserStatus.localizedCaseInsensitiveContains("needs review") ? .orange : .green)
+                }
                 CompactMetadataGrid(minimumWidth: 120) {
                   Badge(result.detectedOrderNumber, color: result.detectedOrderNumber.isPlaceholderValidationValue ? .secondary : .blue)
                   Badge(result.detectedTrackingNumber, color: result.detectedTrackingNumber.isPlaceholderValidationValue ? .secondary : .purple)
                   if result.expectedDecision != "No expected decision" {
                     Badge("Expected \(result.expectedDecision)", color: gmailClassifierDecisionColor(result.expectedDecision))
+                  }
+                  if let expectedOrder = result.expectedOrderNumber {
+                    Badge("Order \(expectedOrder)", color: result.detectedOrderNumber.normalizedValidationKey == expectedOrder.normalizedValidationKey ? .green : .orange)
+                  }
+                  if let expectedTracking = result.expectedTrackingNumber {
+                    Badge("Tracking \(expectedTracking)", color: result.detectedTrackingNumber.normalizedValidationKey == expectedTracking.normalizedValidationKey ? .green : .orange)
                   }
                 }
               }

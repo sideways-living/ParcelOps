@@ -18541,10 +18541,12 @@ final class ParcelOpsStore {
 
   func runGmailClassifierTestSuite(for connection: GmailMailboxConnection) {
     let mailboxID = trackedMailbox(for: connection).id
-    let samples: [(String, String, FetchedMailboxMessage)] = [
+    let samples: [(name: String, expectedDecision: String, expectedOrder: String?, expectedTracking: String?, message: FetchedMailboxMessage)] = [
       (
         "Clear shipped order",
         "Imported",
+        "TEST-123",
+        "ABC123",
         FetchedMailboxMessage(
           providerMessageID: "gmail-suite-order-\(connection.id.uuidString)",
           sender: "orders@example-shop.test",
@@ -18557,6 +18559,8 @@ final class ParcelOpsStore {
       (
         "Ambiguous delivery question",
         "Uncertain",
+        nil,
+        nil,
         FetchedMailboxMessage(
           providerMessageID: "gmail-suite-question-\(connection.id.uuidString)",
           sender: "customer@example.com",
@@ -18569,6 +18573,8 @@ final class ParcelOpsStore {
       (
         "Marketing offer",
         "Filtered",
+        nil,
+        nil,
         FetchedMailboxMessage(
           providerMessageID: "gmail-suite-marketing-\(connection.id.uuidString)",
           sender: "offers@example-shop.test",
@@ -18581,6 +18587,8 @@ final class ParcelOpsStore {
       (
         "Security notification",
         "Filtered",
+        nil,
+        nil,
         FetchedMailboxMessage(
           providerMessageID: "gmail-suite-security-\(connection.id.uuidString)",
           sender: "security@example.com",
@@ -18591,9 +18599,21 @@ final class ParcelOpsStore {
         )
       )
     ]
-    let results = samples.map { gmailClassifierTestResult(name: $0.0, message: $0.2, connection: connection, expectedDecision: $0.1) }
+    let results = samples.map {
+      gmailClassifierTestResult(
+        name: $0.name,
+        message: $0.message,
+        connection: connection,
+        expectedDecision: $0.expectedDecision,
+        expectedOrderNumber: $0.expectedOrder,
+        expectedTrackingNumber: $0.expectedTracking
+      )
+    }
     let passed = results.filter { $0.decisionStatus.localizedCaseInsensitiveContains("passed") }.count
-    let summary = "Gmail classifier suite: \(passed)/\(results.count) local expectations passed. No Gmail API call, OAuth flow, token request, mailbox fetch, or Inbox import occurred."
+    let parserChecks = results.filter { $0.parserStatus != nil }
+    let parserPassed = parserChecks.filter { $0.parserStatus?.localizedCaseInsensitiveContains("passed") == true }.count
+    let parserSummary = parserChecks.isEmpty ? "No parser expectations were configured." : "Parser expectations: \(parserPassed)/\(parserChecks.count) passed."
+    let summary = "Gmail classifier suite: \(passed)/\(results.count) local decision expectations passed. \(parserSummary) No Gmail API call, OAuth flow, token request, mailbox fetch, or Inbox import occurred."
     updateGmailMailboxConnection(connection) { draft in
       draft.classifierTestSummary = summary
       draft.classifierTestResults = results
@@ -18604,7 +18624,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Gmail classifier test suite ran locally.",
-      afterDetail: "\(summary)\n\(results.map { "\($0.sampleName): \($0.decision), \($0.reason), \($0.decisionStatus), order \($0.detectedOrderNumber), tracking \($0.detectedTrackingNumber)" }.joined(separator: "\n"))\nNo Gmail API call, OAuth token, mailbox mutation, external service call, or full message body logging occurred."
+      afterDetail: "\(summary)\n\(results.map { "\($0.sampleName): \($0.decision), \($0.reason), \($0.decisionStatus), \(($0.parserStatus ?? "No parser expectation")), order \($0.detectedOrderNumber), tracking \($0.detectedTrackingNumber)" }.joined(separator: "\n"))\nNo Gmail API call, OAuth token, mailbox mutation, external service call, or full message body logging occurred."
     )
   }
 
@@ -18644,8 +18664,21 @@ final class ParcelOpsStore {
     )
   }
 
-  private func gmailClassifierTestResult(name: String, message: FetchedMailboxMessage, connection: GmailMailboxConnection, expectedDecision: String) -> GmailClassifierTestResult {
+  private func gmailClassifierTestResult(
+    name: String,
+    message: FetchedMailboxMessage,
+    connection: GmailMailboxConnection,
+    expectedDecision: String,
+    expectedOrderNumber: String? = nil,
+    expectedTrackingNumber: String? = nil
+  ) -> GmailClassifierTestResult {
     let relevance = classifyGmailMessageRelevance(message, for: connection)
+    let parserStatus = gmailParserStatus(
+      detectedOrder: relevance.orderNumber,
+      detectedTracking: relevance.trackingNumber,
+      expectedOrder: expectedOrderNumber,
+      expectedTracking: expectedTrackingNumber
+    )
     return GmailClassifierTestResult(
       sampleName: name,
       decision: relevance.decision,
@@ -18659,8 +18692,32 @@ final class ParcelOpsStore {
         ? "No classifier expectation"
         : relevance.decision.normalizedValidationKey == expectedDecision.normalizedValidationKey
           ? "Classifier passed: expected \(expectedDecision)"
-          : "Classifier needs review: expected \(expectedDecision), got \(relevance.decision)"
+          : "Classifier needs review: expected \(expectedDecision), got \(relevance.decision)",
+      expectedOrderNumber: expectedOrderNumber,
+      expectedTrackingNumber: expectedTrackingNumber,
+      parserStatus: parserStatus
     )
+  }
+
+  private func gmailParserStatus(
+    detectedOrder: String,
+    detectedTracking: String,
+    expectedOrder: String?,
+    expectedTracking: String?
+  ) -> String? {
+    let expectedPairs = [
+      ("order", expectedOrder, detectedOrder),
+      ("tracking", expectedTracking, detectedTracking)
+    ].compactMap { label, expected, detected -> String? in
+      guard let expected, !expected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+      let passed = detected.normalizedValidationKey == expected.normalizedValidationKey
+      return passed ? "\(label) passed" : "\(label) expected \(expected), got \(detected)"
+    }
+    guard !expectedPairs.isEmpty else { return nil }
+    let failed = expectedPairs.filter { !$0.localizedCaseInsensitiveContains("passed") }
+    return failed.isEmpty
+      ? "Parser passed: \(expectedPairs.joined(separator: ", "))"
+      : "Parser needs review: \(failed.joined(separator: "; "))"
   }
 
   func markGmailOAuthImplementationPlanReviewed(_ connection: GmailMailboxConnection) {
