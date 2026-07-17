@@ -18384,7 +18384,7 @@ final class ParcelOpsStore {
   }
 
   func createReviewTaskFromGmailClassifierTuning(_ connection: GmailMailboxConnection) {
-    let uncertainCount = connection.uncertainMessages?.count ?? connection.lastRefreshUncertainCount ?? 0
+    let uncertainCount = max(connection.uncertainMessages?.count ?? 0, connection.lastRefreshUncertainCount ?? 0)
     let filteredCount = connection.filteredMessages?.count ?? 0
     let hintCount = (connection.trustedSenderHints ?? []).count
       + (connection.importKeywordHints ?? []).count
@@ -18854,8 +18854,8 @@ final class ParcelOpsStore {
   func createReviewTaskFromGmailLatestRefresh(_ connection: GmailMailboxConnection) {
     let taskID = "gmail-latest-refresh-\(connection.id.uuidString)"
     let latestHistory = connection.refreshHistory?.first
-    let uncertainCount = connection.uncertainMessages?.count ?? connection.lastRefreshUncertainCount ?? 0
-    let filteredCount = connection.filteredMessages?.count ?? connection.lastRefreshFilteredNonOrderCount
+    let uncertainCount = max(connection.uncertainMessages?.count ?? 0, connection.lastRefreshUncertainCount ?? 0)
+    let filteredCount = max(connection.filteredMessages?.count ?? 0, connection.lastRefreshFilteredNonOrderCount)
     let hasFailure = connection.connectionStatus.localizedCaseInsensitiveContains("auth")
       || connection.connectionStatus.localizedCaseInsensitiveContains("failed")
       || connection.connectionStatus.localizedCaseInsensitiveContains("rejected")
