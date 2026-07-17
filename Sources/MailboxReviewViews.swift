@@ -79,8 +79,6 @@ struct MailboxView: View {
   }
 
   private var mailboxProviderDecision: (title: String, detail: String, color: Color) {
-    let hasSpaceMailSetup = !store.spaceMailIMAPConnections.isEmpty
-    let hasGmailSetup = !store.gmailMailboxConnections.isEmpty
     let hasSpaceMailRefresh = latestSpaceMailSummary.map {
       $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0
     } ?? false
