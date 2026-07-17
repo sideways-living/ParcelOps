@@ -222,6 +222,35 @@ struct TasksView: View {
     return readiness.detailText
   }
 
+  private var gmailTaskRoutingItems: [(title: String, detail: String, symbol: String, color: Color)] {
+    [
+      (
+        "Setup and refresh",
+        "Use Mailbox Monitor for Google app values, sign-in, labels, manual refresh, classifier diagnostics, and safe audit evidence.",
+        "server.rack",
+        gmailWarningCount > 0 || gmailReadySetupCount < gmailSetupCount ? .orange : .teal
+      ),
+      (
+        "Imported Gmail mail",
+        "Use Inbox to confirm detected order and tracking fields before creating or linking local orders.",
+        "tray.full.fill",
+        gmailImportedCount > 0 ? .green : .secondary
+      ),
+      (
+        "Uncertain or filtered",
+        "Use Mailbox Monitor to import, dismiss, or task ambiguous previews. They stay out of Inbox until a person chooses.",
+        "questionmark.folder.fill",
+        pendingUncertainGmailCount > 0 ? .orange : pendingFilteredGmailCount > 0 ? .teal : .secondary
+      ),
+      (
+        "Assigned ownership",
+        "Create Tasks only when Gmail setup, classifier tuning, Inbox handoff, or release evidence needs a named owner.",
+        "checklist",
+        queueItems.contains { $0.isGmailFollowUp } ? .purple : .secondary
+      )
+    ]
+  }
+
   private var pendingMailboxReviewCount: Int {
     store.pendingMailboxReviewCount
   }
@@ -1234,6 +1263,23 @@ struct TasksView: View {
 
         if let blocker = store.gmailReleaseBlockerSummary.blockers.first(where: { $0.tone == "warning" || $0.tone == "attention" }) {
           MailboxTopReleaseBlockerCallout(blocker: blocker)
+        }
+
+        CompactMetadataGrid(minimumWidth: horizontalSizeClass == .compact ? 170 : 220) {
+          ForEach(Array(gmailTaskRoutingItems.enumerated()), id: \.offset) { _, item in
+            VStack(alignment: .leading, spacing: 6) {
+              Label(item.title, systemImage: item.symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(item.color)
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
         }
 
         if gmailSetupCount > 0 && (gmailReadySetupCount < gmailSetupCount || gmailConnectedAuthCount == 0 || gmailManualRefreshCount == 0) {
