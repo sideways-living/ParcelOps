@@ -1655,6 +1655,8 @@ struct GmailMailboxConnectionRow: View {
 
       gmailOperatorNextStepCard
 
+      gmailReviewQueueCard
+
       VStack(alignment: .leading, spacing: 8) {
         HStack(alignment: .top, spacing: 10) {
           Image(systemName: labelReadiness.tone == "success" ? "tag.fill" : "tag.slash.fill")
@@ -3358,6 +3360,119 @@ struct GmailMailboxConnectionRow: View {
     }
     if connection.lastRefreshImportedCount > 0 { return .green }
     if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    return .secondary
+  }
+
+  private var gmailReviewQueueCard: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: gmailReviewQueueSymbol)
+          .foregroundStyle(gmailReviewQueueColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(gmailReviewQueueTitle)
+            .font(.subheadline.weight(.semibold))
+          Text(gmailReviewQueueDetail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(gmailReviewQueueBadge, color: gmailReviewQueueColor)
+      }
+
+      MetricStrip(items: [
+        ("Inbox", "\(connection.lastRefreshImportedCount)", connection.lastRefreshImportedCount > 0 ? .green : .secondary),
+        ("Uncertain", "\(gmailPendingUncertainCount)", gmailPendingUncertainCount > 0 ? .orange : .secondary),
+        ("Filtered", "\(gmailPendingFilteredCount)", gmailPendingFilteredCount > 0 ? .teal : .secondary),
+        ("Last filtered", "\(connection.lastRefreshFilteredNonOrderCount)", connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary),
+        ("Duplicates", "\(connection.lastRefreshDuplicateCount)", connection.lastRefreshDuplicateCount > 0 ? .orange : .secondary)
+      ])
+
+      CompactActionRow {
+        if gmailPendingUncertainCount > 0 {
+          Button("Task all uncertain", systemImage: "checklist", action: onCreateTasksForAllUncertain)
+          Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
+        }
+        if gmailPendingFilteredCount > 0 {
+          Button("Dismiss all filtered", systemImage: "line.3.horizontal.decrease.circle", role: .destructive, action: onDismissAllFiltered)
+        }
+        Button("Add demo uncertain", systemImage: "questionmark.folder", action: onAddDemoUncertain)
+        Button("Run classifier suite", systemImage: "checklist", action: onRunClassifierSuite)
+      }
+      .buttonStyle(.bordered)
+
+      Text("Imported Gmail order mail appears in Inbox. Uncertain and filtered previews stay out of Inbox until an operator imports, dismisses, or tunes them locally.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(gmailReviewQueueColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailPendingUncertainCount: Int {
+    connection.uncertainMessages?.count ?? 0
+  }
+
+  private var gmailPendingFilteredCount: Int {
+    connection.filteredMessages?.count ?? 0
+  }
+
+  private var gmailReviewQueueTitle: String {
+    if connection.lastRefreshImportedCount > 0 { return "Gmail imported mail is ready in Inbox" }
+    if gmailPendingUncertainCount > 0 { return "Gmail uncertain queue needs review" }
+    if gmailPendingFilteredCount > 0 { return "Gmail filtered examples are available" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "Gmail filtered non-order mail" }
+    if connection.lastRefreshDuplicateCount > 0 { return "Gmail refresh found duplicates" }
+    if connection.lastManualRefreshDate == "Never" { return "Gmail review queue not started" }
+    return "Gmail review queue is clear"
+  }
+
+  private var gmailReviewQueueDetail: String {
+    if connection.lastRefreshImportedCount > 0 {
+      return "Open Inbox to confirm merchant, order, tracking, and destination before creating or linking orders."
+    }
+    if gmailPendingUncertainCount > 0 {
+      return "\(gmailPendingUncertainCount) Gmail preview\(gmailPendingUncertainCount == 1 ? "" : "s") look order-ish but need a person to import or dismiss them."
+    }
+    if gmailPendingFilteredCount > 0 {
+      return "\(gmailPendingFilteredCount) filtered preview\(gmailPendingFilteredCount == 1 ? "" : "s") can be spot-checked when expected order mail is missing."
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      return "\(connection.lastRefreshFilteredNonOrderCount) message\(connection.lastRefreshFilteredNonOrderCount == 1 ? "" : "s") were filtered from the mixed mailbox and not added to Inbox."
+    }
+    if connection.lastRefreshDuplicateCount > 0 {
+      return "\(connection.lastRefreshDuplicateCount) duplicate Gmail message\(connection.lastRefreshDuplicateCount == 1 ? "" : "s") were already captured, so no duplicate Inbox rows were created."
+    }
+    if connection.lastManualRefreshDate == "Never" {
+      return "Run mock refresh for local testing or real Gmail refresh after setup and sign-in are ready."
+    }
+    return "No Gmail review previews are waiting. Run another manual refresh when you want to check the mailbox again."
+  }
+
+  private var gmailReviewQueueBadge: String {
+    if connection.lastRefreshImportedCount > 0 { return "\(connection.lastRefreshImportedCount) Inbox" }
+    if gmailPendingUncertainCount > 0 { return "\(gmailPendingUncertainCount) uncertain" }
+    if gmailPendingFilteredCount > 0 { return "\(gmailPendingFilteredCount) filtered" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "\(connection.lastRefreshFilteredNonOrderCount) filtered" }
+    if connection.lastRefreshDuplicateCount > 0 { return "\(connection.lastRefreshDuplicateCount) duplicate" }
+    return "Clear"
+  }
+
+  private var gmailReviewQueueSymbol: String {
+    if connection.lastRefreshImportedCount > 0 { return "tray.and.arrow.down.fill" }
+    if gmailPendingUncertainCount > 0 { return "questionmark.folder.fill" }
+    if gmailPendingFilteredCount > 0 || connection.lastRefreshFilteredNonOrderCount > 0 { return "line.3.horizontal.decrease.circle.fill" }
+    if connection.lastRefreshDuplicateCount > 0 { return "doc.on.doc.fill" }
+    return "checkmark.seal.fill"
+  }
+
+  private var gmailReviewQueueColor: Color {
+    if connection.lastRefreshImportedCount > 0 { return .green }
+    if gmailPendingUncertainCount > 0 { return .orange }
+    if gmailPendingFilteredCount > 0 || connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    if connection.lastRefreshDuplicateCount > 0 { return .orange }
     return .secondary
   }
 
