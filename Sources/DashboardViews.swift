@@ -341,6 +341,59 @@ struct DashboardView: View {
     let filteredDetail = pendingGmailFilteredReviewCount > 0 ? " \(pendingGmailFilteredReviewCount) filtered preview\(pendingGmailFilteredReviewCount == 1 ? "" : "s") can be reviewed in Mailbox Monitor if an expected order email is missing." : ""
     return "\(summary.namedRefreshCountsText)\(filteredDetail)"
   }
+  private var latestGmailOutcomeTitle: String {
+    guard let summary = latestGmailSummary else {
+      return store.gmailMailboxConnections.isEmpty ? "Gmail is optional" : "Gmail needs a first readiness pass"
+    }
+    if summary.importedCount > 0 { return "Gmail created Inbox work" }
+    if pendingGmailUncertainReviewCount > 0 { return "Gmail has uncertain previews" }
+    if summary.filteredCount > 0 || pendingGmailFilteredReviewCount > 0 { return "Gmail filtered non-order mail" }
+    if summary.duplicateCount > 0 { return "Gmail found duplicates only" }
+    if summary.fetchedCount == 0 { return "Gmail fetched no messages" }
+    return "Gmail refresh completed"
+  }
+  private var latestGmailOutcomeDetail: String {
+    guard let summary = latestGmailSummary else {
+      if store.gmailMailboxConnections.isEmpty {
+        return "Use Gmail only for Google-hosted mailboxes. SpaceMail/IMAP can remain the active provider path."
+      }
+      return "Run Check readiness, Test real Google sign-in, or Mock Gmail refresh from Mailbox Monitor to create a visible result."
+    }
+    if summary.importedCount > 0 {
+      return "\(summary.importedCount) Gmail message\(summary.importedCount == 1 ? "" : "s") entered Inbox intake. Keep order creation in the normal Inbox workflow."
+    }
+    if pendingGmailUncertainReviewCount > 0 {
+      return "\(pendingGmailUncertainReviewCount) uncertain Gmail preview\(pendingGmailUncertainReviewCount == 1 ? "" : "s") stayed out of Inbox until an operator imports or dismisses them."
+    }
+    if summary.filteredCount > 0 || pendingGmailFilteredReviewCount > 0 {
+      let filtered = max(summary.filteredCount, pendingGmailFilteredReviewCount)
+      return "\(filtered) non-order Gmail preview\(filtered == 1 ? "" : "s") stayed out of Inbox. Review filtered examples only if an expected order is missing."
+    }
+    if summary.duplicateCount > 0 {
+      return "No duplicate Inbox rows were created. Existing intake rows can still be refreshed from duplicate-safe provider metadata."
+    }
+    return "No Gmail Inbox action is waiting from the latest refresh result."
+  }
+  private var latestGmailOutcomeNextAction: String {
+    guard let summary = latestGmailSummary else {
+      return store.gmailMailboxConnections.isEmpty ? "Next: leave Gmail unconfigured unless a Google mailbox is needed." : "Next: open Mailbox Monitor and run the Gmail setup checks."
+    }
+    if summary.importedCount > 0 { return "Next: open Inbox and process the Gmail-created triage rows." }
+    if pendingGmailUncertainReviewCount > 0 { return "Next: open Mailbox Monitor and review uncertain Gmail previews." }
+    if summary.filteredCount > 0 || pendingGmailFilteredReviewCount > 0 { return "Next: no action unless a filtered message should become intake." }
+    if summary.duplicateCount > 0 { return "Next: no duplicate cleanup required." }
+    return "Next: refresh manually only when new Gmail mail is expected."
+  }
+  private var latestGmailOutcomeSymbol: String {
+    guard let summary = latestGmailSummary else {
+      return store.gmailMailboxConnections.isEmpty ? "envelope.badge" : "checklist"
+    }
+    if summary.importedCount > 0 { return "tray.and.arrow.down.fill" }
+    if pendingGmailUncertainReviewCount > 0 { return "questionmark.folder.fill" }
+    if summary.filteredCount > 0 || pendingGmailFilteredReviewCount > 0 { return "line.3.horizontal.decrease.circle" }
+    if summary.duplicateCount > 0 { return "arrow.triangle.2.circlepath" }
+    return "checkmark.circle"
+  }
   private var dashboardGmailPrimaryLabel: String {
     guard let connection = latestGmailConnection else { return "None" }
     return connection.monitoredLabelNames
@@ -1728,6 +1781,27 @@ struct DashboardView: View {
             ("Gmail filtered", "\(latestGmailSummary?.filteredCount ?? 0)", (latestGmailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
             ("Gmail uncertain", "\(pendingGmailUncertainReviewCount)", pendingGmailUncertainReviewCount > 0 ? .orange : .secondary)
           ])
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: latestGmailOutcomeSymbol)
+              .foregroundStyle(latestGmailTone)
+              .frame(width: 20)
+            VStack(alignment: .leading, spacing: 4) {
+              Text(latestGmailOutcomeTitle)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(latestGmailTone)
+              Text(latestGmailOutcomeDetail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Text(latestGmailOutcomeNextAction)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(latestGmailTone)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+          }
+          .padding(8)
+          .background(latestGmailTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           if let blocker = store.gmailReleaseBlockerSummary.blockers.first(where: { $0.tone == "warning" || $0.tone == "attention" }) {
             MailboxTopReleaseBlockerCallout(blocker: blocker)
           }
