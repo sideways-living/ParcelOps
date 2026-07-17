@@ -18300,6 +18300,138 @@ final class ParcelOpsStore {
     )
   }
 
+  func dismissAllUncertainGmailMessages(for connection: GmailMailboxConnection) {
+    guard let current = gmailMailboxConnections.first(where: { $0.id == connection.id }) else { return }
+    let pending = current.uncertainMessages ?? []
+    guard !pending.isEmpty else { return }
+    let dismissedCount = pending.count
+    let exampleSubjects = pending.prefix(3).map { safeAuditPreview($0.subject, limit: 80) }
+    updateGmailMailboxConnection(connection) { draft in
+      draft.uncertainMessages = []
+      draft.lastRefreshUncertainCount = 0
+      draft.lastRefreshUncertainExamples = []
+      draft.lastRefreshSummary = "All uncertain Gmail previews dismissed locally. Filtered previews remain available for spot review."
+      appendGmailRefreshHistory(
+        GmailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Uncertain dismiss all",
+          status: "Dismissed locally",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: draft.filteredMessages?.count ?? 0,
+          uncertainCount: 0,
+          summary: "Dismissed \(dismissedCount) uncertain Gmail preview\(dismissedCount == 1 ? "" : "s") from local review."
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .ignored,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "All uncertain Gmail previews dismissed locally.",
+      afterDetail: "Dismissed: \(dismissedCount)\nExamples: \(exampleSubjects.joined(separator: "; "))\nOnly the local uncertain review queue was cleared. No intake email was deleted, duplicate metadata was changed, Gmail was called, token data was read, or mailbox item was modified."
+    )
+  }
+
+  func dismissAllFilteredGmailMessages(for connection: GmailMailboxConnection) {
+    guard let current = gmailMailboxConnections.first(where: { $0.id == connection.id }) else { return }
+    let pending = current.filteredMessages ?? []
+    guard !pending.isEmpty else { return }
+    let dismissedCount = pending.count
+    let exampleSubjects = pending.prefix(3).map { safeAuditPreview($0.subject, limit: 80) }
+    updateGmailMailboxConnection(connection) { draft in
+      draft.filteredMessages = []
+      draft.lastRefreshFilteredNonOrderCount = 0
+      draft.lastRefreshFilteredExamples = []
+      draft.lastRefreshSummary = "All filtered Gmail previews dismissed locally. Uncertain previews remain available for review."
+      appendGmailRefreshHistory(
+        GmailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Filtered dismiss all",
+          status: "Dismissed locally",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: 0,
+          uncertainCount: draft.uncertainMessages?.count ?? 0,
+          summary: "Dismissed \(dismissedCount) filtered Gmail preview\(dismissedCount == 1 ? "" : "s") from local review."
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .ignored,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "All filtered Gmail previews dismissed locally.",
+      afterDetail: "Dismissed: \(dismissedCount)\nExamples: \(exampleSubjects.joined(separator: "; "))\nOnly the local filtered preview queue was cleared. No intake email was deleted, duplicate metadata was changed, Gmail was called, token data was read, or mailbox item was modified."
+    )
+  }
+
+  func createReviewTasksForAllUncertainGmailMessages(for connection: GmailMailboxConnection) {
+    guard let current = gmailMailboxConnections.first(where: { $0.id == connection.id }) else { return }
+    let pending = current.uncertainMessages ?? []
+    guard !pending.isEmpty else {
+      logAudit(
+        action: .evaluated,
+        entityType: .gmailMailboxConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "No uncertain Gmail previews needed task creation.",
+        afterDetail: "The local Gmail uncertain review queue is empty. No Gmail API call, token access, Inbox import, task creation, or mailbox mutation occurred."
+      )
+      return
+    }
+
+    let existingProviderIDs = Set(reviewTasks.compactMap { task -> String? in
+      guard task.status != .completed,
+            task.linkedEntityType == .integration,
+            task.linkedEntityID == connection.id.uuidString else { return nil }
+      return pending.first(where: { task.summary.localizedCaseInsensitiveContains($0.providerMessageID) })?.providerMessageID
+    })
+
+    var createdCount = 0
+    var skippedCount = 0
+    for message in pending {
+      if existingProviderIDs.contains(message.providerMessageID) {
+        skippedCount += 1
+        continue
+      }
+      createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
+      createdCount += 1
+    }
+
+    updateGmailMailboxConnection(connection) { draft in
+      draft.lastRefreshSummary = "Created \(createdCount) Gmail uncertain review task\(createdCount == 1 ? "" : "s") locally. \(skippedCount) already had open tasks."
+      appendGmailRefreshHistory(
+        GmailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Uncertain task batch",
+          status: createdCount > 0 ? "Tasks created" : "No new tasks",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: draft.filteredMessages?.count ?? 0,
+          uncertainCount: draft.uncertainMessages?.count ?? 0,
+          summary: draft.lastRefreshSummary
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: createdCount > 0 ? .created : .evaluated,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Gmail uncertain review tasks processed locally.",
+      afterDetail: "Created: \(createdCount)\nSkipped existing open tasks: \(skippedCount)\nUncertain previews remain in local review until imported or dismissed. No Gmail API call, token access, Inbox import, duplicate metadata change, or mailbox mutation occurred."
+    )
+  }
+
   func addGmailHintFromUncertain(_ uncertainMessage: GmailReviewMessage, target: SpaceMailHintTarget, for connection: GmailMailboxConnection) {
     addGmailHint(
       target: target,

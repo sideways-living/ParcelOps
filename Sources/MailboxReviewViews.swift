@@ -605,6 +605,12 @@ struct MailboxView: View {
               store.importUncertainGmailMessage(message, for: connection)
             } onDismissUncertain: { message in
               store.dismissUncertainGmailMessage(message, for: connection)
+            } onDismissAllUncertain: {
+              store.dismissAllUncertainGmailMessages(for: connection)
+            } onDismissAllFiltered: {
+              store.dismissAllFilteredGmailMessages(for: connection)
+            } onCreateTasksForAllUncertain: {
+              store.createReviewTasksForAllUncertainGmailMessages(for: connection)
             } onCreateUncertainTask: { message in
               store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
             } onCreateUncertainDraft: { message in

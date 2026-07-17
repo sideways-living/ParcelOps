@@ -747,6 +747,12 @@ struct IntegrationsView: View {
               store.importUncertainGmailMessage(message, for: connection)
             } onDismissUncertain: { message in
               store.dismissUncertainGmailMessage(message, for: connection)
+            } onDismissAllUncertain: {
+              store.dismissAllUncertainGmailMessages(for: connection)
+            } onDismissAllFiltered: {
+              store.dismissAllFilteredGmailMessages(for: connection)
+            } onCreateTasksForAllUncertain: {
+              store.createReviewTasksForAllUncertainGmailMessages(for: connection)
             } onCreateUncertainTask: { message in
               store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
             } onCreateUncertainDraft: { message in
@@ -1421,6 +1427,9 @@ struct GmailMailboxConnectionRow: View {
   var onCreateRefreshTask: () -> Void
   var onImportUncertain: (GmailReviewMessage) -> Void
   var onDismissUncertain: (GmailReviewMessage) -> Void
+  var onDismissAllUncertain: () -> Void
+  var onDismissAllFiltered: () -> Void
+  var onCreateTasksForAllUncertain: () -> Void
   var onCreateUncertainTask: (GmailReviewMessage) -> Void
   var onCreateUncertainDraft: (GmailReviewMessage) -> Void
   var onTrustUncertainSender: (GmailReviewMessage) -> Void
@@ -1478,6 +1487,9 @@ struct GmailMailboxConnectionRow: View {
     onCreateRefreshTask: @escaping () -> Void,
     onImportUncertain: @escaping (GmailReviewMessage) -> Void,
     onDismissUncertain: @escaping (GmailReviewMessage) -> Void,
+    onDismissAllUncertain: @escaping () -> Void,
+    onDismissAllFiltered: @escaping () -> Void,
+    onCreateTasksForAllUncertain: @escaping () -> Void,
     onCreateUncertainTask: @escaping (GmailReviewMessage) -> Void,
     onCreateUncertainDraft: @escaping (GmailReviewMessage) -> Void,
     onTrustUncertainSender: @escaping (GmailReviewMessage) -> Void,
@@ -1524,6 +1536,9 @@ struct GmailMailboxConnectionRow: View {
     self.onCreateRefreshTask = onCreateRefreshTask
     self.onImportUncertain = onImportUncertain
     self.onDismissUncertain = onDismissUncertain
+    self.onDismissAllUncertain = onDismissAllUncertain
+    self.onDismissAllFiltered = onDismissAllFiltered
+    self.onCreateTasksForAllUncertain = onCreateTasksForAllUncertain
     self.onCreateUncertainTask = onCreateUncertainTask
     self.onCreateUncertainDraft = onCreateUncertainDraft
     self.onTrustUncertainSender = onTrustUncertainSender
@@ -1978,6 +1993,8 @@ struct GmailMailboxConnectionRow: View {
       .padding(10)
       .background(gmailTroubleshootingTone.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
 
+      gmailReviewQueueSummary
+
       if let messages = connection.uncertainMessages, !messages.isEmpty {
         VStack(alignment: .leading, spacing: 8) {
           Label("Review uncertain Gmail messages", systemImage: "questionmark.folder.fill")
@@ -1987,6 +2004,10 @@ struct GmailMailboxConnectionRow: View {
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+          CompactActionRow {
+            Button("Task all uncertain", systemImage: "checklist", action: onCreateTasksForAllUncertain)
+            Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
+          }
           ForEach(messages) { message in
             VStack(alignment: .leading, spacing: 6) {
               HStack(alignment: .firstTextBaseline) {
@@ -2056,6 +2077,9 @@ struct GmailMailboxConnectionRow: View {
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+          CompactActionRow {
+            Button("Dismiss all filtered", systemImage: "line.3.horizontal.decrease.circle", role: .destructive, action: onDismissAllFiltered)
+          }
           ForEach(messages) { message in
             VStack(alignment: .leading, spacing: 6) {
               HStack(alignment: .firstTextBaseline) {
@@ -3540,6 +3564,54 @@ struct GmailMailboxConnectionRow: View {
     if connection.lastRefreshImportedCount > 0 { return .green }
     if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
     return .secondary
+  }
+
+  private var gmailReviewQueueSummary: some View {
+    let uncertainCount = connection.uncertainMessages?.count ?? 0
+    let filteredCount = connection.filteredMessages?.count ?? 0
+
+    return VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("Review queued Gmail examples", systemImage: "tray.full.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(uncertainCount > 0 ? .orange : (filteredCount > 0 ? .teal : .secondary))
+        Spacer()
+        Badge("\(uncertainCount) uncertain", color: uncertainCount > 0 ? .orange : .secondary)
+        Badge("\(filteredCount) filtered", color: filteredCount > 0 ? .teal : .secondary)
+      }
+      Text(gmailReviewQueueSummaryText(uncertainCount: uncertainCount, filteredCount: filteredCount))
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      if uncertainCount > 0 || filteredCount > 0 {
+        CompactActionRow {
+          if uncertainCount > 0 {
+            Button("Task all uncertain", systemImage: "checklist", action: onCreateTasksForAllUncertain)
+            Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
+          }
+          if filteredCount > 0 {
+            Button("Dismiss all filtered", systemImage: "line.3.horizontal.decrease.circle", role: .destructive, action: onDismissAllFiltered)
+          }
+        }
+        Text("Bulk actions only update local Gmail review queues. They do not delete intake, clear duplicate metadata, read tokens, call Gmail, or mutate mailbox messages.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background((uncertainCount > 0 ? Color.orange : (filteredCount > 0 ? Color.teal : Color.secondary)).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func gmailReviewQueueSummaryText(uncertainCount: Int, filteredCount: Int) -> String {
+    if uncertainCount > 0 {
+      return "\(uncertainCount) uncertain Gmail preview\(uncertainCount == 1 ? "" : "s") need operator review before Inbox import. Create follow-up tasks in bulk when review cannot happen now."
+    }
+    if filteredCount > 0 {
+      return "\(filteredCount) filtered Gmail preview\(filteredCount == 1 ? "" : "s") stayed out of Inbox. Dismiss them locally when they are clear non-order mail, or inspect individual rows if an expected order is missing."
+    }
+    return "No Gmail review previews are queued. Imported order-like mail appears in Inbox; filtered non-order mail stays out of the primary flow."
   }
 
   private var gmailLatestRefreshTitle: String {
