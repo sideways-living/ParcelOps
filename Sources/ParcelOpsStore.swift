@@ -27730,6 +27730,10 @@ private extension DeliveryInstructionRecord {
   }
 }
 
+private func optionalContains<T: Equatable>(_ values: [T], _ candidate: T?) -> Bool {
+  candidate.map { values.contains($0) } ?? false
+}
+
 private extension PackageContentRecord {
   var auditDetail: String {
     "Title: \(title); linked: \(linkedEntityType.rawValue) \(linkedEntityID); order: \(orderID?.uuidString ?? "none"); shipment group: \(shipmentGroupID?.uuidString ?? "none"); destination: \(destinationAddressID?.uuidString ?? "none"); instruction: \(deliveryInstructionID?.uuidString ?? "none"); customer profile: \(customerProfileID?.uuidString ?? "none"); category: \(itemCategory.rawValue); value: \(valueBand.rawValue); quantity: \(verifiedQuantity)/\(expectedQuantity); verification: \(verificationStatus.rawValue); risk: \(riskLevel.rawValue); review: \(reviewState.rawValue); created: \(createdDate); last reviewed: \(lastReviewedDate); items: \(itemSummary); discrepancy: \(discrepancySummary)."
@@ -27741,7 +27745,7 @@ private extension PackageContentRecord {
     let destinationMatch = destinationAddressID != nil && self.destinationAddressID == destinationAddressID
     let instructionMatch = deliveryInstructionID != nil && self.deliveryInstructionID == deliveryInstructionID
     let profileMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
-    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let evidenceMatch = optionalContains(evidenceAttachmentIDs, evidenceID)
     let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
     let contextMatch = !context.isEmpty && (
       title.localizedCaseInsensitiveContains(context)
@@ -27767,7 +27771,7 @@ private extension CostRecord {
     let customerMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
     let vendorMatch = vendorProfileID != nil && self.vendorProfileID == vendorProfileID
     let accountMatch = accountID != nil && self.accountID == accountID
-    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let evidenceMatch = optionalContains(evidenceAttachmentIDs, evidenceID)
     let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
     let budget = budgetCode.trimmingCharacters(in: .whitespacesAndNewlines)
     let budgetMatch = !budget.isEmpty && (self.budgetCode.localizedCaseInsensitiveContains(budget) || budget.localizedCaseInsensitiveContains(self.budgetCode))
@@ -27800,8 +27804,8 @@ private extension ReturnClaimRecord {
     let customerMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
     let vendorMatch = vendorProfileID != nil && self.vendorProfileID == vendorProfileID
     let accountMatch = accountID != nil && self.accountID == accountID
-    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
-    let trackingMatch = trackingEventID != nil && carrierTrackingEventIDs.contains(trackingEventID!)
+    let evidenceMatch = optionalContains(evidenceAttachmentIDs, evidenceID)
+    let trackingMatch = optionalContains(carrierTrackingEventIDs, trackingEventID)
     let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
     let owner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
     let ownerMatch = !owner.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(owner) || owner.localizedCaseInsensitiveContains(assignedOwnerTeam))
@@ -27832,7 +27836,7 @@ private extension ProcurementRequest {
     let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
     let costMatch = costRecordID != nil && self.costRecordID == costRecordID
     let claimMatch = returnClaimID != nil && self.returnClaimID == returnClaimID
-    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let evidenceMatch = optionalContains(evidenceAttachmentIDs, evidenceID)
     let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
     let budget = budgetCode.trimmingCharacters(in: .whitespacesAndNewlines)
     let budgetMatch = !budget.isEmpty && (self.budgetCode.localizedCaseInsensitiveContains(budget) || budget.localizedCaseInsensitiveContains(self.budgetCode))
@@ -27865,8 +27869,8 @@ private extension ReceivingInspectionRecord {
     let claimMatch = returnClaimID != nil && self.returnClaimID == returnClaimID
     let destinationMatch = destinationAddressID != nil && self.destinationAddressID == destinationAddressID
     let customerMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
-    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
-    let trackingMatch = trackingEventID != nil && carrierTrackingEventIDs.contains(trackingEventID!)
+    let evidenceMatch = optionalContains(evidenceAttachmentIDs, evidenceID)
+    let trackingMatch = optionalContains(carrierTrackingEventIDs, trackingEventID)
     let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
     let inspector = inspectorTeam.trimmingCharacters(in: .whitespacesAndNewlines)
     let inspectorMatch = !inspector.isEmpty && (assignedInspectorTeam.localizedCaseInsensitiveContains(inspector) || inspector.localizedCaseInsensitiveContains(assignedInspectorTeam))
@@ -27898,7 +27902,7 @@ private extension InventoryReceiptRecord {
     let claimMatch = returnClaimID != nil && self.returnClaimID == returnClaimID
     let destinationMatch = destinationAddressID != nil && self.destinationAddressID == destinationAddressID
     let customerMatch = customerProfileID != nil && self.customerProfileID == customerProfileID
-    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let evidenceMatch = optionalContains(evidenceAttachmentIDs, evidenceID)
     let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
     let owner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
     let ownerMatch = !owner.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(owner) || owner.localizedCaseInsensitiveContains(assignedOwnerTeam))
@@ -27924,11 +27928,11 @@ private extension StorageLocationRecord {
   }
 
   func matches(inventoryReceiptID: UUID?, receivingInspectionID: UUID?, packageContentID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, ownerTeam: String, areaZone: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
-    let receiptMatch = inventoryReceiptID != nil && inventoryReceiptIDs.contains(inventoryReceiptID!)
-    let inspectionMatch = receivingInspectionID != nil && receivingInspectionIDs.contains(receivingInspectionID!)
-    let contentMatch = packageContentID != nil && packageContentIDs.contains(packageContentID!)
-    let orderMatch = orderID != nil && orderIDs.contains(orderID!)
-    let groupMatch = shipmentGroupID != nil && shipmentGroupIDs.contains(shipmentGroupID!)
+    let receiptMatch = optionalContains(inventoryReceiptIDs, inventoryReceiptID)
+    let inspectionMatch = optionalContains(receivingInspectionIDs, receivingInspectionID)
+    let contentMatch = optionalContains(packageContentIDs, packageContentID)
+    let orderMatch = optionalContains(orderIDs, orderID)
+    let groupMatch = optionalContains(shipmentGroupIDs, shipmentGroupID)
     let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
     let owner = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
     let ownerMatch = !owner.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(owner) || owner.localizedCaseInsensitiveContains(assignedOwnerTeam))
@@ -27971,7 +27975,7 @@ private extension CustodyRecord {
     let orderMatch = orderID != nil && self.orderID == orderID
     let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
     let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
-    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let evidenceMatch = optionalContains(evidenceAttachmentIDs, evidenceID)
     let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
     let custodian = custodianTeam.trimmingCharacters(in: .whitespacesAndNewlines)
     let custodianMatch = !custodian.isEmpty && (currentCustodianTeam.localizedCaseInsensitiveContains(custodian) || previousCustodianTeam.localizedCaseInsensitiveContains(custodian) || custodian.localizedCaseInsensitiveContains(currentCustodianTeam))
@@ -28009,7 +28013,7 @@ private extension LabelReferenceRecord {
     let orderMatch = orderID != nil && self.orderID == orderID
     let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
     let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
-    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let evidenceMatch = optionalContains(evidenceAttachmentIDs, evidenceID)
     let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
     let value = labelValue.trimmingCharacters(in: .whitespacesAndNewlines)
     let valueMatch = !value.isEmpty && (labelValuePlaceholder.localizedCaseInsensitiveContains(value) || value.localizedCaseInsensitiveContains(labelValuePlaceholder))
@@ -28043,7 +28047,7 @@ private extension ScanSessionRecord {
     let orderMatch = orderID != nil && self.orderID == orderID
     let groupMatch = shipmentGroupID != nil && self.shipmentGroupID == shipmentGroupID
     let contentMatch = packageContentID != nil && self.packageContentID == packageContentID
-    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let evidenceMatch = optionalContains(evidenceAttachmentIDs, evidenceID)
     let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
     let value = labelValue.trimmingCharacters(in: .whitespacesAndNewlines)
     let valueMatch = !value.isEmpty && (
@@ -28073,14 +28077,14 @@ private extension ShipmentManifestRecord {
   }
 
   func matches(orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, storageLocationID: UUID?, carrierCourier: String, ownerTeam: String, locationText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
-    let orderMatch = orderID != nil && includedOrderIDs.contains(orderID!)
-    let groupMatch = shipmentGroupID != nil && shipmentGroupIDs.contains(shipmentGroupID!)
-    let receiptMatch = inventoryReceiptID != nil && inventoryReceiptIDs.contains(inventoryReceiptID!)
-    let contentMatch = packageContentID != nil && packageContentIDs.contains(packageContentID!)
-    let custodyMatch = custodyRecordID != nil && custodyRecordIDs.contains(custodyRecordID!)
-    let labelMatch = labelReferenceID != nil && labelReferenceIDs.contains(labelReferenceID!)
-    let scanMatch = scanSessionID != nil && scanSessionIDs.contains(scanSessionID!)
-    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let orderMatch = optionalContains(includedOrderIDs, orderID)
+    let groupMatch = optionalContains(shipmentGroupIDs, shipmentGroupID)
+    let receiptMatch = optionalContains(inventoryReceiptIDs, inventoryReceiptID)
+    let contentMatch = optionalContains(packageContentIDs, packageContentID)
+    let custodyMatch = optionalContains(custodyRecordIDs, custodyRecordID)
+    let labelMatch = optionalContains(labelReferenceIDs, labelReferenceID)
+    let scanMatch = optionalContains(scanSessionIDs, scanSessionID)
+    let evidenceMatch = optionalContains(evidenceAttachmentIDs, evidenceID)
     let locationMatch = storageLocationID != nil && handoffLocationStorageLocationID == storageLocationID
     let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
     let carrierText = carrierCourier.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -28114,14 +28118,14 @@ private extension DispatchReadinessChecklist {
 
   func matches(shipmentManifestID: UUID?, orderID: UUID?, shipmentGroupID: UUID?, inventoryReceiptID: UUID?, packageContentID: UUID?, custodyRecordID: UUID?, labelReferenceID: UUID?, scanSessionID: UUID?, evidenceID: UUID?, ownerTeam: String, dateText: String, context: String, linkedEntityType: ReviewTaskLinkedEntityType?, linkedEntityID: String) -> Bool {
     let manifestMatch = shipmentManifestID != nil && self.shipmentManifestID == shipmentManifestID
-    let orderMatch = orderID != nil && orderIDs.contains(orderID!)
-    let groupMatch = shipmentGroupID != nil && shipmentGroupIDs.contains(shipmentGroupID!)
-    let receiptMatch = inventoryReceiptID != nil && inventoryReceiptIDs.contains(inventoryReceiptID!)
-    let contentMatch = packageContentID != nil && packageContentIDs.contains(packageContentID!)
-    let custodyMatch = custodyRecordID != nil && custodyRecordIDs.contains(custodyRecordID!)
-    let labelMatch = labelReferenceID != nil && labelReferenceIDs.contains(labelReferenceID!)
-    let scanMatch = scanSessionID != nil && scanSessionIDs.contains(scanSessionID!)
-    let evidenceMatch = evidenceID != nil && evidenceAttachmentIDs.contains(evidenceID!)
+    let orderMatch = optionalContains(orderIDs, orderID)
+    let groupMatch = optionalContains(shipmentGroupIDs, shipmentGroupID)
+    let receiptMatch = optionalContains(inventoryReceiptIDs, inventoryReceiptID)
+    let contentMatch = optionalContains(packageContentIDs, packageContentID)
+    let custodyMatch = optionalContains(custodyRecordIDs, custodyRecordID)
+    let labelMatch = optionalContains(labelReferenceIDs, labelReferenceID)
+    let scanMatch = optionalContains(scanSessionIDs, scanSessionID)
+    let evidenceMatch = optionalContains(evidenceAttachmentIDs, evidenceID)
     let linkedMatch = self.linkedEntityType == linkedEntityType && self.linkedEntityID == linkedEntityID
     let ownerText = ownerTeam.trimmingCharacters(in: .whitespacesAndNewlines)
     let ownerMatch = !ownerText.isEmpty && (assignedOwnerTeam.localizedCaseInsensitiveContains(ownerText) || ownerText.localizedCaseInsensitiveContains(assignedOwnerTeam))
