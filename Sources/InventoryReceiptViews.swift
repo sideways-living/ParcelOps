@@ -162,7 +162,6 @@ struct InventoryReceiptsView: View {
   }
 
   private var inboxInventoryReceiptCoverage: some View {
-    let inboxOrders = store.intakeLinkedOrders
     let sourceOrders = store.operatorSourceOrders
     let linkedReceipts = receiptsLinkedToInboxOrders
     let actionReceipts = receiptsNeedingInventoryAction
