@@ -454,7 +454,7 @@ struct DashboardView: View {
     }
   }
   private var dashboardMailboxProviderRows: [(title: String, value: String, detail: String, color: Color)] {
-    let spaceMailReviewCount = (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) + (latestSpaceMailSummary?.uncertainCount ?? 0)
+    let spaceMailReviewCount = latestSpaceMailSummary?.totalUncertainCount ?? 0
     let spaceMailValue: String
     let spaceMailDetail: String
     if let summary = latestSpaceMailSummary {
@@ -1725,7 +1725,7 @@ struct DashboardView: View {
           ("Duplicates", "\(latestSpaceMailSummary?.duplicateCount ?? 0)", (latestSpaceMailSummary?.duplicateCount ?? 0) > 0 ? .teal : .secondary),
           ("Refreshed", "\(latestSpaceMailSummary?.duplicateRefreshedCount ?? 0)", (latestSpaceMailSummary?.duplicateRefreshedCount ?? 0) > 0 ? .green : .secondary),
           ("Filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
-          ("Uncertain", "\((latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) + (latestSpaceMailSummary?.uncertainCount ?? 0))", ((latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0) + (latestSpaceMailSummary?.uncertainCount ?? 0)) > 0 ? .orange : .secondary),
+          ("Uncertain", "\(latestSpaceMailSummary?.totalUncertainCount ?? 0)", (latestSpaceMailSummary?.totalUncertainCount ?? 0) > 0 ? .orange : .secondary),
           ("Parser", "\(latestSpaceMailSummary?.parserIssueCount ?? store.intakeParserDiagnostics.count)", (latestSpaceMailSummary?.parserIssueCount ?? store.intakeParserDiagnostics.count) > 0 ? .orange : .green)
         ])
 

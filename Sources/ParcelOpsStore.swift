@@ -342,7 +342,7 @@ final class ParcelOpsStore {
     let spaceMailFetched = spaceMailSummaries.reduce(0) { $0 + $1.fetchedCount }
     let spaceMailImported = spaceMailSummaries.reduce(0) { $0 + $1.importedCount }
     let spaceMailFiltered = spaceMailSummaries.reduce(0) { $0 + $1.filteredCount }
-    let spaceMailUncertain = spaceMailSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let spaceMailUncertain = spaceMailSummaries.reduce(0) { $0 + $1.totalUncertainCount }
     let spaceMailParserIssues = spaceMailSummaries.reduce(0) { $0 + $1.parserIssueCount }
     let spaceMailCredentialBlockers = spaceMailIMAPConnections.filter { connection in
       !connection.credentialStorageStatus.localizedCaseInsensitiveContains("available")
@@ -355,7 +355,7 @@ final class ParcelOpsStore {
     let gmailFetched = gmailSummaries.reduce(0) { $0 + $1.fetchedCount }
     let gmailImported = gmailSummaries.reduce(0) { $0 + $1.importedCount }
     let gmailFiltered = gmailSummaries.reduce(0) { $0 + $1.filteredCount }
-    let gmailUncertain = gmailSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let gmailUncertain = gmailSummaries.reduce(0) { $0 + $1.totalUncertainCount }
     let gmailReadinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
     let gmailSignedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
     let gmailSetupBlockers = gmailMailboxConnections.isEmpty ? 0 : gmailReadinessBlockers + (gmailSignedInCount == 0 ? 1 : 0)
@@ -686,8 +686,8 @@ final class ParcelOpsStore {
       + gmailSummaries.reduce(0) { $0 + $1.filteredCount }
     let duplicateCount = spaceMailSummaries.reduce(0) { $0 + $1.duplicateCount }
       + gmailSummaries.reduce(0) { $0 + $1.duplicateCount }
-    let uncertainCount = spaceMailSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
-      + gmailSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let uncertainCount = spaceMailSummaries.reduce(0) { $0 + $1.totalUncertainCount }
+      + gmailSummaries.reduce(0) { $0 + $1.totalUncertainCount }
     let parserIssueCount = intakeParserDiagnostics.count
     let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
     var unresolvedIntakeCount = 0
@@ -829,10 +829,10 @@ final class ParcelOpsStore {
     let gmailHealth = gmailIntakeHealthSummaries
     let spaceMailFetched = spaceMailHealth.reduce(0) { $0 + $1.fetchedCount }
     let spaceMailImported = spaceMailHealth.reduce(0) { $0 + $1.importedCount }
-    let spaceMailUncertain = spaceMailHealth.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let spaceMailUncertain = spaceMailHealth.reduce(0) { $0 + $1.totalUncertainCount }
     let gmailFetched = gmailHealth.reduce(0) { $0 + $1.fetchedCount }
     let gmailImported = gmailHealth.reduce(0) { $0 + $1.importedCount }
-    let gmailUncertain = gmailHealth.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let gmailUncertain = gmailHealth.reduce(0) { $0 + $1.totalUncertainCount }
     let parserIssueCount = intakeParserDiagnostics.count
     let openInboxCount = reviewIntakeEmails.count
     let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
@@ -1275,12 +1275,12 @@ final class ParcelOpsStore {
     let spaceMailFetched = spaceMailHealth.reduce(0) { $0 + $1.fetchedCount }
     let spaceMailImported = spaceMailHealth.reduce(0) { $0 + $1.importedCount }
     let spaceMailFiltered = spaceMailHealth.reduce(0) { $0 + $1.filteredCount }
-    let spaceMailUncertain = spaceMailHealth.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let spaceMailUncertain = spaceMailHealth.reduce(0) { $0 + $1.totalUncertainCount }
     let spaceMailParserIssues = spaceMailHealth.reduce(0) { $0 + $1.parserIssueCount }
     let gmailFetched = gmailHealth.reduce(0) { $0 + $1.fetchedCount }
     let gmailImported = gmailHealth.reduce(0) { $0 + $1.importedCount }
     let gmailFiltered = gmailHealth.reduce(0) { $0 + $1.filteredCount }
-    let gmailUncertain = gmailHealth.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let gmailUncertain = gmailHealth.reduce(0) { $0 + $1.totalUncertainCount }
     let gmailReadinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
     let gmailSignedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
     let gmailCustomDomainNeedsVerification = gmailMailboxConnections.filter {
@@ -3431,7 +3431,7 @@ final class ParcelOpsStore {
     let importedCount = healthSummaries.reduce(0) { $0 + $1.importedCount }
     let duplicateCount = healthSummaries.reduce(0) { $0 + $1.duplicateCount }
     let filteredCount = healthSummaries.reduce(0) { $0 + $1.filteredCount }
-    let uncertainCount = healthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    let uncertainCount = healthSummaries.reduce(0) { $0 + $1.totalUncertainCount }
     let parserIssueCount = intakeParserDiagnostics.count
     let reviewIntakeCount = reviewIntakeEmails.count
     let generatedDate = Date.now.formatted(date: .abbreviated, time: .shortened)
@@ -7338,7 +7338,7 @@ final class ParcelOpsStore {
   }
 
   var totalSpaceMailUncertainCount: Int {
-    spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    spaceMailIntakeHealthSummaries.reduce(0) { $0 + $1.totalUncertainCount }
   }
 
   var totalSpaceMailParserIssueCount: Int {
@@ -7374,7 +7374,7 @@ final class ParcelOpsStore {
   }
 
   var totalGmailUncertainCount: Int {
-    gmailIntakeHealthSummaries.reduce(0) { $0 + $1.uncertainCount + $1.pendingUncertainReviewCount }
+    gmailIntakeHealthSummaries.reduce(0) { $0 + $1.totalUncertainCount }
   }
 
   var totalGmailFilteredSignalCount: Int {
