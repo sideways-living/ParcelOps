@@ -665,8 +665,18 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     sourceMailboxID: UUID
   ) async throws -> ReadOnlyFetchOutcome {
     let profileDetail = try await fetchProfileDiagnostic(accessToken: accessToken, connection: connection)
-    let labelResolution = try await resolveLabelID(accessToken: accessToken, label: firstLabel(from: connection))
-    let messageIDs = try await listMessageIDs(accessToken: accessToken, labelID: labelResolution.id)
+    let labelResolutions = try await resolveLabelIDs(accessToken: accessToken, labels: configuredLabels(from: connection))
+    var messageIDs: [String] = []
+    var seenMessageIDs = Set<String>()
+    for resolution in labelResolutions {
+      let ids = try await listMessageIDs(accessToken: accessToken, labelID: resolution.id)
+      for id in ids where !seenMessageIDs.contains(id) {
+        seenMessageIDs.insert(id)
+        messageIDs.append(id)
+        if messageIDs.count >= 10 { break }
+      }
+      if messageIDs.count >= 10 { break }
+    }
     var messages: [FetchedMailboxMessage] = []
     for id in messageIDs.prefix(10) {
       let message = try await fetchMessageMetadata(
@@ -677,7 +687,8 @@ struct RealGmailMailboxClient: GmailMailboxClient {
       )
       messages.append(message)
     }
-    return ReadOnlyFetchOutcome(messages: messages, profileDetail: profileDetail, labelDetail: labelResolution.detail)
+    let labelDetail = labelResolutions.map(\.detail).joined(separator: " ")
+    return ReadOnlyFetchOutcome(messages: messages, profileDetail: profileDetail, labelDetail: labelDetail)
   }
 
   private func fetchProfileDiagnostic(accessToken: String, connection: GmailMailboxConnection) async throws -> String {
@@ -706,6 +717,20 @@ struct RealGmailMailboxClient: GmailMailboxClient {
   private struct GmailLabelResolution {
     var id: String
     var detail: String
+  }
+
+  private func resolveLabelIDs(accessToken: String, labels: [String]) async throws -> [GmailLabelResolution] {
+    var resolutions: [GmailLabelResolution] = []
+    for label in labels {
+      let resolution = try await resolveLabelID(accessToken: accessToken, label: label)
+      if !resolutions.contains(where: { $0.id == resolution.id }) {
+        resolutions.append(resolution)
+      }
+    }
+    if resolutions.isEmpty {
+      return [try await resolveLabelID(accessToken: accessToken, label: "INBOX")]
+    }
+    return resolutions
   }
 
   private func resolveLabelID(accessToken: String, label: String) async throws -> GmailLabelResolution {
@@ -851,11 +876,12 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     }
   }
 
-  private func firstLabel(from connection: GmailMailboxConnection) -> String {
-    connection.monitoredLabelNames
+  private func configuredLabels(from connection: GmailMailboxConnection) -> [String] {
+    let labels = connection.monitoredLabelNames
       .split(separator: ",")
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-      .first ?? "INBOX"
+      .filter { !$0.isEmpty }
+    return labels.isEmpty ? ["INBOX"] : labels
   }
 
   private func systemLabelID(from label: String) -> String? {
