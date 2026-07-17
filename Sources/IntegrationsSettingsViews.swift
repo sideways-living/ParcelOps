@@ -2507,6 +2507,25 @@ struct GmailMailboxConnectionRow: View {
             .foregroundStyle(.secondary)
             .lineLimit(3)
             .fixedSize(horizontal: false, vertical: true)
+          let highlights = gmailHistoryHighlights(from: entry.summary)
+          if !highlights.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+              ForEach(highlights, id: \.self) { highlight in
+                HStack(alignment: .top, spacing: 6) {
+                  Image(systemName: "tag.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+                    .frame(width: 12)
+                  Text(highlight)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+            }
+            .padding(8)
+            .background(Color.blue.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+          }
         }
         .padding(8)
         .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
@@ -2527,6 +2546,36 @@ struct GmailMailboxConnectionRow: View {
     if entry.filteredNonOrderCount > 0 || entry.duplicateCount > 0 { return .teal }
     if status.contains("ready") || status.contains("success") { return .green }
     return .secondary
+  }
+
+  private func gmailHistoryHighlights(from summary: String) -> [String] {
+    let sentenceCandidates = summary
+      .components(separatedBy: ". ")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+
+    var highlights: [String] = []
+    for sentence in sentenceCandidates {
+      let lower = sentence.lowercased()
+      let isUseful =
+        lower.hasPrefix("label '") ||
+        lower.contains("gmail label resolution") ||
+        lower.contains("gmail profile preflight") ||
+        lower.contains("gmail multi-label fetch") ||
+        lower.contains("gmail api manual refresh") ||
+        lower.contains("google signin")
+
+      guard isUseful else { continue }
+      let cleaned = sentence
+        .replacingOccurrences(of: "\n", with: " ")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      if !cleaned.isEmpty, !highlights.contains(cleaned) {
+        highlights.append(String(cleaned.prefix(180)))
+      }
+      if highlights.count >= 4 { break }
+    }
+
+    return highlights
   }
 
   private var hasMissingCoreGmailSetup: Bool {
