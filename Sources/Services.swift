@@ -707,7 +707,11 @@ struct RealGmailMailboxClient: GmailMailboxClient {
   }
 
   private func fetchProfileDiagnostic(accessToken: String, connection: GmailMailboxConnection) async throws -> String {
-    var components = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/profile")!
+    var components = try gmailURLComponents(
+      "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+      requestLabel: "users.profile",
+      failureDetail: "Could not construct the Gmail profile preflight request. No Gmail messages were fetched."
+    )
     components.queryItems = [
       URLQueryItem(name: "fields", value: "emailAddress,messagesTotal,threadsTotal")
     ]
@@ -768,7 +772,11 @@ struct RealGmailMailboxClient: GmailMailboxClient {
       )
     }
 
-    var components = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/labels")!
+    var components = try gmailURLComponents(
+      "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+      requestLabel: "labels.list",
+      failureDetail: "Could not construct the Gmail labels metadata request. No Gmail messages were fetched."
+    )
     components.queryItems = [
       URLQueryItem(name: "fields", value: "labels(id,name,type)")
     ]
@@ -802,7 +810,11 @@ struct RealGmailMailboxClient: GmailMailboxClient {
   }
 
   private func listMessageIDs(accessToken: String, labelID: String) async throws -> [String] {
-    var components = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages")!
+    var components = try gmailURLComponents(
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+      requestLabel: "messages.list",
+      failureDetail: "Could not construct the Gmail list request. No Gmail API call was made."
+    )
     let queryItems = [
       URLQueryItem(name: "maxResults", value: "10"),
       URLQueryItem(name: "includeSpamTrash", value: "false"),
@@ -823,7 +835,11 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     connection: GmailMailboxConnection,
     sourceMailboxID: UUID
   ) async throws -> FetchedMailboxMessage {
-    var components = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages/\(id)")!
+    var components = try gmailURLComponents(
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages/\(id)",
+      requestLabel: "messages.get",
+      failureDetail: "Could not construct a Gmail message metadata request. No Gmail message was fetched."
+    )
     components.queryItems = [
       URLQueryItem(name: "format", value: "metadata"),
       URLQueryItem(name: "metadataHeaders", value: "From"),
@@ -859,6 +875,20 @@ struct RealGmailMailboxClient: GmailMailboxClient {
       plainTextBodyPreview: String(preview.prefix(600)),
       sourceMailboxID: sourceMailboxID
     )
+  }
+
+  private func gmailURLComponents(
+    _ string: String,
+    requestLabel: String,
+    failureDetail: String
+  ) throws -> URLComponents {
+    guard let components = URLComponents(string: string) else {
+      throw RealGmailMailboxError(
+        status: .notConfigured,
+        safeDetail: "\(failureDetail) Request: \(requestLabel). No authorization header, token value, full URL, raw Gmail body, or mailbox mutation was logged or stored."
+      )
+    }
+    return components
   }
 
   private func performGmailRequest<Response: Decodable>(
