@@ -281,6 +281,70 @@ struct AuditView: View {
     "\(gmailFetchedCount) fetched, \(gmailImportedCount) imported, \(gmailDuplicateCount) duplicate, \(gmailDuplicateRefreshedCount) refreshed, \(gmailFilteredCount) filtered, \(gmailUncertainCount) uncertain."
   }
 
+  private var gmailAuditOutcomeTitle: String {
+    guard !gmailHealthSummaries.isEmpty else { return "No Gmail audit evidence yet" }
+    if gmailHealthSummaries.contains(where: { $0.tone == "warning" }) { return "Gmail audit shows setup or refresh warnings" }
+    if gmailImportedCount > 0 { return "Gmail audit shows Inbox intake" }
+    if pendingUncertainGmailCount > 0 || gmailUncertainCount > 0 { return "Gmail audit shows uncertain mail review" }
+    if pendingFilteredGmailCount > 0 || gmailFilteredCount > 0 { return "Gmail audit shows mixed-mailbox filtering" }
+    if gmailDuplicateRefreshedCount > 0 { return "Gmail audit shows duplicate refresh updates" }
+    if gmailDuplicateCount > 0 { return "Gmail audit shows no new Gmail order mail" }
+    if gmailFetchedCount > 0 { return "Gmail audit shows a quiet refresh" }
+    return "Gmail audit evidence is setup-only"
+  }
+
+  private var gmailAuditOutcomeDetail: String {
+    guard !gmailHealthSummaries.isEmpty else {
+      return "Gmail is optional. Add it only for Gmail or Google Workspace mailboxes; otherwise SpaceMail/IMAP can remain the active intake provider."
+    }
+    if gmailHealthSummaries.contains(where: { $0.tone == "warning" }) {
+      return "Use the Gmail setup row and detailed Audit events to check auth, consent, label, API, callback, or classifier diagnostics before relying on Gmail as daily intake."
+    }
+    if gmailImportedCount > 0 {
+      return "\(gmailImportedCount) Gmail message\(gmailImportedCount == 1 ? "" : "s") reached Inbox. Audit has evidence, but order creation and linking still belong in Inbox/Orders."
+    }
+    if pendingUncertainGmailCount > 0 || gmailUncertainCount > 0 {
+      let count = max(pendingUncertainGmailCount, gmailUncertainCount)
+      return "\(count) ambiguous Gmail preview\(count == 1 ? "" : "s") stayed outside Inbox. Review them in Mailbox Monitor before creating order or task work."
+    }
+    if pendingFilteredGmailCount > 0 || gmailFilteredCount > 0 {
+      let count = max(pendingFilteredGmailCount, gmailFilteredCount)
+      return "\(count) Gmail mixed-mailbox preview\(count == 1 ? "" : "s") were filtered out of Inbox. This is expected unless an operator decides one should be imported."
+    }
+    if gmailDuplicateRefreshedCount > 0 {
+      return "\(gmailDuplicateRefreshedCount) duplicate Gmail message\(gmailDuplicateRefreshedCount == 1 ? "" : "s") refreshed existing intake rows instead of creating duplicates."
+    }
+    if gmailDuplicateCount > 0 {
+      return "\(gmailDuplicateCount) Gmail message\(gmailDuplicateCount == 1 ? "" : "s") were already known. Duplicate tracking prevented extra Inbox rows."
+    }
+    if gmailFetchedCount > 0 {
+      return "Gmail fetched messages, but none produced imported or uncertain order work. Audit evidence is present without creating operator backlog."
+    }
+    return "Gmail setup/sign-in evidence exists, but no manual refresh result has produced mailbox intake evidence yet."
+  }
+
+  private var gmailAuditOutcomeNextAction: String {
+    guard !gmailHealthSummaries.isEmpty else { return "Next: leave Gmail unconfigured unless a Google-hosted mailbox is needed." }
+    if gmailHealthSummaries.contains(where: { $0.tone == "warning" }) { return "Next: open Mailbox Monitor and inspect Gmail setup/readiness diagnostics." }
+    if gmailImportedCount > 0 { return "Next: open Inbox and process Gmail-created triage rows." }
+    if pendingUncertainGmailCount > 0 || gmailUncertainCount > 0 { return "Next: review uncertain Gmail previews in Mailbox Monitor." }
+    if pendingFilteredGmailCount > 0 || gmailFilteredCount > 0 { return "Next: no action unless an expected order email was filtered." }
+    if gmailDuplicateRefreshedCount > 0 { return "Next: review refreshed Inbox rows only if their fields changed." }
+    if gmailFetchedCount > 0 || gmailDuplicateCount > 0 { return "Next: wait for new Gmail mail or run manual refresh later." }
+    return "Next: run real Gmail refresh only after setup and sign-in are clear."
+  }
+
+  private var gmailAuditOutcomeColor: Color {
+    guard !gmailHealthSummaries.isEmpty else { return .secondary }
+    if gmailHealthSummaries.contains(where: { $0.tone == "warning" }) { return .orange }
+    if gmailImportedCount > 0 { return .green }
+    if pendingUncertainGmailCount > 0 || gmailUncertainCount > 0 { return .orange }
+    if pendingFilteredGmailCount > 0 || gmailFilteredCount > 0 { return .teal }
+    if gmailDuplicateRefreshedCount > 0 { return .green }
+    if gmailFetchedCount > 0 || gmailDuplicateCount > 0 { return .teal }
+    return .secondary
+  }
+
   private var mailboxAuditProviderBreakdown: [(provider: String, detail: String, color: Color)] {
     var rows: [(provider: String, detail: String, color: Color)] = []
 
@@ -743,6 +807,29 @@ struct AuditView: View {
         sourceCount: mailboxProviderReleaseGateEvents.count,
         boundaryDetail: "Local-only boundary: this panel displays local audit readiness only. It does not start Google sign-in, fetch Gmail, store token values, mutate mailbox messages, or create hidden workflow actions."
       )
+
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "envelope.badge.shield.half.filled")
+          .foregroundStyle(gmailAuditOutcomeColor)
+          .frame(width: 22)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(gmailAuditOutcomeTitle)
+            .font(.caption.weight(.semibold))
+          Text(gmailAuditOutcomeDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(gmailAuditOutcomeNextAction)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(gmailAuditOutcomeColor)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 8)
+        Badge(gmailHealthSummaries.isEmpty ? "Optional" : "Gmail audit", color: gmailAuditOutcomeColor)
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(gmailAuditOutcomeColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
       if !store.gmailMailboxConnections.isEmpty {
         VStack(alignment: .leading, spacing: 6) {
