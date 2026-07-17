@@ -145,11 +145,15 @@ struct GoogleGmailAuthClient: GmailAuthClient {
   @MainActor
   private func signIn(connection: GmailMailboxConnection, scopes: [String]) async throws -> GIDSignInResult {
     try await withCheckedThrowingContinuation { continuation in
-      let completion = GoogleGmailSignInCompletion(continuation)
-      Task {
-        try? await Task.sleep(nanoseconds: 90_000_000_000)
-        completion.resume(throwing: GoogleGmailAuthError.signInTimedOut)
+      let timeout = GoogleGmailSignInTimeout()
+      let completion = GoogleGmailSignInCompletion(continuation) {
+        timeout.cancel()
       }
+      timeout.set(Task {
+        try? await Task.sleep(nanoseconds: 90_000_000_000)
+        guard !Task.isCancelled else { return }
+        completion.resume(throwing: GoogleGmailAuthError.signInTimedOut)
+      })
       #if os(iOS)
       guard let presenter = Self.activeViewController() else {
         completion.resume(throwing: GoogleGmailAuthError.missingPresentationSurface)
@@ -393,20 +397,27 @@ enum GoogleGmailAuthError: Error {
 #if canImport(GoogleSignIn)
 private final class GoogleGmailSignInCompletion: @unchecked Sendable {
   private let lock = NSLock()
+  private let onResume: @Sendable () -> Void
   private var didResume = false
   private var continuation: CheckedContinuation<GIDSignInResult, Error>?
 
-  init(_ continuation: CheckedContinuation<GIDSignInResult, Error>) {
+  init(
+    _ continuation: CheckedContinuation<GIDSignInResult, Error>,
+    onResume: @escaping @Sendable () -> Void
+  ) {
     self.continuation = continuation
+    self.onResume = onResume
   }
 
   func resume(returning result: GIDSignInResult) {
     guard let continuation = takeContinuation() else { return }
+    onResume()
     continuation.resume(returning: result)
   }
 
   func resume(throwing error: Error) {
     guard let continuation = takeContinuation() else { return }
+    onResume()
     continuation.resume(throwing: error)
   }
 
@@ -418,6 +429,25 @@ private final class GoogleGmailSignInCompletion: @unchecked Sendable {
     let continuation = continuation
     self.continuation = nil
     return continuation
+  }
+}
+
+private final class GoogleGmailSignInTimeout: @unchecked Sendable {
+  private let lock = NSLock()
+  private var task: Task<Void, Never>?
+
+  func set(_ task: Task<Void, Never>) {
+    lock.lock()
+    self.task = task
+    lock.unlock()
+  }
+
+  func cancel() {
+    lock.lock()
+    let task = task
+    self.task = nil
+    lock.unlock()
+    task?.cancel()
   }
 }
 #endif
