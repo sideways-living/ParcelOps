@@ -2902,6 +2902,120 @@ struct GmailNeedsReviewPreviewRow: View {
   }
 }
 
+struct GmailMailboxReviewQueueSummary: View {
+  var connection: GmailMailboxConnection
+  var onAddDemoUncertain: () -> Void
+  var onTaskAllUncertain: () -> Void
+  var onDismissAllUncertain: () -> Void
+  var onDismissAllFiltered: () -> Void
+  var onRunClassifierSuite: () -> Void
+
+  private var uncertainCount: Int {
+    connection.uncertainMessages?.count ?? 0
+  }
+
+  private var filteredCount: Int {
+    connection.filteredMessages?.count ?? 0
+  }
+
+  private var title: String {
+    if connection.lastRefreshImportedCount > 0 { return "Review Gmail imports in Inbox" }
+    if uncertainCount > 0 { return "Review uncertain Gmail previews" }
+    if filteredCount > 0 { return "Spot-check filtered Gmail examples" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "Gmail filtered non-order mail" }
+    if connection.lastRefreshDuplicateCount > 0 { return "Gmail refresh found duplicates" }
+    if connection.lastManualRefreshDate == "Never" { return "Gmail review queue not started" }
+    return "Gmail review queue clear"
+  }
+
+  private var detail: String {
+    if connection.lastRefreshImportedCount > 0 {
+      return "\(connection.lastRefreshImportedCount) Gmail message\(connection.lastRefreshImportedCount == 1 ? "" : "s") reached Inbox. Confirm details there before creating or linking orders."
+    }
+    if uncertainCount > 0 {
+      return "\(uncertainCount) ambiguous preview\(uncertainCount == 1 ? "" : "s") stayed out of Inbox. Import true order mail or dismiss false positives locally."
+    }
+    if filteredCount > 0 {
+      return "\(filteredCount) filtered preview\(filteredCount == 1 ? "" : "s") are available for spot checks when expected order mail is missing."
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      return "\(connection.lastRefreshFilteredNonOrderCount) mixed-mailbox message\(connection.lastRefreshFilteredNonOrderCount == 1 ? "" : "s") were filtered and not imported."
+    }
+    if connection.lastRefreshDuplicateCount > 0 {
+      return "Duplicate prevention avoided \(connection.lastRefreshDuplicateCount) duplicate Inbox row\(connection.lastRefreshDuplicateCount == 1 ? "" : "s")."
+    }
+    if connection.lastManualRefreshDate == "Never" {
+      return "Run mock refresh for local workflow testing or real Gmail refresh after setup and sign-in are ready."
+    }
+    return "No Gmail review items are waiting. Run another manual refresh when needed."
+  }
+
+  private var symbol: String {
+    if connection.lastRefreshImportedCount > 0 { return "tray.and.arrow.down.fill" }
+    if uncertainCount > 0 { return "questionmark.folder.fill" }
+    if filteredCount > 0 || connection.lastRefreshFilteredNonOrderCount > 0 { return "line.3.horizontal.decrease.circle.fill" }
+    if connection.lastRefreshDuplicateCount > 0 { return "doc.on.doc.fill" }
+    return "checkmark.seal.fill"
+  }
+
+  private var color: Color {
+    if connection.lastRefreshImportedCount > 0 { return .green }
+    if uncertainCount > 0 { return .orange }
+    if filteredCount > 0 || connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    if connection.lastRefreshDuplicateCount > 0 { return .orange }
+    return .secondary
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: symbol)
+          .foregroundStyle(color)
+          .frame(width: 22)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.caption.weight(.semibold))
+          Text(detail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(connection.lastManualRefreshDate == "Never" ? "Not run" : "Latest", color: color)
+      }
+
+      MetricStrip(items: [
+        ("Fetched", "\(connection.lastRefreshFetchedCount)", connection.lastRefreshFetchedCount > 0 ? .blue : .secondary),
+        ("Inbox", "\(connection.lastRefreshImportedCount)", connection.lastRefreshImportedCount > 0 ? .green : .secondary),
+        ("Uncertain", "\(uncertainCount)", uncertainCount > 0 ? .orange : .secondary),
+        ("Filtered", "\(max(filteredCount, connection.lastRefreshFilteredNonOrderCount))", max(filteredCount, connection.lastRefreshFilteredNonOrderCount) > 0 ? .teal : .secondary),
+        ("Duplicates", "\(connection.lastRefreshDuplicateCount)", connection.lastRefreshDuplicateCount > 0 ? .orange : .secondary)
+      ])
+
+      CompactActionRow {
+        if uncertainCount > 0 {
+          Button("Task all uncertain", systemImage: "checklist", action: onTaskAllUncertain)
+          Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
+        }
+        if filteredCount > 0 {
+          Button("Dismiss all filtered", systemImage: "line.3.horizontal.decrease.circle", role: .destructive, action: onDismissAllFiltered)
+        }
+        Button("Add demo uncertain", systemImage: "questionmark.folder", action: onAddDemoUncertain)
+        Button("Run Gmail suite", systemImage: "checklist", action: onRunClassifierSuite)
+      }
+      .buttonStyle(.bordered)
+
+      Text("This is local review control only. It does not sign in, fetch Gmail, store token values, or mutate mailbox messages.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct IntakeEmailRow: View {
   var email: ForwardedEmailIntake
   var store: ParcelOpsStore
@@ -4009,6 +4123,25 @@ struct NeedsReviewView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                  GmailMailboxReviewQueueSummary(
+                    connection: connection,
+                    onAddDemoUncertain: {
+                      store.addGmailDemoUncertainMessage(for: connection)
+                    },
+                    onTaskAllUncertain: {
+                      store.createReviewTasksForAllUncertainGmailMessages(for: connection)
+                    },
+                    onDismissAllUncertain: {
+                      store.dismissAllUncertainGmailMessages(for: connection)
+                    },
+                    onDismissAllFiltered: {
+                      store.dismissAllFilteredGmailMessages(for: connection)
+                    },
+                    onRunClassifierSuite: {
+                      store.runGmailClassifierTestSuite(for: connection)
+                    }
+                  )
 
                   VStack(alignment: .leading, spacing: 8) {
                     Label("Uncertain Gmail messages", systemImage: "questionmark.diamond.fill")
