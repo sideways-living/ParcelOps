@@ -639,6 +639,8 @@ struct MailboxView: View {
               store.addGmailHintFromFiltered(message, target: .filterKeyword, for: connection)
             } onTestClassifier: {
               store.testGmailAmbiguousClassifier(for: connection)
+            } onAddDemoUncertain: {
+              store.addGmailDemoUncertainMessage(for: connection)
             } onTestCustomClassifier: { sender, subject, preview in
               store.testGmailCustomClassifier(for: connection, sender: sender, subject: subject, preview: preview)
             } onRunClassifierSuite: {

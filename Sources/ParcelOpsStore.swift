@@ -18432,6 +18432,52 @@ final class ParcelOpsStore {
     )
   }
 
+  func addGmailDemoUncertainMessage(for connection: GmailMailboxConnection) {
+    let timestamp = Self.auditTimestamp()
+    let sourceMailboxID = trackedMailbox(for: connection).id
+    let sample = GmailReviewMessage(
+      providerMessageID: "local-demo-gmail-uncertain-\(connection.id.uuidString)",
+      sourceMailboxID: sourceMailboxID,
+      sender: connection.emailAddress.isEmpty ? "customer@example.com" : connection.emailAddress,
+      subject: "Delivery question",
+      receivedDate: timestamp,
+      bodyPreview: "Can you check whether this relates to an order? I do not have the tracking number yet.",
+      reason: "Demo uncertain Gmail preview for local review testing",
+      capturedDate: timestamp
+    )
+    updateGmailMailboxConnection(connection) { draft in
+      var uncertain = draft.uncertainMessages ?? []
+      uncertain.removeAll { $0.providerMessageID == sample.providerMessageID }
+      uncertain.insert(sample, at: 0)
+      draft.uncertainMessages = uncertain
+      draft.lastRefreshUncertainCount = uncertain.count
+      draft.lastRefreshUncertainExamples = uncertain.prefix(5).map { "\($0.subject) (\($0.reason))" }
+      draft.lastRefreshSummary = "Demo uncertain Gmail preview added locally. No Gmail sign-in, Gmail API call, Inbox import, token access, or mailbox mutation occurred."
+      appendGmailRefreshHistory(
+        GmailRefreshHistoryEntry(
+          timestamp: timestamp,
+          eventType: "Demo uncertain preview",
+          status: "Added locally",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: draft.filteredMessages?.count ?? 0,
+          uncertainCount: uncertain.count,
+          summary: draft.lastRefreshSummary
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .created,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Demo uncertain Gmail preview added locally.",
+      afterDetail: "Subject: \(sample.subject)\nReason: \(sample.reason)\nSource mailbox ID: \(sourceMailboxID)\nThis only adds a local review preview so the Gmail uncertain queue can be tested. No Gmail sign-in, Gmail API call, Inbox import, token access, duplicate metadata change, or mailbox mutation occurred."
+    )
+  }
+
   func addGmailHintFromUncertain(_ uncertainMessage: GmailReviewMessage, target: SpaceMailHintTarget, for connection: GmailMailboxConnection) {
     addGmailHint(
       target: target,

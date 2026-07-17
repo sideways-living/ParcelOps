@@ -781,6 +781,8 @@ struct IntegrationsView: View {
               store.addGmailHintFromFiltered(message, target: .filterKeyword, for: connection)
             } onTestClassifier: {
               store.testGmailAmbiguousClassifier(for: connection)
+            } onAddDemoUncertain: {
+              store.addGmailDemoUncertainMessage(for: connection)
             } onTestCustomClassifier: { sender, subject, preview in
               store.testGmailCustomClassifier(for: connection, sender: sender, subject: subject, preview: preview)
             } onRunClassifierSuite: {
@@ -1444,6 +1446,7 @@ struct GmailMailboxConnectionRow: View {
   var onImportFilteredHint: (GmailReviewMessage) -> Void
   var onFilterFilteredHint: (GmailReviewMessage) -> Void
   var onTestClassifier: () -> Void
+  var onAddDemoUncertain: () -> Void
   var onTestCustomClassifier: (String, String, String) -> Void
   var onRunClassifierSuite: () -> Void
   var onRemove: () -> Void
@@ -1504,6 +1507,7 @@ struct GmailMailboxConnectionRow: View {
     onImportFilteredHint: @escaping (GmailReviewMessage) -> Void,
     onFilterFilteredHint: @escaping (GmailReviewMessage) -> Void,
     onTestClassifier: @escaping () -> Void,
+    onAddDemoUncertain: @escaping () -> Void,
     onTestCustomClassifier: @escaping (String, String, String) -> Void,
     onRunClassifierSuite: @escaping () -> Void,
     onRemove: @escaping () -> Void
@@ -1553,6 +1557,7 @@ struct GmailMailboxConnectionRow: View {
     self.onImportFilteredHint = onImportFilteredHint
     self.onFilterFilteredHint = onFilterFilteredHint
     self.onTestClassifier = onTestClassifier
+    self.onAddDemoUncertain = onAddDemoUncertain
     self.onTestCustomClassifier = onTestCustomClassifier
     self.onRunClassifierSuite = onRunClassifierSuite
     self.onRemove = onRemove
@@ -2173,6 +2178,7 @@ struct GmailMailboxConnectionRow: View {
         }
         CompactActionRow {
           Button("Test ambiguous sample", systemImage: "play.circle", action: onTestClassifier)
+          Button("Add demo uncertain", systemImage: "questionmark.folder", action: onAddDemoUncertain)
           Button("Run custom test", systemImage: "text.magnifyingglass") {
             onTestCustomClassifier(classifierSender, classifierSubject, classifierPreview)
           }
