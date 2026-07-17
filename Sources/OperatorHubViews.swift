@@ -1458,6 +1458,23 @@ private struct InboxMailboxHealthRow: View {
         .font(.caption.weight(.semibold))
         .foregroundStyle(color)
         .fixedSize(horizontal: false, vertical: true)
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: nextActionSymbol)
+          .foregroundStyle(color)
+          .frame(width: 18)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(nextActionTitle)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+          Text(nextActionDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 0)
+      }
+      .padding(8)
+      .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
       if !summary.topReasonLabels.isEmpty {
         Text("Latest reasons: \(summary.topReasonLabels.joined(separator: "; "))")
           .font(.caption2)
@@ -1481,6 +1498,43 @@ private struct InboxMailboxHealthRow: View {
     default:
       return .blue
     }
+  }
+
+  private var nextActionTitle: String {
+    if summary.importedCount > 0 { return "Work imported SpaceMail rows" }
+    if summary.totalUncertainCount > 0 { return "Review uncertain SpaceMail previews" }
+    if summary.parserIssueCount > 0 { return "Use parser diagnostics only if needed" }
+    if summary.filteredCount > 0 { return "Filtered mail stayed out of Inbox" }
+    if summary.duplicateCount > 0 { return "Duplicates did not create Inbox rows" }
+    return "No SpaceMail Inbox work from latest refresh"
+  }
+
+  private var nextActionDetail: String {
+    if summary.importedCount > 0 {
+      return "Open Inbox triage, confirm detected order fields, then create or link orders."
+    }
+    if summary.totalUncertainCount > 0 {
+      return "Open Mailbox Monitor and import only messages that clearly relate to orders."
+    }
+    if summary.parserIssueCount > 0 {
+      return "Use parser diagnostics when an expected order did not classify or extract correctly."
+    }
+    if summary.filteredCount > 0 {
+      return "No Inbox action is needed unless a filtered example should be promoted manually."
+    }
+    if summary.duplicateCount > 0 {
+      return "Duplicate prevention is working; no duplicate cleanup is required."
+    }
+    return "Run manual refresh again only when new mailbox activity is expected."
+  }
+
+  private var nextActionSymbol: String {
+    if summary.importedCount > 0 { return "tray.and.arrow.down.fill" }
+    if summary.totalUncertainCount > 0 { return "questionmark.folder.fill" }
+    if summary.parserIssueCount > 0 { return "text.magnifyingglass" }
+    if summary.filteredCount > 0 { return "line.3.horizontal.decrease.circle" }
+    if summary.duplicateCount > 0 { return "arrow.triangle.2.circlepath" }
+    return "checkmark.circle"
   }
 }
 
@@ -1511,6 +1565,23 @@ private struct InboxGmailHealthRow: View {
         .font(.caption.weight(.semibold))
         .foregroundStyle(color)
         .fixedSize(horizontal: false, vertical: true)
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: nextActionSymbol)
+          .foregroundStyle(color)
+          .frame(width: 18)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(nextActionTitle)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+          Text(nextActionDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 0)
+      }
+      .padding(8)
+      .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
       Text("Gmail refresh is manual and read-only. Filtered mixed-mailbox mail stays out of Inbox; imported and uncertain counts are the operator signals.")
         .font(.caption2)
         .foregroundStyle(.secondary)
@@ -1557,6 +1628,42 @@ private struct InboxGmailHealthRow: View {
     default:
       return .blue
     }
+  }
+
+  private var nextActionTitle: String {
+    if summary.importedCount > 0 { return "Work imported Gmail rows" }
+    if summary.totalUncertainCount > 0 { return "Review uncertain Gmail previews" }
+    if summary.filteredCount > 0 { return "Filtered Gmail stayed out of Inbox" }
+    if summary.duplicateCount > 0 { return "Duplicates did not create Inbox rows" }
+    if summary.fetchedCount > 0 { return "No Gmail order candidates found" }
+    return "No Gmail Inbox work from latest refresh"
+  }
+
+  private var nextActionDetail: String {
+    if summary.importedCount > 0 {
+      return "Open Inbox triage, confirm detected details, then create or link orders."
+    }
+    if summary.totalUncertainCount > 0 {
+      return "Open Mailbox Monitor and import or dismiss uncertain Gmail previews before they reach Inbox."
+    }
+    if summary.filteredCount > 0 {
+      return "No Inbox action is needed unless a filtered example should be promoted manually."
+    }
+    if summary.duplicateCount > 0 {
+      return "Duplicate prevention is working; no duplicate cleanup is required."
+    }
+    if summary.fetchedCount > 0 {
+      return "The latest Gmail pass fetched mail but found no order intake candidates."
+    }
+    return "Run manual Gmail refresh again only when new mailbox activity is expected."
+  }
+
+  private var nextActionSymbol: String {
+    if summary.importedCount > 0 { return "tray.and.arrow.down.fill" }
+    if summary.totalUncertainCount > 0 { return "questionmark.folder.fill" }
+    if summary.filteredCount > 0 { return "line.3.horizontal.decrease.circle" }
+    if summary.duplicateCount > 0 { return "arrow.triangle.2.circlepath" }
+    return "checkmark.circle"
   }
 
   private func classifierReasonColor(_ decision: String) -> Color {
