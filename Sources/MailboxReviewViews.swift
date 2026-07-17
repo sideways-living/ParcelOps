@@ -619,6 +619,8 @@ struct MailboxView: View {
               store.importFilteredGmailMessage(message, for: connection)
             } onDismissFiltered: { message in
               store.dismissFilteredGmailMessage(message, for: connection)
+            } onPromoteFiltered: { message in
+              store.promoteFilteredGmailMessageToUncertain(message, for: connection)
             } onCreateFilteredTask: { message in
               store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
             } onCreateFilteredDraft: { message in

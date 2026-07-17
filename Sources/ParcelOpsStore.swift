@@ -18246,6 +18246,60 @@ final class ParcelOpsStore {
     )
   }
 
+  func promoteFilteredGmailMessageToUncertain(_ filteredMessage: GmailReviewMessage, for connection: GmailMailboxConnection) {
+    updateGmailMailboxConnection(connection) { draft in
+      var filtered = draft.filteredMessages ?? []
+      filtered.removeAll { $0.id == filteredMessage.id || $0.providerMessageID == filteredMessage.providerMessageID }
+
+      var uncertain = draft.uncertainMessages ?? []
+      if !uncertain.contains(where: { $0.providerMessageID == filteredMessage.providerMessageID }) {
+        uncertain.insert(
+          GmailReviewMessage(
+            providerMessageID: filteredMessage.providerMessageID,
+            sourceMailboxID: filteredMessage.sourceMailboxID,
+            sender: filteredMessage.sender,
+            subject: filteredMessage.subject,
+            receivedDate: filteredMessage.receivedDate,
+            bodyPreview: filteredMessage.bodyPreview,
+            reason: "Promoted from filtered review: \(filteredMessage.reason)",
+            capturedDate: Self.auditTimestamp()
+          ),
+          at: 0
+        )
+      }
+
+      draft.filteredMessages = filtered
+      draft.uncertainMessages = uncertain
+      draft.lastRefreshFilteredNonOrderCount = filtered.count
+      draft.lastRefreshUncertainCount = uncertain.count
+      draft.lastRefreshFilteredExamples = filtered.prefix(5).map { "\($0.subject) (\($0.reason))" }
+      draft.lastRefreshUncertainExamples = uncertain.prefix(5).map { "\($0.subject) (\($0.reason))" }
+      draft.lastRefreshSummary = "Gmail filtered preview moved to uncertain review locally. \(uncertain.count) uncertain and \(filtered.count) filtered previews remain."
+      appendGmailRefreshHistory(
+        GmailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Filtered promote",
+          status: "Moved to uncertain",
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: filtered.count,
+          uncertainCount: uncertain.count,
+          summary: "Moved filtered preview '\(safeAuditPreview(filteredMessage.subject, limit: 80))' into uncertain review. Source reason: \(filteredMessage.reason)."
+        ),
+        to: &draft
+      )
+    }
+    logAudit(
+      action: .edited,
+      entityType: .gmailMailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Filtered Gmail preview moved to uncertain review.",
+      afterDetail: "Subject: \(filteredMessage.subject)\nSource reason: \(filteredMessage.reason)\nThe preview moved between local review queues only. It was not imported into Inbox, duplicate metadata was preserved, and no Gmail API call, OAuth token, mailbox fetch, mailbox mutation, or full message body was logged."
+    )
+  }
+
   func addGmailHintFromUncertain(_ uncertainMessage: GmailReviewMessage, target: SpaceMailHintTarget, for connection: GmailMailboxConnection) {
     addGmailHint(
       target: target,

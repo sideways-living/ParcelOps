@@ -761,6 +761,8 @@ struct IntegrationsView: View {
               store.importFilteredGmailMessage(message, for: connection)
             } onDismissFiltered: { message in
               store.dismissFilteredGmailMessage(message, for: connection)
+            } onPromoteFiltered: { message in
+              store.promoteFilteredGmailMessageToUncertain(message, for: connection)
             } onCreateFilteredTask: { message in
               store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
             } onCreateFilteredDraft: { message in
@@ -1426,6 +1428,7 @@ struct GmailMailboxConnectionRow: View {
   var onFilterUncertainHint: (GmailReviewMessage) -> Void
   var onImportFiltered: (GmailReviewMessage) -> Void
   var onDismissFiltered: (GmailReviewMessage) -> Void
+  var onPromoteFiltered: (GmailReviewMessage) -> Void
   var onCreateFilteredTask: (GmailReviewMessage) -> Void
   var onCreateFilteredDraft: (GmailReviewMessage) -> Void
   var onTrustFilteredSender: (GmailReviewMessage) -> Void
@@ -1482,6 +1485,7 @@ struct GmailMailboxConnectionRow: View {
     onFilterUncertainHint: @escaping (GmailReviewMessage) -> Void,
     onImportFiltered: @escaping (GmailReviewMessage) -> Void,
     onDismissFiltered: @escaping (GmailReviewMessage) -> Void,
+    onPromoteFiltered: @escaping (GmailReviewMessage) -> Void,
     onCreateFilteredTask: @escaping (GmailReviewMessage) -> Void,
     onCreateFilteredDraft: @escaping (GmailReviewMessage) -> Void,
     onTrustFilteredSender: @escaping (GmailReviewMessage) -> Void,
@@ -1527,6 +1531,7 @@ struct GmailMailboxConnectionRow: View {
     self.onFilterUncertainHint = onFilterUncertainHint
     self.onImportFiltered = onImportFiltered
     self.onDismissFiltered = onDismissFiltered
+    self.onPromoteFiltered = onPromoteFiltered
     self.onCreateFilteredTask = onCreateFilteredTask
     self.onCreateFilteredDraft = onCreateFilteredDraft
     self.onTrustFilteredSender = onTrustFilteredSender
@@ -2074,6 +2079,10 @@ struct GmailMailboxConnectionRow: View {
               CompactActionRow {
                 Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill") {
                   onImportFiltered(message)
+                }
+                .buttonStyle(.bordered)
+                Button("Review as uncertain", systemImage: "questionmark.folder") {
+                  onPromoteFiltered(message)
                 }
                 .buttonStyle(.bordered)
                 Button("Task", systemImage: "checklist") {
