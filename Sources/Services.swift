@@ -668,13 +668,19 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     let labelResolutions = try await resolveLabelIDs(accessToken: accessToken, labels: configuredLabels(from: connection))
     var messageIDs: [String] = []
     var seenMessageIDs = Set<String>()
+    var labelFetchDetails: [String] = []
     for resolution in labelResolutions {
       let ids = try await listMessageIDs(accessToken: accessToken, labelID: resolution.id)
+      let beforeCount = messageIDs.count
       for id in ids where !seenMessageIDs.contains(id) {
         seenMessageIDs.insert(id)
         messageIDs.append(id)
         if messageIDs.count >= 10 { break }
       }
+      let addedCount = messageIDs.count - beforeCount
+      labelFetchDetails.append(
+        "Label '\(safeHeaderValue(resolution.requestedLabel, limit: 60))' returned \(ids.count) ID\(ids.count == 1 ? "" : "s") and added \(addedCount) unique ID\(addedCount == 1 ? "" : "s")."
+      )
       if messageIDs.count >= 10 { break }
     }
     var messages: [FetchedMailboxMessage] = []
@@ -687,7 +693,16 @@ struct RealGmailMailboxClient: GmailMailboxClient {
       )
       messages.append(message)
     }
-    let labelDetail = labelResolutions.map(\.detail).joined(separator: " ")
+    let capDetail = messageIDs.count >= 10
+      ? "Gmail multi-label fetch de-duplicated message IDs and stopped at 10 total messages."
+      : "Gmail multi-label fetch de-duplicated message IDs across configured labels."
+    let labelDetail = [
+      labelResolutions.map(\.detail).joined(separator: " "),
+      labelFetchDetails.joined(separator: " "),
+      capDetail
+    ]
+    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    .joined(separator: " ")
     return ReadOnlyFetchOutcome(messages: messages, profileDetail: profileDetail, labelDetail: labelDetail)
   }
 
@@ -716,6 +731,7 @@ struct RealGmailMailboxClient: GmailMailboxClient {
 
   private struct GmailLabelResolution {
     var id: String
+    var requestedLabel: String
     var detail: String
   }
 
@@ -739,6 +755,7 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     if let systemLabel = systemLabelID(from: effectiveLabel) {
       return GmailLabelResolution(
         id: systemLabel,
+        requestedLabel: effectiveLabel,
         detail: "Gmail label resolution used system label \(systemLabel)."
       )
     }
@@ -746,6 +763,7 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     if effectiveLabel.localizedCaseInsensitiveContains("label_") {
       return GmailLabelResolution(
         id: effectiveLabel,
+        requestedLabel: effectiveLabel,
         detail: "Gmail label resolution used configured label ID directly. The value was not logged as a mailbox secret."
       )
     }
@@ -778,6 +796,7 @@ struct RealGmailMailboxClient: GmailMailboxClient {
 
     return GmailLabelResolution(
       id: match.id,
+      requestedLabel: effectiveLabel,
       detail: "Gmail label resolution matched configured label '\(safeHeaderValue(effectiveLabel, limit: 80))' to safe Gmail label metadata. Label type: \(safeHeaderValue(match.type ?? "unknown", limit: 40))."
     )
   }
