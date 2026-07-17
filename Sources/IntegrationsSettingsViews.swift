@@ -672,6 +672,7 @@ struct IntegrationsView: View {
           Text("Use this for Gmail or Google Workspace mailboxes that feed the same Inbox intake path. Mock refresh remains available; real Gmail refresh is manual, read-only, and separate from sign-in.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
+          GmailIntakeFoundationCard()
           GmailGoogleCloudSetupGuide()
           MailboxGmailReadinessPanel(store: store)
           SettingsGmailManualRunbookPanel(store: store)
@@ -3762,6 +3763,71 @@ struct GmailGoogleCloudSetupGuide: View {
 
       Text("Current boundary: ParcelOps can use GoogleSignIn and the Gmail API for an explicit manual refresh after setup, but it still does not run background checks, send mail, mark messages read, delete or move messages, store token values in JSON, or use Gmail as an automation trigger.")
         .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(Color.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct GmailIntakeFoundationCard: View {
+  private let setupSteps: [(String, String, Color)] = [
+    ("1 Save setup", "Capture Gmail address, labels, mailbox mode, and non-secret OAuth notes.", .blue),
+    ("2 Run mock refresh", "Test provider-neutral Inbox intake without Google sign-in or Gmail API calls.", .teal),
+    ("3 Review results", "Use fetched/imported/duplicate/filtered/uncertain counts before trusting the flow.", .orange),
+    ("4 Enable real path later", "Only after Google app config, sign-in, and read-only consent are ready.", .green)
+  ]
+
+  private let boundaryBadges: [(String, Color)] = [
+    ("Mock intake ready", .teal),
+    ("JSON stores non-secrets", .blue),
+    ("No Gmail tokens", .secondary),
+    ("No background sync", .secondary),
+    ("No mailbox mutation", .secondary)
+  ]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "envelope.badge.shield.half.filled")
+          .foregroundStyle(.teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Gmail intake foundation")
+            .font(.caption.weight(.semibold))
+          Text("Start with the mock Gmail refresh to verify the local Inbox workflow. Real Google sign-in and Gmail API refresh stay explicit, manual, and separate.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 175) {
+        ForEach(setupSteps, id: \.0) { step in
+          VStack(alignment: .leading, spacing: 4) {
+            Text(step.0)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(step.2)
+            Text(step.1)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(step.2.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 140) {
+        ForEach(boundaryBadges, id: \.0) { badge in
+          Badge(badge.0, color: badge.1)
+        }
+      }
+
+      Text("Safe boundary: mock Gmail refresh creates deterministic local message payloads and routes them through the existing duplicate-safe intake path. It does not open browser sign-in, request scopes, call Google APIs, store tokens, use Keychain for Gmail, send mail, or alter mailbox messages.")
+        .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
     }
