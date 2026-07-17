@@ -1793,7 +1793,26 @@ struct GmailMailboxConnectionRow: View {
       VStack(alignment: .leading, spacing: 8) {
         Label("Latest Gmail refresh", systemImage: "tray.and.arrow.down")
           .font(.caption.weight(.semibold))
-          .foregroundStyle(connection.lastRefreshImportedCount > 0 ? .green : connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary)
+          .foregroundStyle(gmailLatestRefreshColor)
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: gmailLatestRefreshSymbol)
+            .foregroundStyle(gmailLatestRefreshColor)
+          VStack(alignment: .leading, spacing: 3) {
+            Text(gmailLatestRefreshTitle)
+              .font(.subheadline.weight(.semibold))
+            Text(gmailLatestRefreshDetail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(gmailLatestRefreshNextAction)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(gmailLatestRefreshColor)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 0)
+        }
+        .padding(8)
+        .background(gmailLatestRefreshColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         MetricStrip(items: [
           ("Fetched", "\(connection.lastRefreshFetchedCount)", .blue),
           ("Imported", "\(connection.lastRefreshImportedCount)", connection.lastRefreshImportedCount > 0 ? .green : .secondary),
@@ -3451,6 +3470,88 @@ struct GmailMailboxConnectionRow: View {
     if totalUncertainCount > 0 { return .orange }
     if connection.lastRefreshImportedCount > 0 { return .green }
     if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    return .secondary
+  }
+
+  private var gmailLatestRefreshTitle: String {
+    if connection.lastManualRefreshDate == "Never" {
+      return "No Gmail refresh has run yet"
+    }
+    if gmailRefreshGuidanceColor == .orange {
+      return "Latest Gmail refresh needs attention"
+    }
+    if connection.lastRefreshImportedCount > 0 {
+      return "Latest Gmail refresh imported Inbox work"
+    }
+    if totalUncertainCount > 0 {
+      return "Latest Gmail refresh found uncertain messages"
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      return "Latest Gmail refresh filtered non-order mail"
+    }
+    if connection.lastRefreshDuplicateCount > 0 {
+      return "Latest Gmail refresh found duplicates"
+    }
+    if connection.lastRefreshFetchedCount == 0 {
+      return "Latest Gmail refresh found no messages"
+    }
+    return "Latest Gmail refresh completed"
+  }
+
+  private var gmailLatestRefreshDetail: String {
+    if connection.lastManualRefreshDate == "Never" {
+      return "Run Mock Gmail refresh to test the local intake path, or finish Google setup before using the manual real Gmail refresh."
+    }
+    if gmailRefreshGuidanceColor == .orange {
+      return "The last Gmail action recorded a setup, sign-in, consent, label, or API diagnostic. Use the guidance below before retrying real refresh."
+    }
+    let mode = gmailRefreshModeLabel
+    let base = "\(mode): \(connection.lastRefreshFetchedCount) fetched, \(connection.lastRefreshImportedCount) imported, \(connection.lastRefreshDuplicateCount) duplicate\(connection.lastRefreshDuplicateCount == 1 ? "" : "s"), \(connection.lastRefreshFilteredNonOrderCount) filtered, \(totalUncertainCount) uncertain."
+    if connection.mailboxMode == .mixedFiltered {
+      return "\(base) Mixed mailbox mode keeps filtered messages out of Inbox."
+    }
+    return "\(base) Dedicated mailbox mode sends fetched messages through duplicate-safe intake."
+  }
+
+  private var gmailLatestRefreshNextAction: String {
+    if connection.lastManualRefreshDate == "Never" {
+      return "Next: run a mock refresh or complete Google readiness."
+    }
+    if gmailRefreshGuidanceColor == .orange {
+      return "Next: follow the diagnostic guidance and retry only when setup is clear."
+    }
+    if connection.lastRefreshImportedCount > 0 {
+      return "Next: open Inbox triage and create or link orders from imported Gmail rows."
+    }
+    if totalUncertainCount > 0 {
+      return "Next: review uncertain Gmail messages here before importing anything into Inbox."
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      return "Next: no Inbox action needed unless a filtered example should be promoted manually."
+    }
+    if connection.lastRefreshDuplicateCount > 0 {
+      return "Next: no duplicate Inbox rows were created."
+    }
+    return "Next: leave as-is or refresh again manually when new mailbox activity is expected."
+  }
+
+  private var gmailLatestRefreshSymbol: String {
+    if connection.lastManualRefreshDate == "Never" { return "tray" }
+    if gmailRefreshGuidanceColor == .orange { return "exclamationmark.triangle" }
+    if connection.lastRefreshImportedCount > 0 { return "tray.and.arrow.down.fill" }
+    if totalUncertainCount > 0 { return "questionmark.folder.fill" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "line.3.horizontal.decrease.circle" }
+    if connection.lastRefreshDuplicateCount > 0 { return "arrow.triangle.2.circlepath" }
+    return "checkmark.circle"
+  }
+
+  private var gmailLatestRefreshColor: Color {
+    if connection.lastManualRefreshDate == "Never" { return .secondary }
+    if gmailRefreshGuidanceColor == .orange { return .orange }
+    if connection.lastRefreshImportedCount > 0 { return .green }
+    if totalUncertainCount > 0 { return .orange }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    if connection.lastRefreshDuplicateCount > 0 { return .blue }
     return .secondary
   }
 
