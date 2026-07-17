@@ -2818,7 +2818,8 @@ final class ParcelOpsStore {
       return "- \(connection.displayName): \(hostStatus). \(providerFit.detail)"
     }
     let healthLines = healthSummaries.map { summary in
-      "- \(summary.displayName): \(summary.verdict). \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.filteredCount) filtered, \(summary.uncertainCount + summary.pendingUncertainReviewCount) uncertain."
+      let effectiveUncertainCount = max(summary.uncertainCount, summary.pendingUncertainReviewCount)
+      return "- \(summary.displayName): \(summary.verdict). \(summary.fetchedCount) fetched, \(summary.importedCount) imported, \(summary.filteredCount) filtered, \(effectiveUncertainCount) uncertain."
     }
     let handoffLines = handoff.handoffLines.map { "- \($0.title): \($0.detail)" }
     let topReleaseBlockerLine = topReleaseBlocker.map {
@@ -3416,7 +3417,7 @@ final class ParcelOpsStore {
         SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "attention" : "neutral"),
         SpaceMailReleaseSnapshotMetric(title: "Duplicates", value: "\(duplicateCount)", tone: duplicateCount > 0 ? "neutral" : "success"),
         SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(filteredCount)", tone: filteredCount > 0 ? "success" : "neutral"),
-        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(pendingUncertainCount + uncertainCount)", tone: pendingUncertainCount + uncertainCount > 0 ? "attention" : "success")
+        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(max(pendingUncertainCount, uncertainCount))", tone: max(pendingUncertainCount, uncertainCount) > 0 ? "attention" : "success")
       ],
       entries: entries
     )

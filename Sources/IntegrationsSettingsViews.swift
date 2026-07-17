@@ -6104,10 +6104,8 @@ struct SettingsReleaseCandidateCard: View {
   }
 
   private var latestManualUncertainCount: Int {
-    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0)
-      + (latestSpaceMailSummary?.uncertainCount ?? 0)
-      + (latestGmailSummary?.pendingUncertainReviewCount ?? 0)
-      + (latestGmailSummary?.uncertainCount ?? 0)
+    max(latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0, latestSpaceMailSummary?.uncertainCount ?? 0)
+      + max(latestGmailSummary?.pendingUncertainReviewCount ?? 0, latestGmailSummary?.uncertainCount ?? 0)
   }
 
   private var inboxCreatedOrdersCount: Int {
@@ -6365,10 +6363,8 @@ struct SettingsView: View {
   }
 
   private var latestManualMailboxUncertainCount: Int {
-    (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0)
-      + (latestSpaceMailSummary?.uncertainCount ?? 0)
-      + (latestGmailSummary?.pendingUncertainReviewCount ?? 0)
-      + (latestGmailSummary?.uncertainCount ?? 0)
+    max(latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0, latestSpaceMailSummary?.uncertainCount ?? 0)
+      + max(latestGmailSummary?.pendingUncertainReviewCount ?? 0, latestGmailSummary?.uncertainCount ?? 0)
   }
 
   private var settingsInboxCreatedOrdersCount: Int {
