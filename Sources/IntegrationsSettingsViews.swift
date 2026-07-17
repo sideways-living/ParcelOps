@@ -1443,7 +1443,7 @@ struct GmailMailboxConnectionRow: View {
   @State private var classifierPreview = "Can you check whether this relates to an order? I do not have the tracking number yet."
 
   private var totalUncertainCount: Int {
-    (connection.lastRefreshUncertainCount ?? 0) + (connection.uncertainMessages ?? []).count
+    max(connection.lastRefreshUncertainCount ?? 0, (connection.uncertainMessages ?? []).count)
   }
 
   init(

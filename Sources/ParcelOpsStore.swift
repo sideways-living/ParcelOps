@@ -2745,7 +2745,7 @@ final class ParcelOpsStore {
     let importedCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
     let duplicateCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshDuplicateCount }
     let filteredCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
-    let uncertainCount = gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) + ($1.uncertainMessages?.count ?? 0) }
+    let uncertainCount = gmailMailboxConnections.reduce(0) { $0 + max($1.lastRefreshUncertainCount ?? 0, $1.uncertainMessages?.count ?? 0) }
     let providerFits = gmailMailboxConnections.map(gmailProviderFit(for:))
     let hostVerificationNeededCount = providerFits.filter { $0.isCustomDomain && !$0.hasGoogleEvidence }.count
     let hostVerifiedCount = providerFits.filter { $0.isCustomDomain && $0.hasGoogleEvidence }.count
@@ -3169,7 +3169,7 @@ final class ParcelOpsStore {
     let importedCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
     let duplicateCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshDuplicateCount }
     let filteredCount = gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
-    let uncertainCount = gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) + ($1.uncertainMessages?.count ?? 0) }
+    let uncertainCount = gmailMailboxConnections.reduce(0) { $0 + max($1.lastRefreshUncertainCount ?? 0, $1.uncertainMessages?.count ?? 0) }
     let openActionItems = actionPlan.items.filter { $0.tone == "warning" || $0.tone == "attention" }
 
     let decisions = [
@@ -3552,8 +3552,8 @@ final class ParcelOpsStore {
       + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
     let totalFiltered = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
       + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
-    let totalUncertain = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshUncertainCount + $1.uncertainMessages.count }
-      + gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) + ($1.uncertainMessages?.count ?? 0) }
+    let totalUncertain = spaceMailIMAPConnections.reduce(0) { $0 + max($1.lastRefreshUncertainCount, $1.uncertainMessages.count) }
+      + gmailMailboxConnections.reduce(0) { $0 + max($1.lastRefreshUncertainCount ?? 0, $1.uncertainMessages?.count ?? 0) }
     let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
 
     let verdict: String
@@ -3818,8 +3818,8 @@ final class ParcelOpsStore {
       + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
     let filteredCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
       + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
-    let uncertainCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshUncertainCount + $1.uncertainMessages.count }
-      + gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) + ($1.uncertainMessages?.count ?? 0) }
+    let uncertainCount = spaceMailIMAPConnections.reduce(0) { $0 + max($1.lastRefreshUncertainCount, $1.uncertainMessages.count) }
+      + gmailMailboxConnections.reduce(0) { $0 + max($1.lastRefreshUncertainCount ?? 0, $1.uncertainMessages?.count ?? 0) }
     let warningCount = entries.filter { $0.tone == "warning" }.count
     let attentionCount = entries.filter { $0.tone == "attention" }.count
 
@@ -3993,8 +3993,8 @@ final class ParcelOpsStore {
     let hasProviderSetup = !spaceMailIMAPConnections.isEmpty || !gmailMailboxConnections.isEmpty
     let hasRefreshEvidence = !timeline.entries.isEmpty
     let openInboxCount = reviewIntakeEmails.count
-    let uncertainCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count + $1.lastRefreshUncertainCount }
-      + gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) + ($1.lastRefreshUncertainCount ?? 0) }
+    let uncertainCount = spaceMailIMAPConnections.reduce(0) { $0 + max($1.uncertainMessages.count, $1.lastRefreshUncertainCount) }
+      + gmailMailboxConnections.reduce(0) { $0 + max($1.uncertainMessages?.count ?? 0, $1.lastRefreshUncertainCount ?? 0) }
     let parserIssueCount = intakeParserDiagnostics.count
     let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
     let inboxCreatedOrderCount = inboxCreatedOrders.count
@@ -7277,7 +7277,7 @@ final class ParcelOpsStore {
   }
 
   var pendingGmailUncertainReviewCount: Int {
-    gmailMailboxConnections.reduce(0) { $0 + max($1.uncertainMessages?.count ?? 0, $1.lastRefreshUncertainCount ?? 0) }
+    gmailMailboxConnections.reduce(0) { $0 + ($1.uncertainMessages?.count ?? 0) }
   }
 
   var pendingGmailFilteredReviewCount: Int {
@@ -7309,7 +7309,6 @@ final class ParcelOpsStore {
       total
         + (connection.uncertainMessages?.count ?? 0)
         + (connection.filteredMessages?.count ?? 0)
-        + (connection.lastRefreshUncertainCount ?? 0)
     }
   }
 

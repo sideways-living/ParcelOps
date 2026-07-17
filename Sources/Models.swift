@@ -1932,7 +1932,7 @@ struct SpaceMailIntakeHealthSummary: Identifiable, Hashable {
   var topReasonLabels: [String]
 
   var totalUncertainCount: Int {
-    pendingUncertainReviewCount + uncertainCount
+    max(pendingUncertainReviewCount, uncertainCount)
   }
 
   var primaryOutcomeStatus: String {
@@ -1983,7 +1983,7 @@ struct GmailIntakeHealthSummary: Identifiable, Hashable {
   var lastRefreshSummary: String
 
   var totalUncertainCount: Int {
-    pendingUncertainReviewCount + uncertainCount
+    max(pendingUncertainReviewCount, uncertainCount)
   }
 
   var primaryOutcomeStatus: String {
