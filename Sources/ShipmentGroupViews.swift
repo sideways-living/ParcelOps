@@ -127,7 +127,6 @@ struct ShipmentGroupsView: View {
 
   private var inboxShipmentGroupCoverage: some View {
     let sourceOrders = store.operatorSourceOrders
-    let wishlistOrders = store.wishlistLinkedOrders
 
     return SettingsPanel(title: "Inbox and Wishlist shipment group coverage", symbol: "shippingbox.and.arrow.backward.fill") {
       Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local shipment group context before dispatch work begins.")
