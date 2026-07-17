@@ -6519,10 +6519,29 @@ final class ParcelOpsStore {
     wishlistTaskContextItems.count
   }
 
+  var wishlistUniqueAttentionItems: [WishlistItem] {
+    var seen = Set<UUID>()
+    let candidates = wishlistTaskContextItems
+      + wishlistReadinessBlockedItems
+      + wishlistHandoffSanityBlockedItems
+      + wishlistLinkedOrderDispatchGapItems
+      + wishlistPurchasePacketNeededItems
+      + wishlistPurchasedNeedsOrderLinkItems
+
+    return candidates.filter { item in
+      if seen.contains(item.id) { return false }
+      seen.insert(item.id)
+      return true
+    }
+  }
+
+  var wishlistUniqueAttentionItemCount: Int {
+    wishlistUniqueAttentionItems.count
+  }
+
   var wishlistWorkbenchFollowUpCount: Int {
-    wishlistTaskContextItemCount
+    wishlistUniqueAttentionItemCount
       + wishlistResearchAttentionRequestCount
-      + wishlistPurchasePacketNeededItemCount
       + (wishlistBatchBriefNeeded ? 1 : 0)
   }
 
@@ -6589,15 +6608,9 @@ final class ParcelOpsStore {
   }
 
   var wishlistDailyAttentionCount: Int {
-    wishlistTaskContextItemCount
+    wishlistUniqueAttentionItemCount
       + wishlistResearchAttentionRequestCount
-      + wishlistReadinessBlockedItemCount
-      + wishlistHandoffSanityBlockedItemCount
-      + wishlistLinkedOrderDispatchGapItemCount
-      + wishlistPurchasePacketNeededItemCount
-      + wishlistPurchasedNeedsOrderLinkItemCount
       + (wishlistBatchBriefNeeded ? 1 : 0)
-      + wishlistAgentReadinessIssueCount
   }
 
   var activeWishlistReviewTasks: [ReviewTask] {
