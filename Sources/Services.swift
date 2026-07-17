@@ -841,9 +841,12 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     let sender = gmailHeader("From", in: headers) ?? connection.emailAddress
     let received = gmailHeader("Date", in: headers) ?? response.safeInternalDateText
     let messageID = header("Message-ID", in: headers)?.trimmingCharacters(in: .whitespacesAndNewlines)
-    let providerID = messageID?.isEmpty == false
-      ? "gmail-message-id-\(stableProviderComponent(messageID!))"
-      : "gmail-\(connection.id.uuidString)-\(id)"
+    let providerID: String
+    if let messageID, !messageID.isEmpty {
+      providerID = "gmail-message-id-\(stableProviderComponent(messageID))"
+    } else {
+      providerID = "gmail-\(connection.id.uuidString)-\(id)"
+    }
     let preview = [subject, response.snippet ?? ""]
       .joined(separator: " ")
       .trimmingCharacters(in: .whitespacesAndNewlines)

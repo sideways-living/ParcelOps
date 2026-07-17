@@ -24808,8 +24808,8 @@ final class ParcelOpsStore {
     let matchedCandidates = candidates.filter { candidate in
       let total = Self.firstNumber(in: candidate.total)
       let postage = Self.firstNumber(in: candidate.postage)
-      let totalOK = target == nil || (total != nil && total! <= target!)
-      let postageOK = maxPostage == nil || (postage != nil && postage! <= maxPostage!)
+      let totalOK = target.map { target in total.map { $0 <= target } ?? false } ?? true
+      let postageOK = maxPostage.map { maxPostage in postage.map { $0 <= maxPostage } ?? false } ?? true
       let trustOK = Self.watchText(candidate.trust, appearsToMeet: rule.requiredTrustLevel)
       let regionOK = rule.allowedRegions.isPlaceholderValidationValue
         || rule.allowedRegions.localizedCaseInsensitiveContains("any")
