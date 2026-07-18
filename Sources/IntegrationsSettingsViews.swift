@@ -2059,6 +2059,7 @@ struct GmailMailboxConnectionRow: View {
           .font(.caption2)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+        gmailMostLikelyBlockerCard
         ForEach(Array(gmailTroubleshootingSteps.enumerated()), id: \.offset) { _, step in
           HStack(alignment: .top, spacing: 8) {
             Image(systemName: step.symbol)
@@ -4080,6 +4081,113 @@ struct GmailMailboxConnectionRow: View {
     if hasMissingCoreGmailSetup || !readiness.isReady { return .orange }
     if authState.status != .connected { return .orange }
     if gmailRefreshGuidanceColor == .orange { return .orange }
+    if totalUncertainCount > 0 { return .orange }
+    if connection.lastRefreshImportedCount > 0 { return .green }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    return .secondary
+  }
+
+  private var gmailMostLikelyBlockerCard: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: gmailMostLikelyBlockerSymbol)
+          .foregroundStyle(gmailMostLikelyBlockerColor)
+          .frame(width: 20)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(gmailMostLikelyBlockerTitle)
+            .font(.caption.weight(.semibold))
+          Text(gmailMostLikelyBlockerDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(gmailMostLikelyBlockerBadge, color: gmailMostLikelyBlockerColor)
+      }
+      Text("This summary uses local setup, sign-in, and latest refresh status only. It does not start Google sign-in, request tokens, call Gmail, or mutate mailbox messages.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(gmailMostLikelyBlockerColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailMostLikelyBlockerTitle: String {
+    if hasMissingCoreGmailSetup { return "Most likely blocker: missing Gmail setup values" }
+    if !readiness.isReady { return "Most likely blocker: compiled callback mismatch" }
+    if authState.status != .connected { return "Most likely blocker: Google sign-in not connected" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") { return "Most likely blocker: Gmail read-only consent" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") { return "Most likely blocker: Google session expired or missing" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") { return "Most likely blocker: Gmail label mismatch" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") { return "Most likely blocker: Gmail API rejected the request" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") { return "Most likely blocker: network/API connection failed" }
+    if totalUncertainCount > 0 { return "Most likely next step: review uncertain Gmail previews" }
+    if connection.lastRefreshImportedCount > 0 { return "Most likely next step: work imported Inbox rows" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "Most likely next step: no action unless expected mail is missing" }
+    return "Most likely next step: run the provider action sequence"
+  }
+
+  private var gmailMostLikelyBlockerDetail: String {
+    if hasMissingCoreGmailSetup {
+      return "Open Edit setup and save the Gmail address, labels, Google iOS client ID, callback scheme, and read-only Gmail scope placeholders."
+    }
+    if !readiness.isReady {
+      return "Update Project.json/App Info values, rebuild, then run Check readiness. Real sign-in should wait until the compiled callback matches setup."
+    }
+    if authState.status != .connected {
+      return "Use Test real Google sign-in. Refresh stays separate and read-only after sign-in succeeds."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      return "Re-run real Google sign-in and confirm read-only Gmail scope consent. Check Google Cloud consent screen/API settings if the prompt is blocked."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") {
+      return "Sign in again with the same Google mailbox account, then retry manual real Gmail refresh."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") {
+      return "Use INBOX or an exact existing Gmail label name, save setup, then retry manual refresh."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") {
+      return "Open Audit for safe HTTP/API diagnostics, then retry only after the setup or network issue is resolved."
+    }
+    if totalUncertainCount > 0 {
+      return "\(totalUncertainCount) uncertain preview\(totalUncertainCount == 1 ? "" : "s") are held out of Inbox. Import only true order mail."
+    }
+    if connection.lastRefreshImportedCount > 0 {
+      return "\(connection.lastRefreshImportedCount) Gmail message\(connection.lastRefreshImportedCount == 1 ? "" : "s") reached Inbox. Review and create or link orders there."
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      return "Mixed-mailbox filtering kept likely non-order mail out of Inbox. Spot-check filtered examples only when an expected order email is missing."
+    }
+    return "Use the sequence: Check readiness, Test real Google sign-in, Run real Gmail refresh. Use mock refresh for local workflow testing."
+  }
+
+  private var gmailMostLikelyBlockerBadge: String {
+    if hasMissingCoreGmailSetup { return "Setup" }
+    if !readiness.isReady { return "Compile" }
+    if authState.status != .connected { return "Sign in" }
+    if gmailRefreshGuidanceColor == .orange { return "Diagnose" }
+    if totalUncertainCount > 0 { return "Review" }
+    if connection.lastRefreshImportedCount > 0 { return "Inbox" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "Filtered" }
+    return "Sequence"
+  }
+
+  private var gmailMostLikelyBlockerSymbol: String {
+    if hasMissingCoreGmailSetup { return "square.and.pencil" }
+    if !readiness.isReady { return "gear.badge.questionmark" }
+    if authState.status != .connected { return "person.badge.key" }
+    if gmailRefreshGuidanceColor == .orange { return gmailRefreshGuidanceSymbol }
+    if totalUncertainCount > 0 { return "questionmark.folder.fill" }
+    if connection.lastRefreshImportedCount > 0 { return "tray.and.arrow.down.fill" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "line.3.horizontal.decrease.circle" }
+    return "list.bullet.rectangle.portrait.fill"
+  }
+
+  private var gmailMostLikelyBlockerColor: Color {
+    if hasMissingCoreGmailSetup || !readiness.isReady || authState.status != .connected || gmailRefreshGuidanceColor == .orange { return .orange }
     if totalUncertainCount > 0 { return .orange }
     if connection.lastRefreshImportedCount > 0 { return .green }
     if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
