@@ -376,6 +376,7 @@ struct PackageContentsView: View {
     let scanSessions = store.suggestedScanSessionRecords(for: content)
     let shipmentManifests = store.suggestedShipmentManifestRecords(for: content)
     let dispatchChecklists = store.suggestedDispatchReadinessChecklists(for: content)
+    let mailboxSummaries = order.map { store.mailboxSourceSummaries(for: $0) } ?? []
     var searchParts: [String] = [
       content.id.uuidString,
       content.title,
@@ -419,6 +420,10 @@ struct PackageContentsView: View {
     searchParts.append(contentsOf: scanSessions.map(\.title))
     searchParts.append(contentsOf: shipmentManifests.map(\.title))
     searchParts.append(contentsOf: dispatchChecklists.map(\.title))
+    searchParts.append(contentsOf: mailboxSummaries.map(\.providerName))
+    searchParts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+    searchParts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+    searchParts.append(contentsOf: mailboxSummaries.map(\.detailText))
     let searchableText = searchParts.joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
   }
@@ -505,6 +510,14 @@ struct PackageContentRow: View {
 
       if !linkedIntakeEmails.isEmpty || !linkedWishlistItems.isEmpty || needsInboxVerificationAttention {
         packageContentInboxSourceTrail
+      }
+
+      if let store {
+        OrderMailboxSourceTrailPanel(
+          summaries: mailboxSummaries(using: store),
+          title: "Mailbox provider content trail",
+          symbol: "shippingbox.circle.fill"
+        )
       }
 
       CostRecordStrip(costs: costRecords)
@@ -617,6 +630,11 @@ struct PackageContentRow: View {
       return "Wishlist purchase context is linked to this package content record. Confirm item and quantity before downstream work."
     }
     return "Inbox intake or Wishlist context is linked to this package content record. Provider IDs stay in Audit/details."
+  }
+
+  private func mailboxSummaries(using store: ParcelOpsStore) -> [OrderMailboxSourceSummary] {
+    guard let linkedOrder else { return [] }
+    return store.mailboxSourceSummaries(for: linkedOrder)
   }
 
   private func sourceColor(for tone: String) -> Color {
