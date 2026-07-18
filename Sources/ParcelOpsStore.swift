@@ -12952,11 +12952,38 @@ final class ParcelOpsStore {
   }
 
   func addReviewTaskPlaceholder() {
+    let linkedEntityID = orders.first?.id.uuidString ?? "Unlinked"
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .order
+        && $0.linkedEntityID == linkedEntityID
+        && $0.summary == "Define the local review or escalation work required."
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].priority = .normal
+      reviewTasks[existingIndex].dueDate = "Today"
+      reviewTasks[existingIndex].assignee = "Operations"
+      reviewTasks[existingIndex].status = .open
+      reviewTasks[existingIndex].completedDate = nil
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing review task placeholder refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nNo duplicate open review task placeholder was created for order \(linkedEntityID)."
+      )
+      return
+    }
+
     let task = ReviewTask(
       title: "New follow-up task \(reviewTasks.count + 1)",
       summary: "Define the local review or escalation work required.",
       linkedEntityType: .order,
-      linkedEntityID: orders.first?.id.uuidString ?? "Unlinked",
+      linkedEntityID: linkedEntityID,
       priority: .normal,
       dueDate: "Today",
       assignee: "Operations",
