@@ -550,7 +550,7 @@ struct DashboardView: View {
         detail = "Microsoft 365 setup is ready for explicit sign-in. Keep it secondary unless this mailbox is Outlook-hosted."
       } else {
         value = "Setup"
-        detail = "Microsoft 365 is available as an advanced provider path. Finish OAuth readiness before sign-in or Graph refresh."
+        detail = "Microsoft 365 is available for Outlook-hosted mailboxes. Finish OAuth readiness before sign-in or Graph refresh."
       }
       rows.append(("Outlook", value, detail, latestMicrosoft365Tone))
     }
@@ -791,9 +791,10 @@ struct DashboardView: View {
   }
 
   private var dailyStartTitle: String {
-    if !hasSpaceMailSetup && !hasGmailSetup { return "Set up a mailbox provider first" }
-    if hasSpaceMailSetup && !hasSpaceMailCredentialReference && !hasGmailSetup { return "Add the SpaceMail Keychain credential" }
-    if hasGmailSetup && !hasGmailConnectedAuth && !hasSpaceMailSetup { return "Connect Gmail sign-in" }
+    if !hasSpaceMailSetup && !hasGmailSetup && !hasMicrosoft365Setup { return "Set up a mailbox provider first" }
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference && !hasGmailSetup && !hasMicrosoft365Setup { return "Add the SpaceMail Keychain credential" }
+    if hasGmailSetup && !hasGmailConnectedAuth && !hasSpaceMailSetup && !hasMicrosoft365Setup { return "Connect Gmail sign-in" }
+    if hasMicrosoft365Setup && !hasMicrosoft365ConnectedAuth && !hasSpaceMailSetup && !hasGmailSetup { return "Connect Outlook sign-in" }
     if !hasReadyMailboxProviderPath { return "Run one manual mailbox refresh" }
     if incomingAttentionCount > 0 { return "Start in Inbox" }
     if !partialInboxOrderBlockers.isEmpty { return "Verify source-created orders" }
@@ -808,14 +809,17 @@ struct DashboardView: View {
   }
 
   private var dailyStartDetail: String {
-    if !hasSpaceMailSetup && !hasGmailSetup {
-      return "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before relying on live intake. You can still test the local demo flow."
+    if !hasSpaceMailSetup && !hasGmailSetup && !hasMicrosoft365Setup {
+      return "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes before relying on live intake. You can still test the local demo flow."
     }
-    if hasSpaceMailSetup && !hasSpaceMailCredentialReference && !hasGmailSetup {
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference && !hasGmailSetup && !hasMicrosoft365Setup {
       return "Use the secure SpaceMail credential action. Do not put passwords or app passwords into setup notes or JSON-backed fields."
     }
-    if hasGmailSetup && !hasGmailConnectedAuth && !hasSpaceMailSetup {
+    if hasGmailSetup && !hasGmailConnectedAuth && !hasSpaceMailSetup && !hasMicrosoft365Setup {
       return "Use Check readiness and the explicit Google sign-in test before Gmail refresh. Token values stay out of JSON and Audit."
+    }
+    if hasMicrosoft365Setup && !hasMicrosoft365ConnectedAuth && !hasSpaceMailSetup && !hasGmailSetup {
+      return "Use the explicit Microsoft sign-in test before Graph refresh. Token values stay out of JSON and Audit, and refresh remains manual and read-only."
     }
     if !hasReadyMailboxProviderPath {
       return "Run one explicit read-only refresh for the active mailbox provider so Dashboard, Mailbox Monitor, and Audit have a real refresh result."
@@ -851,9 +855,10 @@ struct DashboardView: View {
   }
 
   private var recommendedDailySection: ParcelSection {
-    if !hasSpaceMailSetup && !hasGmailSetup { return .settings }
-    if hasSpaceMailSetup && !hasSpaceMailCredentialReference && !hasGmailSetup { return .settings }
-    if hasGmailSetup && !hasGmailConnectedAuth && !hasSpaceMailSetup { return .settings }
+    if !hasSpaceMailSetup && !hasGmailSetup && !hasMicrosoft365Setup { return .settings }
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference && !hasGmailSetup && !hasMicrosoft365Setup { return .settings }
+    if hasGmailSetup && !hasGmailConnectedAuth && !hasSpaceMailSetup && !hasMicrosoft365Setup { return .settings }
+    if hasMicrosoft365Setup && !hasMicrosoft365ConnectedAuth && !hasSpaceMailSetup && !hasGmailSetup { return .settings }
     if !hasReadyMailboxProviderPath { return .settings }
     if incomingAttentionCount > 0 { return .inbox }
     if !partialInboxOrderBlockers.isEmpty { return .orders }
@@ -971,7 +976,7 @@ struct DashboardView: View {
 
   private var appReadinessDetail: String {
     if !hasReadyMailboxProviderPath {
-      return "Navigation, local persistence, Inbox triage, Orders, Workbench, Dispatch, Tasks, Audit, Wishlist, and Settings are present. Finish one provider refresh with SpaceMail or Gmail before judging the live intake flow."
+      return "Navigation, local persistence, Inbox triage, Orders, Workbench, Dispatch, Tasks, Audit, Wishlist, and Settings are present. Finish one provider refresh with SpaceMail, Gmail, or Outlook before judging the live intake flow."
     }
     if weakInboxParseCount > 0 || blockedInboxSourceCount > 0 {
       return "Mailbox refresh is available, but some imported rows still need order/tracking correction or parser diagnostics before they become reliable order handoffs."
@@ -989,8 +994,8 @@ struct DashboardView: View {
   }
 
   private var appNextDevelopmentStep: String {
-    if !hasSpaceMailSetup && !hasGmailSetup { return "Add the active mailbox provider in Settings or Mailbox Monitor." }
-    if hasSpaceMailSetup && !hasSpaceMailCredentialReference && !hasGmailConnectedAuth { return "Set or check the SpaceMail Keychain credential, or connect Gmail if this mailbox is Google-hosted." }
+    if !hasSpaceMailSetup && !hasGmailSetup && !hasMicrosoft365Setup { return "Add the active mailbox provider in Settings or Mailbox Monitor." }
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference && !hasGmailConnectedAuth && !hasMicrosoft365ConnectedAuth { return "Set or check the SpaceMail Keychain credential, connect Gmail if the mailbox is Google-hosted, or connect Outlook if it is Microsoft-hosted." }
     if !hasReadyMailboxProviderPath { return "Run one explicit read-only mailbox refresh and inspect the result summary." }
     if weakInboxParseCount > 0 || blockedInboxSourceCount > 0 { return "Fix or reprocess weak Inbox rows before creating new orders." }
     if readyInboxLinkCount > 0 { return "Create or link one clean Inbox row to an order, then confirm it appears in Orders." }
@@ -1015,7 +1020,7 @@ struct DashboardView: View {
         MVPDevelopmentStatusPanel(store: store)
         MVPWorkflowGuide(
           title: "Daily operator path",
-          detail: "Use these screens in order for the current manual mailbox workflow. Active mailbox providers are the live intake paths; Microsoft 365 remains an advanced provider path.",
+          detail: "Use these screens in order for the current manual mailbox workflow. SpaceMail, Gmail, and Outlook/Microsoft 365 are the manual read-only live intake paths.",
           steps: [
             "Run or review the latest manual mailbox refresh.",
             "Triage imported intake and decide on uncertain mixed-mailbox messages.",
@@ -2560,14 +2565,14 @@ private struct DashboardReleaseReadinessSnapshot: View {
     [
       ReadinessRow(
         title: "Provider setup",
-        detail: hasMailboxSetup ? "SpaceMail or Gmail setup exists." : "Add the active mailbox provider before live intake testing.",
+        detail: hasMailboxSetup ? "SpaceMail, Gmail, or Outlook setup exists." : "Add the active mailbox provider before live intake testing.",
         symbol: "server.rack",
         isReady: hasMailboxSetup,
         color: hasMailboxSetup ? .green : .orange
       ),
       ReadinessRow(
         title: "Credential or sign-in",
-        detail: hasMailboxReady ? "The active provider has credential/sign-in readiness." : "Set SpaceMail Keychain credential or complete Gmail sign-in.",
+        detail: hasMailboxReady ? "The active provider has credential/sign-in readiness." : "Set SpaceMail Keychain credential, complete Gmail sign-in, or complete Outlook sign-in.",
         symbol: "key.fill",
         isReady: hasMailboxReady,
         color: hasMailboxReady ? .green : .orange
@@ -2862,7 +2867,7 @@ struct MVPHandsOnDashboardStatus: View {
       return "\(blockedDailyCount) blocked work item needs review before this is ready for regular hands-on use."
     }
     if !hasManualRefresh {
-      return "The local Inbox-to-Orders flow has enough test data. Run SpaceMail or Gmail refresh later when you want to verify the live mailbox path."
+      return "The local Inbox-to-Orders flow has enough test data. Run SpaceMail, Gmail, or Outlook refresh later when you want to verify the live mailbox path."
     }
     return "Use MVP Setup for the full checklist, then quit and reopen the app to confirm local JSON persistence."
   }
@@ -3207,7 +3212,7 @@ private struct DashboardReleaseCandidateQACard: View {
       ),
       (
         "Live mailbox evidence",
-        liveMailboxEvidenceReady ? "A real or diagnostic SpaceMail or Gmail refresh result exists." : "Optional: live mailbox evidence is useful but should not block local QA.",
+        liveMailboxEvidenceReady ? "A real or diagnostic SpaceMail, Gmail, or Outlook refresh result exists." : "Optional: live mailbox evidence is useful but should not block local QA.",
         "server.rack",
         liveMailboxEvidenceReady ? .green : .secondary,
         liveMailboxEvidenceReady,
@@ -3425,10 +3430,10 @@ struct FirstLiveMailboxTestCard: View {
 
   private var statusDetail: String {
     if !hasMailboxSetup {
-      return "Open Mailbox Monitor or Settings and confirm a SpaceMail IMAP setup or Gmail setup for the mailbox you want to test."
+      return "Open Mailbox Monitor or Settings and confirm SpaceMail IMAP, Gmail, or Microsoft 365 setup for the mailbox you want to test."
     }
     if !hasMailboxCredentialOrAuth {
-      return "Set/check the SpaceMail Keychain credential or complete Gmail sign-in. Do not place passwords, tokens, or app secrets in notes or JSON-backed fields."
+      return "Set/check the SpaceMail Keychain credential, complete Gmail sign-in, or complete Microsoft sign-in. Do not place passwords, tokens, or app secrets in notes or JSON-backed fields."
     }
     if !hasRealRefresh {
       return "Run the explicit real mailbox refresh. It is manual and read-only."
@@ -3459,13 +3464,13 @@ struct FirstLiveMailboxTestCard: View {
     [
       FirstLiveMailboxTestItem(
         title: "Confirm setup",
-        detail: "SpaceMail IMAP or Gmail setup exists with the non-secret mailbox settings needed for manual refresh.",
+        detail: "SpaceMail IMAP, Gmail, or Microsoft 365 setup exists with the non-secret mailbox settings needed for manual refresh.",
         symbol: "mail.stack.fill",
         isComplete: hasMailboxSetup
       ),
       FirstLiveMailboxTestItem(
         title: "Check credential or sign-in",
-        detail: "SpaceMail has a Keychain password reference or Gmail has connected sign-in; no secret is stored in JSON.",
+        detail: "SpaceMail has a Keychain password reference, Gmail has connected sign-in, or Microsoft 365 has connected sign-in; no secret is stored in JSON.",
         symbol: "lock.shield.fill",
         isComplete: hasMailboxCredentialOrAuth
       ),

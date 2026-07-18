@@ -85,6 +85,7 @@ struct MailboxView: View {
     let hasGmailRefresh = latestGmailSummary.map {
       $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0
     } ?? false
+    let hasMicrosoft365Refresh = store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
 
     if latestMailboxImportedCount > 0 {
       return (
@@ -107,7 +108,7 @@ struct MailboxView: View {
         .teal
       )
     }
-    if hasSpaceMailRefresh || hasGmailRefresh {
+    if hasSpaceMailRefresh || hasGmailRefresh || hasMicrosoft365Refresh {
       return (
         "Refresh ran with no order candidates",
         "The latest manual refresh fetched mail but did not create order intake. Send a known test order or check filtered examples if something is missing.",
@@ -119,13 +120,13 @@ struct MailboxView: View {
         "Run the active provider refresh",
         gmailProviderFitAttentionCount > 0
           ? "Confirm custom-domain Gmail setup is actually Google Workspace-hosted before using Gmail refresh; otherwise use SpaceMail/IMAP."
-          : "Choose SpaceMail for IMAP-hosted mailboxes or Gmail for Google-hosted mailboxes, then run the explicit manual read-only refresh.",
+          : "Choose SpaceMail for IMAP-hosted mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes, then run the explicit manual read-only refresh.",
         .blue
       )
     }
     return (
       "Set up a mailbox provider",
-      "Add SpaceMail for IMAP-hosted mailboxes or Gmail for Google-hosted mailboxes before testing live intake.",
+      "Add SpaceMail for IMAP-hosted mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes before testing live intake.",
       .orange
     )
   }
@@ -385,7 +386,7 @@ struct MailboxView: View {
         }
 
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {
-          MailboxProviderStepCard(number: "1", title: "Confirm provider", detail: "Use SpaceMail for IMAP mailboxes and Gmail only for Google-hosted mailboxes.")
+          MailboxProviderStepCard(number: "1", title: "Confirm provider", detail: "Use SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, and Outlook for Microsoft-hosted mailboxes.")
           MailboxProviderStepCard(number: "2", title: "Run manual refresh", detail: "Refresh is explicit and read-only. No background mailbox watching starts here.")
           MailboxProviderStepCard(number: "3", title: "Review results", detail: "Imported rows go to Inbox; uncertain and filtered previews stay out until reviewed.")
           MailboxProviderStepCard(number: "4", title: "Create or link order", detail: "Only confirmed Inbox rows or source records should become Orders or linked source evidence.")
@@ -471,7 +472,7 @@ struct MailboxView: View {
         }
 
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
-          Text("Use SpaceMail for IMAP mailboxes. Gmail setup below covers Google-hosted mailboxes; both feed the same local Inbox intake path.")
+          Text("Use SpaceMail for IMAP mailboxes. Gmail covers Google-hosted mailboxes, and Microsoft 365 covers Outlook-hosted mailboxes; all feed the same local Inbox intake path.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Text("Do not enter passwords here. No password, app password, auth string, or Keychain item is stored in JSON or audit logs.")
@@ -767,7 +768,7 @@ struct MailboxView: View {
         )
 
         SettingsPanel(title: "Microsoft 365 setup planning", symbol: "mail.stack.fill") {
-          Text("Microsoft 365 remains available as an advanced option. The active mailbox provider rows above are the current manual intake paths for this project.")
+          Text("Use Microsoft 365 when the active mailbox is Outlook-hosted. Real sign-in and manual Graph refresh remain explicit, read-only, and separate from SpaceMail and Gmail.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
@@ -1310,7 +1311,7 @@ private struct MailboxMissedOrderInvestigationPanel: View {
 
   private var detail: String {
     if !hasProviderSetup {
-      return "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes, then run a manual read-only refresh."
+      return "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Microsoft 365 for Outlook-hosted mailboxes, then run a manual read-only refresh."
     }
     if latestImportedCount > 0 {
       return "\(latestImportedCount) likely order message\(latestImportedCount == 1 ? "" : "s") reached Inbox. Start in Inbox, then create or link orders."
@@ -1723,7 +1724,7 @@ private struct MailboxReviewStartPanel: View {
       return "Work the detected order emails below. Confirm fields, then create/link orders, mark reviewed, ignore, task, or draft."
     }
     if latestSummary == nil && latestGmailSummary == nil {
-      return "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes. Both paths feed the same local Inbox intake queue."
+      return "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Microsoft 365 for Outlook-hosted mailboxes. All paths feed the same local Inbox intake queue."
     }
     return "Latest mailbox activity has no immediate review rows. Use setup details only when tuning the active mailbox provider or investigating Audit evidence."
   }
@@ -4044,7 +4045,7 @@ struct NeedsReviewView: View {
             if !store.hasMailboxProviderSetup {
               MVPEmptyState(
                 title: "No mailbox setup exists",
-                detail: "Add a SpaceMail IMAP or Gmail setup before mixed-mailbox review can show uncertain or filtered examples.",
+                detail: "Add a SpaceMail IMAP, Gmail, or Microsoft 365 setup before mixed-mailbox review can show uncertain or filtered examples.",
                 symbol: "envelope.badge.fill"
               )
             } else {

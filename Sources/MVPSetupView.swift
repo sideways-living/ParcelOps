@@ -40,9 +40,9 @@ struct MVPSetupView: View {
 
         MVPWorkflowGuide(
           title: "First usable workflow",
-          detail: "Use this path to test the current manual mailbox operator workflow end to end. Active mailbox providers are the manual intake paths; Microsoft 365 remains available as an advanced provider path.",
+          detail: "Use this path to test the current manual mailbox operator workflow end to end. SpaceMail, Gmail, and Outlook/Microsoft 365 are the manual read-only intake paths.",
           steps: [
-            "Confirm the relevant mailbox setup: SpaceMail IMAP with Keychain credential, or Gmail sign-in and labels.",
+            "Confirm the relevant mailbox setup: SpaceMail IMAP with Keychain credential, Gmail sign-in and labels, or Microsoft 365 sign-in and folders.",
             "Run one explicit manual read-only refresh for the selected provider.",
             "Use Inbox or Mailbox Monitor to review imported, uncertain, filtered, duplicate, and parser results.",
             "Create or link one order from a confirmed intake row.",
@@ -74,7 +74,7 @@ struct MVPSetupView: View {
           MVPStatusCard(title: "Manual operations", detail: "You can create, edit, review, link, and remove local operational records.", status: "Available", symbol: "hand.tap.fill", color: .green)
           MVPStatusCard(title: "SpaceMail intake", detail: "SpaceMail IMAP can run a manual read-only refresh, filter mixed mailbox mail, and import likely order messages into local Inbox review.", status: "Manual", symbol: "envelope.badge.fill", color: .green)
           MVPStatusCard(title: "Gmail intake", detail: "Gmail can use readiness checks, explicit sign-in, and manual read-only refresh for Google-hosted mailboxes, with mock refresh still available for local testing.", status: "Manual", symbol: "envelope.open.fill", color: .green)
-          MVPStatusCard(title: "Microsoft 365", detail: "Microsoft 365 setup, sign-in, and Graph diagnostics remain available, but it is no longer the primary mailbox path for this MVP.", status: "Advanced", symbol: "building.2.crop.circle", color: .teal)
+          MVPStatusCard(title: "Microsoft 365", detail: "Microsoft 365 setup, sign-in, and Graph diagnostics remain available as the manual read-only path for Outlook-hosted mailboxes.", status: "Outlook path", symbol: "building.2.crop.circle", color: .teal)
           MVPStatusCard(title: "Wishlist", detail: "Wishlist supports local manual capture, comparison planning, seller trust notes, purchase handoff, and order-watch records. Agent research and browser extension capture remain planning/local handoff work.", status: "Local", symbol: "star.square.fill", color: .purple)
           MVPStatusCard(title: "Shopify", detail: "Shopify records and account placeholders exist, but no Shopify API or OAuth flow is connected.", status: "Placeholder", symbol: "cart.badge.plus", color: .orange)
           MVPStatusCard(title: "Carrier tracking", detail: "Tracking events are local records only. Carrier APIs and live refresh are not connected.", status: "Placeholder", symbol: "location.fill.viewfinder", color: .orange)
@@ -178,7 +178,7 @@ struct MVPRemainingWorkPanel: View {
 
   private var nextBestAction: String {
     if !hasManualMailboxRefreshEvidence {
-      return "Run one manual read-only SpaceMail or Gmail refresh, then check the summary before adding more integrations."
+      return "Run one manual read-only SpaceMail, Gmail, or Outlook refresh, then check the summary before adding more integrations."
     }
     if !hasInboxToOrderHandoff {
       return "Create or link one order from a confirmed intake or Wishlist source and verify its source trail."
@@ -230,7 +230,7 @@ struct MVPRemainingWorkPanel: View {
             title: "Mailbox intake",
             detail: hasManualMailboxRefreshEvidence
               ? "Manual read-only intake has evidence. Keep hardening parser/classifier edge cases before adding background sync or more mailbox automation."
-              : "Provider setup exists only when SpaceMail or Gmail is configured. Prove one manual read-only refresh before relying on live intake.",
+              : "Provider setup exists when SpaceMail, Gmail, or Outlook/Microsoft 365 is configured. Prove one manual read-only refresh before relying on live intake.",
             status: mailboxStatus,
             symbol: "tray.and.arrow.down.fill",
             color: mailboxTone
@@ -366,8 +366,14 @@ struct MVPMailboxProviderStatusPanel: View {
     store.hasGmailConnectedAuth
   }
 
+  private var hasMicrosoft365ConnectedAuth: Bool {
+    store.microsoft365MailboxConnections.contains {
+      store.microsoft365AuthSessionState(for: $0).status == .connected
+    }
+  }
+
   private var manualProviderReadyCount: Int {
-    [hasSpaceMailSetup && hasSpaceMailCredential, hasGmailCoreSetup && hasGmailConnectedAuth].filter { $0 }.count
+    [hasSpaceMailSetup && hasSpaceMailCredential, hasGmailCoreSetup && hasGmailConnectedAuth, hasMicrosoft365ConnectedAuth].filter { $0 }.count
   }
 
   private var latestManualFetchCount: Int {
@@ -382,7 +388,7 @@ struct MVPMailboxProviderStatusPanel: View {
 
   private var statusDetail: String {
     if manualProviderReadyCount > 0 {
-      return "Use SpaceMail for IMAP mailboxes and Gmail for Google-hosted mailboxes. Both paths are explicit, manual, read-only, mixed-mailbox aware, and route into the same Inbox triage flow."
+      return "Use SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, and Outlook/Microsoft 365 for Microsoft-hosted mailboxes. Each path is explicit, manual, read-only, mixed-mailbox aware, and routes into the same Inbox triage flow."
     }
     if hasGmailSetup && !hasGmailConnectedAuth {
       return "Gmail setup exists, but real refresh needs readiness checks and the explicit Gmail sign-in test to succeed. Mock refresh remains available for local testing."
@@ -390,7 +396,7 @@ struct MVPMailboxProviderStatusPanel: View {
     if hasSpaceMailSetup && !hasSpaceMailCredential {
       return "SpaceMail setup exists, but real refresh needs a Keychain password or app-password reference."
     }
-    return "Start with SpaceMail if the mailbox is IMAP-based, or Gmail if the mailbox is Google-hosted. Microsoft 365 can stay in the advanced provider section."
+    return "Start with SpaceMail if the mailbox is IMAP-based, Gmail if the mailbox is Google-hosted, or Microsoft 365 if the mailbox is Outlook-hosted."
   }
 
   private var statusTone: Color {
@@ -467,7 +473,7 @@ struct MVPMailboxProviderStatusPanel: View {
           ("Last fetched", "\(latestManualFetchCount)", latestManualFetchCount > 0 ? .blue : .secondary),
           ("SpaceMail filtered", "\(latestSpaceMailSummary?.filteredCount ?? 0)", (latestSpaceMailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
           ("Gmail filtered", "\(latestGmailSummary?.filteredCount ?? 0)", (latestGmailSummary?.filteredCount ?? 0) > 0 ? .teal : .secondary),
-          ("Microsoft 365", store.microsoft365MailboxConnections.isEmpty ? "Optional" : "Advanced", .teal)
+          ("Microsoft 365", store.microsoft365MailboxConnections.isEmpty ? "Optional" : (hasMicrosoft365ConnectedAuth ? "Connected" : "Sign in"), hasMicrosoft365ConnectedAuth ? .green : .teal)
         ])
 
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], alignment: .leading, spacing: 10) {
@@ -485,7 +491,7 @@ struct MVPMailboxProviderStatusPanel: View {
           )
           providerBlock(
             title: "Microsoft 365",
-            detail: "Keep as an advanced provider path for tenants that use Microsoft mailboxes. It should not block the current mailbox-provider MVP test path.",
+            detail: "Use for Outlook-hosted mailboxes. Real sign-in and Graph refresh are explicit, manual, read-only, and separate from SpaceMail and Gmail.",
             symbol: "building.2.crop.circle",
             color: .teal
           )
@@ -591,10 +597,10 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
 
   private var currentPriorityDetail: String {
     if !hasManualMailboxSetup {
-      return "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes. Keep Microsoft 365 as an advanced provider option unless a licensed Microsoft mailbox is available."
+      return "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Microsoft 365 for Outlook-hosted mailboxes."
     }
     if !hasManualMailboxReady {
-      return "Use Keychain-backed SpaceMail credential storage or the explicit Gmail sign-in test. Do not place passwords, tokens, client secrets, or auth details in JSON fields or setup notes."
+      return "Use Keychain-backed SpaceMail credential storage, explicit Gmail sign-in, or explicit Microsoft sign-in. Do not place passwords, tokens, client secrets, or auth details in JSON fields or setup notes."
     }
     if !hasLiveRefreshEvidence {
       return "Run one manual read-only refresh from the active provider so the app has real fetched/imported/filtered/uncertain evidence."
@@ -634,7 +640,7 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 10)], alignment: .leading, spacing: 10) {
           priorityBlock(
             title: "1. Prove repeatability",
-            detail: "Run the same local flow several times: SpaceMail or Gmail refresh, triage, create/link order, Workbench follow-up, Dispatch setup, task, Audit, quit/reopen.",
+            detail: "Run the same local flow several times: SpaceMail, Gmail, or Outlook refresh, triage, create/link order, Workbench follow-up, Dispatch setup, task, Audit, quit/reopen.",
             symbol: "repeat.circle.fill",
             color: qaEvidenceReady ? .green : .orange
           )
@@ -961,7 +967,7 @@ struct MVPDevelopmentStatusPanel: View {
     if liveCapabilityCount >= 3 {
       return "The main local workflow is present. Run one complete mailbox-to-Inbox-to-Order-to-Audit pass before treating it as operator-ready."
     }
-    return "Navigation, local records, and persistence are in place. Finish either SpaceMail credential setup or Gmail sign-in, then run one manual refresh before judging the live intake workflow."
+    return "Navigation, local records, and persistence are in place. Finish SpaceMail credential setup, Gmail sign-in, or Microsoft sign-in, then run one manual refresh before judging the live intake workflow."
   }
 
   private var maturityColor: Color {
@@ -1124,10 +1130,10 @@ struct MVPUsableVersionPanel: View {
 
   private var readinessDetail: String {
     if !hasManualMailboxSetup {
-      return "The local records, navigation, Tasks, Audit, and Settings flows are usable. Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before relying on live mailbox intake."
+      return "The local records, navigation, Tasks, Audit, and Settings flows are usable. Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Microsoft 365 for Outlook-hosted mailboxes before relying on live mailbox intake."
     }
     if !hasManualMailboxReady {
-      return "The mailbox setup exists, but real manual refresh still needs either a SpaceMail Keychain credential or a connected Gmail sign-in."
+      return "The mailbox setup exists, but real manual refresh still needs a SpaceMail Keychain credential, connected Gmail sign-in, or connected Microsoft sign-in."
     }
     if inboxOrderCount == 0 {
       return "Run a manual mailbox refresh, review one imported intake row, then create or link an order to prove the daily flow."
@@ -1232,8 +1238,14 @@ struct MVPCompletionRoadmapPanel: View {
     store.hasGmailConnectedAuth
   }
 
+  private var hasMicrosoft365ConnectedAuth: Bool {
+    store.microsoft365MailboxConnections.contains {
+      store.microsoft365AuthSessionState(for: $0).status == .connected
+    }
+  }
+
   private var hasActiveMailboxProvider: Bool {
-    hasSpaceMailCredential || hasGmailConnectedAuth
+    hasSpaceMailCredential || hasGmailConnectedAuth || hasMicrosoft365ConnectedAuth
   }
 
   private var fetchedCount: Int {
@@ -1290,7 +1302,7 @@ struct MVPCompletionRoadmapPanel: View {
       RoadmapItem(
         title: "2. Live mailbox intake",
         status: hasActiveMailboxProvider && fetchedCount > 0 ? "Testable" : "Needs proof",
-        detail: "SpaceMail IMAP and Gmail both use explicit manual read-only refresh boundaries and feed the same provider-neutral Inbox intake path.",
+        detail: "SpaceMail IMAP, Gmail, and Outlook/Microsoft 365 use explicit manual read-only refresh boundaries and feed the same provider-neutral Inbox intake path.",
         evidence: "\(fetchedCount) fetched, \(importedCount) imported, \(filteredCount) filtered, \(uncertainCount) uncertain.",
         nextAction: hasActiveMailboxProvider && fetchedCount > 0 ? "Repeat one provider refresh and verify imported/filtered/uncertain outcomes." : "Finish one provider credential/sign-in and run one manual refresh.",
         symbol: "tray.and.arrow.down.fill",
@@ -1563,7 +1575,7 @@ struct MVPDevelopmentProgressPanel: View {
     if hasManualMailboxSetup {
       return "Confirm credential/sign-in readiness, run one manual read-only refresh, then use the latest refresh summary to decide whether Inbox should receive work."
     }
-    return "Use SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes. Keep Microsoft 365 advanced until a licensed mailbox is available."
+    return "Use SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Microsoft 365 for Outlook-hosted mailboxes."
   }
 
   private var activeMailboxEvidence: String {
@@ -1573,9 +1585,9 @@ struct MVPDevelopmentProgressPanel: View {
   private var remainingBlockers: [(title: String, detail: String, symbol: String, color: Color)] {
     var items: [(title: String, detail: String, symbol: String, color: Color)] = []
     if !hasManualMailboxSetup {
-      items.append(("Choose provider", "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes.", "server.rack", .orange))
+      items.append(("Choose provider", "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Microsoft 365 for Outlook-hosted mailboxes.", "server.rack", .orange))
     } else if !hasManualMailboxReady {
-      items.append(("Finish auth", "Set the SpaceMail Keychain credential or complete Gmail sign-in before relying on real refresh.", "key.fill", .orange))
+      items.append(("Finish auth", "Set the SpaceMail Keychain credential, complete Gmail sign-in, or complete Microsoft sign-in before relying on real refresh.", "key.fill", .orange))
     }
     if !hasRefreshEvidence {
       items.append(("Run manual refresh", "Run one explicit read-only provider refresh to prove local intake without background sync.", "arrow.triangle.2.circlepath", .orange))
@@ -1619,7 +1631,7 @@ struct MVPDevelopmentProgressPanel: View {
       ),
       (
         "Manual mailbox setup",
-        "The current live intake paths support SpaceMail IMAP and Gmail with explicit manual refresh.",
+        "The current live intake paths support SpaceMail IMAP, Gmail, and Outlook/Microsoft 365 with explicit manual refresh.",
         hasManualMailboxSetup && hasManualMailboxReady,
         "server.rack",
         hasManualMailboxSetup && hasManualMailboxReady ? .green : .orange
@@ -1864,10 +1876,10 @@ struct MVPHandsOnReleaseChecklist: View {
 
   private var nextTestDetail: String {
     if !hasManualMailboxSetup {
-      return "Create a non-secret SpaceMail setup for IMAP mailboxes or Gmail setup for Google-hosted mailboxes."
+      return "Create a non-secret SpaceMail setup for IMAP mailboxes, Gmail setup for Google-hosted mailboxes, or Microsoft 365 setup for Outlook-hosted mailboxes."
     }
     if !hasManualMailboxReady {
-      return "Use the secure SpaceMail credential prompt or explicit Gmail sign-in. Do not put passwords, tokens, or auth details in notes or JSON."
+      return "Use the secure SpaceMail credential prompt, explicit Gmail sign-in, or explicit Microsoft sign-in. Do not put passwords, tokens, or auth details in notes or JSON."
     }
     if latestManualFetchedCount == 0 {
       return "Run an explicit real mailbox refresh. It is manual, read-only, and must not mutate the mailbox."
@@ -2414,7 +2426,8 @@ struct MVPReleaseEvidenceReport: View {
     let hasGmailEvidence = latestGmailSummary.map {
       $0.fetchedCount > 0 || $0.importedCount > 0 || $0.filteredCount > 0 || $0.duplicateCount > 0 || $0.uncertainCount > 0
     } ?? false
-    return hasSpaceMailEvidence || hasGmailEvidence
+    let hasMicrosoft365Evidence = store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    return hasSpaceMailEvidence || hasGmailEvidence || hasMicrosoft365Evidence
   }
 
   private var requiredBlockers: [String] {
@@ -2607,8 +2620,12 @@ struct MVPReleaseRunbook: View {
     }
   }
 
+  private var hasMicrosoft365Result: Bool {
+    store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
   private var hasLiveMailboxResult: Bool {
-    hasSpaceMailResult || hasGmailResult
+    hasSpaceMailResult || hasGmailResult || hasMicrosoft365Result
   }
 
   private var hasAuditEvidence: Bool {
