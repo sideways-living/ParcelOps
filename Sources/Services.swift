@@ -1,0 +1,2714 @@
+import Foundation
+import Network
+import Security
+
+#if canImport(GoogleSignIn)
+@preconcurrency import GoogleSignIn
+#endif
+
+protocol MailboxIngestionService {
+  func fetchMessages(from mailboxes: [TrackedMailbox]) async throws -> [FetchedMailboxMessage]
+}
+
+protocol MicrosoftGraphMailboxClient {
+  func fetchMessages(for connection: Microsoft365MailboxConnection, accessToken: String?) async -> MicrosoftGraphMailboxFetchResult
+}
+
+protocol SpaceMailIMAPClient {
+  func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID, password: String?) async -> SpaceMailIMAPFetchResult
+}
+
+protocol GmailMailboxClient {
+  func fetchMessages(for connection: GmailMailboxConnection, sourceMailboxID: UUID) async -> GmailMailboxFetchResult
+}
+
+protocol SpaceMailCredentialStore {
+  func savePassword(_ password: String, for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
+  func loadPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialLoadResult
+  func checkPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
+  func clearPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
+  func simulateReady(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
+  func simulateMissing(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
+  func simulateStorageError(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
+  func simulateClear(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult
+}
+
+protocol Microsoft365GraphTokenProvider {
+  func acquireMailReadToken(for connection: Microsoft365MailboxConnection) async -> Microsoft365GraphTokenResult
+}
+
+protocol Microsoft365AuthClient {
+  func connect(connection: Microsoft365MailboxConnection) async -> Microsoft365AuthResult
+  func simulateFailure(connection: Microsoft365MailboxConnection) async -> Microsoft365AuthResult
+}
+
+protocol GmailAuthClient {
+  func connect(connection: GmailMailboxConnection) async -> GmailAuthResult
+  func simulateFailure(connection: GmailMailboxConnection) async -> GmailAuthResult
+}
+
+protocol Microsoft365TokenStore {
+  func simulateReady(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult
+  func simulateMissing(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult
+  func simulateStorageError(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult
+  func simulateClear(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult
+}
+
+protocol GmailTokenStore {
+  func simulateReady(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult
+  func simulateMissing(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult
+  func simulateStorageError(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult
+  func simulateClear(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult
+}
+
+protocol OrderMatchingService {
+  func reviewState(for event: MailEvent, existingOrders: [TrackedOrder]) -> ReviewState
+}
+
+protocol ShopifySyncService {
+  func sync(connections: [ShopifyConnection]) async throws -> [TrackedOrder]
+}
+
+protocol CarrierTrackingService {
+  func refresh(order: TrackedOrder) async throws -> TrackedOrder
+}
+
+protocol ParcelExportService {
+  func export(order: TrackedOrder) async throws
+}
+
+protocol WorkflowTemplateEngine {
+  func actions(for trigger: WorkflowTrigger) -> [WorkflowTemplateAction]
+}
+
+struct MockMailboxIngestionService: MailboxIngestionService {
+  func fetchMessages(from mailboxes: [TrackedMailbox]) async throws -> [FetchedMailboxMessage] {
+    let mailbox = mailboxes.first
+    let mailboxID = mailbox?.id ?? UUID()
+    let mailboxAddress = mailbox?.address ?? "tracking-intake@parcelops.example"
+    return [
+      FetchedMailboxMessage(
+        providerMessageID: "simulated-\(mailboxID.uuidString)-1001",
+        sender: "orders@northline.example",
+        subject: "Fwd: Northline Outfitters order NO-44918 shipped",
+        receivedDate: "Today 9:15 AM",
+        plainTextBodyPreview: "Forwarded order confirmation from Northline Outfitters. Order NO-44918 has shipped with tracking NL4491800123 to 12 Market Street, Melbourne VIC. Original recipient: \(mailboxAddress).",
+        sourceMailboxID: mailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "simulated-\(mailboxID.uuidString)-1002",
+        sender: "dispatch@urbancrate.example",
+        subject: "Fwd: Urban Crate order UC-7812 tracking update",
+        receivedDate: "Today 10:05 AM",
+        plainTextBodyPreview: "Urban Crate order UC-7812 is now in transit. Tracking number UC7812AUS is headed to Level 2, 41 Collins Street, Melbourne VIC. Please review destination details.",
+        sourceMailboxID: mailboxID
+      )
+    ]
+  }
+}
+
+struct MockMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
+  func fetchMessages(for connection: Microsoft365MailboxConnection, accessToken: String? = nil) async -> MicrosoftGraphMailboxFetchResult {
+    if connection.mailboxAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return MicrosoftGraphMailboxFetchResult(
+        status: .notConnected,
+        messages: [],
+        detail: "Mailbox address is missing. This is still a local setup placeholder."
+      )
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("auth") {
+      return MicrosoftGraphMailboxFetchResult(
+        status: .simulatedAuthPlaceholder,
+        messages: [],
+        detail: "OAuth is not connected yet. No Microsoft Graph request was made."
+      )
+    }
+
+    if connection.monitoredFolderNames.localizedCaseInsensitiveContains("empty") {
+      return MicrosoftGraphMailboxFetchResult(
+        status: .noMessages,
+        messages: [],
+        detail: "Mock Microsoft Graph client returned no local sample messages for these folders."
+      )
+    }
+
+    return MicrosoftGraphMailboxFetchResult(
+      status: .success,
+      messages: [
+        MicrosoftGraphFetchedMessage(
+          graphMessageID: "mock-graph-\(connection.id.uuidString)-1001",
+          sender: "orders@northline.example",
+          subject: "Fwd: Northline Outfitters order NO-44918 shipped",
+          receivedDate: "Today 9:15 AM",
+          plainTextBodyPreview: "Forwarded order confirmation from Northline Outfitters. Order NO-44918 has shipped with tracking NL4491800123 to 12 Market Street, Melbourne VIC. Original recipient: \(connection.mailboxAddress)."
+        ),
+        MicrosoftGraphFetchedMessage(
+          graphMessageID: "mock-graph-\(connection.id.uuidString)-1002",
+          sender: "dispatch@urbancrate.example",
+          subject: "Fwd: Urban Crate order UC-7812 tracking update",
+          receivedDate: "Today 10:05 AM",
+          plainTextBodyPreview: "Urban Crate order UC-7812 is now in transit. Tracking number UC7812AUS is headed to Level 2, 41 Collins Street, Melbourne VIC. Please review destination details."
+        )
+      ],
+      detail: "Mock Microsoft Graph client returned deterministic local messages. No network request was made."
+    )
+  }
+}
+
+struct MockSpaceMailIMAPClient: SpaceMailIMAPClient {
+  func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID, password: String? = nil) async -> SpaceMailIMAPFetchResult {
+    if connection.emailAddressUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        connection.imapHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        connection.imapPort.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        connection.folderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return SpaceMailIMAPFetchResult(
+        status: .notConfigured,
+        messages: [],
+        detail: "SpaceMail IMAP setup is missing mailbox, host, port, or folder. No real IMAP connection was made."
+      )
+    }
+
+    if connection.credentialStorageStatus.localizedCaseInsensitiveContains("missing") ||
+        connection.credentialStorageStatus.localizedCaseInsensitiveContains("required") {
+      return SpaceMailIMAPFetchResult(
+        status: .credentialMissing,
+        messages: [],
+        detail: "Mock SpaceMail IMAP client reports credentials are missing. No password was requested or stored, and no real Keychain item was read by the mock refresh."
+      )
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("connection failed") {
+      return SpaceMailIMAPFetchResult(
+        status: .connectionFailedSimulated,
+        messages: [],
+        detail: "Mock SpaceMail IMAP client simulated a connection failure. No network request was made."
+      )
+    }
+
+    if connection.folderName.localizedCaseInsensitiveContains("missing") ||
+        connection.folderName.localizedCaseInsensitiveContains("not found") {
+      return SpaceMailIMAPFetchResult(
+        status: .folderNotFoundSimulated,
+        messages: [],
+        detail: "Mock SpaceMail IMAP client simulated a missing folder for '\(connection.folderName)'. No mailbox was contacted."
+      )
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("parse failed") {
+      return SpaceMailIMAPFetchResult(
+        status: .parseFailedSimulated,
+        messages: [],
+        detail: "Mock SpaceMail IMAP client simulated a message parse failure. No mailbox data was read."
+      )
+    }
+
+    if connection.folderName.localizedCaseInsensitiveContains("empty") {
+      return SpaceMailIMAPFetchResult(
+        status: .noMessages,
+        messages: [],
+        detail: "Mock SpaceMail IMAP client returned no local sample messages for folder '\(connection.folderName)'."
+      )
+    }
+
+    let messages = [
+      FetchedMailboxMessage(
+        providerMessageID: "spacemail-imap-\(connection.id.uuidString)-uid-1001",
+        sender: "orders@northline.example",
+        subject: "Fwd: Northline Outfitters order NO-44918 shipped",
+        receivedDate: "Today 9:15 AM",
+        plainTextBodyPreview: "Mock SpaceMail IMAP message from \(connection.folderName). Forwarded order confirmation from Northline Outfitters. Order NO-44918 has shipped with tracking NL4491800123 to 12 Market Street, Melbourne VIC. Original recipient: \(connection.emailAddressUsername).",
+        sourceMailboxID: sourceMailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "spacemail-imap-\(connection.id.uuidString)-uid-1002",
+        sender: "dispatch@urbancrate.example",
+        subject: "Fwd: Urban Crate order UC-7812 tracking update",
+        receivedDate: "Today 10:05 AM",
+        plainTextBodyPreview: "Mock SpaceMail IMAP message from \(connection.folderName). Urban Crate order UC-7812 is now in transit. Tracking number UC7812AUS is headed to Level 2, 41 Collins Street, Melbourne VIC. Please review destination details.",
+        sourceMailboxID: sourceMailboxID
+      )
+    ]
+
+    return SpaceMailIMAPFetchResult(
+      status: .success,
+      messages: messages,
+      detail: "Mock SpaceMail IMAP client returned deterministic local messages through the provider-neutral intake model. No real IMAP connection was made, no password was requested or stored, Keychain was not used by the mock refresh, and no mailbox items were deleted, moved, marked read, sent, or modified."
+    )
+  }
+}
+
+struct MockGmailMailboxClient: GmailMailboxClient {
+  func fetchMessages(for connection: GmailMailboxConnection, sourceMailboxID: UUID) async -> GmailMailboxFetchResult {
+    let emailAddress = connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    let labels = connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    guard !emailAddress.isEmpty, !labels.isEmpty else {
+      return GmailMailboxFetchResult(
+        status: .notConfigured,
+        messages: [],
+        detail: "Gmail setup is missing an email address or monitored label names. No OAuth flow, token request, Gmail API call, or mailbox access occurred."
+      )
+    }
+
+    if labels.localizedCaseInsensitiveContains("empty") {
+      return GmailMailboxFetchResult(
+        status: .noMessages,
+        messages: [],
+        detail: "Mock Gmail client returned no deterministic sample messages for labels '\(labels)'."
+      )
+    }
+
+    if labels.localizedCaseInsensitiveContains("missing") ||
+        labels.localizedCaseInsensitiveContains("not found") {
+      return GmailMailboxFetchResult(
+        status: .labelNotFoundSimulated,
+        messages: [],
+        detail: "Mock Gmail client simulated a missing label. No Gmail API request was made."
+      )
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("parse failed") {
+      return GmailMailboxFetchResult(
+        status: .parseFailedSimulated,
+        messages: [],
+        detail: "Mock Gmail client simulated a parse failure. No Gmail message content was read."
+      )
+    }
+
+    let messages = [
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1001",
+        sender: "shipping@example-merchant.test",
+        subject: "Order GMAIL-1001 shipped tracking GM123456",
+        receivedDate: "Mock Gmail refresh",
+        plainTextBodyPreview: "Order GMAIL-1001 shipped tracking GM123456. Destination Brisbane receiving desk. Original Gmail mailbox: \(emailAddress).",
+        sourceMailboxID: sourceMailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1002",
+        sender: "updates@example-merchant.test",
+        subject: "Refund update for order GMAIL-1002",
+        receivedDate: "Mock Gmail refresh",
+        plainTextBodyPreview: "Refund update for order GMAIL-1002. Please review whether a return claim is needed. Labels: \(labels).",
+        sourceMailboxID: sourceMailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1003",
+        sender: "ops-question@example-merchant.test",
+        subject: "Delivery question",
+        receivedDate: "Mock Gmail refresh",
+        plainTextBodyPreview: "Can you check whether this relates to an order? I do not have the tracking number yet.",
+        sourceMailboxID: sourceMailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1004",
+        sender: "newsletter@example-merchant.test",
+        subject: "Final days for winter offers",
+        receivedDate: "Mock Gmail refresh",
+        plainTextBodyPreview: "Final days to view new offers and delivery deals. No order or tracking reference is included.",
+        sourceMailboxID: sourceMailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-mock-\(connection.id.uuidString)-1005",
+        sender: "security@example.test",
+        subject: "Security notification",
+        receivedDate: "Mock Gmail refresh",
+        plainTextBodyPreview: "A sign-in notification was generated for this account. This is not an order update.",
+        sourceMailboxID: sourceMailboxID
+      )
+    ]
+
+    return GmailMailboxFetchResult(
+      status: .success,
+      messages: messages,
+      detail: "Mock Gmail client returned deterministic local messages through the provider-neutral intake model. No Google OAuth flow ran, no token was requested or stored, no Gmail API request was made, and no mailbox items were deleted, moved, marked read, sent, or modified."
+    )
+  }
+}
+
+struct RealGmailMailboxClient: GmailMailboxClient {
+  func fetchMessages(for connection: GmailMailboxConnection, sourceMailboxID: UUID) async -> GmailMailboxFetchResult {
+    let emailAddress = connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    let labels = connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines)
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let redirectURI = (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let scopes = connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    var missing: [String] = []
+    if emailAddress.isEmpty { missing.append("Gmail address") }
+    if labels.isEmpty { missing.append("labels") }
+    if clientID.isEmpty { missing.append("OAuth client ID placeholder") }
+    if redirectURI.isEmpty { missing.append("redirect URI or URL scheme placeholder") }
+    if !scopes.localizedCaseInsensitiveContains("gmail.readonly") && !scopes.localizedCaseInsensitiveContains("gmail.metadata") {
+      missing.append("read-only Gmail scope")
+    }
+
+    guard missing.isEmpty else {
+      return GmailMailboxFetchResult(
+        status: .notConfigured,
+        messages: [],
+        detail: "Real Gmail readiness check stopped before network access. Missing: \(missing.joined(separator: ", ")). No Google OAuth flow, token request, Gmail API call, or mailbox access occurred."
+      )
+    }
+
+    #if canImport(GoogleSignIn)
+    let tokenResult = await acquireAccessToken(connection: connection)
+    guard let accessToken = tokenResult.accessToken else {
+      return GmailMailboxFetchResult(
+        status: tokenResult.status,
+        messages: [],
+        detail: tokenResult.detail
+      )
+    }
+
+    do {
+      let outcome = try await fetchReadOnlyMessages(
+        accessToken: accessToken,
+        connection: connection,
+        sourceMailboxID: sourceMailboxID
+      )
+      let messages = outcome.messages
+      if messages.isEmpty {
+        return GmailMailboxFetchResult(
+          status: .noMessages,
+          messages: [],
+          detail: appendGmailTokenMetadata(
+            tokenResult.tokenMetadataDetail,
+            to: "Real Gmail API manual refresh succeeded but returned no messages for labels '\(labels)'. \(outcome.profileDetail) \(outcome.labelDetail) The request was read-only and did not delete, move, mark read, send, or modify mailbox messages."
+          )
+        )
+      }
+      return GmailMailboxFetchResult(
+        status: .success,
+        messages: messages,
+        detail: appendGmailTokenMetadata(
+          tokenResult.tokenMetadataDetail,
+          to: "Real Gmail API manual refresh fetched \(messages.count) read-only message metadata/snippet records from labels '\(labels)'. \(outcome.profileDetail) \(outcome.labelDetail) Only id, thread id, snippet, internal date, and safe headers were requested. No Gmail message was deleted, moved, marked read, sent, or modified. No Google token value was logged or stored in ParcelOps JSON."
+        )
+      )
+    } catch let error as RealGmailMailboxError {
+      return GmailMailboxFetchResult(
+        status: error.status,
+        messages: [],
+        detail: appendGmailTokenMetadata(tokenResult.tokenMetadataDetail, to: error.safeDetail)
+      )
+    } catch {
+      return GmailMailboxFetchResult(
+        status: .networkFailed,
+        messages: [],
+        detail: appendGmailTokenMetadata(
+          tokenResult.tokenMetadataDetail,
+          to: "Real Gmail API manual refresh failed: \(Self.safeErrorSummary(error)). No token value, authorization header, full URL, Gmail raw body, or mailbox mutation was logged or stored."
+        )
+      )
+    }
+    #else
+    return GmailMailboxFetchResult(
+      status: .notConfigured,
+      messages: [],
+      detail: "Real Gmail API refresh is unavailable because GoogleSignIn is not linked in this build."
+    )
+    #endif
+  }
+
+  #if canImport(GoogleSignIn)
+  private struct TokenResult {
+    var status: GmailMailboxFetchStatus
+    var accessToken: String?
+    var detail: String
+    var tokenMetadataDetail: String = "Gmail token metadata unavailable because no in-memory access token was available."
+  }
+
+  @MainActor
+  private func acquireAccessToken(connection: GmailMailboxConnection) async -> TokenResult {
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if !clientID.isEmpty {
+      GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+    }
+
+    let restoreResult = await currentOrRestoredGoogleUser()
+    guard let currentUser = restoreResult.user else {
+      return TokenResult(
+        status: .authRequired,
+        accessToken: nil,
+        detail: "\(restoreResult.detail) Real Gmail refresh requires a signed-in Google account. Run Test real Google sign-in first. No Gmail API request was made and no mailbox item was changed."
+      )
+    }
+    let restoreDetail = restoreResult.detail
+
+    return await withCheckedContinuation { continuation in
+      currentUser.refreshTokensIfNeeded { user, error in
+        if let error {
+          continuation.resume(returning: TokenResult(
+            status: .authRequired,
+            accessToken: nil,
+            detail: "\(restoreDetail) GoogleSignIn could not refresh an in-memory access token: \(Self.safeErrorSummary(error)). Run Test real Google sign-in again and confirm read-only Gmail consent. No Gmail API request was made and no token value was logged or stored."
+          ))
+          return
+        }
+        let grantedScopes = user?.grantedScopes ?? []
+        let hasReadOnlyScope = grantedScopes.contains { scope in
+          scope.localizedCaseInsensitiveContains("gmail.readonly") ||
+          scope.localizedCaseInsensitiveContains("gmail.metadata")
+        }
+        guard hasReadOnlyScope else {
+          continuation.resume(returning: TokenResult(
+            status: .consentRequired,
+            accessToken: nil,
+            detail: "\(restoreDetail) GoogleSignIn has a signed-in account, but the current session does not report a read-only Gmail scope. Run Test real Google sign-in again and consent to Gmail readonly/metadata access. No Gmail API request was made and no token value was logged or stored."
+          ))
+          return
+        }
+        guard let token = user?.accessToken.tokenString, !token.isEmpty else {
+          continuation.resume(returning: TokenResult(
+            status: .tokenMissing,
+            accessToken: nil,
+            detail: "\(restoreDetail) GoogleSignIn did not provide an in-memory access token. Run Test real Google sign-in again. No Gmail API request was made and no token value was logged or stored."
+          ))
+          return
+        }
+        continuation.resume(returning: TokenResult(
+          status: .success,
+          accessToken: token,
+          detail: "\(restoreDetail) GoogleSignIn provided an in-memory access token. ParcelOps did not store or log the token value.",
+          tokenMetadataDetail: Self.safeGmailTokenMetadata(
+            token,
+            grantedScopes: grantedScopes,
+            expectedMailbox: connection.emailAddress
+          )
+        ))
+      }
+    }
+  }
+
+  private func appendGmailTokenMetadata(_ tokenMetadata: String, to detail: String) -> String {
+    "\(detail)\nGmail token metadata only:\n\(tokenMetadata)"
+  }
+
+  private static func safeGmailTokenMetadata(
+    _ token: String,
+    grantedScopes: [String],
+    expectedMailbox: String
+  ) -> String {
+    let sdkScopes = grantedScopes
+      .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+      .map { safeTokenMetadataValue($0, limit: 80) }
+      .joined(separator: " ")
+    let sdkHasReadOnly = grantedScopes.contains { scope in
+      scope.localizedCaseInsensitiveContains("gmail.readonly") ||
+      scope.localizedCaseInsensitiveContains("gmail.metadata")
+    }
+
+    guard let claims = jwtPayloadClaims(from: token) else {
+      return [
+        "Token format: opaque or non-JWT",
+        "SDK granted scopes: \(sdkScopes.isEmpty ? "unavailable" : sdkScopes)",
+        "SDK reports Gmail readonly/metadata scope: \(sdkHasReadOnly ? "yes" : "no")",
+        "Token claim metadata: unavailable for opaque token",
+        "No raw token, auth header, callback URL, password, or client secret was logged or stored."
+      ].joined(separator: "\n")
+    }
+
+    let audience = safeClaimText(claims["aud"])
+    let issuer = safeClaimText(claims["iss"])
+    let authorizedParty = safeClaimText(claims["azp"])
+    let scopeClaim = safeClaimText(claims["scope"] ?? claims["scp"])
+    let emailClaim = safeClaimText(claims["email"] ?? claims["upn"] ?? claims["preferred_username"])
+    let hasGmailScope = scopeClaim.localizedCaseInsensitiveContains("gmail.readonly") ||
+      scopeClaim.localizedCaseInsensitiveContains("gmail.metadata") ||
+      sdkHasReadOnly
+    let expiry = safeJWTDate(claims["exp"])
+    let issuedAt = safeJWTDate(claims["iat"])
+    let expired = jwtDateIsExpired(claims["exp"])
+    let mailboxComparison = safeMailboxClaimComparison(emailClaim: emailClaim, expectedMailbox: expectedMailbox)
+
+    return [
+      "Token format: JWT claims decoded safely",
+      "Audience: \(safeTokenMetadataValue(audience, limit: 120))",
+      "Issuer: \(safeTokenMetadataValue(issuer, limit: 120))",
+      "Authorized party/client: \(authorizedParty.isEmpty ? "unavailable" : "present")",
+      "Claim scopes: \(scopeClaim.isEmpty ? "unavailable" : safeTokenMetadataValue(scopeClaim, limit: 160))",
+      "SDK granted scopes: \(sdkScopes.isEmpty ? "unavailable" : sdkScopes)",
+      "Has Gmail readonly/metadata scope: \(hasGmailScope ? "yes" : "no")",
+      "Mailbox claim: \(emailClaim.isEmpty ? "unavailable" : "present")",
+      "Mailbox claim comparison: \(mailboxComparison)",
+      "Issued at: \(issuedAt)",
+      "Expiry: \(expiry)",
+      "Expired now: \(expired)",
+      "No raw token, auth header, callback URL, password, or client secret was logged or stored."
+    ].joined(separator: "\n")
+  }
+
+  private static func jwtPayloadClaims(from token: String) -> [String: Any]? {
+    let parts = token.split(separator: ".")
+    guard parts.count >= 2 else { return nil }
+    var payload = String(parts[1])
+      .replacingOccurrences(of: "-", with: "+")
+      .replacingOccurrences(of: "_", with: "/")
+    let padding = payload.count % 4
+    if padding > 0 {
+      payload += String(repeating: "=", count: 4 - padding)
+    }
+    guard let data = Data(base64Encoded: payload),
+          let object = try? JSONSerialization.jsonObject(with: data),
+          let claims = object as? [String: Any] else {
+      return nil
+    }
+    return claims
+  }
+
+  private static func safeClaimText(_ value: Any?) -> String {
+    if let string = value as? String {
+      return string.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    if let strings = value as? [String] {
+      return strings.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    if let number = value as? NSNumber {
+      return number.stringValue
+    }
+    return ""
+  }
+
+  private static func safeJWTDate(_ value: Any?) -> String {
+    let timestamp: TimeInterval?
+    if let number = value as? NSNumber {
+      timestamp = number.doubleValue
+    } else if let string = value as? String, let double = Double(string) {
+      timestamp = double
+    } else {
+      timestamp = nil
+    }
+    guard let timestamp else { return "unavailable" }
+    return ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: timestamp))
+  }
+
+  private static func jwtDateIsExpired(_ value: Any?) -> String {
+    let timestamp: TimeInterval?
+    if let number = value as? NSNumber {
+      timestamp = number.doubleValue
+    } else if let string = value as? String, let double = Double(string) {
+      timestamp = double
+    } else {
+      timestamp = nil
+    }
+    guard let timestamp else { return "unknown" }
+    return Date(timeIntervalSince1970: timestamp) <= Date() ? "yes" : "no"
+  }
+
+  private static func safeMailboxClaimComparison(emailClaim: String, expectedMailbox: String) -> String {
+    let expected = expectedMailbox.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let claim = emailClaim.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if expected.isEmpty || claim.isEmpty { return "unable to compare" }
+    return expected == claim ? "matches configured mailbox" : "differs from configured mailbox"
+  }
+
+  private static func safeTokenMetadataValue(_ value: String, limit: Int) -> String {
+    let redacted = value
+      .replacingOccurrences(of: #"Bearer\s+[A-Za-z0-9._\-]+"#, with: "Bearer [redacted]", options: .regularExpression)
+      .replacingOccurrences(of: #"[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+"#, with: "[redacted-jwt]", options: .regularExpression)
+      .replacingOccurrences(of: "\n", with: " ")
+      .replacingOccurrences(of: "\r", with: " ")
+    return String(redacted.prefix(limit))
+  }
+
+  @MainActor
+  private func currentOrRestoredGoogleUser() async -> (user: GIDGoogleUser?, detail: String) {
+    if let currentUser = GIDSignIn.sharedInstance.currentUser {
+      return (
+        currentUser,
+        "GoogleSignIn current user was already available in memory."
+      )
+    }
+
+    guard GIDSignIn.sharedInstance.hasPreviousSignIn() else {
+      return (
+        nil,
+        "GoogleSignIn has no previous cached sign-in to restore."
+      )
+    }
+
+    return await withCheckedContinuation { continuation in
+      GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
+        if let error {
+          continuation.resume(returning: (
+            nil,
+            "GoogleSignIn previous sign-in restore failed safely: \(Self.safeErrorSummary(error))."
+          ))
+          return
+        }
+        if let user {
+          continuation.resume(returning: (
+            user,
+            "GoogleSignIn restored a previous signed-in account from its SDK-managed cache before manual refresh."
+          ))
+        } else {
+          continuation.resume(returning: (
+            nil,
+            "GoogleSignIn previous sign-in restore completed without a user."
+          ))
+        }
+      }
+    }
+  }
+
+  private struct ReadOnlyFetchOutcome {
+    var messages: [FetchedMailboxMessage]
+    var profileDetail: String
+    var labelDetail: String
+  }
+
+  private func fetchReadOnlyMessages(
+    accessToken: String,
+    connection: GmailMailboxConnection,
+    sourceMailboxID: UUID
+  ) async throws -> ReadOnlyFetchOutcome {
+    let profileDetail = try await fetchProfileDiagnostic(accessToken: accessToken, connection: connection)
+    let labelResolutions = try await resolveLabelIDs(accessToken: accessToken, labels: configuredLabels(from: connection))
+    var messageIDs: [String] = []
+    var seenMessageIDs = Set<String>()
+    var labelFetchDetails: [String] = []
+    for resolution in labelResolutions {
+      let ids = try await listMessageIDs(accessToken: accessToken, labelID: resolution.id)
+      let beforeCount = messageIDs.count
+      for id in ids where !seenMessageIDs.contains(id) {
+        seenMessageIDs.insert(id)
+        messageIDs.append(id)
+        if messageIDs.count >= 10 { break }
+      }
+      let addedCount = messageIDs.count - beforeCount
+      labelFetchDetails.append(
+        "Label '\(safeHeaderValue(resolution.requestedLabel, limit: 60))' returned \(ids.count) ID\(ids.count == 1 ? "" : "s") and added \(addedCount) unique ID\(addedCount == 1 ? "" : "s")."
+      )
+      if messageIDs.count >= 10 { break }
+    }
+    var messages: [FetchedMailboxMessage] = []
+    for id in messageIDs.prefix(10) {
+      let message = try await fetchMessageMetadata(
+        id: id,
+        accessToken: accessToken,
+        connection: connection,
+        sourceMailboxID: sourceMailboxID
+      )
+      messages.append(message)
+    }
+    let capDetail = messageIDs.count >= 10
+      ? "Gmail multi-label fetch de-duplicated message IDs and stopped at 10 total messages."
+      : "Gmail multi-label fetch de-duplicated message IDs across configured labels."
+    let labelDetail = [
+      labelResolutions.map(\.detail).joined(separator: " "),
+      labelFetchDetails.joined(separator: " "),
+      capDetail
+    ]
+    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    .joined(separator: " ")
+    return ReadOnlyFetchOutcome(messages: messages, profileDetail: profileDetail, labelDetail: labelDetail)
+  }
+
+  private func fetchProfileDiagnostic(accessToken: String, connection: GmailMailboxConnection) async throws -> String {
+    var components = try gmailURLComponents(
+      "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+      requestLabel: "users.profile",
+      failureDetail: "Could not construct the Gmail profile preflight request. No Gmail messages were fetched."
+    )
+    components.queryItems = [
+      URLQueryItem(name: "fields", value: "emailAddress,messagesTotal,threadsTotal")
+    ]
+    guard let url = components.url else {
+      throw RealGmailMailboxError(status: .notConfigured, safeDetail: "Could not construct the Gmail profile preflight request. No Gmail messages were fetched.")
+    }
+
+    let response: GmailProfileResponse = try await performGmailRequest(url: url, accessToken: accessToken, requestLabel: "users.profile")
+    let expectedMailbox = connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let returnedMailbox = (response.emailAddress ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let mailboxMatch: String
+    if expectedMailbox.isEmpty || returnedMailbox.isEmpty {
+      mailboxMatch = "unable to compare"
+    } else {
+      mailboxMatch = expectedMailbox == returnedMailbox ? "matches configured mailbox" : "differs from configured mailbox"
+    }
+    let totalMessages = response.messagesTotal.map(String.init) ?? "unavailable"
+    let totalThreads = response.threadsTotal.map(String.init) ?? "unavailable"
+    return "Gmail profile preflight succeeded: returned mailbox \(returnedMailbox.isEmpty ? "unavailable" : "present"), mailbox comparison \(mailboxMatch), total messages \(totalMessages), total threads \(totalThreads)."
+  }
+
+  private struct GmailLabelResolution {
+    var id: String
+    var requestedLabel: String
+    var detail: String
+  }
+
+  private func resolveLabelIDs(accessToken: String, labels: [String]) async throws -> [GmailLabelResolution] {
+    var resolutions: [GmailLabelResolution] = []
+    for label in labels {
+      let resolution = try await resolveLabelID(accessToken: accessToken, label: label)
+      if !resolutions.contains(where: { $0.id == resolution.id }) {
+        resolutions.append(resolution)
+      }
+    }
+    if resolutions.isEmpty {
+      return [try await resolveLabelID(accessToken: accessToken, label: "INBOX")]
+    }
+    return resolutions
+  }
+
+  private func resolveLabelID(accessToken: String, label: String) async throws -> GmailLabelResolution {
+    let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+    let effectiveLabel = trimmedLabel.isEmpty ? "INBOX" : trimmedLabel
+    if let systemLabel = systemLabelID(from: effectiveLabel) {
+      return GmailLabelResolution(
+        id: systemLabel,
+        requestedLabel: effectiveLabel,
+        detail: "Gmail label resolution used system label \(systemLabel)."
+      )
+    }
+
+    if effectiveLabel.localizedCaseInsensitiveContains("label_") {
+      return GmailLabelResolution(
+        id: effectiveLabel,
+        requestedLabel: effectiveLabel,
+        detail: "Gmail label resolution used configured label ID directly. The value was not logged as a mailbox secret."
+      )
+    }
+
+    var components = try gmailURLComponents(
+      "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+      requestLabel: "labels.list",
+      failureDetail: "Could not construct the Gmail labels metadata request. No Gmail messages were fetched."
+    )
+    components.queryItems = [
+      URLQueryItem(name: "fields", value: "labels(id,name,type)")
+    ]
+    guard let url = components.url else {
+      throw RealGmailMailboxError(status: .notConfigured, safeDetail: "Could not construct the Gmail labels metadata request. No Gmail messages were fetched.")
+    }
+
+    let response: GmailLabelsResponse = try await performGmailRequest(url: url, accessToken: accessToken, requestLabel: "labels.list")
+    let normalizedTarget = normalizedLabelName(effectiveLabel)
+    let match = response.labels?.first { label in
+      normalizedLabelName(label.name) == normalizedTarget
+        || normalizedLabelName(label.id) == normalizedTarget
+    }
+    guard let match else {
+      let availableExamples = response.labels?
+        .filter { $0.type?.localizedCaseInsensitiveContains("user") == true || systemLabelID(from: $0.name) != nil }
+        .prefix(6)
+        .map { safeHeaderValue($0.name, limit: 40) }
+        .joined(separator: ", ") ?? "none returned"
+      throw RealGmailMailboxError(
+        status: .labelNotFound,
+        safeDetail: "Gmail label '\(safeHeaderValue(effectiveLabel, limit: 80))' was not found in safe label metadata. Available examples: \(availableExamples). Use INBOX or an existing Gmail label name. No Gmail messages were fetched, and no mailbox item was changed."
+      )
+    }
+
+    return GmailLabelResolution(
+      id: match.id,
+      requestedLabel: effectiveLabel,
+      detail: "Gmail label resolution matched configured label '\(safeHeaderValue(effectiveLabel, limit: 80))' to safe Gmail label metadata. Label type: \(safeHeaderValue(match.type ?? "unknown", limit: 40))."
+    )
+  }
+
+  private func listMessageIDs(accessToken: String, labelID: String) async throws -> [String] {
+    var components = try gmailURLComponents(
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+      requestLabel: "messages.list",
+      failureDetail: "Could not construct the Gmail list request. No Gmail API call was made."
+    )
+    let queryItems = [
+      URLQueryItem(name: "maxResults", value: "10"),
+      URLQueryItem(name: "includeSpamTrash", value: "false"),
+      URLQueryItem(name: "labelIds", value: labelID)
+    ]
+    components.queryItems = queryItems
+    guard let url = components.url else {
+      throw RealGmailMailboxError(status: .notConfigured, safeDetail: "Could not construct the Gmail list request. No Gmail API call was made.")
+    }
+
+    let response: GmailListResponse = try await performGmailRequest(url: url, accessToken: accessToken, requestLabel: "messages.list")
+    return response.messages?.map(\.id) ?? []
+  }
+
+  private func fetchMessageMetadata(
+    id: String,
+    accessToken: String,
+    connection: GmailMailboxConnection,
+    sourceMailboxID: UUID
+  ) async throws -> FetchedMailboxMessage {
+    var components = try gmailURLComponents(
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages/\(id)",
+      requestLabel: "messages.get",
+      failureDetail: "Could not construct a Gmail message metadata request. No Gmail message was fetched."
+    )
+    components.queryItems = [
+      URLQueryItem(name: "format", value: "metadata"),
+      URLQueryItem(name: "metadataHeaders", value: "From"),
+      URLQueryItem(name: "metadataHeaders", value: "Subject"),
+      URLQueryItem(name: "metadataHeaders", value: "Date"),
+      URLQueryItem(name: "metadataHeaders", value: "Message-ID")
+    ]
+    guard let url = components.url else {
+      throw RealGmailMailboxError(status: .notConfigured, safeDetail: "Could not construct a Gmail message metadata request. No Gmail message was fetched.")
+    }
+
+    let response: GmailMessageResponse = try await performGmailRequest(url: url, accessToken: accessToken, requestLabel: "messages.get")
+    let headers = response.payload?.headers ?? []
+    let subject = gmailHeader("Subject", in: headers) ?? "(No subject)"
+    let sender = gmailHeader("From", in: headers) ?? connection.emailAddress
+    let received = gmailHeader("Date", in: headers) ?? response.safeInternalDateText
+    let messageID = header("Message-ID", in: headers)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let providerID: String
+    if let messageID, !messageID.isEmpty {
+      providerID = "gmail-message-id-\(stableProviderComponent(messageID))"
+    } else {
+      providerID = "gmail-\(connection.id.uuidString)-\(id)"
+    }
+    let preview = [subject, response.snippet ?? ""]
+      .joined(separator: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    return FetchedMailboxMessage(
+      providerMessageID: providerID,
+      sender: sender,
+      subject: subject,
+      receivedDate: received,
+      plainTextBodyPreview: String(preview.prefix(600)),
+      sourceMailboxID: sourceMailboxID
+    )
+  }
+
+  private func gmailURLComponents(
+    _ string: String,
+    requestLabel: String,
+    failureDetail: String
+  ) throws -> URLComponents {
+    guard let components = URLComponents(string: string) else {
+      throw RealGmailMailboxError(
+        status: .notConfigured,
+        safeDetail: "\(failureDetail) Request: \(requestLabel). No authorization header, token value, full URL, raw Gmail body, or mailbox mutation was logged or stored."
+      )
+    }
+    return components
+  }
+
+  private func performGmailRequest<Response: Decodable>(
+    url: URL,
+    accessToken: String,
+    requestLabel: String
+  ) async throws -> Response {
+    var request = URLRequest(url: url)
+    request.httpMethod = "GET"
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw RealGmailMailboxError(status: .networkFailed, safeDetail: "Gmail \(requestLabel) did not return an HTTP response.")
+    }
+
+    guard (200..<300).contains(httpResponse.statusCode) else {
+      let errorBody = try? JSONDecoder().decode(GmailErrorEnvelope.self, from: data)
+      let status = statusForHTTP(httpResponse.statusCode, error: errorBody)
+      let reason = errorBody?.error.message ?? "No safe Gmail API error message returned."
+      let reasonLabels = gmailErrorReasonLabels(errorBody, statusCode: httpResponse.statusCode)
+      let diagnosticLines = gmailHTTPDiagnosticLines(response: httpResponse, data: data)
+      throw RealGmailMailboxError(
+        status: status,
+        safeDetail: "Gmail \(requestLabel) returned HTTP \(httpResponse.statusCode). Error code: \(errorBody?.error.status ?? errorBody?.error.code.map(String.init) ?? "unknown"). Reason labels: \(reasonLabels.joined(separator: ", ")). Message: \(String(reason.prefix(240))). \(gmailHTTPRemediation(for: httpResponse.statusCode, reasonLabels: reasonLabels))\n\(diagnosticLines.joined(separator: "\n"))\nNo authorization header, token value, full URL, raw message body, or mailbox mutation was logged or stored."
+      )
+    }
+
+    do {
+      return try JSONDecoder().decode(Response.self, from: data)
+    } catch {
+      throw RealGmailMailboxError(
+        status: .parseFailed,
+        safeDetail: "Gmail \(requestLabel) returned data but ParcelOps could not parse the safe metadata response: \(Self.safeErrorSummary(error)). Response bytes: \(data.count). No raw Gmail body was logged."
+      )
+    }
+  }
+
+  private func configuredLabels(from connection: GmailMailboxConnection) -> [String] {
+    let labels = connection.monitoredLabelNames
+      .split(separator: ",")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+    return labels.isEmpty ? ["INBOX"] : labels
+  }
+
+  private func systemLabelID(from label: String) -> String? {
+    let normalized = label.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    let supported = ["INBOX", "UNREAD", "STARRED", "IMPORTANT", "SENT", "TRASH", "SPAM", "CATEGORY_PERSONAL", "CATEGORY_SOCIAL", "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS"]
+    return supported.contains(normalized) ? normalized : nil
+  }
+
+  private func normalizedLabelName(_ value: String) -> String {
+    value
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .replacingOccurrences(of: "\\", with: "")
+      .lowercased()
+  }
+
+  private func header(_ name: String, in headers: [GmailHeader]) -> String? {
+    headers.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }?.value
+  }
+
+  private func gmailHeader(_ name: String, in headers: [GmailHeader]) -> String? {
+    guard let value = header(name, in: headers) else { return nil }
+    return cleanGmailHeaderValue(value)
+  }
+
+  private func cleanGmailHeaderValue(_ value: String) -> String {
+    decodeMalformedEncodedWordPrefixIfNeeded(decodeEncodedWords(in: value))
+      .replacingOccurrences(of: "\r\n", with: " ")
+      .replacingOccurrences(of: "\n", with: " ")
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private func stableProviderComponent(_ value: String) -> String {
+    value
+      .trimmingCharacters(in: CharacterSet(charactersIn: "<> "))
+      .replacingOccurrences(of: "@", with: "-at-")
+      .replacingOccurrences(of: "/", with: "-")
+      .replacingOccurrences(of: " ", with: "-")
+  }
+
+  private func statusForHTTP(_ statusCode: Int, error: GmailErrorEnvelope?) -> GmailMailboxFetchStatus {
+    if statusCode == 401 { return .authRequired }
+    if statusCode == 403 { return .consentRequired }
+    if statusCode == 404 { return .labelNotFound }
+    if statusCode >= 500 { return .networkFailed }
+    if error != nil { return .apiRejected }
+    return .networkFailed
+  }
+
+  private func gmailHTTPRemediation(for statusCode: Int, reasonLabels: [String] = []) -> String {
+    let labelSet = Set(reasonLabels.map { $0.lowercased() })
+    if labelSet.contains("gmail api disabled") {
+      return "Enable Gmail API for the Google Cloud project, wait for propagation, then retry the manual read-only refresh."
+    }
+    if labelSet.contains("insufficient scope") || labelSet.contains("missing gmail readonly scope") {
+      return "Run Test real Google sign-in again and consent to gmail.readonly or gmail.metadata before retrying refresh."
+    }
+    if labelSet.contains("invalid credentials") || labelSet.contains("invalid token") {
+      return "Run Test real Google sign-in again so GoogleSignIn can refresh the SDK-managed account token."
+    }
+    if labelSet.contains("label query problem") {
+      return "Check the configured Gmail label. Use INBOX for the primary inbox or an existing Gmail label name."
+    }
+    if labelSet.contains("rate limited") {
+      return "Gmail rate limited the manual request. Wait before retrying; do not add background polling."
+    }
+
+    switch statusCode {
+    case 401:
+      return "Run Test real Google sign-in again, confirm the signed-in account, and verify Gmail readonly/metadata consent."
+    case 403:
+      return "Check that the Google Cloud project has Gmail API enabled, the OAuth consent screen allows this account, and the app requested a read-only Gmail scope."
+    case 404:
+      return "Check the configured Gmail label. System labels should use names like INBOX; custom labels must exist on the mailbox."
+    case 429:
+      return "Gmail rate limited the manual request. Wait before retrying."
+    case 500...599:
+      return "Gmail returned a server-side error. Retry later without changing mailbox state."
+    default:
+      return "Use the safe Gmail error code/message below as the source of truth."
+    }
+  }
+
+  private func gmailHTTPDiagnosticLines(response: HTTPURLResponse, data: Data) -> [String] {
+    let contentType = response.value(forHTTPHeaderField: "Content-Type") ?? "missing"
+    let requestID = response.value(forHTTPHeaderField: "X-Request-Id")
+      ?? response.value(forHTTPHeaderField: "x-request-id")
+      ?? response.value(forHTTPHeaderField: "X-Google-Request-ID")
+      ?? "missing"
+    let authHeader = response.value(forHTTPHeaderField: "WWW-Authenticate") ?? ""
+    let authSummary = sanitizedAuthenticateSummary(authHeader)
+    let bodyPreview = sanitizedBodyPreview(from: data)
+    return [
+      "Gmail response content type: \(safeHeaderValue(contentType, limit: 80))",
+      "Gmail response bytes: \(data.count)",
+      "Gmail request id: \(safeHeaderValue(requestID, limit: 120))",
+      "Gmail auth challenge: \(authSummary)",
+      "Gmail response preview: \(bodyPreview)"
+    ]
+  }
+
+  private func gmailErrorReasonLabels(_ envelope: GmailErrorEnvelope?, statusCode: Int) -> [String] {
+    var labels: [String] = []
+    let status = envelope?.error.status?.lowercased() ?? ""
+    let message = envelope?.error.message?.lowercased() ?? ""
+    let detailReasons = envelope?.error.errors?.map { $0.reason.lowercased() } ?? []
+    let detailDomains = envelope?.error.errors?.map { $0.domain.lowercased() } ?? []
+    let combined = ([status, message] + detailReasons + detailDomains).joined(separator: " ")
+
+    if combined.contains("accessnotconfigured") || combined.contains("api has not been used") || combined.contains("disabled") {
+      labels.append("Gmail API disabled")
+    }
+    if combined.contains("insufficientpermissions") || combined.contains("insufficient permission") || combined.contains("insufficient authentication scopes") {
+      labels.append("Insufficient scope")
+    }
+    if combined.contains("gmail.readonly") || combined.contains("gmail.metadata") {
+      labels.append("Missing Gmail readonly scope")
+    }
+    if combined.contains("autherror") || combined.contains("invalid credentials") || combined.contains("login required") {
+      labels.append("Invalid credentials")
+    }
+    if combined.contains("invalid_token") || combined.contains("token expired") {
+      labels.append("Invalid token")
+    }
+    if combined.contains("notfound") || combined.contains("label") && statusCode == 404 {
+      labels.append("Label query problem")
+    }
+    if combined.contains("ratelimitexceeded") || combined.contains("userratelimitexceeded") || combined.contains("quota") || statusCode == 429 {
+      labels.append("Rate limited")
+    }
+    if combined.contains("forbidden") || statusCode == 403 {
+      labels.append("Forbidden")
+    }
+    if statusCode == 401 {
+      labels.append("Auth challenge")
+    }
+    if labels.isEmpty {
+      labels.append(envelope?.error.status ?? "HTTP \(statusCode)")
+    }
+
+    return Array(NSOrderedSet(array: labels)).compactMap { $0 as? String }
+  }
+
+  private func sanitizedAuthenticateSummary(_ value: String) -> String {
+    guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "missing" }
+    let lowercased = value.lowercased()
+    var labels: [String] = []
+    if lowercased.contains("invalid_token") { labels.append("invalid token") }
+    if lowercased.contains("insufficient") { labels.append("insufficient scope or claims") }
+    if lowercased.contains("scope") { labels.append("scope mentioned") }
+    if lowercased.contains("realm") { labels.append("realm present") }
+    if lowercased.contains("error_description") { labels.append("description present") }
+    if labels.isEmpty { labels.append("challenge present") }
+    return labels.joined(separator: ", ")
+  }
+
+  private func sanitizedBodyPreview(from data: Data) -> String {
+    guard !data.isEmpty else { return "empty" }
+    let decoded = String(data: data, encoding: .utf8) ?? "non-UTF8 response"
+    return safeHeaderValue(decoded, limit: 180)
+  }
+
+  private func safeHeaderValue(_ value: String, limit: Int) -> String {
+    let redacted = value
+      .replacingOccurrences(of: #"Bearer\s+[A-Za-z0-9._\-]+"#, with: "Bearer [redacted]", options: .regularExpression)
+      .replacingOccurrences(of: #""access_token"\s*:\s*"[^"]+""#, with: "\"access_token\":\"[redacted]\"", options: .regularExpression)
+      .replacingOccurrences(of: #""refresh_token"\s*:\s*"[^"]+""#, with: "\"refresh_token\":\"[redacted]\"", options: .regularExpression)
+      .replacingOccurrences(of: #""id_token"\s*:\s*"[^"]+""#, with: "\"id_token\":\"[redacted]\"", options: .regularExpression)
+      .replacingOccurrences(of: "\n", with: " ")
+      .replacingOccurrences(of: "\r", with: " ")
+    return String(redacted.prefix(limit))
+  }
+
+  private func decodeEncodedWords(in value: String) -> String {
+    let pattern = #"=\?([^?]+)\?([BbQq])\?([^?]+)\?="#
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return value }
+    var result = value
+    let matches = regex.matches(in: value, range: NSRange(value.startIndex..<value.endIndex, in: value)).reversed()
+    for match in matches {
+      guard let fullRange = Range(match.range(at: 0), in: value),
+            let charsetRange = Range(match.range(at: 1), in: value),
+            let markerRange = Range(match.range(at: 2), in: value),
+            let payloadRange = Range(match.range(at: 3), in: value) else { continue }
+      let charset = String(value[charsetRange])
+      let marker = String(value[markerRange])
+      let payload = String(value[payloadRange])
+      let replacement: String?
+      if marker.caseInsensitiveCompare("B") == .orderedSame {
+        replacement = Data(base64Encoded: payload).flatMap { string(from: $0, charset: charset) }
+      } else {
+        replacement = decodeRFC2047QEncodedWord(payload, charset: charset)
+      }
+      guard let replacement else { continue }
+      result.replaceSubrange(fullRange, with: replacement)
+    }
+    return result
+  }
+
+  private func decodeMalformedEncodedWordPrefixIfNeeded(_ value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let pattern = #"^=\?([^?]+)\?([Qq])\?(.+)$"#
+    guard let regex = try? NSRegularExpression(pattern: pattern),
+          let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)),
+          let charsetRange = Range(match.range(at: 1), in: trimmed),
+          let payloadRange = Range(match.range(at: 3), in: trimmed) else {
+      return value
+    }
+
+    var payload = String(trimmed[payloadRange])
+    if payload.hasSuffix("?=") {
+      payload.removeLast(2)
+    }
+    if payload.hasSuffix("=") {
+      payload.removeLast()
+    }
+    return decodeRFC2047QEncodedWord(payload, charset: String(trimmed[charsetRange])) ?? value
+  }
+
+  private func decodeRFC2047QEncodedWord(_ payload: String, charset: String) -> String? {
+    var bytes: [UInt8] = []
+    let scalars = Array(payload.utf8)
+    var index = 0
+    while index < scalars.count {
+      if scalars[index] == 95 {
+        bytes.append(32)
+        index += 1
+      } else if scalars[index] == 61, index + 2 < scalars.count,
+                let decoded = UInt8(String(bytes: [scalars[index + 1], scalars[index + 2]], encoding: .utf8) ?? "", radix: 16) {
+        bytes.append(decoded)
+        index += 3
+      } else {
+        bytes.append(scalars[index])
+        index += 1
+      }
+    }
+    return string(from: Data(bytes), charset: charset)
+  }
+
+  private func string(from data: Data, charset: String) -> String? {
+    let normalized = charset
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+      .replacingOccurrences(of: "_", with: "-")
+    switch normalized {
+    case "utf-8", "utf8":
+      return String(data: data, encoding: .utf8)
+    case "iso-8859-1", "latin1", "latin-1":
+      return String(data: data, encoding: .isoLatin1)
+    case "us-ascii", "ascii":
+      return String(data: data, encoding: .ascii)
+    default:
+      return String(data: data, encoding: .utf8)
+        ?? String(data: data, encoding: .isoLatin1)
+    }
+  }
+
+  private static func safeErrorSummary(_ error: Error) -> String {
+    let nsError = error as NSError
+    return "\(nsError.domain) code \(nsError.code): \(nsError.localizedDescription)"
+  }
+
+  private struct GmailListResponse: Decodable {
+    var messages: [GmailMessageID]?
+  }
+
+  private struct GmailMessageID: Decodable {
+    var id: String
+  }
+
+  private struct GmailLabelsResponse: Decodable {
+    var labels: [GmailLabel]?
+  }
+
+  private struct GmailLabel: Decodable {
+    var id: String
+    var name: String
+    var type: String?
+  }
+
+  private struct GmailProfileResponse: Decodable {
+    var emailAddress: String?
+    var messagesTotal: Int?
+    var threadsTotal: Int?
+  }
+
+  private struct GmailMessageResponse: Decodable {
+    var id: String
+    var threadId: String?
+    var snippet: String?
+    var internalDate: String?
+    var payload: GmailPayload?
+
+    var safeInternalDateText: String {
+      guard let internalDate, let milliseconds = Double(internalDate) else { return "Gmail date unavailable" }
+      let date = Date(timeIntervalSince1970: milliseconds / 1000)
+      return DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .short)
+    }
+  }
+
+  private struct GmailPayload: Decodable {
+    var headers: [GmailHeader]?
+  }
+
+  private struct GmailHeader: Decodable {
+    var name: String
+    var value: String
+  }
+
+  private struct GmailErrorEnvelope: Decodable {
+    var error: GmailError
+  }
+
+  private struct GmailError: Decodable {
+    var code: Int?
+    var message: String?
+    var status: String?
+    var errors: [GmailErrorDetail]?
+  }
+
+  private struct GmailErrorDetail: Decodable {
+    var domain: String
+    var reason: String
+    var message: String?
+    var locationType: String?
+    var location: String?
+  }
+
+  private struct RealGmailMailboxError: Error {
+    var status: GmailMailboxFetchStatus
+    var safeDetail: String
+  }
+  #endif
+}
+
+struct RealSpaceMailIMAPClient: SpaceMailIMAPClient {
+  func fetchMessages(for connection: SpaceMailIMAPConnection, sourceMailboxID: UUID, password: String? = nil) async -> SpaceMailIMAPFetchResult {
+    let emailAddress = connection.emailAddressUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+    let host = connection.imapHost.trimmingCharacters(in: .whitespacesAndNewlines)
+    let portText = connection.imapPort.trimmingCharacters(in: .whitespacesAndNewlines)
+    let securityMode = connection.securityMode.trimmingCharacters(in: .whitespacesAndNewlines)
+    let folderName = connection.folderName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    guard !emailAddress.isEmpty, !host.isEmpty, !portText.isEmpty, !folderName.isEmpty else {
+      return SpaceMailIMAPFetchResult(
+        status: .notConfigured,
+        messages: [],
+        detail: "Real SpaceMail IMAP refresh needs email/username, IMAP host, port, and folder before any connection can be attempted. No network request was made."
+      )
+    }
+
+    guard let port = Int(portText), (1...65535).contains(port) else {
+      return SpaceMailIMAPFetchResult(
+        status: .notConfigured,
+        messages: [],
+        detail: "Real SpaceMail IMAP refresh needs a valid numeric IMAP port. Use 993 for SpaceMail SSL/TLS. No network request was made."
+      )
+    }
+
+    guard securityMode.localizedCaseInsensitiveContains("ssl") ||
+        securityMode.localizedCaseInsensitiveContains("tls") else {
+      return SpaceMailIMAPFetchResult(
+        status: .connectionFailed,
+        messages: [],
+        detail: "Real SpaceMail IMAP refresh currently requires SSL/TLS. Update the connection security mode before retrying. No mailbox login was attempted."
+      )
+    }
+
+    guard connection.credentialStorageStatus == SpaceMailCredentialStoreStatus.passwordReferenceAvailable.rawValue ||
+        connection.credentialStorageStatus.localizedCaseInsensitiveContains("reference available") else {
+      return SpaceMailIMAPFetchResult(
+        status: .credentialMissing,
+        messages: [],
+        detail: "Real SpaceMail IMAP refresh stopped before login because no password or app-password reference is available. ParcelOps did not prompt for, store, read, or log a password, and no mailbox item was touched."
+      )
+    }
+
+    guard let password, !password.isEmpty else {
+      return SpaceMailIMAPFetchResult(
+        status: .credentialMissing,
+        messages: [],
+        detail: "Real SpaceMail IMAP refresh found a credential reference label but no in-memory password was available from Keychain. No mailbox login was attempted."
+      )
+    }
+
+    do {
+      let session = SpaceMailIMAPSession(host: host, port: port)
+      let messages = try await session.fetchRecentMessages(
+        username: emailAddress,
+        password: password,
+        folderName: folderName,
+        sourceMailboxID: sourceMailboxID,
+        connectionID: connection.id,
+        limit: 10
+      )
+      return SpaceMailIMAPFetchResult(
+        status: messages.isEmpty ? .noMessages : .success,
+        messages: messages,
+        detail: "Real SpaceMail IMAP refresh connected over SSL/TLS, authenticated, selected folder '\(folderName)' read-only with EXAMINE, and fetched \(messages.count) recent message previews using read-only BODY.PEEK header/text/MIME part sections. No password, auth string, server challenge, or full message body was logged or stored. No mailbox item was deleted, moved, marked read, flagged, sent, or modified."
+      )
+    } catch SpaceMailIMAPSessionError.authFailed {
+      return SpaceMailIMAPFetchResult(
+        status: .authFailed,
+        messages: [],
+        detail: "Real SpaceMail IMAP login failed. Check the SpaceMail username and app password. The password and server authentication details were not logged or stored."
+      )
+    } catch SpaceMailIMAPSessionError.folderNotFound {
+      return SpaceMailIMAPFetchResult(
+        status: .folderNotFound,
+        messages: [],
+        detail: "Real SpaceMail IMAP connected and authenticated, but the configured folder '\(folderName)' could not be selected read-only. No mailbox messages were fetched or modified."
+      )
+    } catch SpaceMailIMAPSessionError.timedOut(let phase) {
+      return SpaceMailIMAPFetchResult(
+        status: .connectionFailed,
+        messages: [],
+        detail: "Real SpaceMail IMAP refresh timed out during \(phase). No password, auth string, server challenge, full message body, or mailbox mutation was logged or stored."
+      )
+    } catch SpaceMailIMAPSessionError.parseFailed(let detail) {
+      return SpaceMailIMAPFetchResult(
+        status: .parseFailed,
+        messages: [],
+        detail: "Real SpaceMail IMAP fetched a response but could not safely parse message previews. \(detail) No credentials or full message bodies were logged."
+      )
+    } catch {
+      return SpaceMailIMAPFetchResult(
+        status: .connectionFailed,
+        messages: [],
+        detail: "Real SpaceMail IMAP connection or fetch failed before import. \(SpaceMailIMAPSession.safeErrorSummary(error)) No password, auth string, server challenge, or mailbox mutation was logged or stored."
+      )
+    }
+  }
+}
+
+private enum SpaceMailIMAPSessionError: Error {
+  case connectionFailed(String)
+  case authFailed
+  case folderNotFound
+  case timedOut(String)
+  case parseFailed(String)
+}
+
+private final class SpaceMailIMAPSession: @unchecked Sendable {
+  private let host: String
+  private let port: Int
+  private let queue = DispatchQueue(label: "ParcelOps.SpaceMailIMAPSession")
+  private var connection: NWConnection?
+  private var commandIndex = 0
+
+  private final class ResumeState {
+    var didResume = false
+  }
+
+  init(host: String, port: Int) {
+    self.host = host
+    self.port = port
+  }
+
+  func fetchRecentMessages(
+    username: String,
+    password: String,
+    folderName: String,
+    sourceMailboxID: UUID,
+    connectionID: UUID,
+    limit: Int
+  ) async throws -> [FetchedMailboxMessage] {
+    defer { close() }
+    try await withTimeout("TLS connect") {
+      try await self.connect()
+    }
+    _ = try await withTimeout("greeting read") {
+      try await self.readUntilLinePrefix("*")
+    }
+    _ = try await withTimeout("login") {
+      try await self.sendCommand("LOGIN \(self.quote(username)) \(self.quote(password))", failure: .authFailed)
+    }
+    _ = try await withTimeout("folder EXAMINE") {
+      try await self.sendCommand("EXAMINE \(self.quote(folderName))", failure: .folderNotFound)
+    }
+    let searchResponse = try await withTimeout("UID SEARCH") {
+      try await self.sendCommand("UID SEARCH ALL", failure: .parseFailed("UID SEARCH did not complete."))
+    }
+    let uids = parseUIDSearch(searchResponse).suffix(limit)
+    guard !uids.isEmpty else {
+      _ = try? await withTimeout("logout", seconds: 8) {
+        try await self.sendCommand("LOGOUT", failure: .connectionFailed("Logout failed."))
+      }
+      return []
+    }
+
+    let uidList = uids.joined(separator: ",")
+    let fetchResponse = try await withTimeout("UID FETCH") {
+      try await self.sendCommand("UID FETCH \(uidList) (UID BODY.PEEK[HEADER]<0.4096> BODY.PEEK[TEXT]<0.8192> BODY.PEEK[1]<0.8192> BODY.PEEK[1.TEXT]<0.8192> BODY.PEEK[2]<0.8192>)", failure: .parseFailed("UID FETCH did not complete."))
+    }
+    _ = try? await withTimeout("logout", seconds: 8) {
+      try await self.sendCommand("LOGOUT", failure: .connectionFailed("Logout failed."))
+    }
+    return parseFetchedMessages(fetchResponse, folderName: folderName, sourceMailboxID: sourceMailboxID, connectionID: connectionID)
+  }
+
+  static func safeErrorSummary(_ error: Error) -> String {
+    if let imapError = error as? SpaceMailIMAPSessionError {
+      switch imapError {
+      case .connectionFailed(let detail): return detail
+      case .authFailed: return "Authentication failed."
+      case .folderNotFound: return "Folder not found."
+      case .timedOut(let phase): return "Timed out during \(phase)."
+      case .parseFailed(let detail): return detail
+      }
+    }
+    return "The IMAP session ended unexpectedly."
+  }
+
+  private func connect() async throws {
+    let tls = NWProtocolTLS.Options()
+    let parameters = NWParameters(tls: tls)
+    let endpointHost = NWEndpoint.Host(host)
+    guard let endpointPort = NWEndpoint.Port(rawValue: UInt16(port)) else {
+      throw SpaceMailIMAPSessionError.connectionFailed("Invalid IMAP port.")
+    }
+    let connection = NWConnection(host: endpointHost, port: endpointPort, using: parameters)
+    self.connection = connection
+
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+      let lock = NSLock()
+      let resumeState = ResumeState()
+      connection.stateUpdateHandler = { state in
+        lock.lock()
+        defer { lock.unlock() }
+        guard !resumeState.didResume else { return }
+        switch state {
+        case .ready:
+          resumeState.didResume = true
+          continuation.resume()
+        case .failed:
+          resumeState.didResume = true
+          continuation.resume(throwing: SpaceMailIMAPSessionError.connectionFailed("TLS connection failed."))
+        case .waiting:
+          break
+        default:
+          break
+        }
+      }
+      connection.start(queue: queue)
+    }
+  }
+
+  private func withTimeout<T>(
+    _ phase: String,
+    seconds: UInt64 = 20,
+    operation: @escaping @Sendable () async throws -> T
+  ) async throws -> T {
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
+      let lock = NSLock()
+      let resumeState = ResumeState()
+
+      func complete(_ result: Result<T, Error>) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !resumeState.didResume else { return }
+        resumeState.didResume = true
+        switch result {
+        case .success(let value):
+          continuation.resume(returning: value)
+        case .failure(let error):
+          continuation.resume(throwing: error)
+        }
+      }
+
+      Task {
+        do {
+          complete(.success(try await operation()))
+        } catch {
+          complete(.failure(error))
+        }
+      }
+
+      queue.asyncAfter(deadline: .now() + .seconds(Int(seconds))) { [weak self] in
+        self?.close()
+        complete(.failure(SpaceMailIMAPSessionError.timedOut(phase)))
+      }
+    }
+  }
+
+  private func sendCommand(_ command: String, failure: SpaceMailIMAPSessionError) async throws -> String {
+    commandIndex += 1
+    let tag = "A\(String(format: "%03d", commandIndex))"
+    guard let data = "\(tag) \(command)\r\n".data(using: .utf8), let connection else {
+      throw SpaceMailIMAPSessionError.connectionFailed("IMAP command could not be encoded.")
+    }
+
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+      connection.send(content: data, completion: .contentProcessed { error in
+        if error != nil {
+          continuation.resume(throwing: SpaceMailIMAPSessionError.connectionFailed("IMAP command send failed."))
+        } else {
+          continuation.resume()
+        }
+      })
+    }
+
+    let response = try await readUntilTagged(tag)
+    guard let taggedLine = response
+      .components(separatedBy: .newlines)
+      .last(where: { $0.hasPrefix("\(tag) ") }) else {
+      throw failure
+    }
+    if taggedLine.localizedCaseInsensitiveContains("\(tag) OK") {
+      return response
+    }
+    throw failure
+  }
+
+  private func readUntilLinePrefix(_ prefix: String) async throws -> String {
+    var response = ""
+    while !response.components(separatedBy: .newlines).contains(where: { $0.hasPrefix(prefix) }) {
+      response += try await receiveChunk()
+    }
+    return response
+  }
+
+  private func readUntilTagged(_ tag: String) async throws -> String {
+    var response = ""
+    while !response.components(separatedBy: .newlines).contains(where: { $0.hasPrefix("\(tag) ") }) {
+      response += try await receiveChunk()
+    }
+    return response
+  }
+
+  private func receiveChunk() async throws -> String {
+    guard let connection else {
+      throw SpaceMailIMAPSessionError.connectionFailed("IMAP connection was not open.")
+    }
+    return try await withCheckedThrowingContinuation { continuation in
+      connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, isComplete, error in
+        if error != nil {
+          continuation.resume(throwing: SpaceMailIMAPSessionError.connectionFailed("IMAP receive failed."))
+        } else if let data, !data.isEmpty {
+          continuation.resume(returning: String(decoding: data, as: UTF8.self))
+        } else if isComplete {
+          continuation.resume(throwing: SpaceMailIMAPSessionError.connectionFailed("IMAP connection closed."))
+        } else {
+          continuation.resume(returning: "")
+        }
+      }
+    }
+  }
+
+  private func close() {
+    connection?.cancel()
+    connection = nil
+  }
+
+  private func quote(_ value: String) -> String {
+    "\"\(value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\""
+  }
+
+  private func parseUIDSearch(_ response: String) -> [String] {
+    response
+      .components(separatedBy: .newlines)
+      .first(where: { $0.localizedCaseInsensitiveContains("* SEARCH") })?
+      .components(separatedBy: .whitespaces)
+      .filter { !$0.isEmpty && Int($0) != nil } ?? []
+  }
+
+  private func parseFetchedMessages(_ response: String, folderName: String, sourceMailboxID: UUID, connectionID: UUID) -> [FetchedMailboxMessage] {
+    response
+      .components(separatedBy: "\r\n* ")
+      .compactMap { rawPart -> FetchedMailboxMessage? in
+        let part = rawPart.hasPrefix("* ") ? rawPart : "* \(rawPart)"
+        guard part.localizedCaseInsensitiveContains("FETCH") else { return nil }
+        guard let uid = firstMatch(in: part, pattern: #"UID\s+([0-9]+)"#) else { return nil }
+        let headerContent = headerLiteralContent(from: part)
+        let bodyContent = bodyLiteralContent(from: part)
+        let emailContent = headerContent.isEmpty ? emailLiteralContent(from: part) : "\(headerContent)\r\n\r\n\(bodyContent)"
+        let messageID = headerValue("Message-ID", in: emailContent)
+        let providerID = providerMessageID(messageID: messageID, uid: uid, folderName: folderName, connectionID: connectionID)
+        return FetchedMailboxMessage(
+          providerMessageID: providerID,
+          sender: headerValue("From", in: emailContent) ?? "Unknown sender",
+          subject: headerValue("Subject", in: emailContent) ?? "No subject",
+          receivedDate: headerValue("Date", in: emailContent) ?? "Unknown date",
+          plainTextBodyPreview: bodyPreview(from: emailContent),
+          sourceMailboxID: sourceMailboxID
+        )
+      }
+  }
+
+  private func headerLiteralContent(from fetchPart: String) -> String {
+    sectionLiteralContent(from: fetchPart, sectionPrefix: "BODY[HEADER")
+  }
+
+  private func bodyLiteralContent(from fetchPart: String) -> String {
+    let candidates = [
+      "BODY[TEXT",
+      "BODY[1.TEXT",
+      "BODY[1]",
+      "BODY[2]"
+    ].flatMap { sectionLiteralContents(from: fetchPart, sectionPrefix: $0) }
+    return candidates.max { bodyPreviewScore($0) < bodyPreviewScore($1) } ?? ""
+  }
+
+  private func sectionLiteralContent(from fetchPart: String, sectionPrefix: String) -> String {
+    sectionLiteralContents(from: fetchPart, sectionPrefix: sectionPrefix).first ?? ""
+  }
+
+  private func sectionLiteralContents(from fetchPart: String, sectionPrefix: String) -> [String] {
+    let upperFetchPart = fetchPart.uppercased()
+    var searchStart = upperFetchPart.startIndex
+    var literals: [String] = []
+    while let sectionRange = upperFetchPart.range(of: sectionPrefix, range: searchStart..<upperFetchPart.endIndex) {
+      let sectionStartOffset = upperFetchPart.distance(from: upperFetchPart.startIndex, to: sectionRange.lowerBound)
+      let originalSectionStart = fetchPart.index(fetchPart.startIndex, offsetBy: sectionStartOffset)
+      let sectionText = String(fetchPart[originalSectionStart...])
+      if let literalRange = sectionText.range(of: #"\{[0-9]+\}\r\n"#, options: .regularExpression) {
+        let lengthText = sectionText[literalRange].dropFirst().dropLast(3)
+        if let literalLength = Int(lengthText) {
+          let literalStart = literalRange.upperBound
+          if let literalEnd = sectionText.index(literalStart, offsetBy: literalLength, limitedBy: sectionText.endIndex) {
+            literals.append(String(sectionText[literalStart..<literalEnd]).trimmingCharacters(in: .whitespacesAndNewlines))
+          }
+        }
+      }
+      searchStart = sectionRange.upperBound
+    }
+    return literals
+  }
+
+  private func bodyPreviewScore(_ value: String) -> Int {
+    let cleaned = value
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleaned.isEmpty, cleaned != "<>" else { return 0 }
+    var score = min(cleaned.count, 500)
+    if cleaned.localizedCaseInsensitiveContains("order") { score += 80 }
+    if cleaned.localizedCaseInsensitiveContains("tracking") { score += 80 }
+    if cleaned.localizedCaseInsensitiveContains("text/plain") { score += 20 }
+    if cleaned.localizedCaseInsensitiveContains("<html") { score -= 20 }
+    return score
+  }
+
+  private func emailLiteralContent(from fetchPart: String) -> String {
+    guard let literalRange = fetchPart.range(of: #"\{[0-9]+\}\r\n"#, options: .regularExpression) else {
+      return fetchPart
+    }
+    var content = String(fetchPart[literalRange.upperBound...])
+    if let closingRange = content.range(of: #"\r\n\)\r\n[A-Z][0-9]{3} "#, options: .regularExpression) {
+      content = String(content[..<closingRange.lowerBound])
+    } else if content.hasSuffix("\r\n)") {
+      content.removeLast(3)
+    }
+    return content.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private func headerValue(_ name: String, in text: String) -> String? {
+    let unfolded = text
+      .replacingOccurrences(of: "\r\n", with: "\n")
+      .replacingOccurrences(of: #"\n[ \t]+"#, with: " ", options: .regularExpression)
+    let escaped = NSRegularExpression.escapedPattern(for: name)
+    guard let match = firstMatch(in: unfolded, pattern: #"(?im)^\#(escaped):\s*(.+)$"#) else { return nil }
+    return decodeHeaderValue(sanitizeHeader(match))
+  }
+
+  private func bodyPreview(from text: String) -> String {
+    let body = preferredPlainTextBody(from: text)
+    let cleaned = decodeQuotedPrintable(body)
+      .replacingOccurrences(of: #"<[^>]+>"#, with: " ", options: .regularExpression)
+      .replacingOccurrences(of: #"(?im)^--[A-Za-z0-9'()+_,\-./:=?]+(--)?$"#, with: " ", options: .regularExpression)
+      .replacingOccurrences(of: #"(?im)^Content-[A-Za-z-]+:\s*.+$"#, with: " ", options: .regularExpression)
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return String(cleaned.prefix(700))
+  }
+
+  private func preferredPlainTextBody(from text: String) -> String {
+    let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
+    let split = normalized.components(separatedBy: "\n\n")
+    let headers = split.first ?? ""
+    let body = split.count > 1 ? split.dropFirst().joined(separator: "\n\n") : normalized
+
+    if let boundary = firstMatch(in: headers, pattern: #"(?i)boundary="?([^";\r\n]+)"?"#) {
+      let parts = body.components(separatedBy: "--\(boundary)")
+      if let plainPart = parts.first(where: { $0.localizedCaseInsensitiveContains("Content-Type: text/plain") }) {
+        return stripPartHeaders(plainPart)
+      }
+      if let htmlPart = parts.first(where: { $0.localizedCaseInsensitiveContains("Content-Type: text/html") }) {
+        return stripPartHeaders(htmlPart)
+      }
+    }
+
+    return body
+  }
+
+  private func stripPartHeaders(_ part: String) -> String {
+    let split = part.components(separatedBy: "\n\n")
+    return split.count > 1 ? split.dropFirst().joined(separator: "\n\n") : part
+  }
+
+  private func decodeHeaderValue(_ value: String) -> String {
+    decodeMalformedEncodedWordPrefixIfNeeded(decodeEncodedWords(in: value))
+  }
+
+  private func decodeEncodedWords(in value: String) -> String {
+    let pattern = #"=\?([^?]+)\?([BbQq])\?([^?]+)\?="#
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return value }
+    var result = value
+    let matches = regex.matches(in: value, range: NSRange(value.startIndex..<value.endIndex, in: value)).reversed()
+    for match in matches {
+      guard let fullRange = Range(match.range(at: 0), in: value),
+            let charsetRange = Range(match.range(at: 1), in: value),
+            let markerRange = Range(match.range(at: 2), in: value),
+            let payloadRange = Range(match.range(at: 3), in: value) else { continue }
+      let charset = String(value[charsetRange])
+      let marker = String(value[markerRange])
+      let payload = String(value[payloadRange])
+      let replacement: String?
+      if marker.caseInsensitiveCompare("B") == .orderedSame {
+        replacement = Data(base64Encoded: payload).flatMap { string(from: $0, charset: charset) }
+      } else {
+        replacement = decodeRFC2047QEncodedWord(payload, charset: charset)
+      }
+      guard let replacement else { continue }
+      result.replaceSubrange(fullRange, with: replacement)
+    }
+    return result
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private func decodeRFC2047QEncodedWord(_ payload: String, charset: String) -> String? {
+    var bytes: [UInt8] = []
+    let scalars = Array(payload.utf8)
+    var index = 0
+    while index < scalars.count {
+      if scalars[index] == 95 {
+        bytes.append(32)
+        index += 1
+      } else if scalars[index] == 61, index + 2 < scalars.count,
+                let decoded = UInt8(String(bytes: [scalars[index + 1], scalars[index + 2]], encoding: .utf8) ?? "", radix: 16) {
+        bytes.append(decoded)
+        index += 3
+      } else {
+        bytes.append(scalars[index])
+        index += 1
+      }
+    }
+    return string(from: Data(bytes), charset: charset)
+  }
+
+  private func decodeMalformedEncodedWordPrefixIfNeeded(_ value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let pattern = #"^=\?([^?]+)\?([Qq])\?(.+)$"#
+    guard let regex = try? NSRegularExpression(pattern: pattern),
+          let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)),
+          let charsetRange = Range(match.range(at: 1), in: trimmed),
+          let payloadRange = Range(match.range(at: 3), in: trimmed) else {
+      return value
+    }
+
+    var payload = String(trimmed[payloadRange])
+    if payload.hasSuffix("?=") {
+      payload.removeLast(2)
+    }
+    if payload.hasSuffix("=") {
+      payload.removeLast()
+    }
+    return decodeRFC2047QEncodedWord(payload, charset: String(trimmed[charsetRange])) ?? value
+  }
+
+  private func string(from data: Data, charset: String) -> String? {
+    let normalized = charset
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+      .replacingOccurrences(of: "_", with: "-")
+    switch normalized {
+    case "utf-8", "utf8":
+      return String(data: data, encoding: .utf8)
+    case "iso-8859-1", "latin1", "latin-1":
+      return String(data: data, encoding: .isoLatin1)
+    case "us-ascii", "ascii":
+      return String(data: data, encoding: .ascii)
+    default:
+      return String(data: data, encoding: .utf8)
+        ?? String(data: data, encoding: .isoLatin1)
+    }
+  }
+
+  private func decodeQuotedPrintable(_ value: String) -> String {
+    var bytes: [UInt8] = []
+    let scalars = Array(value.utf8)
+    var index = 0
+    while index < scalars.count {
+      if scalars[index] == 61, index + 2 < scalars.count {
+        let first = scalars[index + 1]
+        let second = scalars[index + 2]
+        if first == 13 || first == 10 {
+          index += first == 13 && second == 10 ? 3 : 2
+          continue
+        }
+        if let decoded = UInt8(String(bytes: [first, second], encoding: .utf8) ?? "", radix: 16) {
+          bytes.append(decoded)
+          index += 3
+          continue
+        }
+      }
+      bytes.append(scalars[index])
+      index += 1
+    }
+    return String(decoding: bytes, as: UTF8.self)
+  }
+
+  private func providerMessageID(messageID: String?, uid: String, folderName: String, connectionID: UUID) -> String {
+    _ = messageID
+    let safeFolder = folderName.replacingOccurrences(of: #"\s+"#, with: "-", options: .regularExpression).lowercased()
+    return "spacemail-imap-\(connectionID.uuidString)-\(safeFolder)-uid-\(uid)"
+  }
+
+  private func firstMatch(in text: String, pattern: String) -> String? {
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+    let range = NSRange(text.startIndex..<text.endIndex, in: text)
+    guard let match = regex.firstMatch(in: text, range: range), match.numberOfRanges > 1 else { return nil }
+    guard let swiftRange = Range(match.range(at: 1), in: text) else { return nil }
+    return String(text[swiftRange])
+  }
+
+  private func sanitizeHeader(_ value: String) -> String {
+    value
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+}
+
+struct MockSpaceMailCredentialStore: SpaceMailCredentialStore {
+  func savePassword(_ password: String, for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: password.isEmpty ? .passwordMissing : .passwordReferenceAvailable,
+      detailText: password.isEmpty
+        ? "Mock credential save received an empty password for \(connection.displayName). No secret value was stored."
+        : "Mock credential save recorded a non-secret password-reference status for \(connection.displayName). No password value was stored or logged."
+    )
+  }
+
+  func loadPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialLoadResult {
+    SpaceMailCredentialLoadResult(
+      status: .passwordMissing,
+      password: nil,
+      detailText: "Mock credential load has no password for \(connection.displayName). No secret value was read."
+    )
+  }
+
+  func checkPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordMissing,
+      detailText: "Mock credential check found no password reference for \(connection.displayName). No secret value was read."
+    )
+  }
+
+  func clearPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordClearSimulated,
+      detailText: "Mock credential clear recorded a clear status for \(connection.displayName). No secret value was deleted."
+    )
+  }
+
+  func simulateReady(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordReferenceAvailable,
+      detailText: "Mock password reference available for \(connection.displayName). No password, app password, auth string, server credential, or Keychain item was created, read, written, deleted, stored in JSON, or logged."
+    )
+  }
+
+  func simulateMissing(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordMissing,
+      detailText: "Mock credential lookup reports no password reference for \(connection.displayName). No password prompt opened, no Keychain API was called, and no secret value was handled."
+    )
+  }
+
+  func simulateStorageError(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .storageErrorSimulated,
+      detailText: "Mock credential storage error for \(connection.displayName). This is a local error-state simulation only; no Keychain item or password value was touched."
+    )
+  }
+
+  func simulateClear(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordClearSimulated,
+      detailText: "Mock password reference clear simulated for \(connection.displayName). No Keychain item, IMAP password, app password, or auth string was deleted."
+    )
+  }
+}
+
+struct KeychainSpaceMailCredentialStore: SpaceMailCredentialStore {
+  private let service = "app.bitrig.parcelops.spacemail.imap"
+
+  func savePassword(_ password: String, for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    let trimmedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedPassword.isEmpty else {
+      return SpaceMailCredentialStoreResult(
+        status: .passwordMissing,
+        detailText: "No SpaceMail password was saved because the secure password field was empty. No Keychain item was created or updated."
+      )
+    }
+
+    guard let passwordData = password.data(using: .utf8) else {
+      return SpaceMailCredentialStoreResult(
+        status: .storageErrorSimulated,
+        detailText: "SpaceMail password could not be prepared for Keychain storage. The password value was not logged or stored in JSON."
+      )
+    }
+
+    let query = baseQuery(for: connection)
+    SecItemDelete(query as CFDictionary)
+
+    var attributes = query
+    attributes[kSecValueData as String] = passwordData
+    #if os(iOS)
+    attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    #endif
+
+    let status = SecItemAdd(attributes as CFDictionary, nil)
+    guard status == errSecSuccess else {
+      return SpaceMailCredentialStoreResult(
+        status: .storageErrorSimulated,
+        detailText: "SpaceMail password reference could not be saved to Keychain. Keychain status: \(status). No password value was stored in JSON or logged."
+      )
+    }
+
+    return SpaceMailCredentialStoreResult(
+      status: .passwordReferenceAvailable,
+      detailText: "SpaceMail password reference saved in Keychain for \(safeAccountLabel(for: connection)). ParcelOps stored only this non-secret status in JSON and audit logs."
+    )
+  }
+
+  func loadPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialLoadResult {
+    var query = baseQuery(for: connection)
+    query[kSecReturnData as String] = true
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+    var item: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &item)
+    if status == errSecItemNotFound {
+      return SpaceMailCredentialLoadResult(
+        status: .passwordMissing,
+        password: nil,
+        detailText: "No SpaceMail password reference exists in Keychain for \(safeAccountLabel(for: connection))."
+      )
+    }
+    guard status == errSecSuccess, let data = item as? Data, let password = String(data: data, encoding: .utf8) else {
+      return SpaceMailCredentialLoadResult(
+        status: .storageErrorSimulated,
+        password: nil,
+        detailText: "SpaceMail password reference could not be loaded from Keychain. Keychain status: \(status). No password value was logged or stored in JSON."
+      )
+    }
+
+    return SpaceMailCredentialLoadResult(
+      status: .passwordReferenceAvailable,
+      password: password,
+      detailText: "SpaceMail password reference is available in Keychain for \(safeAccountLabel(for: connection)). The password value was loaded only into memory for this manual operation and was not logged or stored in JSON."
+    )
+  }
+
+  func checkPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    var query = baseQuery(for: connection)
+    query[kSecReturnData as String] = false
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+    let status = SecItemCopyMatching(query as CFDictionary, nil)
+    if status == errSecSuccess {
+      return SpaceMailCredentialStoreResult(
+        status: .passwordReferenceAvailable,
+        detailText: "SpaceMail password reference exists in Keychain for \(safeAccountLabel(for: connection)). No password value was read, logged, or stored in JSON."
+      )
+    }
+    if status == errSecItemNotFound {
+      return SpaceMailCredentialStoreResult(
+        status: .passwordMissing,
+        detailText: "No SpaceMail password reference exists in Keychain for \(safeAccountLabel(for: connection))."
+      )
+    }
+    return SpaceMailCredentialStoreResult(
+      status: .storageErrorSimulated,
+      detailText: "SpaceMail Keychain credential check failed. Keychain status: \(status). No password value was read, logged, or stored in JSON."
+    )
+  }
+
+  func clearPassword(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    let status = SecItemDelete(baseQuery(for: connection) as CFDictionary)
+    if status == errSecSuccess || status == errSecItemNotFound {
+      return SpaceMailCredentialStoreResult(
+        status: .passwordCleared,
+        detailText: "SpaceMail password reference cleared from Keychain for \(safeAccountLabel(for: connection)). No password value was logged or stored in JSON."
+      )
+    }
+    return SpaceMailCredentialStoreResult(
+      status: .storageErrorSimulated,
+      detailText: "SpaceMail password reference could not be cleared from Keychain. Keychain status: \(status). No password value was logged or stored in JSON."
+    )
+  }
+
+  func simulateReady(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordReferenceAvailable,
+      detailText: "Mock password reference available for \(connection.displayName). No password, app password, auth string, server credential, or Keychain item was created, read, written, deleted, stored in JSON, or logged."
+    )
+  }
+
+  func simulateMissing(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordMissing,
+      detailText: "Mock credential lookup reports no password reference for \(connection.displayName). No password prompt opened, no Keychain API was called, and no secret value was handled."
+    )
+  }
+
+  func simulateStorageError(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .storageErrorSimulated,
+      detailText: "Mock credential storage error for \(connection.displayName). This is a local error-state simulation only; no Keychain item or password value was touched."
+    )
+  }
+
+  func simulateClear(for connection: SpaceMailIMAPConnection) async -> SpaceMailCredentialStoreResult {
+    SpaceMailCredentialStoreResult(
+      status: .passwordClearSimulated,
+      detailText: "Mock password reference clear simulated for \(connection.displayName). No Keychain item, IMAP password, app password, or auth string was deleted."
+    )
+  }
+
+  private func baseQuery(for connection: SpaceMailIMAPConnection) -> [String: Any] {
+    [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: accountKey(for: connection)
+    ]
+  }
+
+  private func accountKey(for connection: SpaceMailIMAPConnection) -> String {
+    "\(connection.id.uuidString)|\(connection.emailAddressUsername.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+  }
+
+  private func safeAccountLabel(for connection: SpaceMailIMAPConnection) -> String {
+    connection.emailAddressUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? connection.displayName
+      : connection.emailAddressUsername
+  }
+}
+
+struct RealMicrosoftGraphMailboxClient: MicrosoftGraphMailboxClient {
+  func fetchMessages(for connection: Microsoft365MailboxConnection, accessToken: String?) async -> MicrosoftGraphMailboxFetchResult {
+    guard let accessToken, !accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      return MicrosoftGraphMailboxFetchResult(
+        status: .authRequired,
+        messages: [],
+        detail: "Real Graph refresh needs an in-memory Mail.Read token. No mailbox request was made."
+      )
+    }
+
+    let identityProbeDetail: String
+    do {
+      let identityProbe = try await executeIdentityProbe(accessToken: accessToken, connection: connection)
+      switch identityProbe {
+      case .success(let detail):
+        identityProbeDetail = detail
+      case .failure(let status, let detail):
+        return MicrosoftGraphMailboxFetchResult(
+          status: status,
+          messages: [],
+          detail: "\(detail)\nIdentity Graph access did not succeed, so mailbox message fetch was not attempted. If this is HTTP 401, the token/request is being rejected generally by Microsoft Graph despite valid-looking token metadata."
+        )
+      }
+    } catch is DecodingError {
+      return MicrosoftGraphMailboxFetchResult(status: .parseFailed, messages: [], detail: "Could not parse Microsoft Graph /me probe response. No mailbox fetch was attempted.")
+    } catch {
+      return MicrosoftGraphMailboxFetchResult(status: .networkFailed, messages: [], detail: "Microsoft Graph /me probe failed: \(safeNetworkError(error)). No mailbox fetch was attempted.")
+    }
+
+    let folderName = firstConfiguredFolderName(from: connection.monitoredFolderNames)
+    guard let folderID = await resolveFolderID(named: folderName, accessToken: accessToken) else {
+      return MicrosoftGraphMailboxFetchResult(
+        status: .folderNotFound,
+        messages: [],
+        detail: "\(identityProbeDetail)\nCould not resolve mailbox folder '\(folderName)'. Identity Graph access works, but mailbox folder access is blocked or unavailable. No messages were imported and no mailbox items were changed."
+      )
+    }
+
+    guard let url = messagesURL(path: "https://graph.microsoft.com/v1.0/me/mailFolders/\(folderID)/messages") else {
+      return MicrosoftGraphMailboxFetchResult(
+        status: .graphRejected,
+        messages: [],
+        detail: "Could not create the Microsoft Graph messages URL. No mailbox request was made."
+      )
+    }
+
+    do {
+      let primaryResult = try await executeMessagesRequest(url: url, accessToken: accessToken, folderName: folderName, pathLabel: "folder messages")
+      let graphResponse: GraphMessagesResponse
+      let resultDetail: String
+      switch primaryResult {
+      case .success(let response):
+        graphResponse = response
+        resultDetail = "\(identityProbeDetail)\nReal Microsoft Graph refresh used /me/mailFolders/{folder}/messages for '\(folderName)'."
+      case .failure(let status, let detail) where status == .authRequired:
+        guard let fallbackURL = messagesURL(path: "https://graph.microsoft.com/v1.0/me/messages") else {
+          return MicrosoftGraphMailboxFetchResult(
+            status: .graphRejected,
+            messages: [],
+            detail: "\(identityProbeDetail)\n\(detail)\nCould not create the Microsoft Graph /me/messages fallback URL. Identity Graph access works, but mailbox Graph access is blocked. No mailbox items were changed."
+          )
+        }
+        let fallbackResult = try await executeMessagesRequest(url: fallbackURL, accessToken: accessToken, folderName: folderName, pathLabel: "fallback /me/messages")
+        switch fallbackResult {
+        case .success(let response):
+          graphResponse = response
+          resultDetail = "\(identityProbeDetail)\n\(detail)\nFallback result: /me/messages succeeded as a read-only diagnostic path after the folder messages endpoint returned 401."
+        case .failure(let fallbackStatus, let fallbackDetail):
+          return MicrosoftGraphMailboxFetchResult(
+            status: fallbackStatus,
+            messages: [],
+            detail: "\(identityProbeDetail)\n\(detail)\nFallback result: /me/messages also failed.\n\(fallbackDetail)\nIdentity Graph access works, but mailbox Graph access is blocked or challenged."
+          )
+        }
+      case .failure(let status, let detail):
+        return MicrosoftGraphMailboxFetchResult(
+          status: status,
+          messages: [],
+          detail: "\(identityProbeDetail)\n\(detail)\nIdentity Graph access works, but mailbox Graph access is blocked or challenged."
+        )
+      }
+
+      let messages = graphResponse.value.map { message in
+        MicrosoftGraphFetchedMessage(
+          graphMessageID: message.id,
+          sender: message.from?.emailAddress.address ?? message.from?.emailAddress.name ?? "Unknown sender",
+          subject: message.subject ?? "(No subject)",
+          receivedDate: message.receivedDateTime ?? "Unknown received date",
+          plainTextBodyPreview: message.bodyPreview ?? ""
+        )
+      }
+
+      if messages.isEmpty {
+        return MicrosoftGraphMailboxFetchResult(
+          status: .noMessages,
+          messages: [],
+          detail: "\(resultDetail)\nReal Microsoft Graph refresh found no messages. No mailbox items were changed."
+        )
+      }
+
+      return MicrosoftGraphMailboxFetchResult(
+        status: .success,
+        messages: messages,
+        detail: "\(resultDetail)\nReal Microsoft Graph refresh fetched \(messages.count) message preview\(messages.count == 1 ? "" : "s") using read-only fields. No mailbox items were deleted, moved, marked read, or modified."
+      )
+    } catch is DecodingError {
+      return MicrosoftGraphMailboxFetchResult(status: .parseFailed, messages: [], detail: "Could not parse Microsoft Graph message response. No messages were imported.")
+    } catch {
+      return MicrosoftGraphMailboxFetchResult(status: .networkFailed, messages: [], detail: "Microsoft Graph message fetch failed: \(safeNetworkError(error)).")
+    }
+  }
+
+  private func firstConfiguredFolderName(from folderText: String) -> String {
+    folderText
+      .split(separator: ",")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .first { !$0.isEmpty } ?? "Inbox"
+  }
+
+  private func resolveFolderID(named folderName: String, accessToken: String) async -> String? {
+    if folderName.caseInsensitiveCompare("Inbox") == .orderedSame {
+      return "Inbox"
+    }
+
+    var components = URLComponents(string: "https://graph.microsoft.com/v1.0/me/mailFolders")
+    components?.queryItems = [URLQueryItem(name: "$select", value: "id,displayName")]
+    guard let url = components?.url else { return nil }
+
+    do {
+      let (data, response) = try await URLSession.shared.data(for: authorizedRequest(url: url, accessToken: accessToken))
+      guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else { return nil }
+      let folderResponse = try JSONDecoder().decode(GraphFoldersResponse.self, from: data)
+      return folderResponse.value.first { $0.displayName.caseInsensitiveCompare(folderName) == .orderedSame }?.id
+    } catch {
+      return nil
+    }
+  }
+
+  private func authorizedRequest(url: URL, accessToken: String) -> URLRequest {
+    var request = URLRequest(url: url)
+    request.httpMethod = "GET"
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    return request
+  }
+
+  private func messagesURL(path: String) -> URL? {
+    var components = URLComponents(string: path)
+    components?.queryItems = [
+      URLQueryItem(name: "$top", value: "10"),
+      URLQueryItem(name: "$select", value: "id,subject,receivedDateTime,from,bodyPreview"),
+      URLQueryItem(name: "$orderby", value: "receivedDateTime desc")
+    ]
+    return components?.url
+  }
+
+  private func meProbeURL() -> URL? {
+    var components = URLComponents(string: "https://graph.microsoft.com/v1.0/me")
+    components?.queryItems = [
+      URLQueryItem(name: "$select", value: "id,displayName,userPrincipalName,mail")
+    ]
+    return components?.url
+  }
+
+  private func executeIdentityProbe(accessToken: String, connection: Microsoft365MailboxConnection) async throws -> GraphIdentityProbeResult {
+    guard let url = meProbeURL() else {
+      return .failure(.graphRejected, "Could not create the Microsoft Graph /me probe URL. No mailbox fetch was attempted.")
+    }
+
+    let (data, response) = try await URLSession.shared.data(for: authorizedRequest(url: url, accessToken: accessToken))
+    guard let httpResponse = response as? HTTPURLResponse else {
+      return .failure(.networkFailed, "Microsoft Graph /me probe response was not an HTTP response. No mailbox fetch was attempted.")
+    }
+    guard (200..<300).contains(httpResponse.statusCode) else {
+      let status = graphStatus(for: httpResponse.statusCode)
+      return .failure(
+        status,
+        "\(identityProbeFailureDetail(status: status, statusCode: httpResponse.statusCode))\n\(graphErrorDetail(from: data, response: httpResponse))"
+      )
+    }
+
+    let profile = try JSONDecoder().decode(GraphMeResponse.self, from: data)
+    return .success(identityProbeSuccessDetail(for: profile, connection: connection))
+  }
+
+  private func executeMessagesRequest(
+    url: URL,
+    accessToken: String,
+    folderName: String,
+    pathLabel: String
+  ) async throws -> GraphRequestResult {
+    let (data, response) = try await URLSession.shared.data(for: authorizedRequest(url: url, accessToken: accessToken))
+    guard let httpResponse = response as? HTTPURLResponse else {
+      return .failure(.networkFailed, "Graph \(pathLabel) response was not an HTTP response.")
+    }
+    guard (200..<300).contains(httpResponse.statusCode) else {
+      let status = graphStatus(for: httpResponse.statusCode)
+      let safeErrorDetail = graphErrorDetail(from: data, response: httpResponse)
+      return .failure(
+        status,
+        "\(graphFailureDetail(status: status, statusCode: httpResponse.statusCode, folderName: folderName, pathLabel: pathLabel))\n\(safeErrorDetail)"
+      )
+    }
+    let graphResponse = try JSONDecoder().decode(GraphMessagesResponse.self, from: data)
+    return .success(graphResponse)
+  }
+
+  private func graphStatus(for statusCode: Int) -> MicrosoftGraphMailboxFetchStatus {
+    switch statusCode {
+    case 401: .authRequired
+    case 403: .consentRequired
+    case 404: .folderNotFound
+    default: .graphRejected
+    }
+  }
+
+  private func graphFailureDetail(status: MicrosoftGraphMailboxFetchStatus, statusCode: Int, folderName: String, pathLabel: String) -> String {
+    switch status {
+    case .authRequired:
+      return "Microsoft Graph \(pathLabel) returned HTTP \(statusCode). Token metadata may look valid, so use the Graph error code/message and 401 challenge metadata below as the source of truth. No mailbox items were changed."
+    case .consentRequired:
+      return "Microsoft Graph \(pathLabel) returned HTTP \(statusCode). Mail.Read may need user or admin consent in Microsoft Entra, or tenant policy may block mailbox reads. No messages were imported and no mailbox items were changed."
+    case .folderNotFound:
+      return "Microsoft Graph \(pathLabel) returned HTTP \(statusCode). Folder '\(folderName)' was not found or is not accessible. Use Inbox or check the first monitored folder name. No mailbox items were changed."
+    default:
+      return "Microsoft Graph \(pathLabel) returned HTTP \(statusCode). Check Graph permissions, selected fields, tenant policy, and mailbox access. No messages were imported and no mailbox items were changed."
+    }
+  }
+
+  private func identityProbeFailureDetail(status: MicrosoftGraphMailboxFetchStatus, statusCode: Int) -> String {
+    switch status {
+    case .authRequired:
+      return "Microsoft Graph /me probe returned HTTP \(statusCode). The token/request is being rejected generally by Microsoft Graph despite valid-looking token metadata. No mailbox fetch was attempted."
+    case .consentRequired:
+      return "Microsoft Graph /me probe returned HTTP \(statusCode). Identity Graph access needs consent or tenant policy review before mailbox access can be tested. No mailbox fetch was attempted."
+    default:
+      return "Microsoft Graph /me probe returned HTTP \(statusCode). Identity Graph access did not succeed, so mailbox access was not tested."
+    }
+  }
+
+  private func identityProbeSuccessDetail(for profile: GraphMeResponse, connection: Microsoft365MailboxConnection) -> String {
+    let mailboxPlaceholder = connection.mailboxAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    let profileValues = [profile.userPrincipalName, profile.mail]
+      .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+    let matchText: String
+    if mailboxPlaceholder.isEmpty || profileValues.isEmpty {
+      matchText = "unavailable"
+    } else {
+      matchText = profileValues.contains { $0.caseInsensitiveCompare(mailboxPlaceholder) == .orderedSame } ? "yes" : "no"
+    }
+
+    return [
+      "Microsoft Graph /me probe:",
+      "Probe result: succeeded",
+      "Returned id: \(profile.id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? "present" : "missing")",
+      "Returned displayName: \(profile.displayName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? "present" : "missing")",
+      "Returned userPrincipalName: \(profile.userPrincipalName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? "present" : "missing")",
+      "Returned mail: \(profile.mail?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? "present" : "missing")",
+      "Mailbox placeholder match: \(matchText)",
+      "Identity Graph access works. If mailbox endpoints fail, mailbox Graph access is blocked or challenged."
+    ].joined(separator: "\n")
+  }
+
+  private func graphErrorDetail(from data: Data, response: HTTPURLResponse) -> String {
+    let decodedError = (try? JSONDecoder().decode(GraphErrorResponse.self, from: data))?.error
+    let code = sanitizedGraphErrorValue(decodedError?.code, fallback: "missing")
+    let message = sanitizedGraphErrorValue(decodedError?.message, fallback: "missing")
+    let requestID = sanitizedGraphErrorValue(headerValue("request-id", in: response) ?? decodedError?.innerError?.requestID, fallback: "missing")
+    let clientRequestID = sanitizedGraphErrorValue(headerValue("client-request-id", in: response) ?? decodedError?.innerError?.clientRequestID, fallback: "missing")
+    let responseDate = sanitizedGraphErrorValue(headerValue("date", in: response) ?? decodedError?.innerError?.date, fallback: "missing")
+    let contentType = sanitizedGraphErrorValue(headerValue("content-type", in: response), fallback: "missing")
+    let bodyPreview = sanitizedResponseBodyPreview(from: data)
+
+    return [
+      "Microsoft Graph error detail:",
+      "Graph error code: \(code)",
+      "Graph error message: \(message)",
+      "Graph request-id: \(requestID)",
+      "Graph client-request-id: \(clientRequestID)",
+      "Graph response date: \(responseDate)",
+      "Graph response content type: \(contentType)",
+      "Graph response body length: \(data.count)",
+      "Graph response body preview: \(bodyPreview)",
+      graphChallengeDetail(from: response),
+      "Authorization headers, request headers, raw tokens, and full request URLs are not logged."
+    ].joined(separator: "\n")
+  }
+
+  private func graphChallengeDetail(from response: HTTPURLResponse) -> String {
+    guard let header = headerValue("WWW-Authenticate", in: response) else {
+      return "WWW-Authenticate challenge: missing"
+    }
+    let values = parsedAuthenticateValues(from: header)
+    let error = sanitizedGraphErrorValue(values["error"], fallback: "missing")
+    let description = sanitizedGraphErrorValue(values["error_description"], fallback: "missing")
+    let authorizationURI = sanitizedGraphErrorValue(values["authorization_uri"], fallback: "missing")
+    let realm = sanitizedGraphErrorValue(values["realm"], fallback: "missing")
+    let hasClaims = values["claims"]?.isEmpty == false || header.localizedCaseInsensitiveContains("claims=")
+    let lowerHeader = header.lowercased()
+    return [
+      "WWW-Authenticate challenge:",
+      "Challenge error: \(error)",
+      "Challenge description: \(description)",
+      "Challenge authorization URI: \(authorizationURI)",
+      "Challenge realm: \(realm)",
+      "Challenge has claims: \(hasClaims ? "yes" : "no")",
+      "Challenge indicates invalid_token: \(lowerHeader.contains("invalid_token") ? "yes" : "no")",
+      "Challenge indicates insufficient_claims: \(lowerHeader.contains("insufficient_claims") ? "yes" : "no")",
+      "Challenge indicates conditional access: \(lowerHeader.contains("conditional") || lowerHeader.contains("claims=") ? "yes" : "no")",
+      "Challenge indicates tenant mismatch: \(lowerHeader.contains("tenant") || lowerHeader.contains("realm") ? "yes" : "no")",
+      "Challenge indicates audience/scope issue: \(lowerHeader.contains("audience") || lowerHeader.contains("scope") ? "yes" : "no")"
+    ].joined(separator: "\n")
+  }
+
+  private func parsedAuthenticateValues(from header: String) -> [String: String] {
+    let pattern = #"([A-Za-z0-9_\-]+)="([^"]*)""#
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return [:] }
+    let range = NSRange(header.startIndex..<header.endIndex, in: header)
+    var values: [String: String] = [:]
+    regex.enumerateMatches(in: header, range: range) { match, _, _ in
+      guard let match,
+            match.numberOfRanges >= 3,
+            let keyRange = Range(match.range(at: 1), in: header),
+            let valueRange = Range(match.range(at: 2), in: header) else { return }
+      values[String(header[keyRange]).lowercased()] = String(header[valueRange])
+    }
+    return values
+  }
+
+  private func headerValue(_ key: String, in response: HTTPURLResponse) -> String? {
+    response.allHeaderFields.first { header, _ in
+      String(describing: header).caseInsensitiveCompare(key) == .orderedSame
+    }.map { String(describing: $0.value) }
+  }
+
+  private func sanitizedGraphErrorValue(_ value: String?, fallback: String) -> String {
+    let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return fallback }
+    return String(trimmed.prefix(600))
+  }
+
+  private func sanitizedResponseBodyPreview(from data: Data) -> String {
+    guard !data.isEmpty else { return "empty" }
+    guard var text = String(data: data, encoding: .utf8) else {
+      return "non-UTF8 response body"
+    }
+    text = text
+      .replacingOccurrences(of: "\n", with: " ")
+      .replacingOccurrences(of: "\r", with: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    text = redactingSensitiveFragments(in: text)
+    guard !text.isEmpty else { return "empty" }
+    return String(text.prefix(600))
+  }
+
+  private func redactingSensitiveFragments(in text: String) -> String {
+    let redactions: [(String, String)] = [
+      (#"(?i)bearer\s+[A-Za-z0-9\-._~+/]+=*"#, "Bearer [redacted]"),
+      (#"(?i)"(access_token|refresh_token|id_token|client_secret|code)"\s*:\s*"[^"]*""#, #""$1":"[redacted]""#),
+      (#"(?i)(access_token|refresh_token|id_token|client_secret|code)=([^&\s]+)"#, "$1=[redacted]")
+    ]
+    return redactions.reduce(text) { current, redaction in
+      guard let regex = try? NSRegularExpression(pattern: redaction.0) else { return current }
+      let range = NSRange(current.startIndex..<current.endIndex, in: current)
+      return regex.stringByReplacingMatches(in: current, range: range, withTemplate: redaction.1)
+    }
+  }
+
+  private func safeNetworkError(_ error: Error) -> String {
+    let description = error.localizedDescription
+    return description.isEmpty ? "network request failed" : description
+  }
+
+  private struct GraphMessagesResponse: Decodable {
+    var value: [GraphMessage]
+  }
+
+  private enum GraphRequestResult {
+    case success(GraphMessagesResponse)
+    case failure(MicrosoftGraphMailboxFetchStatus, String)
+  }
+
+  private enum GraphIdentityProbeResult {
+    case success(String)
+    case failure(MicrosoftGraphMailboxFetchStatus, String)
+  }
+
+  private struct GraphMeResponse: Decodable {
+    var id: String?
+    var displayName: String?
+    var userPrincipalName: String?
+    var mail: String?
+  }
+
+  private struct GraphMessage: Decodable {
+    var id: String
+    var subject: String?
+    var receivedDateTime: String?
+    var from: GraphRecipient?
+    var bodyPreview: String?
+  }
+
+  private struct GraphRecipient: Decodable {
+    var emailAddress: GraphEmailAddress
+  }
+
+  private struct GraphEmailAddress: Decodable {
+    var name: String?
+    var address: String?
+  }
+
+  private struct GraphFoldersResponse: Decodable {
+    var value: [GraphFolder]
+  }
+
+  private struct GraphFolder: Decodable {
+    var id: String
+    var displayName: String
+  }
+
+  private struct GraphErrorResponse: Decodable {
+    var error: GraphError
+  }
+
+  private struct GraphError: Decodable {
+    var code: String?
+    var message: String?
+    var innerError: GraphInnerError?
+
+    enum CodingKeys: String, CodingKey {
+      case code
+      case message
+      case innerError = "innerError"
+    }
+  }
+
+  private struct GraphInnerError: Decodable {
+    var date: String?
+    var requestID: String?
+    var clientRequestID: String?
+
+    enum CodingKeys: String, CodingKey {
+      case date
+      case requestID = "request-id"
+      case clientRequestID = "client-request-id"
+    }
+  }
+}
+
+struct MockMicrosoft365AuthClient: Microsoft365AuthClient {
+  func connect(connection: Microsoft365MailboxConnection) async -> Microsoft365AuthResult {
+    let missingFields = missingReadinessFields(for: connection)
+    if !missingFields.isEmpty {
+      return Microsoft365AuthResult(
+        status: .notConfigured,
+        signedInAccount: "Not signed in",
+        detailText: "Mock auth did not start because setup placeholders are missing: \(missingFields.joined(separator: ", ")). No browser sign-in opened and no tokens were requested."
+      )
+    }
+
+    return Microsoft365AuthResult(
+      status: .connected,
+      signedInAccount: connection.mailboxAddress,
+      detailText: "Mock Microsoft 365 auth succeeded for local UI testing. No OAuth flow ran, no token exchange occurred, Keychain is unused, and no Microsoft Graph mailbox call was made by the mock auth action."
+    )
+  }
+
+  func simulateFailure(connection: Microsoft365MailboxConnection) async -> Microsoft365AuthResult {
+    Microsoft365AuthResult(
+      status: .authFailed,
+      signedInAccount: "Not signed in",
+      detailText: "Mock Microsoft 365 auth failed locally for error-state testing. No browser sign-in opened, no tokens were requested or stored, and no network call was made."
+    )
+  }
+
+  private func missingReadinessFields(for connection: Microsoft365MailboxConnection) -> [String] {
+    var missingFields: [String] = []
+    if connection.tenantIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Tenant ID placeholder")
+    }
+    if connection.clientIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Client ID placeholder")
+    }
+    if connection.redirectURIPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Redirect URI placeholder")
+    }
+    if connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Requested scopes summary")
+    }
+    return missingFields
+  }
+}
+
+struct MockMicrosoft365TokenStore: Microsoft365TokenStore {
+  func simulateReady(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult {
+    Microsoft365TokenStoreResult(
+      status: .mockTokenReferenceAvailable,
+      detailText: "Mock token reference available for \(connection.displayName). No access token, refresh token, auth code, client secret, password, or Keychain item was created, read, written, or deleted."
+    )
+  }
+
+  func simulateMissing(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult {
+    Microsoft365TokenStoreResult(
+      status: .tokenMissing,
+      detailText: "Mock token lookup reports no token reference for \(connection.displayName). This is local status only; Keychain was not read."
+    )
+  }
+
+  func simulateStorageError(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult {
+    Microsoft365TokenStoreResult(
+      status: .storageErrorSimulated,
+      detailText: "Mock token storage error for \(connection.displayName). No Keychain API was called and no secret value was handled."
+    )
+  }
+
+  func simulateClear(for connection: Microsoft365MailboxConnection) async -> Microsoft365TokenStoreResult {
+    Microsoft365TokenStoreResult(
+      status: .tokenClearSimulated,
+      detailText: "Mock token reference clear simulated for \(connection.displayName). No Keychain item, access token, or refresh token was deleted."
+    )
+  }
+}
+
+struct MockGmailTokenStore: GmailTokenStore {
+  func simulateReady(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult {
+    GmailTokenStoreResult(
+      status: .mockTokenReferenceAvailable,
+      detailText: "Mock Gmail token reference available for \(connection.displayName). No Google access token, refresh token, auth code, client secret, password, or Keychain item was created, read, written, or deleted."
+    )
+  }
+
+  func simulateMissing(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult {
+    GmailTokenStoreResult(
+      status: .tokenMissing,
+      detailText: "Mock Gmail token lookup reports no token reference for \(connection.displayName). This is local status only; Keychain was not read."
+    )
+  }
+
+  func simulateStorageError(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult {
+    GmailTokenStoreResult(
+      status: .storageErrorSimulated,
+      detailText: "Mock Gmail token storage error for \(connection.displayName). No Keychain API was called and no secret value was handled."
+    )
+  }
+
+  func simulateClear(for connection: GmailMailboxConnection) async -> GmailTokenStoreResult {
+    GmailTokenStoreResult(
+      status: .tokenClearSimulated,
+      detailText: "Mock Gmail token reference clear simulated for \(connection.displayName). No Keychain item, Google access token, or Google refresh token was deleted."
+    )
+  }
+}
+
+struct MockGmailAuthClient: GmailAuthClient {
+  func connect(connection: GmailMailboxConnection) async -> GmailAuthResult {
+    let missingFields = missingReadinessFields(for: connection)
+    if !missingFields.isEmpty {
+      return GmailAuthResult(
+        status: .notConfigured,
+        signedInAccount: "Not signed in",
+        detailText: "Mock Gmail auth did not start because setup placeholders are missing: \(missingFields.joined(separator: ", ")). No Google sign-in opened and no tokens were requested."
+      )
+    }
+
+    return GmailAuthResult(
+      status: .connected,
+      signedInAccount: connection.emailAddress,
+      detailText: "Mock Gmail auth succeeded for local UI testing. No Google OAuth flow ran, no token exchange occurred, Keychain token storage is unused, and no Gmail API call was made by the mock auth action."
+    )
+  }
+
+  func simulateFailure(connection: GmailMailboxConnection) async -> GmailAuthResult {
+    GmailAuthResult(
+      status: .authFailed,
+      signedInAccount: "Not signed in",
+      detailText: "Mock Gmail auth failed locally for error-state testing. No Google sign-in opened, no tokens were requested or stored, and no network call was made."
+    )
+  }
+
+  private func missingReadinessFields(for connection: GmailMailboxConnection) -> [String] {
+    var missingFields: [String] = []
+    if connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Gmail address")
+    }
+    if connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Monitored labels")
+    }
+    if connection.requestedScopesSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      missingFields.append("Requested scopes summary")
+    }
+    return missingFields
+  }
+}
+
+struct MockOrderMatchingService: OrderMatchingService {
+  func reviewState(for event: MailEvent, existingOrders: [TrackedOrder]) -> ReviewState {
+    event.severity == .info ? .accepted : .needsReview
+  }
+}
+
+struct MockShopifySyncService: ShopifySyncService {
+  func sync(connections: [ShopifyConnection]) async throws -> [TrackedOrder] {
+    []
+  }
+}
+
+struct MockCarrierTrackingService: CarrierTrackingService {
+  func refresh(order: TrackedOrder) async throws -> TrackedOrder {
+    order
+  }
+}
+
+struct MockParcelExportService: ParcelExportService {
+  func export(order: TrackedOrder) async throws {}
+}
+
+struct RuleBasedWorkflowTemplateEngine: WorkflowTemplateEngine {
+  private var rules: [WorkflowTemplateRule] = [
+    WorkflowTemplateRule(trigger: .manualSync, actions: [.ingestMailboxes, .syncShopify, .scanFolders, .refreshCarriers, .appendContactHistory]),
+    WorkflowTemplateRule(trigger: .mailboxEventSeverity(.critical), actions: [.routeToNeedsReview, .appendContactHistory]),
+    WorkflowTemplateRule(trigger: .mailboxEventSeverity(.watch), actions: [.routeToNeedsReview, .appendContactHistory]),
+    WorkflowTemplateRule(trigger: .mailboxEventSeverity(.info), actions: [.appendContactHistory]),
+    WorkflowTemplateRule(trigger: .wishlistConverted, actions: [.routeToNeedsReview, .appendContactHistory])
+  ]
+
+  func actions(for trigger: WorkflowTrigger) -> [WorkflowTemplateAction] {
+    rules.first { $0.trigger == trigger }?.actions ?? []
+  }
+}
