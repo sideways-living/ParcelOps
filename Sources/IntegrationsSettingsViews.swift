@@ -2900,6 +2900,41 @@ struct GmailMailboxConnectionRow: View {
           compiledValueRow(label: "GIDClientID", value: gmailExpectedCompiledClientID)
           compiledValueRow(label: "Gmail URL scheme", value: gmailExpectedCompiledCallbackScheme)
         }
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Exact compile targets", systemImage: "target")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(gmailCompiledHandoffColor)
+          Text("Use these non-secret targets when updating the app config. Do not paste token values, client secrets, passwords, or mailbox content into these files.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          CompactMetadataGrid(minimumWidth: 210) {
+            ForEach(gmailCompileTargetRows, id: \.label) { row in
+              VStack(alignment: .leading, spacing: 4) {
+                Label(row.file, systemImage: row.symbol)
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(row.color)
+                Text(row.label)
+                  .font(.caption2.weight(.semibold))
+                Text(row.value)
+                  .font(.caption.monospaced())
+                  .foregroundStyle(.secondary)
+                  .textSelection(.enabled)
+                  .lineLimit(4)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(8)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+          Text(gmailCompileTargetWarning)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(gmailCompiledHandoffColor)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(8)
+        .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
         CompactMetadataGrid(minimumWidth: 240) {
           ForEach(gmailCompiledConfigFileRows, id: \.title) { row in
             VStack(alignment: .leading, spacing: 5) {
@@ -3232,6 +3267,52 @@ struct GmailMailboxConnectionRow: View {
         compiledValuesMatch ? .green : .secondary
       )
     ]
+  }
+
+  private var gmailCompileTargetRows: [(file: String, label: String, value: String, symbol: String, color: Color)] {
+    let clientReady = gmailExpectedCompiledClientID.hasSuffix(".apps.googleusercontent.com")
+    let schemeReady = gmailExpectedCompiledCallbackScheme.hasPrefix("com.googleusercontent.apps.")
+    return [
+      (
+        "Project.json",
+        "settings.GIDClientID",
+        "\"GIDClientID\": \"\(gmailExpectedCompiledClientID)\"",
+        "curlybraces.square",
+        clientReady ? .blue : .orange
+      ),
+      (
+        "Project.json",
+        "settings.CFBundleURLTypes Gmail scheme",
+        "\"CFBundleURLSchemes\": [\"\(gmailExpectedCompiledCallbackScheme)\"]",
+        "curlybraces.square",
+        schemeReady ? .blue : .orange
+      ),
+      (
+        "App/Info.plist",
+        "GIDClientID",
+        "<string>\(gmailExpectedCompiledClientID)</string>",
+        "doc.text.fill",
+        readiness.isReady ? .green : clientReady ? .blue : .orange
+      ),
+      (
+        "App/Info.plist",
+        "CFBundleURLSchemes",
+        "<string>\(gmailExpectedCompiledCallbackScheme)</string>",
+        "doc.text.fill",
+        readiness.isReady ? .green : schemeReady ? .blue : .orange
+      )
+    ]
+  }
+
+  private var gmailCompileTargetWarning: String {
+    if readiness.isReady {
+      return "Compiled values currently match this Gmail setup. Keep Project.json as the source of truth for regeneration."
+    }
+    if gmailExpectedCompiledClientID.localizedCaseInsensitiveContains("placeholder") ||
+        gmailExpectedCompiledCallbackScheme.localizedCaseInsensitiveContains("placeholder") {
+      return "Replace placeholder values before rebuilding. Google sign-in will not work with placeholder client ID or callback scheme values."
+    }
+    return "After updating Project.json/App Info.plist, regenerate the Xcode project if needed, rebuild, then run Check readiness."
   }
 
   @ViewBuilder
