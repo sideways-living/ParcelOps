@@ -157,15 +157,8 @@ struct DashboardView: View {
     }.count
   }
   private var microsoft365HealthAttentionCount: Int {
-    store.microsoft365MailboxConnections.filter { connection in
-      let status = connection.connectionStatus
-      let authState = store.microsoft365AuthSessionState(for: connection)
-      return connection.reviewState == .needsReview
-        || authState.status == .authFailed
-        || authState.status == .consentRequired
-        || status.localizedCaseInsensitiveContains("auth required")
-        || status.localizedCaseInsensitiveContains("failed")
-        || status.localizedCaseInsensitiveContains("rejected")
+    store.microsoft365IntakeHealthSummaries.filter {
+      $0.tone == "warning" || $0.tone == "attention" || $0.importedCount > 0 || $0.blockedCount > 0
     }.count
   }
   private var mailboxHealthAttentionCount: Int {
@@ -2345,7 +2338,12 @@ struct DashboardView: View {
             MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
-            CompactMailboxHealthList(spaceMailSummaries: store.spaceMailIntakeHealthSummaries, gmailSummaries: store.gmailIntakeHealthSummaries, store: store)
+            CompactMailboxHealthList(
+              spaceMailSummaries: store.spaceMailIntakeHealthSummaries,
+              gmailSummaries: store.gmailIntakeHealthSummaries,
+              microsoft365Summaries: store.microsoft365IntakeHealthSummaries,
+              store: store
+            )
             CompactIntakeList(emails: store.newestIntakeEmails, store: store)
           }
         }
@@ -3157,6 +3155,8 @@ private struct DashboardReleaseCandidateQACard: View {
       summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
     } || store.gmailIntakeHealthSummaries.contains { summary in
       summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
+    } || store.microsoft365IntakeHealthSummaries.contains { summary in
+      summary.fetchedCount > 0 || summary.importedCount > 0 || summary.duplicateCount > 0 || summary.blockedCount > 0
     }
   }
 
@@ -3687,11 +3687,12 @@ struct CompactIntakeList: View {
 struct CompactMailboxHealthList: View {
   var spaceMailSummaries: [SpaceMailIntakeHealthSummary]
   var gmailSummaries: [GmailIntakeHealthSummary]
+  var microsoft365Summaries: [Microsoft365IntakeHealthSummary] = []
   var store: ParcelOpsStore
 
   var body: some View {
     CompactList(title: "Mailbox intake health", symbol: "server.rack") {
-      if spaceMailSummaries.isEmpty && gmailSummaries.isEmpty {
+      if spaceMailSummaries.isEmpty && gmailSummaries.isEmpty && microsoft365Summaries.isEmpty {
         NavigationLink {
           MailboxView(store: store)
         } label: {
@@ -3730,6 +3731,19 @@ struct CompactMailboxHealthList: View {
           }
           .buttonStyle(.plain)
         }
+        ForEach(microsoft365Summaries.prefix(2)) { summary in
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            CompactRow(
+              title: "Outlook: \(summary.verdict)",
+              detail: "\(summary.displayName) • \(summary.nextAction)",
+              badge: summary.primaryOutcomeStatus,
+              color: color(for: summary)
+            )
+          }
+          .buttonStyle(.plain)
+        }
       }
     }
   }
@@ -3748,6 +3762,19 @@ struct CompactMailboxHealthList: View {
   }
 
   private func color(for summary: GmailIntakeHealthSummary) -> Color {
+    switch summary.tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .blue
+    }
+  }
+
+  private func color(for summary: Microsoft365IntakeHealthSummary) -> Color {
     switch summary.tone {
     case "success":
       return .green

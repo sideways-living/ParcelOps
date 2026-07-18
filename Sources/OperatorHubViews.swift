@@ -210,6 +210,9 @@ struct InboxView: View {
       + store.gmailIntakeHealthSummaries.filter {
         $0.tone == "warning" || $0.tone == "attention" || $0.pendingUncertainReviewCount > 0 || $0.importedCount > 0
       }.count
+      + store.microsoft365IntakeHealthSummaries.filter {
+        $0.tone == "warning" || $0.tone == "attention" || $0.importedCount > 0 || $0.blockedCount > 0
+      }.count
   }
 
   private var mailboxProviderTestQueue: MailboxProviderTestQueueSummary {
@@ -1136,7 +1139,7 @@ struct InboxView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
-        if store.spaceMailIntakeHealthSummaries.isEmpty && store.gmailIntakeHealthSummaries.isEmpty {
+        if store.spaceMailIntakeHealthSummaries.isEmpty && store.gmailIntakeHealthSummaries.isEmpty && store.microsoft365IntakeHealthSummaries.isEmpty {
           MVPEmptyState(
             title: "No manual mailbox refresh history",
             detail: "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes in Mailbox Monitor or Settings when you are ready to use real intake.",
@@ -1165,6 +1168,10 @@ struct InboxView: View {
               summary: summary,
               reasonBreakdown: store.gmailMailboxConnections.first { $0.id == summary.connectionID }?.lastRefreshReasonBreakdown ?? []
             )
+          }
+
+          ForEach(store.microsoft365IntakeHealthSummaries) { summary in
+            InboxOutlookHealthRow(summary: summary)
           }
         }
 
@@ -1711,6 +1718,109 @@ private struct InboxGmailHealthRow: View {
     if decision.localizedCaseInsensitiveContains("uncertain") { return .orange }
     if decision.localizedCaseInsensitiveContains("filter") { return .teal }
     return .secondary
+  }
+}
+
+private struct InboxOutlookHealthRow: View {
+  var summary: Microsoft365IntakeHealthSummary
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label(summary.displayName, systemImage: "mail.stack.fill")
+          .font(.subheadline.weight(.semibold))
+        Spacer()
+        Badge(summary.verdict, color: color)
+      }
+      Text(summary.detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 110) {
+        Badge("\(summary.fetchedCount) fetched", color: .blue)
+        Badge("\(summary.importedCount) imported", color: summary.importedCount > 0 ? .green : .secondary)
+        Badge("\(summary.duplicateCount) duplicates", color: summary.duplicateCount > 0 ? .orange : .secondary)
+        Badge("\(summary.duplicateRefreshedCount) refreshed", color: summary.duplicateRefreshedCount > 0 ? .teal : .secondary)
+        Badge("\(summary.blockedCount) blockers", color: summary.blockedCount > 0 ? .red : .secondary)
+      }
+      Text(summary.nextAction)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+        .fixedSize(horizontal: false, vertical: true)
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: nextActionSymbol)
+          .foregroundStyle(color)
+          .frame(width: 18)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(nextActionTitle)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+          Text(nextActionDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 0)
+      }
+      .padding(8)
+      .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      Text("Outlook refresh uses explicit Microsoft 365 sign-in and read-only Graph calls. It does not mutate mailbox messages, send mail, or store token values in ParcelOps JSON.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var color: Color {
+    switch summary.tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .blue
+    }
+  }
+
+  private var nextActionTitle: String {
+    if summary.blockedCount > 0 { return "Review Outlook diagnostics" }
+    if summary.importedCount > 0 { return "Work imported Outlook rows" }
+    if summary.duplicateRefreshedCount > 0 { return "Review refreshed Outlook rows" }
+    if summary.duplicateCount > 0 { return "Duplicates did not create Inbox rows" }
+    if summary.fetchedCount > 0 { return "No Outlook order candidates found" }
+    return "Outlook is ready when needed"
+  }
+
+  private var nextActionDetail: String {
+    if summary.blockedCount > 0 {
+      return "Use Mailbox Monitor or Audit to check sign-in, consent, token metadata, and Graph-read diagnostics before relying on Outlook."
+    }
+    if summary.importedCount > 0 {
+      return "Open Inbox triage, confirm detected details, then create or link orders."
+    }
+    if summary.duplicateRefreshedCount > 0 {
+      return "Duplicate-safe refresh updated existing Inbox rows; review only if field changes need confirmation."
+    }
+    if summary.duplicateCount > 0 {
+      return "Duplicate prevention is working; no duplicate cleanup is required."
+    }
+    if summary.fetchedCount > 0 {
+      return "The latest Outlook pass produced no actionable Inbox intake."
+    }
+    return "Run Microsoft sign-in and manual Graph refresh only for Outlook-hosted mailboxes."
+  }
+
+  private var nextActionSymbol: String {
+    if summary.blockedCount > 0 { return "exclamationmark.triangle.fill" }
+    if summary.importedCount > 0 { return "tray.and.arrow.down.fill" }
+    if summary.duplicateRefreshedCount > 0 { return "arrow.triangle.2.circlepath.circle.fill" }
+    if summary.duplicateCount > 0 { return "arrow.triangle.2.circlepath" }
+    return "checkmark.circle"
   }
 }
 

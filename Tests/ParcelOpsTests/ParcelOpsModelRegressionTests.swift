@@ -2915,6 +2915,69 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(store.latestActiveMailboxEvidenceText.contains("Outlook latest: 2 fetched, 1 imported"))
   }
 
+  func testTotalMailboxCountsIncludeMicrosoft365Evidence() {
+    let outlookID = UUID()
+    let connection = makeMicrosoft365Connection(
+      id: outlookID,
+      connectionStatus: "Real Graph: Fetch success",
+      lastManualRefreshDate: "Today"
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = [connection]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "outlook-import-total",
+        sourceMailboxID: outlookID,
+        intakeEmailID: UUID(),
+        capturedDate: "Today",
+        status: .imported,
+        summary: "Imported Outlook message"
+      ),
+      MailboxIngestRecord(
+        providerMessageID: "outlook-refreshed-total",
+        sourceMailboxID: outlookID,
+        intakeEmailID: UUID(),
+        capturedDate: "Today",
+        status: .duplicateRefreshed,
+        summary: "Refreshed Outlook duplicate"
+      ),
+      MailboxIngestRecord(
+        providerMessageID: "outlook-nochange-total",
+        sourceMailboxID: outlookID,
+        intakeEmailID: UUID(),
+        capturedDate: "Today",
+        status: .duplicateNoChange,
+        summary: "No-change Outlook duplicate"
+      )
+    ]
+    store.microsoft365AuthSessionStates = [
+      outlookID: Microsoft365AuthSessionState(
+        connectionID: outlookID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        keychainStatus: "MSAL token cache managed by MSAL",
+        tokenStoreStatus: .mockTokenReferenceAvailable,
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available."
+      )
+    ]
+
+    XCTAssertEqual(store.totalMicrosoft365FetchedCount, 3)
+    XCTAssertEqual(store.totalMicrosoft365ImportedCount, 1)
+    XCTAssertEqual(store.totalMicrosoft365DuplicateCount, 2)
+    XCTAssertEqual(store.totalMicrosoft365DuplicateRefreshedCount, 1)
+    XCTAssertEqual(store.totalMicrosoft365DuplicateNoChangeCount, 1)
+    XCTAssertEqual(store.totalMailboxFetchedCount, 3)
+    XCTAssertEqual(store.totalMailboxImportedCount, 1)
+    XCTAssertEqual(store.totalMailboxDuplicateCount, 2)
+    XCTAssertEqual(store.totalMailboxDuplicateRefreshedCount, 1)
+    XCTAssertEqual(store.totalMailboxDuplicateNoChangeCount, 1)
+  }
+
   func testDuplicateGmailFetchRefreshesExistingStaleIntakeWithoutCreatingDuplicate() throws {
     let mailboxID = UUID()
     let intakeID = UUID()

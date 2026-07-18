@@ -7762,24 +7762,48 @@ final class ParcelOpsStore {
     max(totalGmailUncertainCount, pendingGmailUncertainMessageCount)
   }
 
+  var totalMicrosoft365FetchedCount: Int {
+    microsoft365IntakeHealthSummaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  var totalMicrosoft365ImportedCount: Int {
+    microsoft365IntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  var totalMicrosoft365DuplicateCount: Int {
+    microsoft365IntakeHealthSummaries.reduce(0) { $0 + $1.duplicateCount }
+  }
+
+  var totalMicrosoft365DuplicateRefreshedCount: Int {
+    microsoft365IntakeHealthSummaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+  }
+
+  var totalMicrosoft365DuplicateNoChangeCount: Int {
+    microsoft365IntakeHealthSummaries.reduce(0) { $0 + $1.duplicateNoChangeCount }
+  }
+
+  var totalMicrosoft365BlockedCount: Int {
+    microsoft365IntakeHealthSummaries.reduce(0) { $0 + $1.blockedCount }
+  }
+
   var totalMailboxFetchedCount: Int {
-    totalSpaceMailFetchedCount + totalGmailFetchedCount
+    totalSpaceMailFetchedCount + totalGmailFetchedCount + totalMicrosoft365FetchedCount
   }
 
   var totalMailboxImportedCount: Int {
-    totalSpaceMailImportedCount + totalGmailImportedCount
+    totalSpaceMailImportedCount + totalGmailImportedCount + totalMicrosoft365ImportedCount
   }
 
   var totalMailboxDuplicateCount: Int {
-    totalSpaceMailDuplicateCount + totalGmailDuplicateCount
+    totalSpaceMailDuplicateCount + totalGmailDuplicateCount + totalMicrosoft365DuplicateCount
   }
 
   var totalMailboxDuplicateRefreshedCount: Int {
-    totalSpaceMailDuplicateRefreshedCount + totalGmailDuplicateRefreshedCount
+    totalSpaceMailDuplicateRefreshedCount + totalGmailDuplicateRefreshedCount + totalMicrosoft365DuplicateRefreshedCount
   }
 
   var totalMailboxDuplicateNoChangeCount: Int {
-    totalSpaceMailDuplicateNoChangeCount + totalGmailDuplicateNoChangeCount
+    totalSpaceMailDuplicateNoChangeCount + totalGmailDuplicateNoChangeCount + totalMicrosoft365DuplicateNoChangeCount
   }
 
   var totalMailboxFilteredSignalCount: Int {

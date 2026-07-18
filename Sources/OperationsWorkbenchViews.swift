@@ -231,6 +231,10 @@ struct OperationsWorkbenchView: View {
     store.gmailIntakeHealthSummaries
   }
 
+  private var microsoft365HealthSummaries: [Microsoft365IntakeHealthSummary] {
+    store.microsoft365IntakeHealthSummaries
+  }
+
   private var gmailFetchedCount: Int {
     store.totalGmailFetchedCount
   }
@@ -325,8 +329,12 @@ struct OperationsWorkbenchView: View {
     "\(gmailFetchedCount) fetched, \(gmailImportedCount) imported, \(store.totalGmailDuplicateCount) duplicate, \(store.totalGmailDuplicateRefreshedCount) refreshed, \(gmailFilteredCount) filtered, \(gmailUncertainCount) uncertain."
   }
 
+  private var microsoft365MailboxCountsText: String {
+    "\(store.totalMicrosoft365FetchedCount) fetched, \(store.totalMicrosoft365ImportedCount) imported, \(store.totalMicrosoft365DuplicateCount) duplicate, \(store.totalMicrosoft365DuplicateRefreshedCount) refreshed, \(store.totalMicrosoft365BlockedCount) blocker."
+  }
+
   private var mailboxWarningCount: Int {
-    gmailWarningCount + store.intakeParserDiagnostics.count
+    gmailWarningCount + store.totalMicrosoft365BlockedCount + store.intakeParserDiagnostics.count
   }
 
   private var weakInboxParseCount: Int {
@@ -474,21 +482,11 @@ struct OperationsWorkbenchView: View {
       ))
     }
 
-    if !store.microsoft365MailboxConnections.isEmpty {
-      let signedInCount = store.microsoft365MailboxConnections.filter {
-        store.microsoft365AuthSessionState(for: $0).status == .connected
-      }.count
-      let readyCount = store.microsoft365MailboxConnections.filter {
-        store.microsoft365OAuthReadinessSummary(for: $0).isReady
-      }.count
+    if !microsoft365HealthSummaries.isEmpty {
       rows.append((
         "Microsoft 365",
-        signedInCount > 0
-          ? "\(signedInCount) Outlook/Microsoft setup signed in. Workbench only changes after manual Graph refresh imports or refreshes intake rows."
-          : readyCount > 0
-            ? "\(readyCount) Outlook/Microsoft setup ready for explicit sign-in. Keep Workbench clear until an Inbox row exists."
-            : "Outlook/Microsoft setup exists as an advanced path. Finish readiness before relying on it for live intake.",
-        signedInCount > 0 ? .purple : .orange
+        microsoft365MailboxCountsText,
+        store.totalMicrosoft365BlockedCount > 0 ? .red : store.totalMicrosoft365ImportedCount > 0 ? .green : store.totalMicrosoft365DuplicateCount > 0 ? .teal : .secondary
       ))
     }
 
