@@ -7461,6 +7461,57 @@ final class ParcelOpsStore {
     )
   }
 
+  func mailboxSourceSummaries(for order: TrackedOrder) -> [OrderMailboxSourceSummary] {
+    let linkedEmails = linkedIntakeEmails(for: order)
+    guard !linkedEmails.isEmpty else { return [] }
+
+    let linkedEmailIDs = Set(linkedEmails.map(\.id))
+    let linkedRecords = mailboxIngestRecords.filter { record in
+      guard let intakeEmailID = record.intakeEmailID else { return false }
+      return linkedEmailIDs.contains(intakeEmailID)
+    }
+
+    var summaries: [OrderMailboxSourceSummary] = Dictionary(grouping: linkedRecords, by: \.sourceMailboxID)
+      .map { sourceMailboxID, records in
+        let provider = mailboxProviderLabel(for: sourceMailboxID)
+        let linkedRecordEmailIDs = Set(records.compactMap(\.intakeEmailID))
+        return OrderMailboxSourceSummary(
+          sourceMailboxID: sourceMailboxID,
+          providerName: provider.providerName,
+          mailboxLabel: provider.mailboxLabel,
+          intakeCount: linkedRecordEmailIDs.count,
+          importedCount: records.filter { $0.status == .imported }.count,
+          duplicateCount: records.filter { $0.status == .duplicateSkipped || $0.status == .duplicateNoChange }.count,
+          duplicateRefreshedCount: records.filter { $0.status == .duplicateRefreshed }.count,
+          latestCapturedDate: records.map(\.capturedDate).sorted().last ?? "Unknown"
+        )
+      }
+
+    let emailsWithIngest = Set(linkedRecords.compactMap(\.intakeEmailID))
+    let localEmailCount = linkedEmails.filter { !emailsWithIngest.contains($0.id) }.count
+    if localEmailCount > 0 {
+      summaries.append(
+        OrderMailboxSourceSummary(
+          sourceMailboxID: nil,
+          providerName: "Local",
+          mailboxLabel: "Manual or legacy intake",
+          intakeCount: localEmailCount,
+          importedCount: 0,
+          duplicateCount: 0,
+          duplicateRefreshedCount: 0,
+          latestCapturedDate: "Unknown"
+        )
+      )
+    }
+
+    return summaries.sorted { lhs, rhs in
+      if lhs.providerName == rhs.providerName {
+        return lhs.mailboxLabel.localizedCaseInsensitiveCompare(rhs.mailboxLabel) == .orderedAscending
+      }
+      return lhs.providerName.localizedCaseInsensitiveCompare(rhs.providerName) == .orderedAscending
+    }
+  }
+
   func sourceTrailCount(for order: TrackedOrder, includeWishlist: Bool = false) -> Int {
     sourceTrailSummary(for: order, includeWishlist: includeWishlist).totalCount
   }
@@ -7479,6 +7530,19 @@ final class ParcelOpsStore {
 
   func inboxCreatedOrdersMissingSourceTrail(includeWishlist: Bool = false) -> [TrackedOrder] {
     inboxCreatedOrders.filter { !sourceTrailSummary(for: $0, includeWishlist: includeWishlist).hasSourceTrail }
+  }
+
+  private func mailboxProviderLabel(for sourceMailboxID: UUID) -> (providerName: String, mailboxLabel: String) {
+    if let connection = spaceMailIMAPConnections.first(where: { $0.id == sourceMailboxID }) {
+      return ("SpaceMail", connection.emailAddressUsername.isEmpty ? connection.displayName : connection.emailAddressUsername)
+    }
+    if let connection = gmailMailboxConnections.first(where: { $0.id == sourceMailboxID }) {
+      return ("Gmail", connection.emailAddress.isEmpty ? connection.displayName : connection.emailAddress)
+    }
+    if let connection = microsoft365MailboxConnections.first(where: { $0.id == sourceMailboxID }) {
+      return ("Microsoft 365", connection.mailboxAddress.isEmpty ? connection.displayName : connection.mailboxAddress)
+    }
+    return ("Mailbox", sourceMailboxID.uuidString.prefix(8).uppercased())
   }
 
   func importQueueItems(for order: TrackedOrder) -> [ImportQueueItem] {

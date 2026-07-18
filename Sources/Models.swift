@@ -32,6 +32,46 @@ struct OrderSourceTrailSummary: Equatable {
   }
 }
 
+struct OrderMailboxSourceSummary: Identifiable, Hashable {
+  var sourceMailboxID: UUID?
+  var providerName: String
+  var mailboxLabel: String
+  var intakeCount: Int
+  var importedCount: Int
+  var duplicateCount: Int
+  var duplicateRefreshedCount: Int
+  var latestCapturedDate: String
+
+  var id: String {
+    sourceMailboxID?.uuidString ?? "local-\(providerName)-\(mailboxLabel)"
+  }
+
+  var badgeLabel: String {
+    "\(providerName): \(intakeCount)"
+  }
+
+  var statusLabel: String {
+    if importedCount > 0 { return "Imported source" }
+    if duplicateRefreshedCount > 0 { return "Duplicate refreshed" }
+    if duplicateCount > 0 { return "Duplicate source" }
+    return "Local source"
+  }
+
+  var detailText: String {
+    var parts = ["\(intakeCount) linked intake email\(intakeCount == 1 ? "" : "s")"]
+    if importedCount > 0 {
+      parts.append("\(importedCount) imported")
+    }
+    if duplicateRefreshedCount > 0 {
+      parts.append("\(duplicateRefreshedCount) refreshed duplicate")
+    }
+    if duplicateCount > 0 {
+      parts.append("\(duplicateCount) duplicate")
+    }
+    return "\(mailboxLabel) • \(parts.joined(separator: ", "))\(latestCapturedDate == "Unknown" ? "" : " • latest \(latestCapturedDate)")"
+  }
+}
+
 enum ParcelSection: String, CaseIterable, Identifiable {
   case dashboard
   case inbox

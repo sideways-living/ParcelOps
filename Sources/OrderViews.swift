@@ -580,7 +580,8 @@ struct OrdersView: View {
       tasks: store.tasks(for: .order, linkedEntityID: order.id.uuidString),
       manifests: store.suggestedShipmentManifestRecords(for: order),
       checklists: store.suggestedDispatchReadinessChecklists(for: order),
-      sourceTrailCount: store.sourceTrailCount(for: order, includeWishlist: true)
+      sourceTrailCount: store.sourceTrailCount(for: order, includeWishlist: true),
+      mailboxSourceSummaries: store.mailboxSourceSummaries(for: order)
     )
   }
 
@@ -827,6 +828,7 @@ private struct OrderQueueItem: Identifiable {
   var manifests: [ShipmentManifestRecord]
   var checklists: [DispatchReadinessChecklist]
   var sourceTrailCount: Int
+  var mailboxSourceSummaries: [OrderMailboxSourceSummary]
 
   var id: UUID { order.id }
   var warningTrackingCount: Int {
@@ -1148,6 +1150,9 @@ private struct OrderQueueRow: View {
             if item.isInboxCreated {
               Badge(item.inboxHandoffLabel, color: .teal)
               Badge(item.sourceTrailCount > 0 ? "\(item.sourceTrailCount) source" : "Source trail missing", color: item.sourceTrailCount > 0 ? .green : .orange)
+              ForEach(item.mailboxSourceSummaries.prefix(2)) { source in
+                Badge(source.badgeLabel, color: mailboxSourceColor(source))
+              }
             }
             if item.partialInboxTaskCount > 0 {
               Badge("\(item.partialInboxTaskCount) verify", color: .orange)
@@ -1186,6 +1191,11 @@ private struct OrderQueueRow: View {
               Label("Open order source trail before completing this Inbox handoff.", systemImage: "link.badge.plus")
                 .font(.caption)
                 .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+            } else if !item.mailboxSourceSummaries.isEmpty {
+              Label(mailboxSourceTraceText(item.mailboxSourceSummaries), systemImage: "envelope.badge.fill")
+                .font(.caption)
+                .foregroundStyle(.teal)
                 .fixedSize(horizontal: false, vertical: true)
             }
           }
@@ -1271,6 +1281,24 @@ private struct OrderQueueRow: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(item.handoffDecisionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func mailboxSourceTraceText(_ summaries: [OrderMailboxSourceSummary]) -> String {
+    summaries.prefix(2)
+      .map { "\($0.providerName) via \($0.mailboxLabel)" }
+      .joined(separator: "; ")
+  }
+
+  private func mailboxSourceColor(_ summary: OrderMailboxSourceSummary) -> Color {
+    if summary.importedCount > 0 { return .green }
+    if summary.duplicateRefreshedCount > 0 { return .teal }
+    if summary.duplicateCount > 0 { return .orange }
+    switch summary.providerName {
+    case "Gmail": return .blue
+    case "SpaceMail": return .teal
+    case "Microsoft 365": return .purple
+    default: return .secondary
+    }
   }
 }
 
@@ -1950,6 +1978,24 @@ struct OrderDetailView: View {
     }
   }
 
+  private func mailboxSourceTraceText(_ summaries: [OrderMailboxSourceSummary]) -> String {
+    summaries.prefix(2)
+      .map { "\($0.providerName) via \($0.mailboxLabel)" }
+      .joined(separator: "; ")
+  }
+
+  private func mailboxSourceColor(_ summary: OrderMailboxSourceSummary) -> Color {
+    if summary.importedCount > 0 { return .green }
+    if summary.duplicateRefreshedCount > 0 { return .teal }
+    if summary.duplicateCount > 0 { return .orange }
+    switch summary.providerName {
+    case "Gmail": return .blue
+    case "SpaceMail": return .teal
+    case "Microsoft 365": return .purple
+    default: return .secondary
+    }
+  }
+
   private func checklistLine(title: String, detail: String, symbol: String, color: Color) -> some View {
     HStack(alignment: .top, spacing: 10) {
       Image(systemName: symbol)
@@ -1972,6 +2018,7 @@ struct OrderDetailView: View {
     let acceptance = store.acceptanceRecords(for: order)
     let wishlistItems = store.activeWishlistItemsLinked(to: order)
     let closedWishlistItems = store.closedWishlistItemsLinked(to: order)
+    let mailboxSources = store.mailboxSourceSummaries(for: order)
 
     return Panel(title: "Order source trail", symbol: "link.badge.plus") {
       VStack(alignment: .leading, spacing: 12) {
@@ -1986,6 +2033,17 @@ struct OrderDetailView: View {
           Badge("\(wishlistItems.count) active wishlist", color: wishlistItems.isEmpty ? .secondary : .pink)
           if !closedWishlistItems.isEmpty {
             Badge("\(closedWishlistItems.count) closed history", color: .secondary)
+          }
+        }
+
+        if !mailboxSources.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Mailbox provider sources")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ForEach(mailboxSources) { source in
+              OrderMailboxSourceSummaryRow(source: source)
+            }
           }
         }
 
@@ -2576,6 +2634,55 @@ private struct OrderOperationalTimelineRow: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.quinary)
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct OrderMailboxSourceSummaryRow: View {
+  var source: OrderMailboxSourceSummary
+
+  private var color: Color {
+    if source.importedCount > 0 { return .green }
+    if source.duplicateRefreshedCount > 0 { return .teal }
+    if source.duplicateCount > 0 { return .orange }
+    switch source.providerName {
+    case "Gmail": return .blue
+    case "SpaceMail": return .teal
+    case "Microsoft 365": return .purple
+    default: return .secondary
+    }
+  }
+
+  private var symbol: String {
+    switch source.providerName {
+    case "Gmail": return "envelope.badge.shield.half.filled"
+    case "SpaceMail": return "server.rack"
+    case "Microsoft 365": return "mail.stack.fill"
+    default: return "envelope.badge.fill"
+    }
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: symbol)
+        .foregroundStyle(color)
+        .frame(width: 22)
+
+      VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: 8) {
+          Text(source.providerName)
+            .font(.caption.weight(.semibold))
+          Badge(source.statusLabel, color: color)
+        }
+        Text(source.detailText)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Spacer(minLength: 0)
+    }
+    .padding(10)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
   }
 }
 
