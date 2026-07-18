@@ -336,6 +336,10 @@ final class ParcelOpsStore {
     gmailMailboxConnections.map(gmailIntakeHealthSummary(for:))
   }
 
+  var microsoft365IntakeHealthSummaries: [Microsoft365IntakeHealthSummary] {
+    microsoft365MailboxConnections.map(microsoft365IntakeHealthSummary(for:))
+  }
+
   var mailboxProviderComparisonSummary: MailboxProviderComparisonSummary {
     let spaceMailSummaries = spaceMailIntakeHealthSummaries
     let gmailSummaries = gmailIntakeHealthSummaries
@@ -360,18 +364,13 @@ final class ParcelOpsStore {
     let gmailReadinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
     let gmailSignedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
     let gmailSetupBlockers = gmailMailboxConnections.isEmpty ? 0 : gmailReadinessBlockers + (gmailSignedInCount == 0 ? 1 : 0)
+    let microsoftSummaries = microsoft365IntakeHealthSummaries
     let microsoftReadyCount = microsoft365MailboxConnections.filter { microsoft365OAuthReadinessSummary(for: $0).isReady }.count
     let microsoftSignedInCount = microsoft365MailboxConnections.filter { microsoft365AuthSessionState(for: $0).status == .connected }.count
-    let microsoftFetched = microsoft365MailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
-    let microsoftProblemCount = microsoft365MailboxConnections.filter { connection in
-      let status = connection.connectionStatus
-      let authStatus = microsoft365AuthSessionState(for: connection).status
-      return authStatus == .authFailed
-        || authStatus == .consentRequired
-        || status.localizedCaseInsensitiveContains("auth required")
-        || status.localizedCaseInsensitiveContains("failed")
-        || status.localizedCaseInsensitiveContains("rejected")
-    }.count
+    let microsoftFetched = microsoftSummaries.reduce(0) { $0 + $1.fetchedCount }
+    let microsoftImported = microsoftSummaries.reduce(0) { $0 + $1.importedCount }
+    let microsoftDuplicate = microsoftSummaries.reduce(0) { $0 + $1.duplicateCount }
+    let microsoftProblemCount = microsoftSummaries.reduce(0) { $0 + $1.blockedCount }
 
     let spaceMailStatusTitle: String
     let spaceMailDetail: String
@@ -449,9 +448,14 @@ final class ParcelOpsStore {
       microsoftDetail = "\(microsoftProblemCount) Microsoft 365 setup\(microsoftProblemCount == 1 ? "" : "s") have auth, consent, or Graph-read diagnostics to review."
       microsoftNextAction = "Open Microsoft 365 setup or Audit before relying on Graph refresh."
       microsoftTone = "warning"
+    } else if microsoftImported > 0 {
+      microsoftStatusTitle = "Microsoft 365 has operator work"
+      microsoftDetail = "\(microsoftImported) Outlook-origin message\(microsoftImported == 1 ? "" : "s") were imported through provider-neutral intake."
+      microsoftNextAction = "Review Outlook-origin Inbox rows and create or link orders where appropriate."
+      microsoftTone = "attention"
     } else if microsoftSignedInCount > 0 && microsoftFetched > 0 {
       microsoftStatusTitle = "Microsoft 365 has refresh evidence"
-      microsoftDetail = "\(microsoftFetched) Outlook setup\(microsoftFetched == 1 ? "" : "s") have manual Graph refresh evidence."
+      microsoftDetail = "\(microsoftFetched) Outlook fetch signal\(microsoftFetched == 1 ? "" : "s") and \(microsoftDuplicate) duplicate-safe result\(microsoftDuplicate == 1 ? "" : "s") are available for review."
       microsoftNextAction = "Review Mailbox Monitor or Audit before using Outlook as the active provider path."
       microsoftTone = "attention"
     } else if microsoftSignedInCount > 0 {
@@ -473,7 +477,7 @@ final class ParcelOpsStore {
 
     let anyProviderConfigured = !spaceMailIMAPConnections.isEmpty || !gmailMailboxConnections.isEmpty || !microsoft365MailboxConnections.isEmpty
     let anyProviderBlocked = spaceMailBlocked > 0 || gmailSetupBlockers > 0 || microsoftProblemCount > 0
-    let anyOperatorWork = spaceMailImported + gmailImported + spaceMailUncertain + gmailUncertain + spaceMailParserIssues > 0
+    let anyOperatorWork = spaceMailImported + gmailImported + microsoftImported + spaceMailUncertain + gmailUncertain + spaceMailParserIssues > 0
     let anyRefreshEvidence = spaceMailFetched + gmailFetched + microsoftFetched + spaceMailFiltered + gmailFiltered > 0
 
     let recommendedProvider: String
@@ -748,7 +752,7 @@ final class ParcelOpsStore {
       metrics: [
         SpaceMailReleaseSnapshotMetric(title: "Providers", value: "\(mailboxProviderSetupCount)", tone: anyProviderConfigured ? "success" : "warning"),
         SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(spaceMailFetched + gmailFetched + microsoftFetched)", tone: anyRefreshEvidence ? "neutral" : "attention"),
-        SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(spaceMailImported + gmailImported)", tone: (spaceMailImported + gmailImported) > 0 ? "attention" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(spaceMailImported + gmailImported + microsoftImported)", tone: (spaceMailImported + gmailImported + microsoftImported) > 0 ? "attention" : "neutral"),
         SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(spaceMailFiltered + gmailFiltered)", tone: (spaceMailFiltered + gmailFiltered) > 0 ? "success" : "neutral"),
         SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(spaceMailUncertain + gmailUncertain)", tone: (spaceMailUncertain + gmailUncertain) > 0 ? "attention" : "success"),
         SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(spaceMailBlocked + gmailSetupBlockers + microsoftProblemCount)", tone: (spaceMailBlocked + gmailSetupBlockers + microsoftProblemCount) > 0 ? "warning" : "success")
@@ -787,7 +791,7 @@ final class ParcelOpsStore {
           tone: microsoftTone,
           symbol: "mail.stack.fill",
           fetchedCount: microsoftFetched,
-          importedCount: 0,
+          importedCount: microsoftImported,
           blockedCount: microsoftProblemCount,
           uncertainCount: 0
         )
@@ -805,13 +809,16 @@ final class ParcelOpsStore {
     let comparison = mailboxProviderComparisonSummary
     let spaceMailSummaries = spaceMailIntakeHealthSummaries
     let gmailSummaries = gmailIntakeHealthSummaries
+    let microsoftSummaries = microsoft365IntakeHealthSummaries
 
     let importedCount = spaceMailSummaries.reduce(0) { $0 + $1.importedCount }
       + gmailSummaries.reduce(0) { $0 + $1.importedCount }
+      + microsoftSummaries.reduce(0) { $0 + $1.importedCount }
     let filteredCount = spaceMailSummaries.reduce(0) { $0 + $1.filteredCount }
       + gmailSummaries.reduce(0) { $0 + $1.filteredCount }
     let duplicateCount = spaceMailSummaries.reduce(0) { $0 + $1.duplicateCount }
       + gmailSummaries.reduce(0) { $0 + $1.duplicateCount }
+      + microsoftSummaries.reduce(0) { $0 + $1.duplicateCount }
     let uncertainCount = spaceMailSummaries.reduce(0) { $0 + $1.totalUncertainCount }
       + gmailSummaries.reduce(0) { $0 + $1.totalUncertainCount }
     let parserIssueCount = intakeParserDiagnostics.count
@@ -821,8 +828,7 @@ final class ParcelOpsStore {
       unresolvedIntakeCount += 1
     }
     let providerBlockers = comparison.providers.reduce(0) { $0 + $1.blockedCount }
-    let microsoft365RefreshDates = microsoft365MailboxConnections.map(\.lastManualRefreshDate)
-    let latestDates = (spaceMailSummaries.map(\.lastRefreshDate) + gmailSummaries.map(\.lastRefreshDate) + microsoft365RefreshDates)
+    let latestDates = (spaceMailSummaries.map(\.lastRefreshDate) + gmailSummaries.map(\.lastRefreshDate) + microsoftSummaries.map(\.lastRefreshDate))
       .filter { !$0.isEmpty && $0 != "Never" }
     let lastEvidenceText = latestDates.first ?? "No real mailbox refresh evidence yet"
 
@@ -5230,6 +5236,96 @@ final class ParcelOpsStore {
     )
   }
 
+  func microsoft365IntakeHealthSummary(for connection: Microsoft365MailboxConnection) -> Microsoft365IntakeHealthSummary {
+    let mailboxID = connection.id
+    let ingestRecords = mailboxIngestRecords.filter { $0.sourceMailboxID == mailboxID }
+    let duplicateRefreshCounts = duplicateRefreshCounts(for: ingestRecords)
+    let linkedIntakeIDs = Set(ingestRecords.compactMap(\.intakeEmailID))
+    let linkedIntakeCount = intakeEmails.filter { linkedIntakeIDs.contains($0.id) }.count
+    let importedCount = ingestRecords.filter { $0.status == .imported }.count
+    let duplicateCount = ingestRecords.filter {
+      $0.status == .duplicateSkipped || $0.status == .duplicateRefreshed || $0.status == .duplicateNoChange
+    }.count
+    let readiness = microsoft365OAuthReadinessSummary(for: connection)
+    let authState = microsoft365AuthSessionState(for: connection)
+    let status = connection.connectionStatus
+    let hasManualRefreshEvidence = connection.lastManualRefreshDate != "Never"
+    let fetchedCount = max(ingestRecords.count, hasManualRefreshEvidence ? 1 : 0)
+    let hasProblem = authState.status == .authFailed
+      || authState.status == .consentRequired
+      || authState.status == .tokenExpired
+      || status.localizedCaseInsensitiveContains("auth required")
+      || status.localizedCaseInsensitiveContains("failed")
+      || status.localizedCaseInsensitiveContains("rejected")
+      || status.localizedCaseInsensitiveContains("401")
+    let blockedCount = hasProblem ? 1 : 0
+
+    let verdict: String
+    let detail: String
+    let nextAction: String
+    let tone: String
+
+    if hasProblem {
+      verdict = "Outlook diagnostics need review"
+      detail = "The latest Microsoft 365 state has auth, consent, token, or Graph-read diagnostics to review."
+      nextAction = "Open Mailbox Monitor or Audit, confirm sign-in and Graph consent, then retry manual read-only Graph refresh."
+      tone = "warning"
+    } else if !readiness.isReady {
+      verdict = "Outlook setup incomplete"
+      detail = "\(readiness.statusText). Microsoft 365 remains optional unless this is an Outlook-hosted mailbox."
+      nextAction = "Complete tenant, client, redirect, and scope placeholders before real sign-in."
+      tone = "neutral"
+    } else if authState.status != .connected && fetchedCount == 0 {
+      verdict = "Outlook sign-in needed"
+      detail = "Microsoft 365 setup has readiness values, but no signed-in account or refresh evidence is available."
+      nextAction = "Run Test real Microsoft sign-in only when this mailbox is Outlook-hosted."
+      tone = "attention"
+    } else if importedCount > 0 {
+      verdict = "Outlook order intake captured"
+      detail = "Microsoft 365 imported messages through the same provider-neutral Inbox intake path."
+      nextAction = "Review Outlook-origin Inbox rows and create or link orders where appropriate."
+      tone = "success"
+    } else if duplicateRefreshCounts.updated > 0 {
+      verdict = "Outlook duplicate refresh updated intake"
+      detail = "Duplicate-safe Outlook refresh updated existing Inbox rows without creating duplicates."
+      nextAction = "Review refreshed Outlook-origin Inbox rows if any fields changed."
+      tone = "neutral"
+    } else if duplicateCount > 0 {
+      verdict = "No new Outlook order mail"
+      detail = "Microsoft 365 refresh evidence found messages already captured by ParcelOps."
+      nextAction = "Run manual Graph refresh again only when new Outlook mail is expected."
+      tone = "neutral"
+    } else if fetchedCount > 0 {
+      verdict = "Outlook refresh evidence recorded"
+      detail = "Microsoft 365 has manual Graph refresh evidence, but no actionable Inbox intake is pending."
+      nextAction = "Use Outlook refresh only when this is the active mailbox provider."
+      tone = "neutral"
+    } else {
+      verdict = "Ready for Outlook refresh"
+      detail = "Microsoft 365 setup exists, but no refresh evidence is active yet."
+      nextAction = "Run explicit read-only Graph refresh only for an Outlook-hosted mailbox."
+      tone = "neutral"
+    }
+
+    return Microsoft365IntakeHealthSummary(
+      connectionID: connection.id,
+      displayName: connection.displayName,
+      verdict: verdict,
+      detail: detail,
+      nextAction: nextAction,
+      tone: tone,
+      fetchedCount: fetchedCount,
+      importedCount: importedCount,
+      duplicateCount: duplicateCount,
+      duplicateRefreshedCount: duplicateRefreshCounts.updated,
+      duplicateNoChangeCount: duplicateRefreshCounts.noChange,
+      blockedCount: blockedCount,
+      linkedIntakeCount: linkedIntakeCount,
+      lastRefreshDate: connection.lastManualRefreshDate,
+      lastRefreshSummary: connection.connectionStatus
+    )
+  }
+
   private func duplicateRefreshCounts(for ingestRecords: [MailboxIngestRecord]) -> (updated: Int, noChange: Int) {
     (
       updated: ingestRecords.filter { $0.status == .duplicateRefreshed }.count,
@@ -7403,24 +7499,40 @@ final class ParcelOpsStore {
     gmailIntakeHealthSummaries.first
   }
 
+  var latestMicrosoft365IntakeHealthSummary: Microsoft365IntakeHealthSummary? {
+    microsoft365IntakeHealthSummaries.first
+  }
+
   var latestMailboxFetchedCount: Int {
-    (latestSpaceMailIntakeHealthSummary?.fetchedCount ?? 0) + (latestGmailIntakeHealthSummary?.fetchedCount ?? 0)
+    (latestSpaceMailIntakeHealthSummary?.fetchedCount ?? 0)
+      + (latestGmailIntakeHealthSummary?.fetchedCount ?? 0)
+      + (latestMicrosoft365IntakeHealthSummary?.fetchedCount ?? 0)
   }
 
   var latestMailboxMaxFetchedCount: Int {
-    max(latestSpaceMailIntakeHealthSummary?.fetchedCount ?? 0, latestGmailIntakeHealthSummary?.fetchedCount ?? 0)
+    max(
+      latestSpaceMailIntakeHealthSummary?.fetchedCount ?? 0,
+      latestGmailIntakeHealthSummary?.fetchedCount ?? 0,
+      latestMicrosoft365IntakeHealthSummary?.fetchedCount ?? 0
+    )
   }
 
   var latestMailboxImportedCount: Int {
-    (latestSpaceMailIntakeHealthSummary?.importedCount ?? 0) + (latestGmailIntakeHealthSummary?.importedCount ?? 0)
+    (latestSpaceMailIntakeHealthSummary?.importedCount ?? 0)
+      + (latestGmailIntakeHealthSummary?.importedCount ?? 0)
+      + (latestMicrosoft365IntakeHealthSummary?.importedCount ?? 0)
   }
 
   var latestMailboxDuplicateCount: Int {
-    (latestSpaceMailIntakeHealthSummary?.duplicateCount ?? 0) + (latestGmailIntakeHealthSummary?.duplicateCount ?? 0)
+    (latestSpaceMailIntakeHealthSummary?.duplicateCount ?? 0)
+      + (latestGmailIntakeHealthSummary?.duplicateCount ?? 0)
+      + (latestMicrosoft365IntakeHealthSummary?.duplicateCount ?? 0)
   }
 
   var latestMailboxDuplicateRefreshedCount: Int {
-    (latestSpaceMailIntakeHealthSummary?.duplicateRefreshedCount ?? 0) + (latestGmailIntakeHealthSummary?.duplicateRefreshedCount ?? 0)
+    (latestSpaceMailIntakeHealthSummary?.duplicateRefreshedCount ?? 0)
+      + (latestGmailIntakeHealthSummary?.duplicateRefreshedCount ?? 0)
+      + (latestMicrosoft365IntakeHealthSummary?.duplicateRefreshedCount ?? 0)
   }
 
   var latestMailboxFilteredCount: Int {
@@ -7439,9 +7551,9 @@ final class ParcelOpsStore {
     let gmailLine = latestGmailIntakeHealthSummary.map {
       "Gmail \($0.compactRefreshCountsText)"
     } ?? "Gmail no refresh summary"
-    let outlookLine = microsoft365MailboxConnections
-      .first(where: { $0.lastManualRefreshDate != "Never" })
-      .map { "Outlook refreshed \($0.lastManualRefreshDate)" } ?? "Outlook no refresh summary"
+    let outlookLine = latestMicrosoft365IntakeHealthSummary.map {
+      "Outlook \($0.compactRefreshCountsText)"
+    } ?? "Outlook no refresh summary"
     return "\(spaceLine). \(gmailLine). \(outlookLine)."
   }
 
@@ -7449,9 +7561,7 @@ final class ParcelOpsStore {
     let summaries: [String] = [
       latestSpaceMailIntakeHealthSummary.map { "SpaceMail: \($0.namedRefreshCountsText)" },
       latestGmailIntakeHealthSummary.map { "Gmail: \($0.namedRefreshCountsText)" },
-      microsoft365MailboxConnections
-        .first(where: { $0.lastManualRefreshDate != "Never" })
-        .map { "Outlook: manual Graph refresh evidence from \($0.lastManualRefreshDate); status \($0.connectionStatus)." }
+      latestMicrosoft365IntakeHealthSummary.map { "Outlook: \($0.namedRefreshCountsText)" }
     ].compactMap { $0 }
     guard !summaries.isEmpty else {
       return "No refresh summary yet. Start with the local demo workflow, then run the active mailbox provider only when credentials or sign-in are ready."
@@ -7467,8 +7577,9 @@ final class ParcelOpsStore {
   }
 
   var latestActiveMailboxEvidenceText: String {
-    if let outlook = microsoft365MailboxConnections.first(where: { $0.lastManualRefreshDate != "Never" }) {
-      return "Outlook latest: manual Graph refresh evidence from \(outlook.lastManualRefreshDate)."
+    if let latestMicrosoft365IntakeHealthSummary,
+       latestMicrosoft365IntakeHealthSummary.fetchedCount > 0 || latestMicrosoft365IntakeHealthSummary.importedCount > 0 || latestMicrosoft365IntakeHealthSummary.duplicateCount > 0 {
+      return "Outlook latest: \(latestMicrosoft365IntakeHealthSummary.compactRefreshCountsText)."
     }
     if let latestGmailIntakeHealthSummary,
        latestGmailIntakeHealthSummary.fetchedCount > 0 || latestGmailIntakeHealthSummary.importedCount > 0 || latestGmailIntakeHealthSummary.filteredCount > 0 {

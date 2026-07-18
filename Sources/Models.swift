@@ -2052,6 +2052,49 @@ struct GmailIntakeHealthSummary: Identifiable, Hashable {
   }
 }
 
+struct Microsoft365IntakeHealthSummary: Identifiable, Hashable {
+  var id: UUID { connectionID }
+  var connectionID: UUID
+  var displayName: String
+  var verdict: String
+  var detail: String
+  var nextAction: String
+  var tone: String
+  var fetchedCount: Int
+  var importedCount: Int
+  var duplicateCount: Int
+  var duplicateRefreshedCount: Int
+  var duplicateNoChangeCount: Int
+  var blockedCount: Int
+  var linkedIntakeCount: Int
+  var lastRefreshDate: String
+  var lastRefreshSummary: String
+
+  var primaryOutcomeStatus: String {
+    if blockedCount > 0 { return "\(blockedCount) blocker" }
+    if importedCount > 0 { return "\(importedCount) imported" }
+    if duplicateRefreshedCount > 0 { return "\(duplicateRefreshedCount) refreshed" }
+    if duplicateCount > 0 { return "\(duplicateCount) duplicate" }
+    return "\(fetchedCount) fetched"
+  }
+
+  var compactRefreshCountsText: String {
+    "\(fetchedCount) fetched, \(importedCount) imported, \(duplicateCount) duplicate, \(duplicateRefreshedCount) refreshed, \(blockedCount) blocker"
+  }
+
+  var namedRefreshCountsText: String {
+    "\(displayName): \(compactRefreshCountsText). \(nextAction)"
+  }
+
+  var dashboardOutcomeTitle: String {
+    if blockedCount > 0 { return "Latest Outlook refresh needs diagnostics review" }
+    if importedCount > 0 { return "Latest Outlook refresh imported order mail" }
+    if duplicateRefreshedCount > 0 { return "Latest Outlook refresh updated existing Inbox rows" }
+    if duplicateCount > 0 { return "Latest Outlook refresh found duplicates" }
+    return verdict
+  }
+}
+
 struct GmailRefreshHistoryEntry: Identifiable, Hashable, Codable {
   var id = UUID()
   var timestamp: String

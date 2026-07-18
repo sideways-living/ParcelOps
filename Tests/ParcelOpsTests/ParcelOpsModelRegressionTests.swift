@@ -2841,6 +2841,80 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.duplicateNoChangeCount, 1)
   }
 
+  func testMicrosoft365HealthSummaryPreservesImportedAndDuplicateEvidence() throws {
+    let mailboxID = UUID()
+    let intake = ForwardedEmailIntake(
+      sender: "orders@example.test",
+      subject: "Order OUTLOOK-123 shipped",
+      receivedDate: "Today",
+      rawBodyPreview: "Order OUTLOOK-123 shipped tracking MSFT123",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "OUTLOOK-123",
+      detectedTrackingNumber: "MSFT123",
+      detectedDestinationAddress: "Destination needs review",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    let connection = makeMicrosoft365Connection(
+      id: mailboxID,
+      connectionStatus: "Real Graph: Fetch success",
+      lastManualRefreshDate: "Today"
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = [connection]
+    store.intakeEmails = [intake]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "outlook-imported-1",
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .imported,
+        summary: "Imported Outlook intake"
+      ),
+      MailboxIngestRecord(
+        providerMessageID: "outlook-refreshed-1",
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .duplicateRefreshed,
+        summary: "Duplicate refreshed Outlook intake"
+      )
+    ]
+    store.microsoft365AuthSessionStates = [
+      mailboxID: Microsoft365AuthSessionState(
+        connectionID: mailboxID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        keychainStatus: "MSAL token cache managed by MSAL",
+        tokenStoreStatus: .mockTokenReferenceAvailable,
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available."
+      )
+    ]
+
+    let summary = store.microsoft365IntakeHealthSummary(for: connection)
+
+    XCTAssertEqual(summary.verdict, "Outlook order intake captured")
+    XCTAssertEqual(summary.tone, "success")
+    XCTAssertEqual(summary.fetchedCount, 2)
+    XCTAssertEqual(summary.importedCount, 1)
+    XCTAssertEqual(summary.duplicateCount, 1)
+    XCTAssertEqual(summary.duplicateRefreshedCount, 1)
+    XCTAssertEqual(summary.linkedIntakeCount, 1)
+    XCTAssertEqual(summary.blockedCount, 0)
+    XCTAssertEqual(store.latestMicrosoft365IntakeHealthSummary?.importedCount, 1)
+    XCTAssertEqual(store.latestMailboxFetchedCount, 2)
+    XCTAssertEqual(store.latestMailboxImportedCount, 1)
+    XCTAssertEqual(store.latestMailboxDuplicateCount, 1)
+    XCTAssertTrue(store.latestMailboxCompactRefreshText.contains("Outlook 2 fetched, 1 imported, 1 duplicate, 1 refreshed, 0 blocker"))
+    XCTAssertTrue(store.latestActiveMailboxEvidenceText.contains("Outlook latest: 2 fetched, 1 imported"))
+  }
+
   func testDuplicateGmailFetchRefreshesExistingStaleIntakeWithoutCreatingDuplicate() throws {
     let mailboxID = UUID()
     let intakeID = UUID()
@@ -3940,6 +4014,70 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(summary.actionItems.contains { $0.providerName == "Outlook" && $0.title == "Review Microsoft 365 diagnostics" })
     XCTAssertEqual(summary.metrics.first { $0.title == "Fetched" }?.value, "1")
     XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "2")
+  }
+
+  func testMailboxProviderComparisonPromotesMicrosoft365ImportedWork() {
+    let outlookID = UUID()
+    let intake = ForwardedEmailIntake(
+      sender: "orders@example.test",
+      subject: "Order OUTLOOK-456 shipped",
+      receivedDate: "Today",
+      rawBodyPreview: "Order OUTLOOK-456 shipped tracking MSFT456",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "OUTLOOK-456",
+      detectedTrackingNumber: "MSFT456",
+      detectedDestinationAddress: "Destination needs review",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    let store = ParcelOpsStore()
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = [
+      makeMicrosoft365Connection(
+        id: outlookID,
+        connectionStatus: "Real Graph: Fetch success",
+        lastManualRefreshDate: "Today"
+      )
+    ]
+    store.intakeEmails = [intake]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "outlook-imported-2",
+        sourceMailboxID: outlookID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .imported,
+        summary: "Imported Outlook intake"
+      )
+    ]
+    store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [
+      outlookID: Microsoft365AuthSessionState(
+        connectionID: outlookID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        keychainStatus: "MSAL token cache managed by MSAL",
+        tokenStoreStatus: .mockTokenReferenceAvailable,
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available."
+      )
+    ]
+
+    let summary = store.mailboxProviderComparisonSummary
+    let outlook = summary.providers.first { $0.providerName == "Outlook" }
+
+    XCTAssertEqual(summary.title, "Mailbox intake needs operator review")
+    XCTAssertEqual(summary.recommendedProvider, "Outlook")
+    XCTAssertEqual(summary.tone, "attention")
+    XCTAssertEqual(outlook?.statusTitle, "Microsoft 365 has operator work")
+    XCTAssertEqual(outlook?.importedCount, 1)
+    XCTAssertEqual(outlook?.blockedCount, 0)
+    XCTAssertEqual(summary.metrics.first { $0.title == "Imported" }?.value, "1")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Fetched" }?.value, "1")
+    XCTAssertTrue(summary.actionItems.contains { $0.providerName == "Outlook" && $0.title == "Keep Outlook as explicit refresh" })
   }
 
   func testMailboxProviderComparisonFlagsGmailSetupBlockers() {
