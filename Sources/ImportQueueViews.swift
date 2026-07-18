@@ -57,6 +57,11 @@ struct ImportQueueView: View {
   private var latestGmailSummary: GmailIntakeHealthSummary? {
     store.latestGmailIntakeHealthSummary
   }
+
+  private var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary? {
+    store.latestMicrosoft365IntakeHealthSummary
+  }
+
   private var importMailboxProviderRows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] {
     var rows: [(provider: String, status: String, detail: String, symbol: String, color: Color)] = []
 
@@ -66,6 +71,10 @@ struct ImportQueueView: View {
 
     if let summary = latestGmailSummary {
       rows.append(gmailImportRow(summary))
+    }
+
+    if let summary = latestMicrosoft365Summary {
+      rows.append(microsoft365ImportRow(summary))
     }
 
     if rows.isEmpty {
@@ -110,6 +119,22 @@ struct ImportQueueView: View {
       return ("Gmail", summary.primaryOutcomeStatus, "Duplicate Gmail messages were already captured; staged imports only change if an existing intake row is promoted.", "envelope.badge.shield.half.filled", .teal)
     }
     return ("Gmail", summary.primaryOutcomeStatus, summary.nextAction, "envelope.badge.shield.half.filled", .secondary)
+  }
+
+  private func microsoft365ImportRow(_ summary: Microsoft365IntakeHealthSummary) -> (provider: String, status: String, detail: String, symbol: String, color: Color) {
+    if summary.blockedCount > 0 {
+      return ("Outlook", summary.primaryOutcomeStatus, "Outlook/Microsoft Graph needs sign-in, consent, token, or Graph diagnostics review before anything should be staged in Import Queue.", "mail.stack.fill", .orange)
+    }
+    if summary.importedCount > 0 {
+      return ("Outlook", summary.primaryOutcomeStatus, "Imported Outlook rows should be checked in Inbox before they become staged imports or orders.", "mail.stack.fill", .green)
+    }
+    if summary.duplicateRefreshedCount > 0 {
+      return ("Outlook", summary.primaryOutcomeStatus, "Duplicate Outlook messages updated existing Inbox rows. Stage an import only after those refreshed rows are promoted intentionally.", "mail.stack.fill", .teal)
+    }
+    if summary.duplicateCount > 0 {
+      return ("Outlook", summary.primaryOutcomeStatus, "Duplicate Outlook messages were already captured; staged imports only change if an existing intake row is promoted.", "mail.stack.fill", .teal)
+    }
+    return ("Outlook", summary.primaryOutcomeStatus, summary.nextAction, "mail.stack.fill", .secondary)
   }
 
   var body: some View {

@@ -65,6 +65,9 @@ struct OrdersView: View {
   private var latestGmailSummary: GmailIntakeHealthSummary? {
     store.latestGmailIntakeHealthSummary
   }
+  private var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary? {
+    store.latestMicrosoft365IntakeHealthSummary
+  }
   private var pendingUncertainMailboxCount: Int {
     store.latestMailboxUncertainCount
   }
@@ -148,6 +151,34 @@ struct OrdersView: View {
         color = .secondary
       }
       rows.append(("Gmail", status, detail, "envelope.badge.shield.half.filled", color))
+    }
+
+    if let summary = latestMicrosoft365Summary {
+      let status: String
+      let detail: String
+      let color: Color
+      if summary.blockedCount > 0 {
+        status = summary.primaryOutcomeStatus
+        detail = "Outlook/Microsoft Graph needs sign-in, consent, token, or Graph diagnostics review before expecting Orders to change."
+        color = .orange
+      } else if summary.importedCount > 0 {
+        status = summary.primaryOutcomeStatus
+        detail = "Open Inbox and create or link orders from the imported Outlook rows."
+        color = .green
+      } else if summary.duplicateRefreshedCount > 0 {
+        status = summary.primaryOutcomeStatus
+        detail = "Duplicate Outlook refreshed existing Inbox rows. Orders changes after the refreshed row is linked or created as an order."
+        color = .green
+      } else if summary.duplicateCount > 0 {
+        status = summary.primaryOutcomeStatus
+        detail = "Outlook fetched messages already captured locally; Orders changes only if an existing intake row is linked."
+        color = .teal
+      } else {
+        status = summary.primaryOutcomeStatus
+        detail = summary.nextAction
+        color = .secondary
+      }
+      rows.append(("Outlook", status, detail, "mail.stack.fill", color))
     }
 
     if rows.isEmpty {

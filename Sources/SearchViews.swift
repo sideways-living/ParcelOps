@@ -46,6 +46,10 @@ struct SearchView: View {
     store.latestGmailIntakeHealthSummary
   }
 
+  private var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary? {
+    store.latestMicrosoft365IntakeHealthSummary
+  }
+
   private var resultGroups: [SearchResultGroup] {
     store.groupedSearchResults(
       query: queryText,
@@ -98,7 +102,8 @@ struct SearchView: View {
           uncertainMailboxCount: uncertainMailboxCount,
           parserIssueCount: parserIssueCount,
           latestSpaceMailSummary: latestSpaceMailSummary,
-          latestGmailSummary: latestGmailSummary
+          latestGmailSummary: latestGmailSummary,
+          latestMicrosoft365Summary: latestMicrosoft365Summary
         )
 
         SearchOperatorHintsPanel { query, entity, reviewState in
@@ -178,6 +183,7 @@ private struct SearchReadinessPanel: View {
   var parserIssueCount: Int
   var latestSpaceMailSummary: SpaceMailIntakeHealthSummary?
   var latestGmailSummary: GmailIntakeHealthSummary?
+  var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary?
 
   private var filteredCount: Int {
     store.latestMailboxFilteredCount
@@ -260,6 +266,34 @@ private struct SearchReadinessPanel: View {
         color = .secondary
       }
       rows.append(("Gmail", status, detail, "envelope.badge.shield.half.filled", color))
+    }
+
+    if let summary = latestMicrosoft365Summary {
+      let status: String
+      let detail: String
+      let color: Color
+      if summary.blockedCount > 0 {
+        status = summary.primaryOutcomeStatus
+        detail = "Open Mailbox Monitor or Audit to inspect Outlook/Microsoft Graph sign-in, consent, token, or Graph diagnostics before searching for new Inbox work."
+        color = .orange
+      } else if summary.importedCount > 0 {
+        status = summary.primaryOutcomeStatus
+        detail = "Search Inbox intake, linked orders, and audit events for Outlook source evidence."
+        color = .green
+      } else if summary.duplicateRefreshedCount > 0 {
+        status = summary.primaryOutcomeStatus
+        detail = "Duplicate Outlook refresh updated existing Inbox rows. Search by order/tracking text or inspect Audit for the refreshed intake source."
+        color = .teal
+      } else if summary.duplicateCount > 0 {
+        status = summary.primaryOutcomeStatus
+        detail = "Duplicate Outlook rows refresh existing intake only; search by order/tracking text or inspect Audit for duplicate refresh details."
+        color = .teal
+      } else {
+        status = summary.primaryOutcomeStatus
+        detail = summary.nextAction
+        color = .secondary
+      }
+      rows.append(("Outlook", status, detail, "mail.stack.fill", color))
     }
 
     return rows

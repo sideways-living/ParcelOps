@@ -6072,6 +6072,10 @@ struct MailboxProviderQAMatrixCard: View {
     store.latestGmailIntakeHealthSummary
   }
 
+  private var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary? {
+    store.latestMicrosoft365IntakeHealthSummary
+  }
+
   private var hasSpaceMailSetup: Bool {
     !store.spaceMailIMAPConnections.isEmpty
   }
@@ -6281,6 +6285,10 @@ struct OperatorSupportSnapshotCard: View {
     store.latestGmailIntakeHealthSummary
   }
 
+  private var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary? {
+    store.latestMicrosoft365IntakeHealthSummary
+  }
+
   private var activeSpaceMailConnection: SpaceMailIMAPConnection? {
     store.spaceMailIMAPConnections.first
   }
@@ -6338,13 +6346,16 @@ struct OperatorSupportSnapshotCard: View {
     let hasGmailRefresh = latestGmailSummary.map {
       $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0 || $0.lastRefreshDate != "Never"
     } ?? false
-    return hasSpaceMailRefresh || hasGmailRefresh
+    let hasMicrosoft365Refresh = latestMicrosoft365Summary.map {
+      $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.duplicateRefreshedCount > 0 || $0.blockedCount > 0 || $0.lastRefreshDate != "Never"
+    } ?? false
+    return hasSpaceMailRefresh || hasGmailRefresh || hasMicrosoft365Refresh
   }
 
   private var supportTone: Color {
     if !hasMailboxProviderSetup { return .orange }
     if !credentialReady { return .orange }
-    if latestSpaceMailSummary?.tone == "warning" || latestGmailSummary?.tone == "warning" { return .red }
+    if latestSpaceMailSummary?.tone == "warning" || latestGmailSummary?.tone == "warning" || latestMicrosoft365Summary?.tone == "warning" { return .red }
     if !hasProviderRefreshEvidence { return .orange }
     return .green
   }
@@ -6352,7 +6363,7 @@ struct OperatorSupportSnapshotCard: View {
   private var supportBadge: String {
     if !hasMailboxProviderSetup { return "Setup needed" }
     if !credentialReady { return "Credential needed" }
-    if latestSpaceMailSummary?.tone == "warning" || latestGmailSummary?.tone == "warning" { return "Check mailbox" }
+    if latestSpaceMailSummary?.tone == "warning" || latestGmailSummary?.tone == "warning" || latestMicrosoft365Summary?.tone == "warning" { return "Check mailbox" }
     if !hasProviderRefreshEvidence { return "Refresh needed" }
     return "Ready"
   }
@@ -6369,9 +6380,9 @@ struct OperatorSupportSnapshotCard: View {
     [
       (
         "Mailbox readiness",
-        "\(readiness.completedCount) of \(readiness.totalCount) SpaceMail checks complete; \(store.gmailMailboxConnections.count) Gmail provider\(store.gmailMailboxConnections.count == 1 ? "" : "s") configured. \(latestGmailSummary?.nextAction ?? "Use whichever provider hosts the mailbox being tested today.")",
+        "\(readiness.completedCount) of \(readiness.totalCount) SpaceMail checks complete; \(store.gmailMailboxConnections.count) Gmail provider\(store.gmailMailboxConnections.count == 1 ? "" : "s") and \(store.microsoft365MailboxConnections.count) Outlook provider\(store.microsoft365MailboxConnections.count == 1 ? "" : "s") configured. \(latestGmailSummary?.nextAction ?? latestMicrosoft365Summary?.nextAction ?? "Use whichever provider hosts the mailbox being tested today.")",
         "checklist.checked",
-        hasProviderRefreshEvidence && latestGmailSummary?.tone != "warning" && latestSpaceMailSummary?.tone != "warning" ? .green : .orange
+        hasProviderRefreshEvidence && latestGmailSummary?.tone != "warning" && latestSpaceMailSummary?.tone != "warning" && latestMicrosoft365Summary?.tone != "warning" ? .green : .orange
       ),
       (
         "Mixed mailbox mode",
@@ -6493,6 +6504,10 @@ struct OperatorTestSessionChecklistCard: View {
     store.latestGmailIntakeHealthSummary
   }
 
+  private var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary? {
+    store.latestMicrosoft365IntakeHealthSummary
+  }
+
   private var inboxLinkedOrderCount: Int {
     Set(store.intakeEmails.compactMap(\.linkedOrderID)).count
   }
@@ -6543,7 +6558,9 @@ struct OperatorTestSessionChecklistCard: View {
     let hasGmailRefresh = latestGmailSummary.map { $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0 || $0.lastRefreshDate != "Never" } ?? false
     let hasGmailFiltering = latestGmailSummary.map { $0.filteredCount > 0 || $0.pendingUncertainReviewCount > 0 || $0.uncertainCount > 0 } ?? false
     let hasGmailAuth = store.hasGmailConnectedAuth
-    let hasAnyProviderCredentialOrAuth = hasCredential || hasGmailAuth
+    let hasMicrosoft365Refresh = latestMicrosoft365Summary.map { $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.duplicateRefreshedCount > 0 || $0.blockedCount > 0 || $0.lastRefreshDate != "Never" } ?? false
+    let hasMicrosoft365Auth = store.microsoft365MailboxConnections.contains { store.microsoft365AuthSessionState(for: $0).status == .connected }
+    let hasAnyProviderCredentialOrAuth = hasCredential || hasGmailAuth || hasMicrosoft365Auth
     let dispatchWorkCount = store.blockedShipmentManifests.count
       + store.undispatchedShipmentManifests.count
       + store.blockedDispatchChecklists.count
@@ -6553,8 +6570,8 @@ struct OperatorTestSessionChecklistCard: View {
     return [
       (
         "1. Confirm setup",
-        "The active mailbox provider has either a SpaceMail Keychain credential or Gmail sign-in before a real refresh.",
-        hasAnyProviderCredentialOrAuth ? "Credential or sign-in evidence exists." : "Set/check SpaceMail credentials or complete Gmail sign-in first.",
+        "The active mailbox provider has either a SpaceMail Keychain credential, Gmail sign-in, or Microsoft sign-in before a real refresh.",
+        hasAnyProviderCredentialOrAuth ? "Credential or sign-in evidence exists." : "Set/check SpaceMail credentials, complete Gmail sign-in, or complete Microsoft sign-in first.",
         "key.horizontal.fill",
         hasAnyProviderCredentialOrAuth,
         hasAnyProviderCredentialOrAuth ? .green : .orange
@@ -6564,8 +6581,8 @@ struct OperatorTestSessionChecklistCard: View {
         "Manual mailbox refresh has completed or returned a clear safe result.",
         store.latestMailboxCompactRefreshText,
         "mail.stack.fill",
-        hasRefresh || hasGmailRefresh,
-        hasRefresh || hasGmailRefresh ? .green : .orange
+        hasRefresh || hasGmailRefresh || hasMicrosoft365Refresh,
+        hasRefresh || hasGmailRefresh || hasMicrosoft365Refresh ? .green : .orange
       ),
       (
         "3. Review mixed mailbox decisions",
