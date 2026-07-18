@@ -709,7 +709,8 @@ struct MailboxView: View {
 
             MailboxProviderRefreshSummaryGrid(
               spaceMailSummary: latestSpaceMailSummary,
-              gmailSummary: latestGmailSummary
+              gmailSummary: latestGmailSummary,
+              microsoft365Connections: store.microsoft365MailboxConnections
             )
 
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
@@ -1523,6 +1524,33 @@ private struct MailboxMissedOrderInvestigationPanel: View {
 private struct MailboxProviderRefreshSummaryGrid: View {
   var spaceMailSummary: SpaceMailIntakeHealthSummary?
   var gmailSummary: GmailIntakeHealthSummary?
+  var microsoft365Connections: [Microsoft365MailboxConnection] = []
+
+  private var microsoft365Summary: ProviderSummary? {
+    guard let connection = microsoft365Connections
+      .sorted(by: { $0.lastManualRefreshDate > $1.lastManualRefreshDate })
+      .first else {
+      return nil
+    }
+    let hasRefresh = connection.lastManualRefreshDate != "Never"
+    return ProviderSummary(
+      name: connection.displayName,
+      verdict: hasRefresh ? "Manual Graph refresh evidence" : "Setup exists",
+      detail: connection.connectionStatus.isEmpty ? "Microsoft 365 setup is present for an Outlook-hosted mailbox." : connection.connectionStatus,
+      nextAction: hasRefresh
+        ? "Review Audit if Graph auth, consent, or mailbox diagnostics need follow-up."
+        : "Complete readiness and explicit Microsoft sign-in before manual Graph refresh.",
+      tone: hasRefresh ? "success" : "attention",
+      fetched: 0,
+      imported: 0,
+      duplicate: 0,
+      duplicateRefreshed: 0,
+      duplicateNoChange: 0,
+      filtered: 0,
+      uncertain: 0,
+      lastRefresh: connection.lastManualRefreshDate
+    )
+  }
 
   var body: some View {
     LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 10)], alignment: .leading, spacing: 10) {
@@ -1570,6 +1598,13 @@ private struct MailboxProviderRefreshSummaryGrid: View {
           )
         },
         emptyDetail: "Use Gmail setup only for Google-hosted mailboxes. Real refresh remains explicit, manual, and read-only."
+      )
+
+      providerCard(
+        title: "Outlook / Microsoft 365",
+        symbol: "mail.stack.fill",
+        summary: microsoft365Summary,
+        emptyDetail: "Use Microsoft 365 setup only for Outlook-hosted mailboxes. Real Graph refresh remains explicit, manual, and read-only."
       )
     }
   }
