@@ -134,6 +134,10 @@ struct AuditView: View {
     store.gmailIntakeHealthSummaries
   }
 
+  private var microsoft365HealthSummaries: [Microsoft365IntakeHealthSummary] {
+    store.microsoft365IntakeHealthSummaries
+  }
+
   private var latestGmailConnection: GmailMailboxConnection? {
     guard let summary = gmailHealthSummaries.first else { return store.gmailMailboxConnections.first }
     return store.gmailMailboxConnections.first { $0.id == summary.connectionID }
@@ -248,6 +252,26 @@ struct AuditView: View {
     store.totalGmailUncertainSignalCount
   }
 
+  private var microsoft365FetchedCount: Int {
+    store.totalMicrosoft365FetchedCount
+  }
+
+  private var microsoft365ImportedCount: Int {
+    store.totalMicrosoft365ImportedCount
+  }
+
+  private var microsoft365DuplicateCount: Int {
+    store.totalMicrosoft365DuplicateCount
+  }
+
+  private var microsoft365DuplicateRefreshedCount: Int {
+    store.totalMicrosoft365DuplicateRefreshedCount
+  }
+
+  private var microsoft365BlockedCount: Int {
+    store.totalMicrosoft365BlockedCount
+  }
+
   private var mailboxFetchedCount: Int {
     store.totalMailboxFetchedCount
   }
@@ -285,6 +309,10 @@ struct AuditView: View {
 
   private var gmailMailboxCountsText: String {
     "\(gmailFetchedCount) fetched, \(gmailImportedCount) imported, \(gmailDuplicateCount) duplicate, \(gmailDuplicateRefreshedCount) refreshed, \(gmailFilteredCount) filtered, \(gmailUncertainCount) uncertain."
+  }
+
+  private var microsoft365MailboxCountsText: String {
+    "\(microsoft365FetchedCount) fetched, \(microsoft365ImportedCount) imported, \(microsoft365DuplicateCount) duplicate, \(microsoft365DuplicateRefreshedCount) refreshed, \(microsoft365BlockedCount) blocker."
   }
 
   private var gmailAuditOutcomeTitle: String {
@@ -367,6 +395,14 @@ struct AuditView: View {
         "Gmail",
         gmailMailboxCountsText,
         gmailImportedCount > 0 ? .green : gmailUncertainCount > 0 ? .orange : gmailFilteredCount > 0 ? .teal : .secondary
+      ))
+    }
+
+    if !microsoft365HealthSummaries.isEmpty {
+      rows.append((
+        "Outlook",
+        microsoft365MailboxCountsText,
+        microsoft365BlockedCount > 0 ? .orange : microsoft365ImportedCount > 0 ? .green : microsoft365DuplicateRefreshedCount > 0 ? .teal : .secondary
       ))
     }
 

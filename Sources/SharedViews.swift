@@ -5633,6 +5633,10 @@ struct SpaceMailPrimaryStatusStrip: View {
     store.gmailIntakeHealthSummaries
   }
 
+  private var microsoft365HealthSummaries: [Microsoft365IntakeHealthSummary] {
+    store.microsoft365IntakeHealthSummaries
+  }
+
   private var fetchedCount: Int {
     store.totalMailboxFetchedCount
   }
@@ -5711,6 +5715,40 @@ struct SpaceMailPrimaryStatusStrip: View {
     !store.gmailMailboxConnections.isEmpty || !gmailHealthSummaries.isEmpty
   }
 
+  private var hasMicrosoft365Provider: Bool {
+    !store.microsoft365MailboxConnections.isEmpty || !microsoft365HealthSummaries.isEmpty
+  }
+
+  private var microsoft365StatusTone: String {
+    if microsoft365HealthSummaries.contains(where: { $0.tone == "warning" || $0.blockedCount > 0 }) { return "warning" }
+    if microsoft365HealthSummaries.contains(where: { $0.tone == "attention" }) { return "attention" }
+    if microsoft365HealthSummaries.contains(where: { $0.importedCount > 0 || $0.duplicateRefreshedCount > 0 || $0.tone == "success" }) { return "success" }
+    return "default"
+  }
+
+  private var microsoft365StatusTitle: String {
+    if microsoft365HealthSummaries.isEmpty { return "Outlook setup not started" }
+    if microsoft365HealthSummaries.contains(where: { $0.tone == "warning" || $0.blockedCount > 0 }) { return "Outlook setup or Graph refresh needs attention" }
+    if microsoft365HealthSummaries.contains(where: { $0.importedCount > 0 }) { return "Outlook order intake captured" }
+    if microsoft365HealthSummaries.contains(where: { $0.duplicateRefreshedCount > 0 }) { return "Outlook duplicate refresh updated Inbox rows" }
+    if microsoft365HealthSummaries.contains(where: { $0.fetchedCount > 0 || $0.duplicateCount > 0 }) { return "Outlook refresh evidence available" }
+    return "Outlook ready for manual testing"
+  }
+
+  private var microsoft365StatusDetail: String {
+    guard let latest = microsoft365HealthSummaries.first else {
+      return "Add or review Microsoft 365 setup from Settings or Mailbox Monitor when a mailbox is Outlook-hosted."
+    }
+    return "\(latest.displayName): \(latest.detail)"
+  }
+
+  private var microsoft365StatusFooter: String {
+    guard let latest = microsoft365HealthSummaries.first else {
+      return "Next: add Microsoft 365 setup placeholder"
+    }
+    return "\(latest.compactRefreshCountsText). Next: \(latest.nextAction)"
+  }
+
   private var classifierImpactPreviews: [SpaceMailClassifierImpactPreview] {
     store.spaceMailIMAPConnections.flatMap { store.spaceMailClassifierImpactPreviews(for: $0) }
   }
@@ -5735,6 +5773,9 @@ struct SpaceMailPrimaryStatusStrip: View {
     }
     if hasGmailProvider {
       return color(for: gmailStatusTone)
+    }
+    if hasMicrosoft365Provider {
+      return color(for: microsoft365StatusTone)
     }
     return .orange
   }
@@ -5787,7 +5828,17 @@ struct SpaceMailPrimaryStatusStrip: View {
           )
         }
 
-        if !hasSpaceMailProvider && !hasGmailProvider {
+        if hasMicrosoft365Provider {
+          statusTile(
+            title: microsoft365StatusTitle,
+            detail: microsoft365StatusDetail,
+            footer: microsoft365StatusFooter,
+            symbol: "mail.stack.fill",
+            tone: microsoft365StatusTone
+          )
+        }
+
+        if !hasSpaceMailProvider && !hasGmailProvider && !hasMicrosoft365Provider {
           statusTile(
             title: "No mailbox provider configured",
             detail: "Add an active mailbox provider in Settings before testing live mailbox intake.",

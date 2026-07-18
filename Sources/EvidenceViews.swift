@@ -69,6 +69,8 @@ struct EvidenceView: View {
           detail = "SpaceMail intake can provide the source trail even when no attachment is linked yet.\(providerRefreshSuffix(for: tone))"
         case "gmail":
           detail = "Gmail intake can provide the source trail even when no attachment is linked yet.\(providerRefreshSuffix(for: tone))"
+        case "microsoft":
+          detail = "Outlook/Microsoft Graph intake can provide the source trail even when no attachment is linked yet.\(providerRefreshSuffix(for: tone))"
         case "mock":
           detail = "Mock mailbox intake is local test evidence. Confirm live provider context before treating it as operational support."
         default:
@@ -89,6 +91,8 @@ struct EvidenceView: View {
       refreshedCount = store.totalSpaceMailDuplicateRefreshedCount
     case "gmail":
       refreshedCount = store.totalGmailDuplicateRefreshedCount
+    case "microsoft":
+      refreshedCount = store.totalMicrosoft365DuplicateRefreshedCount
     default:
       refreshedCount = 0
     }
@@ -112,6 +116,24 @@ struct EvidenceView: View {
 
   private var gmailOrdersMissingEvidence: [TrackedOrder] {
     gmailSourceTrailOrders.filter { evidenceForOrder($0).isEmpty }
+  }
+
+  private var outlookSourceTrailEmails: [ForwardedEmailIntake] {
+    store.intakeEmails.filter { email in
+      store.intakeSourceSummary(for: email).tone == "microsoft"
+    }
+  }
+
+  private var outlookSourceTrailOrders: [TrackedOrder] {
+    store.inboxCreatedOrders.filter { order in
+      store.linkedIntakeEmails(for: order).contains { email in
+        store.intakeSourceSummary(for: email).tone == "microsoft"
+      }
+    }
+  }
+
+  private var outlookOrdersMissingEvidence: [TrackedOrder] {
+    outlookSourceTrailOrders.filter { evidenceForOrder($0).isEmpty }
   }
 
   var body: some View {
@@ -252,10 +274,10 @@ struct EvidenceView: View {
 
   @ViewBuilder
   private var gmailEvidenceFocusPanel: some View {
-    if !store.gmailMailboxConnections.isEmpty || !gmailSourceTrailEmails.isEmpty {
-      SettingsPanel(title: "Gmail evidence focus", symbol: "envelope.badge.shield.half.filled") {
+    if !store.gmailMailboxConnections.isEmpty || !store.microsoft365MailboxConnections.isEmpty || !gmailSourceTrailEmails.isEmpty || !outlookSourceTrailEmails.isEmpty {
+      SettingsPanel(title: "Mailbox evidence focus", symbol: "mail.stack.fill") {
         VStack(alignment: .leading, spacing: 12) {
-          Text("Gmail-origin intake can serve as the local source trail for an order even when no file attachment exists. Use this to decide whether a Gmail-created order needs extra evidence before handoff closure.")
+          Text("Gmail and Outlook/Microsoft-origin intake can serve as the local source trail for an order even when no file attachment exists. Use this to decide whether mailbox-created orders need extra evidence before handoff closure.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -263,8 +285,11 @@ struct EvidenceView: View {
           MetricStrip(items: [
             ("Gmail source rows", "\(gmailSourceTrailEmails.count)", gmailSourceTrailEmails.isEmpty ? .secondary : .blue),
             ("Gmail orders", "\(gmailSourceTrailOrders.count)", gmailSourceTrailOrders.isEmpty ? .secondary : .blue),
+            ("Outlook source rows", "\(outlookSourceTrailEmails.count)", outlookSourceTrailEmails.isEmpty ? .secondary : .purple),
+            ("Outlook orders", "\(outlookSourceTrailOrders.count)", outlookSourceTrailOrders.isEmpty ? .secondary : .purple),
             ("Missing evidence", "\(gmailOrdersMissingEvidence.count)", gmailOrdersMissingEvidence.isEmpty ? .green : .orange),
-            ("Gmail refreshes", "\(store.totalGmailFetchedCount)", store.gmailIntakeHealthSummaries.isEmpty ? .secondary : .teal)
+            ("Outlook missing", "\(outlookOrdersMissingEvidence.count)", outlookOrdersMissingEvidence.isEmpty ? .green : .orange),
+            ("Mailbox refreshes", "\(store.totalMailboxFetchedCount)", store.totalMailboxFetchedCount == 0 ? .secondary : .teal)
           ])
 
           GmailReleaseBoundaryPanel(
@@ -280,32 +305,32 @@ struct EvidenceView: View {
             GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
           }
 
-          if gmailSourceTrailEmails.isEmpty {
-            Label("No Gmail-origin intake is linked to orders yet. Run a manual Gmail refresh, then create or link confirmed order rows from Inbox.", systemImage: "tray.and.arrow.down.fill")
+          if gmailSourceTrailEmails.isEmpty && outlookSourceTrailEmails.isEmpty {
+            Label("No Gmail or Outlook-origin intake is linked to orders yet. Run the matching manual refresh, then create or link confirmed order rows from Inbox.", systemImage: "tray.and.arrow.down.fill")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.secondary)
-          } else if gmailOrdersMissingEvidence.isEmpty {
-            Label("Gmail-created orders have evidence or source context available.", systemImage: "checkmark.seal.fill")
+          } else if gmailOrdersMissingEvidence.isEmpty && outlookOrdersMissingEvidence.isEmpty {
+            Label("Mailbox-created orders have evidence or source context available.", systemImage: "checkmark.seal.fill")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.green)
           } else {
             VStack(alignment: .leading, spacing: 8) {
-              Text("Gmail orders to check")
+              Text("Mailbox-created orders to check")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
               LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 260), spacing: 10)], spacing: 10) {
-                ForEach(gmailOrdersMissingEvidence.prefix(4)) { order in
+                ForEach(Array((gmailOrdersMissingEvidence + outlookOrdersMissingEvidence).uniquedByID().prefix(4))) { order in
                   NavigationLink {
                     OrderDetailView(order: order, store: store)
                   } label: {
                     HStack(alignment: .top, spacing: 10) {
-                      Image(systemName: "envelope.badge.shield.half.filled")
+                      Image(systemName: "mail.stack.fill")
                         .foregroundStyle(.orange)
                         .frame(width: 22)
                       VStack(alignment: .leading, spacing: 4) {
                         Text("\(order.store) • \(order.orderNumber)")
                           .font(.caption.weight(.semibold))
-                        Text("Gmail source trail exists, but no evidence attachment is linked. Open order detail before closing handoff work.")
+                        Text("Mailbox source trail exists, but no evidence attachment is linked. Open order detail before closing handoff work.")
                           .font(.caption2)
                           .foregroundStyle(.secondary)
                           .fixedSize(horizontal: false, vertical: true)
@@ -337,7 +362,7 @@ struct EvidenceView: View {
           }
           .buttonStyle(.bordered)
 
-          Text("This panel is local evidence guidance only. It does not fetch Gmail, open Google sign-in, store token values, attach files, or mutate mailbox messages.")
+          Text("This panel is local evidence guidance only. It does not fetch Gmail or Outlook, open sign-in, store token values, attach files, or mutate mailbox messages.")
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -441,6 +466,9 @@ struct EvidenceView: View {
     }
     if tone == "spacemail" || label.localizedCaseInsensitiveContains("SpaceMail") {
       return "server.rack"
+    }
+    if tone == "microsoft" || label.localizedCaseInsensitiveContains("Microsoft") || label.localizedCaseInsensitiveContains("Graph") {
+      return "mail.stack.fill"
     }
     if tone == "mock" {
       return "testtube.2"

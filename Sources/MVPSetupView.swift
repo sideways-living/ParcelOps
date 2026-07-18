@@ -116,6 +116,7 @@ struct MVPRemainingWorkPanel: View {
   private var hasManualMailboxRefreshEvidence: Bool {
     store.spaceMailIntakeHealthSummaries.contains { $0.fetchedCount > 0 || $0.importedCount > 0 || $0.filteredCount > 0 }
       || store.gmailIntakeHealthSummaries.contains { $0.fetchedCount > 0 || $0.importedCount > 0 || $0.filteredCount > 0 }
+      || store.microsoft365IntakeHealthSummaries.contains { $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.blockedCount > 0 }
   }
 
   private var hasInboxToOrderHandoff: Bool {
@@ -2117,6 +2118,8 @@ struct MVPReleaseCandidateQACard: View {
       summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
     } || store.gmailIntakeHealthSummaries.contains { summary in
       summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
+    } || store.microsoft365IntakeHealthSummaries.contains { summary in
+      summary.fetchedCount > 0 || summary.importedCount > 0 || summary.duplicateCount > 0 || summary.duplicateRefreshedCount > 0 || summary.blockedCount > 0
     }
   }
 
@@ -2426,7 +2429,9 @@ struct MVPReleaseEvidenceReport: View {
     let hasGmailEvidence = latestGmailSummary.map {
       $0.fetchedCount > 0 || $0.importedCount > 0 || $0.filteredCount > 0 || $0.duplicateCount > 0 || $0.uncertainCount > 0
     } ?? false
-    let hasMicrosoft365Evidence = store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    let hasMicrosoft365Evidence = store.latestMicrosoft365IntakeHealthSummary.map {
+      $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.duplicateRefreshedCount > 0 || $0.blockedCount > 0
+    } ?? false
     return hasSpaceMailEvidence || hasGmailEvidence || hasMicrosoft365Evidence
   }
 
@@ -2621,7 +2626,9 @@ struct MVPReleaseRunbook: View {
   }
 
   private var hasMicrosoft365Result: Bool {
-    store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    store.microsoft365IntakeHealthSummaries.contains { summary in
+      summary.fetchedCount > 0 || summary.importedCount > 0 || summary.duplicateCount > 0 || summary.duplicateRefreshedCount > 0 || summary.blockedCount > 0
+    }
   }
 
   private var hasLiveMailboxResult: Bool {

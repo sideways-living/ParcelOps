@@ -172,6 +172,14 @@ struct TasksView: View {
     store.gmailClassifierDecisionIssueCount
   }
 
+  private var microsoft365HealthSummaries: [Microsoft365IntakeHealthSummary] {
+    store.microsoft365IntakeHealthSummaries
+  }
+
+  private var microsoft365WarningCount: Int {
+    microsoft365HealthSummaries.filter { $0.tone == "warning" || $0.blockedCount > 0 }.count
+  }
+
   private var gmailClassifierTaskConnection: GmailMailboxConnection? {
     store.gmailMailboxConnections.first { connection in
       (connection.classifierTestResults ?? []).contains { $0.decisionStatus.localizedCaseInsensitiveContains("needs review") }
@@ -331,7 +339,7 @@ struct TasksView: View {
   }
 
   private var mailboxWarningCount: Int {
-    gmailWarningCount + spaceMailParserIssueCount
+    gmailWarningCount + spaceMailParserIssueCount + microsoft365WarningCount
   }
 
   private var mailboxTaskReadinessTone: Color {
