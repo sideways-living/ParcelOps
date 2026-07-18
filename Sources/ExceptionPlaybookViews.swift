@@ -332,6 +332,7 @@ struct ExceptionPlaybooksView: View {
   }
 
   private func playbookSearchParts(_ playbook: ExceptionPlaybook) -> [String] {
+    let mailboxSummaries = inboxOrders(for: playbook).flatMap { store.mailboxSourceSummaries(for: $0) }
     var parts = [
       playbook.id.uuidString,
       playbook.name,
@@ -351,6 +352,10 @@ struct ExceptionPlaybooksView: View {
     parts.append(contentsOf: store.suggestedDestinationAddresses(for: playbook).flatMap { [$0.label, $0.addressLineSummary, $0.cityRegion, $0.preferredCarrier] })
     parts.append(contentsOf: store.suggestedDeliveryInstructions(for: playbook).flatMap { [$0.title, $0.instructionSummary, $0.accessConstraintSummary, $0.carrierNotes] })
     parts.append(contentsOf: store.suggestedPackageContents(for: playbook).flatMap { [$0.title, $0.itemSummary, $0.discrepancySummary] })
+    parts.append(contentsOf: mailboxSummaries.map(\.providerName))
+    parts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+    parts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+    parts.append(contentsOf: mailboxSummaries.map(\.detailText))
     return parts
   }
 }
@@ -454,6 +459,14 @@ struct ExceptionPlaybookRow: View {
         }
       }
 
+      if let store {
+        OrderMailboxSourceTrailPanel(
+          summaries: mailboxSummaries(using: store),
+          title: "Mailbox provider playbook trail",
+          symbol: "books.vertical.fill"
+        )
+      }
+
       if !playbookWarnings.isEmpty {
         VStack(alignment: .leading, spacing: 4) {
           Label("Playbook follow-up", systemImage: "exclamationmark.triangle.fill")
@@ -535,6 +548,13 @@ struct ExceptionPlaybookRow: View {
     var seen = Set<UUID>()
     return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
       return store.linkedIntakeEmails(for: order)
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func mailboxSummaries(using store: ParcelOpsStore) -> [OrderMailboxSourceSummary] {
+    var seen = Set<String>()
+    return inboxOrders.flatMap { order in
+      store.mailboxSourceSummaries(for: order)
     }.filter { seen.insert($0.id).inserted }
   }
 

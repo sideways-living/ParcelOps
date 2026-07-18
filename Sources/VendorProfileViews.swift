@@ -385,7 +385,8 @@ struct VendorProfilesView: View {
     let account = profile.defaultAccountID.flatMap { accountID in
       store.accountCredentialRecords.first { $0.id == accountID }
     }
-    return [
+    let mailboxSummaries = inboxOrders(for: profile).flatMap { store.mailboxSourceSummaries(for: $0) }
+    var parts = [
       profile.id.uuidString,
       profile.name,
       profile.profileType.rawValue,
@@ -407,6 +408,11 @@ struct VendorProfilesView: View {
       account?.accountName ?? "",
       account?.usernameLabel ?? ""
     ]
+    parts.append(contentsOf: mailboxSummaries.map(\.providerName))
+    parts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+    parts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+    parts.append(contentsOf: mailboxSummaries.map(\.detailText))
+    return parts
   }
 }
 
@@ -560,6 +566,14 @@ struct VendorProfileRow: View {
         }
       }
 
+      if let store {
+        OrderMailboxSourceTrailPanel(
+          summaries: mailboxSummaries(using: store),
+          title: "Mailbox provider vendor trail",
+          symbol: "building.2.crop.circle.fill"
+        )
+      }
+
       if !vendorWarnings.isEmpty {
         VStack(alignment: .leading, spacing: 4) {
           Label("Vendor follow-up", systemImage: "exclamationmark.triangle.fill")
@@ -608,6 +622,13 @@ struct VendorProfileRow: View {
     var seen = Set<UUID>()
     return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
       return store.linkedIntakeEmails(for: order)
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func mailboxSummaries(using store: ParcelOpsStore) -> [OrderMailboxSourceSummary] {
+    var seen = Set<String>()
+    return inboxOrders.flatMap { order in
+      store.mailboxSourceSummaries(for: order)
     }.filter { seen.insert($0.id).inserted }
   }
 
