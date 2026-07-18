@@ -6073,10 +6073,15 @@ struct MailboxProviderQAMatrixCard: View {
     store.auditEvents.filter { event in
       event.entityType == .spaceMailIMAPConnection
         || event.entityType == .gmailMailboxConnection
+        || event.entityType == .microsoft365MailboxConnection
         || event.summary.localizedCaseInsensitiveContains("SpaceMail")
         || event.summary.localizedCaseInsensitiveContains("Gmail")
+        || event.summary.localizedCaseInsensitiveContains("Microsoft 365")
+        || event.summary.localizedCaseInsensitiveContains("Outlook")
         || event.afterDetail?.localizedCaseInsensitiveContains("SpaceMail") == true
         || event.afterDetail?.localizedCaseInsensitiveContains("Gmail") == true
+        || event.afterDetail?.localizedCaseInsensitiveContains("Microsoft 365") == true
+        || event.afterDetail?.localizedCaseInsensitiveContains("Outlook") == true
     }.count
   }
 
@@ -6085,14 +6090,14 @@ struct MailboxProviderQAMatrixCard: View {
       QAMatrixRow(
         title: "Provider setup",
         status: hasProviderSetup ? "Present" : "Missing",
-        detail: hasProviderSetup ? "SpaceMail and/or Gmail setup records exist." : "Add SpaceMail for IMAP or Gmail for Google-hosted mailboxes.",
+        detail: hasProviderSetup ? "SpaceMail, Gmail, or Outlook setup records exist." : "Add SpaceMail for IMAP, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes.",
         symbol: "server.rack",
         color: hasProviderSetup ? .green : .orange
       ),
       QAMatrixRow(
         title: "Credential or sign-in",
         status: hasCredentialOrAuth ? "Ready" : "Needed",
-        detail: hasCredentialOrAuth ? "A SpaceMail Keychain reference or Gmail sign-in state is available." : "Set/check SpaceMail credential or complete Gmail sign-in before real refresh.",
+        detail: hasCredentialOrAuth ? "A SpaceMail Keychain reference, Gmail sign-in, or Microsoft sign-in state is available." : "Set/check SpaceMail credential, complete Gmail sign-in, or complete Microsoft sign-in before real refresh.",
         symbol: "key.horizontal.fill",
         color: hasCredentialOrAuth ? .green : .orange
       ),

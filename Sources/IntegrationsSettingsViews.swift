@@ -30,6 +30,17 @@ struct IntegrationsView: View {
   private var hasGmailConnectedAuth: Bool {
     store.hasGmailConnectedAuth
   }
+  private var hasMicrosoft365Setup: Bool { !store.microsoft365MailboxConnections.isEmpty }
+  private var hasMicrosoft365ConnectedAuth: Bool {
+    store.microsoft365MailboxConnections.contains {
+      store.microsoft365AuthSessionState(for: $0).status == .connected
+    }
+  }
+  private var hasMicrosoft365CoreSetup: Bool {
+    store.microsoft365MailboxConnections.contains { connection in
+      store.microsoft365OAuthReadinessSummary(for: connection).isReady
+    }
+  }
   private var hasGmailCoreSetup: Bool {
     store.gmailMailboxConnections.contains { connection in
       !connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -47,6 +58,12 @@ struct IntegrationsView: View {
   }
   private var gmailSetupBlockerCount: Int {
     gmailReadinessSummaries.filter { !$0.isReady }.count
+  }
+  private var microsoft365SetupBlockerCount: Int {
+    store.microsoft365MailboxConnections
+      .map { store.microsoft365OAuthReadinessSummary(for: $0) }
+      .filter { !$0.isReady }
+      .count
   }
   private var gmailCompiledCallbackBlockerCount: Int {
     gmailReadinessSummaries.filter { summary in
@@ -178,16 +195,18 @@ struct IntegrationsView: View {
       ),
       (
         "Microsoft 365",
-        store.microsoft365MailboxConnections.isEmpty ? "Advanced option" : "Configured",
-        "Keep this as a secondary provider path unless the mailbox is actually Microsoft-hosted. Graph refresh stays explicit and read-only.",
+        store.microsoft365MailboxConnections.isEmpty ? "Not configured" : hasMicrosoft365ConnectedAuth ? "Signed in" : hasMicrosoft365CoreSetup ? "Sign-in needed" : "Setup needed",
+        store.microsoft365MailboxConnections.isEmpty
+          ? "Choose this when the mailbox is hosted by Outlook or Microsoft 365. It uses Microsoft sign-in and explicit read-only Graph refresh."
+          : "Use this only for Microsoft-hosted mailboxes. Graph refresh stays explicit, manual, and read-only.",
         "mail.stack.fill",
-        store.microsoft365MailboxConnections.isEmpty ? .secondary : .blue
+        store.microsoft365MailboxConnections.isEmpty ? .secondary : hasMicrosoft365ConnectedAuth ? .green : .orange
       )
     ]
   }
 
   private var recommendedSetupTitle: String {
-    if !hasSpaceMailSetup && !hasGmailSetup {
+    if !hasSpaceMailSetup && !hasGmailSetup && !hasMicrosoft365Setup {
       return "Start with mailbox setup"
     }
     if hasSpaceMailSetup && !hasSpaceMailCredentialReference {
@@ -196,11 +215,17 @@ struct IntegrationsView: View {
     if hasGmailSetup && !hasGmailCoreSetup {
       return "Finish Gmail setup details"
     }
+    if hasMicrosoft365Setup && !hasMicrosoft365CoreSetup {
+      return "Finish Outlook setup details"
+    }
     if gmailProviderFitAttentionCount > 0 {
       return "Verify Gmail mailbox hosting"
     }
     if hasGmailSetup && !hasGmailConnectedAuth {
       return "Test Google sign-in"
+    }
+    if hasMicrosoft365Setup && !hasMicrosoft365ConnectedAuth {
+      return "Test Microsoft sign-in"
     }
     if hasSpaceMailUncertainReview {
       return "Review uncertain mixed-mailbox messages"
@@ -212,14 +237,17 @@ struct IntegrationsView: View {
   }
 
   private var recommendedSetupDetail: String {
-    if !hasSpaceMailSetup && !hasGmailSetup {
-      return "Use SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes. Both feed the same local Inbox intake path."
+    if !hasSpaceMailSetup && !hasGmailSetup && !hasMicrosoft365Setup {
+      return "Use SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes. All feed the same local Inbox intake path."
     }
     if hasSpaceMailSetup && !hasSpaceMailCredentialReference {
       return "Use the secure password prompt on the SpaceMail row. Passwords and app passwords must not be typed into setup notes or JSON-backed fields."
     }
     if hasGmailSetup && !hasGmailCoreSetup {
       return "Add Gmail address, labels, OAuth client placeholder, redirect/scheme, and read-only Gmail scope notes. Do not enter client secrets or token values."
+    }
+    if hasMicrosoft365Setup && !hasMicrosoft365CoreSetup {
+      return "Add Outlook mailbox address, folder names, Entra tenant/client placeholders, redirect URI, and read-only Microsoft Graph scope notes. Do not enter client secrets or token values."
     }
     if gmailProviderFitAttentionCount > 0 {
       return "One or more Gmail setup records use custom domains. Confirm those domains are hosted by Google Workspace before relying on Gmail API refresh; otherwise use SpaceMail/IMAP."
@@ -878,7 +906,7 @@ struct IntegrationsView: View {
 
         if showsMicrosoftSetup {
           SettingsPanel(title: "Microsoft 365 mailbox setup", symbol: "mail.stack.fill") {
-          Text("Microsoft 365 remains available as an advanced option. Use SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes as the current manual intake paths.")
+          Text("Use Microsoft 365 when the active mailbox is hosted by Outlook or Microsoft 365. Real Graph refresh remains explicit, manual, read-only, and separate from SpaceMail and Gmail.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
@@ -7020,6 +7048,17 @@ struct SettingsView: View {
   private var hasGmailConnectedAuth: Bool {
     store.hasGmailConnectedAuth
   }
+  private var hasMicrosoft365Setup: Bool { !store.microsoft365MailboxConnections.isEmpty }
+  private var hasMicrosoft365ConnectedAuth: Bool {
+    store.microsoft365MailboxConnections.contains {
+      store.microsoft365AuthSessionState(for: $0).status == .connected
+    }
+  }
+  private var hasMicrosoft365CoreSetup: Bool {
+    store.microsoft365MailboxConnections.contains { connection in
+      store.microsoft365OAuthReadinessSummary(for: connection).isReady
+    }
+  }
   private var hasGmailCoreSetup: Bool {
     store.gmailMailboxConnections.contains { connection in
       !connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -7030,24 +7069,37 @@ struct SettingsView: View {
     }
   }
   private var hasLiveMailboxSetup: Bool {
-    hasSpaceMailSetup || hasGmailSetup
+    hasSpaceMailSetup || hasGmailSetup || hasMicrosoft365Setup
   }
   private var hasLiveMailboxCredentialOrAuth: Bool {
     store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var mailboxStatus: (String, Color) {
-    if hasSpaceMailSetup && hasGmailSetup { return ("SpaceMail + Gmail", .green) }
+    let providers = [
+      hasSpaceMailSetup ? "SpaceMail" : nil,
+      hasGmailSetup ? "Gmail" : nil,
+      hasMicrosoft365Setup ? "Outlook" : nil
+    ].compactMap { $0 }
+    if providers.count > 1 { return (providers.joined(separator: " + "), .green) }
     if hasSpaceMailSetup { return ("SpaceMail manual", .green) }
     if hasGmailSetup { return ("Gmail manual", hasGmailConnectedAuth ? .green : .orange) }
+    if hasMicrosoft365Setup { return ("Outlook manual", hasMicrosoft365ConnectedAuth ? .green : .orange) }
     return ("Not connected", .orange)
   }
 
   private var credentialStatus: (String, Color) {
-    if hasSpaceMailCredentialReference && hasGmailConnectedAuth { return ("Keychain + Google", .green) }
+    let readyProviders = [
+      hasSpaceMailCredentialReference ? "SpaceMail Keychain" : nil,
+      hasGmailConnectedAuth ? "Google signed in" : nil,
+      hasMicrosoft365ConnectedAuth ? "Microsoft signed in" : nil
+    ].compactMap { $0 }
+    if readyProviders.count > 1 { return ("Multiple ready", .green) }
     if hasSpaceMailCredentialReference { return ("SpaceMail Keychain", .green) }
     if hasGmailConnectedAuth { return ("Google signed in", .green) }
+    if hasMicrosoft365ConnectedAuth { return ("Microsoft signed in", .green) }
     if hasGmailSetup { return ("Google sign-in needed", .orange) }
+    if hasMicrosoft365Setup { return ("Microsoft sign-in needed", .orange) }
     return ("Credential needed", .orange)
   }
 
@@ -7175,7 +7227,7 @@ struct SettingsView: View {
     [
       (
         "Mailbox provider setup",
-        "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before treating live intake as the primary path.",
+        "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes before treating live intake as the primary path.",
         hasLiveMailboxSetup ? 0 : 1,
         "Mailbox Monitor",
         "envelope.badge.fill",
@@ -7183,19 +7235,19 @@ struct SettingsView: View {
       ),
       (
         "Credential or sign-in",
-        "SpaceMail uses the secure Keychain action; Gmail uses explicit Google sign-in. Do not put credentials or tokens into setup notes or JSON.",
+        "SpaceMail uses the secure Keychain action; Gmail and Outlook use explicit provider sign-in. Do not put credentials or tokens into setup notes or JSON.",
         hasLiveMailboxCredentialOrAuth ? 0 : 1,
         "Mailbox provider row",
         "lock.shield.fill",
         hasLiveMailboxCredentialOrAuth ? .green : .orange
       ),
       (
-        "Gmail setup details",
-        "When Gmail is configured, confirm address, labels, OAuth app placeholders, redirect/scheme, and read-only Gmail scope notes before real refresh.",
-        hasGmailSetup && !hasGmailCoreSetup ? 1 : 0,
-        "Gmail row",
-        "envelope.badge.shield.half.filled",
-        hasGmailSetup && !hasGmailCoreSetup ? .orange : .green
+        "Hosted OAuth setup details",
+        "When Gmail or Outlook is configured, confirm address/mailbox, labels/folders, OAuth placeholders, redirect/scheme, and read-only scope notes before real refresh.",
+        (hasGmailSetup && !hasGmailCoreSetup ? 1 : 0) + (hasMicrosoft365Setup && !hasMicrosoft365CoreSetup ? 1 : 0),
+        "Gmail or Outlook row",
+        hasMicrosoft365Setup && !hasGmailSetup ? "mail.stack.fill" : "envelope.badge.shield.half.filled",
+        (hasGmailSetup && !hasGmailCoreSetup) || (hasMicrosoft365Setup && !hasMicrosoft365CoreSetup) ? .orange : .green
       ),
       (
         "Manual refresh proof",
@@ -7255,6 +7307,7 @@ struct SettingsView: View {
   private var settingsReadinessTone: Color {
     if !hasLiveMailboxSetup || !hasLiveMailboxCredentialOrAuth { return .orange }
     if hasGmailSetup && !hasGmailCoreSetup { return .orange }
+    if hasMicrosoft365Setup && !hasMicrosoft365CoreSetup { return .orange }
     if settingsManualRefreshCount == 0 { return .orange }
     if settingsInboxCreatedOrdersCount == 0 { return .teal }
     if settingsOpenOperatorWorkCount > 0 { return .blue }
@@ -7263,8 +7316,9 @@ struct SettingsView: View {
 
   private var settingsReadinessTitle: String {
     if !hasLiveMailboxSetup { return "Set up a mailbox provider before live intake testing" }
-    if !hasLiveMailboxCredentialOrAuth { return "Add SpaceMail credential or complete Gmail sign-in" }
+    if !hasLiveMailboxCredentialOrAuth { return "Add SpaceMail credential or complete hosted mailbox sign-in" }
     if hasGmailSetup && !hasGmailCoreSetup { return "Finish Gmail setup details" }
+    if hasMicrosoft365Setup && !hasMicrosoft365CoreSetup { return "Finish Outlook setup details" }
     if settingsManualRefreshCount == 0 { return "Run one manual mailbox refresh" }
     if settingsInboxCreatedOrdersCount == 0 { return "Create or link one Inbox order" }
     if settingsOpenOperatorWorkCount > 0 { return "Operator workflow has open follow-up" }
@@ -7273,13 +7327,16 @@ struct SettingsView: View {
 
   private var settingsReadinessDetail: String {
     if !hasLiveMailboxSetup {
-      return "Use Mailbox Monitor or Integrations to add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes. Keep secrets out of setup notes and JSON fields."
+      return "Use Mailbox Monitor or Integrations to add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes. Keep secrets out of setup notes and JSON fields."
     }
     if !hasLiveMailboxCredentialOrAuth {
-      return "Use the secure SpaceMail credential action or the explicit Google sign-in test for Gmail. Passwords, tokens, and app secrets must stay out of JSON."
+      return "Use the secure SpaceMail credential action, explicit Google sign-in for Gmail, or explicit Microsoft sign-in for Outlook. Passwords, tokens, and app secrets must stay out of JSON."
     }
     if hasGmailSetup && !hasGmailCoreSetup {
       return "Complete the Gmail address, labels, OAuth client placeholder, redirect/scheme, and read-only Gmail scope notes before real Gmail refresh."
+    }
+    if hasMicrosoft365Setup && !hasMicrosoft365CoreSetup {
+      return "Complete the Outlook mailbox address, folder names, Entra tenant/client placeholders, redirect URI, and read-only Microsoft Graph scope notes before real Graph refresh."
     }
     if settingsManualRefreshCount == 0 {
       return "Run an explicit read-only mailbox refresh so the app has a real refresh result before hands-on testing."
@@ -7767,7 +7824,7 @@ struct SettingsView: View {
         SettingsPanel(title: "Find setting", symbol: "magnifyingglass") {
           VStack(alignment: .leading, spacing: 10) {
             FilterControlGrid {
-              TextField("Search settings, mailbox, Wishlist, SpaceMail, Gmail, Shopify, folders, review, carrier", text: $settingsSearchText)
+              TextField("Search settings, mailbox, Wishlist, SpaceMail, Gmail, Outlook, Shopify, folders, review, carrier", text: $settingsSearchText)
                 .textFieldStyle(.roundedBorder)
 
               Button("Clear", systemImage: "xmark.circle") {
@@ -7786,14 +7843,14 @@ struct SettingsView: View {
         }
 
         if visibleSettingsSectionCount == 0 {
-          MVPEmptyState(title: "No settings sections match", detail: "Clear the settings search or try mailbox, Wishlist, SpaceMail, Gmail, Shopify, folders, review, carrier, credential, or local-only.", symbol: "magnifyingglass")
+          MVPEmptyState(title: "No settings sections match", detail: "Clear the settings search or try mailbox, Wishlist, SpaceMail, Gmail, Outlook, Shopify, folders, review, carrier, credential, or local-only.", symbol: "magnifyingglass")
         }
 
         if showsActiveSetup {
           SettingsPanel(title: "Active setup now", symbol: "checkmark.seal.fill") {
           VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-              Image(systemName: hasSpaceMailSetup ? "server.rack" : hasGmailSetup ? "envelope.badge.shield.half.filled" : "server.rack.fill")
+              Image(systemName: hasSpaceMailSetup ? "server.rack" : hasGmailSetup ? "envelope.badge.shield.half.filled" : hasMicrosoft365Setup ? "mail.stack.fill" : "server.rack.fill")
                 .font(.title3)
                 .foregroundStyle(activeSetupTone)
                 .frame(width: 28)
@@ -7816,7 +7873,7 @@ struct SettingsView: View {
               ("Filtered", "\(latestManualMailboxFilteredCount)", latestManualMailboxFilteredCount > 0 ? .teal : .secondary)
             ])
 
-            Text("Current live paths: SpaceMail manual read-only IMAP refresh and Gmail manual read-only API refresh. Microsoft 365, Shopify, carriers, folders, notifications, scanners, calendars, and background sync remain planning or advanced setup surfaces.")
+            Text("Current live paths: SpaceMail manual read-only IMAP refresh, Gmail manual read-only API refresh, and Outlook manual read-only Microsoft Graph refresh when sign-in is ready. Shopify, carriers, folders, notifications, scanners, calendars, and background sync remain planning or advanced setup surfaces.")
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -7856,7 +7913,7 @@ struct SettingsView: View {
             detail: "Most integrations remain local planning surfaces. Active mailbox providers are manual, read-only intake paths when their credential/sign-in setup is ready.",
             steps: [
               "Use mailbox providers only through explicit manual refresh actions.",
-              "Enter SpaceMail passwords only in the secure Keychain prompt; use Google sign-in for Gmail. Do not put secrets in setup notes or JSON fields.",
+              "Enter SpaceMail passwords only in the secure Keychain prompt; use Google sign-in for Gmail and Microsoft sign-in for Outlook. Do not put secrets in setup notes or JSON fields.",
               "Treat Shopify, carrier, notification, scanner, calendar, and background-sync toggles as planning controls.",
               "Use Audit to confirm that local actions are being recorded."
             ],
@@ -7864,7 +7921,7 @@ struct SettingsView: View {
           )
 
           SettingsPanel(title: "Local-only status", symbol: "checklist") {
-          Text("ParcelOps stores operational records in local JSON. SpaceMail uses Keychain for password/app-password values; Gmail uses explicit Google sign-in. Mailbox refresh remains manual and read-only; the rest of the integration surface remains planning-only.")
+          Text("ParcelOps stores operational records in local JSON. SpaceMail uses Keychain for password/app-password values; Gmail uses explicit Google sign-in; Outlook uses explicit Microsoft sign-in. Mailbox refresh remains manual and read-only; the rest of the integration surface remains planning-only.")
             .foregroundStyle(.secondary)
 
           LocalDataSafetyCard(store: store, compact: isCompact)

@@ -149,6 +149,20 @@ struct InboxView: View {
     store.hasGmailConnectedAuth
   }
 
+  private var hasMicrosoft365Setup: Bool {
+    !store.microsoft365MailboxConnections.isEmpty
+  }
+
+  private var hasMicrosoft365ConnectedAuth: Bool {
+    store.microsoft365MailboxConnections.contains {
+      store.microsoft365AuthSessionState(for: $0).status == .connected
+    }
+  }
+
+  private var hasMicrosoft365RefreshEvidence: Bool {
+    store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
   private var uncertainSpaceMailCount: Int {
     store.pendingSpaceMailUncertainReviewCount
   }
@@ -225,21 +239,28 @@ struct InboxView: View {
         || event.summary.localizedCaseInsensitiveContains("Inbox")
         || event.summary.localizedCaseInsensitiveContains("SpaceMail")
         || event.summary.localizedCaseInsensitiveContains("Gmail")
+        || event.summary.localizedCaseInsensitiveContains("Microsoft 365")
+        || event.summary.localizedCaseInsensitiveContains("Outlook")
         || event.afterDetail?.localizedCaseInsensitiveContains("SpaceMail") == true
         || event.afterDetail?.localizedCaseInsensitiveContains("Gmail") == true
+        || event.afterDetail?.localizedCaseInsensitiveContains("Microsoft 365") == true
+        || event.afterDetail?.localizedCaseInsensitiveContains("Outlook") == true
     })
   }
 
   private var dailyFlowSteps: [(title: String, detail: String, symbol: String, color: Color, isComplete: Bool)] {
     let hasMailboxSetup = store.hasMailboxProviderSetup
-    let hasMailboxAuth = (hasSpaceMailSetup && hasSpaceMailCredentialReference) || (hasGmailSetup && hasGmailConnectedAuth)
-    let hasRefreshEvidence = latestSpaceMailSummary != nil || latestGmailSummary != nil
+    let hasMailboxAuth = (hasSpaceMailSetup && hasSpaceMailCredentialReference)
+      || (hasGmailSetup && hasGmailConnectedAuth)
+      || (hasMicrosoft365Setup && hasMicrosoft365ConnectedAuth)
+    let hasRefreshEvidence = latestSpaceMailSummary != nil || latestGmailSummary != nil || hasMicrosoft365RefreshEvidence
     let hasMailboxDecisionEvidence = (latestSpaceMailSummary?.importedCount ?? 0) > 0
       || (latestGmailSummary?.importedCount ?? 0) > 0
       || (latestSpaceMailSummary?.filteredCount ?? 0) > 0
       || (latestGmailSummary?.filteredCount ?? 0) > 0
       || (latestSpaceMailSummary?.duplicateCount ?? 0) > 0
       || (latestGmailSummary?.duplicateCount ?? 0) > 0
+      || hasMicrosoft365RefreshEvidence
       || uncertainSpaceMailCount + uncertainGmailCount > 0
       || filteredSpaceMailCount + filteredGmailCount > 0
       || !triageItems.isEmpty
@@ -254,7 +275,7 @@ struct InboxView: View {
       ),
       (
         "Auth",
-        hasMailboxAuth ? "Credential or sign-in is ready." : "Set SpaceMail credential or complete Gmail sign-in.",
+        hasMailboxAuth ? "Credential or sign-in is ready." : "Set SpaceMail credential, complete Gmail sign-in, or complete Microsoft sign-in.",
         "key.horizontal.fill",
         hasMailboxAuth ? .green : .orange,
         hasMailboxAuth
@@ -263,6 +284,7 @@ struct InboxView: View {
         "Refresh",
         latestSpaceMailSummary.map { "SpaceMail: \($0.compactRefreshCountsText)." }
           ?? latestGmailSummary.map { "Gmail: \($0.compactRefreshCountsText)." }
+          ?? store.microsoft365MailboxConnections.first(where: { $0.lastManualRefreshDate != "Never" }).map { "Outlook: manual Graph refresh ran \($0.lastManualRefreshDate)." }
           ?? "Run a manual read-only mailbox refresh.",
         "arrow.triangle.2.circlepath",
         hasRefreshEvidence ? .green : .orange,
@@ -1117,7 +1139,7 @@ struct InboxView: View {
         if store.spaceMailIntakeHealthSummaries.isEmpty && store.gmailIntakeHealthSummaries.isEmpty {
           MVPEmptyState(
             title: "No manual mailbox refresh history",
-            detail: "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes in Mailbox Monitor or Settings when you are ready to use real intake.",
+            detail: "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes in Mailbox Monitor or Settings when you are ready to use real intake.",
             symbol: "server.rack"
           )
         } else {
