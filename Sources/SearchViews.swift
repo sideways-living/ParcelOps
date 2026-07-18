@@ -12,6 +12,12 @@ struct SearchView: View {
     store.inboxCreatedOrdersWithSourceTrail(includeWishlist: true)
   }
 
+  private var inboxCreatedOrdersWithMailboxSourceTrail: [TrackedOrder] {
+    inboxCreatedOrdersWithSourceTrail.filter { order in
+      !store.mailboxSourceSummaries(for: order).isEmpty
+    }
+  }
+
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
     store.inboxCreatedOrdersMissingSourceTrail(includeWishlist: true)
   }
@@ -87,6 +93,7 @@ struct SearchView: View {
           store: store,
           inboxCreatedOrderCount: store.inboxCreatedOrderCount,
           inboxCreatedOrdersWithSourceTrailCount: inboxCreatedOrdersWithSourceTrail.count,
+          inboxCreatedOrdersWithMailboxSourceTrailCount: inboxCreatedOrdersWithMailboxSourceTrail.count,
           inboxCreatedOrdersMissingSourceTrail: Array(inboxCreatedOrdersMissingSourceTrail.prefix(3)),
           uncertainMailboxCount: uncertainMailboxCount,
           parserIssueCount: parserIssueCount,
@@ -165,6 +172,7 @@ private struct SearchReadinessPanel: View {
   var store: ParcelOpsStore
   var inboxCreatedOrderCount: Int
   var inboxCreatedOrdersWithSourceTrailCount: Int
+  var inboxCreatedOrdersWithMailboxSourceTrailCount: Int
   var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder]
   var uncertainMailboxCount: Int
   var parserIssueCount: Int
@@ -314,6 +322,7 @@ private struct SearchReadinessPanel: View {
         MetricStrip(items: [
           ("Inbox orders", "\(inboxCreatedOrderCount)", inboxCreatedOrderCount == 0 ? .secondary : .teal),
           ("With source", "\(inboxCreatedOrdersWithSourceTrailCount)", inboxCreatedOrderCount == 0 ? .secondary : (inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange)),
+          ("Mailbox source", "\(inboxCreatedOrdersWithMailboxSourceTrailCount)", inboxCreatedOrdersWithMailboxSourceTrailCount == 0 ? .secondary : .blue),
           ("Uncertain", "\(uncertainMailboxCount)", uncertainMailboxCount == 0 ? .green : .orange),
           ("Parser checks", "\(parserIssueCount)", parserIssueCount == 0 ? .green : .orange),
           ("Filtered", "\(filteredCount)", filteredCount == 0 ? .secondary : .teal),
@@ -691,6 +700,18 @@ struct SearchResultRow: View {
     }
   }
 
+  private var linkedOrder: TrackedOrder? {
+    guard result.entityType == .order,
+          let id = UUID(uuidString: result.linkedEntityID)
+    else { return nil }
+    return store.orders.first(where: { $0.id == id })
+  }
+
+  private var mailboxSourceSummaries: [OrderMailboxSourceSummary] {
+    guard let linkedOrder else { return [] }
+    return store.mailboxSourceSummaries(for: linkedOrder)
+  }
+
   private var sourceTrailDetail: String? {
     if result.entityType == .intakeEmail {
       return result.detail.lineOrSentence(after: "Inbox source:")
@@ -756,6 +777,20 @@ struct SearchResultRow: View {
             .font(.caption2)
             .foregroundStyle(.secondary)
             .lineLimit(isCompact ? 4 : 3)
+
+          if !mailboxSourceSummaries.isEmpty {
+            CompactMetadataGrid(minimumWidth: 130) {
+              ForEach(mailboxSourceSummaries) { summary in
+                Badge(summary.badgeLabel, color: sourceColor(for: summary.providerName))
+              }
+            }
+            ForEach(mailboxSourceSummaries) { summary in
+              Text("\(summary.statusLabel): \(summary.detailText)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+          }
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -49,6 +49,12 @@ struct TimelineView: View {
     store.operatorSourceOrdersWithSourceTrail()
   }
 
+  private var sourceOrdersWithMailboxSourceTrail: [TrackedOrder] {
+    sourceOrdersWithSourceTrail.filter { order in
+      !store.mailboxSourceSummaries(for: order).isEmpty
+    }
+  }
+
   private var sourceOrdersMissingSourceTrail: [TrackedOrder] {
     store.operatorSourceOrdersMissingSourceTrail()
   }
@@ -228,9 +234,49 @@ struct TimelineView: View {
             ("Inbox orders", "\(store.inboxCreatedOrderCount)", store.inboxCreatedOrderCount == 0 ? .secondary : .teal),
             ("Wishlist orders", "\(store.wishlistLinkedOrderCount)", store.wishlistLinkedOrderCount == 0 ? .secondary : .pink),
             ("With source", "\(sourceOrdersWithSourceTrail.count)", sourceOrdersMissingSourceTrail.isEmpty ? .green : .orange),
+            ("Mailbox source", "\(sourceOrdersWithMailboxSourceTrail.count)", sourceOrdersWithMailboxSourceTrail.isEmpty ? .secondary : .blue),
             ("Missing source", "\(sourceOrdersMissingSourceTrail.count)", sourceOrdersMissingSourceTrail.isEmpty ? .green : .orange),
             ("Timeline events", "\(inboxSourceTimelineActivities.count)", inboxSourceTimelineActivities.isEmpty ? .secondary : .blue)
           ])
+
+          if !sourceOrdersWithMailboxSourceTrail.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+              Text("Mailbox provider source trail")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              ForEach(sourceOrdersWithMailboxSourceTrail.prefix(4)) { order in
+                let summaries = store.mailboxSourceSummaries(for: order)
+                NavigationLink {
+                  OrderDetailView(order: order, store: store)
+                } label: {
+                  HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "envelope.badge.shield.half.filled")
+                      .foregroundStyle(.blue)
+                      .frame(width: 22)
+                    VStack(alignment: .leading, spacing: 5) {
+                      Text("\(order.store) • \(order.orderNumber)")
+                        .font(.subheadline.weight(.semibold))
+                      CompactMetadataGrid(minimumWidth: 130) {
+                        ForEach(summaries) { summary in
+                          Badge(summary.badgeLabel, color: providerColor(for: summary.providerName))
+                        }
+                      }
+                      Text(summaries.map(\.detailText).joined(separator: "; "))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    Badge("Source", color: .blue)
+                  }
+                  .padding(10)
+                  .background(Color.blue.opacity(0.08))
+                  .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+              }
+            }
+          }
 
           if sourceOrdersMissingSourceTrail.isEmpty {
             Label(store.operatorSourceOrderCount == 0 ? "No source-created or Wishlist-linked orders exist yet." : "All current source-created and Wishlist-linked orders have local source context.", systemImage: "checkmark.seal.fill")
@@ -459,6 +505,13 @@ struct TimelineView: View {
     searchParts.append(contentsOf: importQueueItems.map(\.detectedOrderNumber))
     searchParts.append(contentsOf: acceptanceRecords.map(\.summary))
     searchParts.append(contentsOf: acceptanceRecords.map(\.notes))
+    if let order {
+      let mailboxSummaries = store.mailboxSourceSummaries(for: order)
+      searchParts.append(contentsOf: mailboxSummaries.map(\.providerName))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.detailText))
+    }
     let searchableText = searchParts.joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
   }
@@ -576,6 +629,13 @@ struct TimelineActivityRow: View {
         TimelineInboxDispatchCallout(activity: activity)
       }
 
+      if let store, let linkedOrder {
+        let mailboxSummaries = store.mailboxSourceSummaries(for: linkedOrder)
+        if !mailboxSummaries.isEmpty {
+          TimelineMailboxSourceTrail(summaries: mailboxSummaries)
+        }
+      }
+
       if !shipmentGroups.isEmpty {
         ShipmentGroupContextStrip(groups: shipmentGroups)
       }
@@ -633,6 +693,40 @@ private struct TimelineInboxDispatchCallout: View {
     .padding(10)
     .background(activity.inboxDispatchTimelineColor.opacity(0.08))
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct TimelineMailboxSourceTrail: View {
+  var summaries: [OrderMailboxSourceSummary]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Label("Mailbox provider trail", systemImage: "envelope.badge.shield.half.filled")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.blue)
+      CompactMetadataGrid(minimumWidth: 130) {
+        ForEach(summaries) { summary in
+          Badge(summary.badgeLabel, color: color(for: summary.providerName))
+        }
+      }
+      ForEach(summaries) { summary in
+        Text("\(summary.statusLabel): \(summary.detailText)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .background(Color.blue.opacity(0.08))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for providerName: String) -> Color {
+    if providerName.localizedCaseInsensitiveContains("Gmail") { return .blue }
+    if providerName.localizedCaseInsensitiveContains("SpaceMail") { return .teal }
+    if providerName.localizedCaseInsensitiveContains("Mock") { return .purple }
+    if providerName.localizedCaseInsensitiveContains("Microsoft") { return .blue }
+    return .secondary
   }
 }
 
