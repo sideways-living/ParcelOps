@@ -14027,6 +14027,31 @@ final class ParcelOpsStore {
   }
 
   func addSLAPolicyPlaceholder() {
+    if let existingIndex = slaPolicies.firstIndex(where: {
+      $0.linkedEntityType == .order
+        && $0.conditionSummary == "Define the local condition this policy should watch."
+        && !$0.isEnabled
+        && $0.reviewState == .needsReview
+    }) {
+      let beforeDetail = slaPolicies[existingIndex].auditDetail
+      slaPolicies[existingIndex].responseTarget = "Respond today"
+      slaPolicies[existingIndex].resolutionTarget = "Resolve within 1 business day"
+      slaPolicies[existingIndex].priority = .normal
+      slaPolicies[existingIndex].lastEvaluatedDate = "Never"
+      slaPolicies[existingIndex].matchCount = 0
+      persistSLAPolicies()
+      logAudit(
+        action: .edited,
+        entityType: .slaPolicy,
+        entityID: slaPolicies[existingIndex].id.uuidString,
+        entityLabel: slaPolicies[existingIndex].name,
+        summary: "Existing SLA policy placeholder refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(slaPolicies[existingIndex].auditDetail)\nNo duplicate disabled SLA placeholder was created."
+      )
+      return
+    }
+
     let policy = SLAPolicy(
       name: "New SLA policy \(slaPolicies.count + 1)",
       linkedEntityType: .order,
@@ -14192,6 +14217,32 @@ final class ParcelOpsStore {
   }
 
   func addExceptionPlaybookPlaceholder() {
+    if let existingIndex = exceptionPlaybooks.firstIndex(where: {
+      $0.issueType == .missingLink
+        && $0.linkedEntityType == .order
+        && $0.triggerSummary == "Define the local exception trigger."
+        && !$0.isEnabled
+        && $0.reviewState == .needsReview
+    }) {
+      let beforeDetail = exceptionPlaybooks[existingIndex].auditDetail
+      exceptionPlaybooks[existingIndex].recommendedSteps = "Add the local review steps staff should follow before changing operational records."
+      exceptionPlaybooks[existingIndex].escalationContact = "Operations"
+      exceptionPlaybooks[existingIndex].priority = .normal
+      exceptionPlaybooks[existingIndex].lastReviewedDate = "Never"
+      exceptionPlaybooks[existingIndex].usageCount = 0
+      persistExceptionPlaybooks()
+      logAudit(
+        action: .edited,
+        entityType: .exceptionPlaybook,
+        entityID: exceptionPlaybooks[existingIndex].id.uuidString,
+        entityLabel: exceptionPlaybooks[existingIndex].name,
+        summary: "Existing exception playbook placeholder refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(exceptionPlaybooks[existingIndex].auditDetail)\nNo duplicate disabled exception playbook placeholder was created."
+      )
+      return
+    }
+
     let playbook = ExceptionPlaybook(
       name: "New exception playbook \(exceptionPlaybooks.count + 1)",
       issueType: .missingLink,
@@ -14252,6 +14303,30 @@ final class ParcelOpsStore {
   }
 
   func addCommunicationTemplatePlaceholder() {
+    if let existingIndex = communicationTemplates.firstIndex(where: {
+      $0.linkedEntityType == .order
+        && $0.subjectTemplate == "Update for {{record}}"
+        && $0.bodyTemplate == "Hi team,\n\nPlease review the latest ParcelOps update for {{record}}.\n\nThanks."
+        && !$0.isEnabled
+        && $0.reviewState == .needsReview
+    }) {
+      let beforeDetail = communicationTemplates[existingIndex].auditDetail
+      communicationTemplates[existingIndex].channel = .email
+      communicationTemplates[existingIndex].lastUsedDate = "Never"
+      communicationTemplates[existingIndex].usageCount = 0
+      persistCommunicationTemplates()
+      logAudit(
+        action: .edited,
+        entityType: .communicationTemplate,
+        entityID: communicationTemplates[existingIndex].id.uuidString,
+        entityLabel: communicationTemplates[existingIndex].name,
+        summary: "Existing communication template placeholder refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(communicationTemplates[existingIndex].auditDetail)\nNo duplicate disabled communication template placeholder was created."
+      )
+      return
+    }
+
     let template = CommunicationTemplate(
       name: "New communication template \(communicationTemplates.count + 1)",
       linkedEntityType: .order,
