@@ -6853,7 +6853,7 @@ struct SettingsReleaseCandidateCard: View {
 
   private var detail: String {
     if !hasMailboxSetup {
-      return "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before judging the daily operator flow."
+      return "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes before judging the daily operator flow."
     }
     if !hasManualCredentialOrAuth {
       return "Finish the active provider credential or sign-in before relying on real manual mailbox refresh."
@@ -6874,13 +6874,13 @@ struct SettingsReleaseCandidateCard: View {
     [
       (
         "Active mailbox path",
-        hasMailboxSetup ? "SpaceMail or Gmail setup exists for manual intake." : "Add SpaceMail for IMAP or Gmail for Google-hosted mailboxes.",
+        hasMailboxSetup ? "A mailbox provider setup exists for manual intake." : "Add SpaceMail for IMAP, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes.",
         hasMailboxSetup,
         "tray.full.fill"
       ),
       (
         "Credential or sign-in",
-        hasManualCredentialOrAuth ? "A provider can be used for explicit manual refresh." : "Add the SpaceMail Keychain credential or complete Gmail sign-in.",
+        hasManualCredentialOrAuth ? "A provider can be used for explicit manual refresh." : "Add the SpaceMail Keychain credential, complete Gmail sign-in, or complete Microsoft sign-in.",
         hasManualCredentialOrAuth,
         "key.fill"
       ),
@@ -7388,18 +7388,21 @@ struct SettingsView: View {
 
   private var activeSetupTitle: String {
     if let activeProviderCandidate { return activeProviderCandidate.title }
-    if hasSpaceMailSetup && hasGmailSetup { return "Run a manual refresh for an active mailbox provider" }
+    if store.mailboxProviderSetupCount > 1 { return "Run a manual refresh for an active mailbox provider" }
     if hasSpaceMailSetup { return "Finish SpaceMail setup to start real intake" }
     if hasGmailSetup {
       return "Finish Gmail setup to start real intake"
+    }
+    if !store.microsoft365MailboxConnections.isEmpty {
+      return "Finish Outlook setup to start Microsoft mailbox intake"
     }
     return "Set up a mailbox provider to start real intake"
   }
 
   private var activeSetupDetail: String {
     if let activeProviderCandidate { return activeProviderCandidate.detail }
-    if hasSpaceMailSetup && hasGmailSetup {
-      return "Both SpaceMail and Gmail setup rows exist. Run the explicit manual read-only refresh for whichever mailbox is active today."
+    if store.mailboxProviderSetupCount > 1 {
+      return "Multiple mailbox provider setup rows exist. Run the explicit manual read-only refresh for whichever mailbox is active today."
     }
     if hasSpaceMailSetup {
       return "SpaceMail setup exists. Set or check the Keychain credential, confirm host/folder settings, then use the explicit manual read-only SpaceMail refresh."
@@ -7407,7 +7410,10 @@ struct SettingsView: View {
     if hasGmailSetup {
       return "Gmail setup exists. Finish required setup values, test Google sign-in, then use the explicit manual read-only Gmail refresh."
     }
-    return "No live mailbox provider is configured yet. Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes."
+    if !store.microsoft365MailboxConnections.isEmpty {
+      return "Outlook setup exists. Finish Entra/OAuth readiness, test Microsoft sign-in, then use the explicit manual read-only Graph refresh only for Microsoft-hosted mailboxes."
+    }
+    return "No live mailbox provider is configured yet. Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes."
   }
 
   private var activeSetupTone: Color {

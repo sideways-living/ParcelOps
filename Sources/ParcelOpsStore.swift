@@ -2008,15 +2008,18 @@ final class ParcelOpsStore {
   var mailboxProviderQACheckSummary: SpaceMailQACheckSummary {
     let hasSpaceMailSetup = !spaceMailIMAPConnections.isEmpty
     let hasGmailSetup = !gmailMailboxConnections.isEmpty
+    let hasMicrosoft365Setup = !microsoft365MailboxConnections.isEmpty
     let hasSpaceMailCredential = spaceMailIMAPConnections.contains { connection in
       connection.credentialStorageStatus.localizedCaseInsensitiveContains("available")
         || connection.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
         || connection.credentialStorageStatus.localizedCaseInsensitiveContains("Keychain")
     }
     let hasGmailConnectedAuth = gmailMailboxConnections.contains { gmailAuthSessionState(for: $0).status == .connected }
-    let hasCredentialOrAuth = hasSpaceMailCredential || hasGmailConnectedAuth
+    let hasMicrosoft365ConnectedAuth = microsoft365MailboxConnections.contains { microsoft365AuthSessionState(for: $0).status == .connected }
+    let hasCredentialOrAuth = hasSpaceMailCredential || hasGmailConnectedAuth || hasMicrosoft365ConnectedAuth
     let hasManualRefreshEvidence = spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
       || gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
     let hasDuplicateEvidence = !mailboxIngestRecords.isEmpty
       || spaceMailIMAPConnections.contains { $0.lastRefreshDuplicateCount > 0 }
       || gmailMailboxConnections.contains { $0.lastRefreshDuplicateCount > 0 }
@@ -2049,27 +2052,35 @@ final class ParcelOpsStore {
         || detail.localizedCaseInsensitiveContains("not logged")
     }
     let gmailSetupBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
-    let providerSplitClear = hasSpaceMailSetup || hasGmailSetup
+    let microsoft365SetupBlockers = microsoft365MailboxConnections.filter { !microsoft365OAuthReadinessSummary(for: $0).isReady }.count
+    let providerSplitClear = hasSpaceMailSetup || hasGmailSetup || hasMicrosoft365Setup
     let importedCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
       + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
     let filteredCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
       + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
 
     let providerEvidence: String
-    if hasSpaceMailSetup && hasGmailSetup {
-      providerEvidence = "SpaceMail and Gmail setup records both exist."
+    let configuredProviderNames = [
+      hasSpaceMailSetup ? "SpaceMail" : nil,
+      hasGmailSetup ? "Gmail" : nil,
+      hasMicrosoft365Setup ? "Outlook" : nil
+    ].compactMap { $0 }
+    if configuredProviderNames.count > 1 {
+      providerEvidence = "\(configuredProviderNames.joined(separator: ", ")) setup records exist."
     } else if hasSpaceMailSetup {
-      providerEvidence = "SpaceMail setup exists for an IMAP-hosted mailbox; Gmail can be added for Google-hosted mailboxes."
+      providerEvidence = "SpaceMail setup exists for an IMAP-hosted mailbox; Gmail or Outlook can be added for hosted mailbox paths."
     } else if hasGmailSetup {
-      providerEvidence = "Gmail setup exists for a Google-hosted mailbox; SpaceMail can be added for IMAP-hosted mailboxes."
+      providerEvidence = "Gmail setup exists for a Google-hosted mailbox; SpaceMail or Outlook can be added for other mailbox paths."
+    } else if hasMicrosoft365Setup {
+      providerEvidence = "Outlook setup exists for a Microsoft 365-hosted mailbox; SpaceMail or Gmail can be added for other mailbox paths."
     } else {
-      providerEvidence = "No SpaceMail or Gmail provider setup exists."
+      providerEvidence = "No SpaceMail, Gmail, or Outlook provider setup exists."
     }
 
     let checks = [
       SpaceMailQACheck(
         title: "Provider split is explicit",
-        detail: "Operators can see whether SpaceMail, Gmail, or both are the active mailbox paths.",
+        detail: "Operators can see whether SpaceMail, Gmail, Outlook, or a combination is the active mailbox path.",
         evidence: providerEvidence,
         isComplete: providerSplitClear,
         tone: providerSplitClear ? "success" : "warning"
@@ -2077,7 +2088,7 @@ final class ParcelOpsStore {
       SpaceMailQACheck(
         title: "Credential or sign-in boundary",
         detail: "A provider has safe credential/sign-in evidence before real refresh is expected to work.",
-        evidence: hasCredentialOrAuth ? "SpaceMail credential or Gmail connected auth evidence exists." : "Set SpaceMail Keychain credential or complete Gmail sign-in before real refresh.",
+        evidence: hasCredentialOrAuth ? "SpaceMail credential, Gmail auth, or Outlook auth evidence exists." : "Set SpaceMail Keychain credential, complete Gmail sign-in, or complete Microsoft sign-in before real refresh.",
         isComplete: hasCredentialOrAuth,
         tone: hasCredentialOrAuth ? "success" : "warning"
       ),
@@ -2117,11 +2128,11 @@ final class ParcelOpsStore {
         tone: hasMixedFilteringEvidence ? "success" : "attention"
       ),
       SpaceMailQACheck(
-        title: "Gmail readiness blockers visible",
-        detail: "If Gmail is configured, OAuth/readiness blockers should be visible before relying on Gmail refresh.",
-        evidence: !hasGmailSetup ? "Gmail is not configured, so no Gmail blockers apply." : "\(gmailSetupBlockers) Gmail readiness blocker\(gmailSetupBlockers == 1 ? "" : "s") currently visible.",
-        isComplete: !hasGmailSetup || gmailSetupBlockers == 0,
-        tone: !hasGmailSetup || gmailSetupBlockers == 0 ? "success" : "warning"
+        title: "Hosted OAuth blockers visible",
+        detail: "If Gmail or Outlook is configured, OAuth/readiness blockers should be visible before relying on hosted-provider refresh.",
+        evidence: !hasGmailSetup && !hasMicrosoft365Setup ? "Gmail and Outlook are not configured, so no hosted OAuth blockers apply." : "\(gmailSetupBlockers) Gmail and \(microsoft365SetupBlockers) Outlook readiness blocker\(gmailSetupBlockers + microsoft365SetupBlockers == 1 ? "" : "s") currently visible.",
+        isComplete: (!hasGmailSetup || gmailSetupBlockers == 0) && (!hasMicrosoft365Setup || microsoft365SetupBlockers == 0),
+        tone: (!hasGmailSetup || gmailSetupBlockers == 0) && (!hasMicrosoft365Setup || microsoft365SetupBlockers == 0) ? "success" : "warning"
       )
     ]
 
@@ -4674,7 +4685,8 @@ final class ParcelOpsStore {
   var liveMailboxMVPReadinessSummary: SpaceMailMVPReadinessSummary {
     let hasSpaceMailSetup = !spaceMailIMAPConnections.isEmpty
     let hasGmailSetup = !gmailMailboxConnections.isEmpty
-    let providerCount = (hasSpaceMailSetup ? 1 : 0) + (hasGmailSetup ? 1 : 0)
+    let hasMicrosoft365Setup = !microsoft365MailboxConnections.isEmpty
+    let providerCount = (hasSpaceMailSetup ? 1 : 0) + (hasGmailSetup ? 1 : 0) + (hasMicrosoft365Setup ? 1 : 0)
     let hasMailboxSetup = providerCount > 0
     let hasSpaceMailCredential = spaceMailIMAPConnections.contains {
       $0.credentialStorageStatus == SpaceMailCredentialStoreStatus.passwordReferenceAvailable.rawValue
@@ -4682,9 +4694,11 @@ final class ParcelOpsStore {
         || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
     }
     let hasGmailAuth = gmailMailboxConnections.contains { gmailAuthSessionState(for: $0).status == .connected }
-    let hasCredentialOrAuth = hasSpaceMailCredential || hasGmailAuth
+    let hasMicrosoft365Auth = microsoft365MailboxConnections.contains { microsoft365AuthSessionState(for: $0).status == .connected }
+    let hasCredentialOrAuth = hasSpaceMailCredential || hasGmailAuth || hasMicrosoft365Auth
     let hasRealRefresh = spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
       || gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
     let mixedFilteringReady = spaceMailIMAPConnections.contains {
       $0.mailboxMode == .mixedFiltered && ($0.lastRefreshFilteredNonOrderCount > 0 || !$0.filteredMessages.isEmpty || !$0.uncertainMessages.isEmpty || !$0.lastRefreshReasonBreakdown.isEmpty)
     } || gmailMailboxConnections.contains {
@@ -4695,12 +4709,13 @@ final class ParcelOpsStore {
       $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import" || $0.isInboxCreatedLocalOrder
     }
     let providerLabel: String
-    if hasSpaceMailSetup && hasGmailSetup {
-      providerLabel = "SpaceMail and Gmail"
-    } else if hasGmailSetup {
-      providerLabel = "Gmail"
-    } else if hasSpaceMailSetup {
-      providerLabel = "SpaceMail"
+    let configuredProviderNames = [
+      hasSpaceMailSetup ? "SpaceMail" : nil,
+      hasGmailSetup ? "Gmail" : nil,
+      hasMicrosoft365Setup ? "Outlook" : nil
+    ].compactMap { $0 }
+    if !configuredProviderNames.isEmpty {
+      providerLabel = configuredProviderNames.joined(separator: ", ")
     } else {
       providerLabel = "No live mailbox provider"
     }
@@ -4710,15 +4725,15 @@ final class ParcelOpsStore {
         title: "Mailbox provider configured",
         detail: hasMailboxSetup
           ? "\(providerLabel) setup exists for manual read-only intake."
-          : "Add SpaceMail for IMAP mailboxes or Gmail for Google-hosted mailboxes before testing real intake.",
+          : "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes before testing real intake.",
         isComplete: hasMailboxSetup,
         tone: hasMailboxSetup ? "success" : "warning"
       ),
       SpaceMailMVPReadinessItem(
         title: "Credential or sign-in ready",
         detail: hasCredentialOrAuth
-          ? "SpaceMail Keychain credential or Gmail Google sign-in evidence is available."
-          : "Set/check the SpaceMail Keychain credential or complete Gmail Google sign-in.",
+          ? "SpaceMail Keychain credential, Gmail Google sign-in, or Outlook Microsoft sign-in evidence is available."
+          : "Set/check the SpaceMail Keychain credential, complete Gmail Google sign-in, or complete Outlook Microsoft sign-in.",
         isComplete: hasCredentialOrAuth,
         tone: hasCredentialOrAuth ? "success" : "warning"
       ),
@@ -4789,13 +4804,15 @@ final class ParcelOpsStore {
   var liveMailboxQACheckSummary: SpaceMailQACheckSummary {
     let hasSpaceMailSetup = !spaceMailIMAPConnections.isEmpty
     let hasGmailSetup = !gmailMailboxConnections.isEmpty
+    let hasMicrosoft365Setup = !microsoft365MailboxConnections.isEmpty
     let providerLabel: String
-    if hasSpaceMailSetup && hasGmailSetup {
-      providerLabel = "SpaceMail and Gmail"
-    } else if hasGmailSetup {
-      providerLabel = "Gmail"
-    } else if hasSpaceMailSetup {
-      providerLabel = "SpaceMail"
+    let configuredProviderNames = [
+      hasSpaceMailSetup ? "SpaceMail" : nil,
+      hasGmailSetup ? "Gmail" : nil,
+      hasMicrosoft365Setup ? "Outlook" : nil
+    ].compactMap { $0 }
+    if !configuredProviderNames.isEmpty {
+      providerLabel = configuredProviderNames.joined(separator: ", ")
     } else {
       providerLabel = "No live mailbox provider"
     }
@@ -4811,7 +4828,13 @@ final class ParcelOpsStore {
           && (event.summary.localizedCaseInsensitiveContains("real gmail sign-in succeeded")
             || event.summary.localizedCaseInsensitiveContains("mock gmail auth succeeded"))
       }
-    let hasCredentialOrAuthEvidence = hasSpaceMailCredentialEvidence || hasGmailAuthEvidence
+    let hasMicrosoft365AuthEvidence = microsoft365MailboxConnections.contains { microsoft365AuthSessionState(for: $0).status == .connected }
+      || auditEvents.contains { event in
+        event.entityType == .microsoft365MailboxConnection
+          && (event.summary.localizedCaseInsensitiveContains("real microsoft 365 sign-in succeeded")
+            || event.summary.localizedCaseInsensitiveContains("mock auth succeeded"))
+      }
+    let hasCredentialOrAuthEvidence = hasSpaceMailCredentialEvidence || hasGmailAuthEvidence || hasMicrosoft365AuthEvidence
 
     let successfulSpaceMailRefresh = auditEvents.contains { event in
       event.entityType == .spaceMailIMAPConnection
@@ -4825,7 +4848,15 @@ final class ParcelOpsStore {
         && (event.summary.localizedCaseInsensitiveContains("completed")
           || (event.afterDetail ?? "").localizedCaseInsensitiveContains("Fetch result: Fetch success"))
     } || gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
-    let hasRefreshEvidence = successfulSpaceMailRefresh || successfulGmailRefresh
+    let successfulMicrosoft365Refresh = auditEvents.contains { event in
+      event.entityType == .microsoft365MailboxConnection
+        && (event.summary.localizedCaseInsensitiveContains("graph")
+          || event.summary.localizedCaseInsensitiveContains("microsoft 365"))
+        && (event.summary.localizedCaseInsensitiveContains("completed")
+          || (event.afterDetail ?? "").localizedCaseInsensitiveContains("Graph result")
+          || (event.afterDetail ?? "").localizedCaseInsensitiveContains("Fetch result"))
+    } || microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    let hasRefreshEvidence = successfulSpaceMailRefresh || successfulGmailRefresh || successfulMicrosoft365Refresh
 
     let spaceMailFilteringEvidence = spaceMailIMAPConnections.contains {
       $0.mailboxMode == .mixedFiltered
@@ -4844,23 +4875,25 @@ final class ParcelOpsStore {
       $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import" || $0.isInboxCreatedLocalOrder
     }
     let liveMailboxAuditEvidence = auditEvents.contains { event in
-      [.spaceMailIMAPConnection, .gmailMailboxConnection, .intakeEmail, .order].contains(event.entityType)
+      [.spaceMailIMAPConnection, .gmailMailboxConnection, .microsoft365MailboxConnection, .intakeEmail, .order].contains(event.entityType)
         || event.summary.localizedCaseInsensitiveContains("SpaceMail")
         || event.summary.localizedCaseInsensitiveContains("Gmail")
+        || event.summary.localizedCaseInsensitiveContains("Microsoft 365")
+        || event.summary.localizedCaseInsensitiveContains("Outlook")
     }
 
     let checks = [
       SpaceMailQACheck(
         title: "Provider setup evidence",
         detail: "At least one live mailbox provider is configured for manual intake testing.",
-        evidence: hasSpaceMailSetup || hasGmailSetup ? "\(providerLabel) setup exists." : "No active mailbox provider setup exists yet.",
-        isComplete: hasSpaceMailSetup || hasGmailSetup,
-        tone: hasSpaceMailSetup || hasGmailSetup ? "success" : "warning"
+        evidence: hasSpaceMailSetup || hasGmailSetup || hasMicrosoft365Setup ? "\(providerLabel) setup exists." : "No active mailbox provider setup exists yet.",
+        isComplete: hasSpaceMailSetup || hasGmailSetup || hasMicrosoft365Setup,
+        tone: hasSpaceMailSetup || hasGmailSetup || hasMicrosoft365Setup ? "success" : "warning"
       ),
       SpaceMailQACheck(
         title: "Credential or sign-in evidence",
-        detail: "SpaceMail has Keychain credential evidence or Gmail has sign-in evidence.",
-        evidence: hasCredentialOrAuthEvidence ? "Credential/sign-in evidence exists without storing secrets in JSON." : "No SpaceMail credential check/save or Gmail sign-in evidence yet.",
+        detail: "SpaceMail has Keychain credential evidence, Gmail has sign-in evidence, or Outlook has Microsoft sign-in evidence.",
+        evidence: hasCredentialOrAuthEvidence ? "Credential/sign-in evidence exists without storing secrets in JSON." : "No SpaceMail credential check/save, Gmail sign-in, or Microsoft sign-in evidence yet.",
         isComplete: hasCredentialOrAuthEvidence,
         tone: hasCredentialOrAuthEvidence ? "success" : "warning"
       ),
@@ -7406,13 +7439,19 @@ final class ParcelOpsStore {
     let gmailLine = latestGmailIntakeHealthSummary.map {
       "Gmail \($0.compactRefreshCountsText)"
     } ?? "Gmail no refresh summary"
-    return "\(spaceLine). \(gmailLine)."
+    let outlookLine = microsoft365MailboxConnections
+      .first(where: { $0.lastManualRefreshDate != "Never" })
+      .map { "Outlook refreshed \($0.lastManualRefreshDate)" } ?? "Outlook no refresh summary"
+    return "\(spaceLine). \(gmailLine). \(outlookLine)."
   }
 
   var latestMailboxNamedRefreshDetail: String {
     let summaries: [String] = [
       latestSpaceMailIntakeHealthSummary.map { "SpaceMail: \($0.namedRefreshCountsText)" },
-      latestGmailIntakeHealthSummary.map { "Gmail: \($0.namedRefreshCountsText)" }
+      latestGmailIntakeHealthSummary.map { "Gmail: \($0.namedRefreshCountsText)" },
+      microsoft365MailboxConnections
+        .first(where: { $0.lastManualRefreshDate != "Never" })
+        .map { "Outlook: manual Graph refresh evidence from \($0.lastManualRefreshDate); status \($0.connectionStatus)." }
     ].compactMap { $0 }
     guard !summaries.isEmpty else {
       return "No refresh summary yet. Start with the local demo workflow, then run the active mailbox provider only when credentials or sign-in are ready."
@@ -7428,6 +7467,9 @@ final class ParcelOpsStore {
   }
 
   var latestActiveMailboxEvidenceText: String {
+    if let outlook = microsoft365MailboxConnections.first(where: { $0.lastManualRefreshDate != "Never" }) {
+      return "Outlook latest: manual Graph refresh evidence from \(outlook.lastManualRefreshDate)."
+    }
     if let latestGmailIntakeHealthSummary,
        latestGmailIntakeHealthSummary.fetchedCount > 0 || latestGmailIntakeHealthSummary.importedCount > 0 || latestGmailIntakeHealthSummary.filteredCount > 0 {
       return "Gmail latest: \(latestGmailIntakeHealthSummary.compactRefreshCountsText)."
@@ -7436,18 +7478,20 @@ final class ParcelOpsStore {
        latestSpaceMailIntakeHealthSummary.fetchedCount > 0 || latestSpaceMailIntakeHealthSummary.importedCount > 0 || latestSpaceMailIntakeHealthSummary.filteredCount > 0 {
       return "SpaceMail latest: \(latestSpaceMailIntakeHealthSummary.compactRefreshCountsText)."
     }
-    let hasMailboxSetup = !spaceMailIMAPConnections.isEmpty || !gmailMailboxConnections.isEmpty
+    let hasMailboxSetup = !spaceMailIMAPConnections.isEmpty || !gmailMailboxConnections.isEmpty || !microsoft365MailboxConnections.isEmpty
     return hasMailboxSetup ? "Mailbox setup exists, but no useful latest refresh evidence is available." : "No mailbox provider setup yet."
   }
 
   var hasMailboxManualRefreshEvidence: Bool {
     spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
       || gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
   }
 
   var mailboxManualRefreshCount: Int {
     spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count
       + gmailMailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+      + microsoft365MailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
   }
 
   var hasLatestMailboxFetchEvidence: Bool {
