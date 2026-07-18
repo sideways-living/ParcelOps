@@ -361,6 +361,16 @@ struct ShipmentManifestsView: View {
 
   private func shipmentManifest(_ record: ShipmentManifestRecord, matches query: String) -> Bool {
     let linkedOrders = linkedOrders(for: record)
+    let mailboxText = linkedOrders.flatMap { order in
+      store.mailboxSourceSummaries(for: order).flatMap { summary in
+        [
+          summary.providerName,
+          summary.mailboxLabel,
+          summary.statusLabel,
+          summary.detailText
+        ]
+      }
+    }.joined(separator: " ")
     let linkedGroups = record.shipmentGroupIDs.compactMap { groupID in
       store.shipmentGroups.first { $0.id == groupID }
     }
@@ -419,6 +429,7 @@ struct ShipmentManifestsView: View {
       record.scanSessionIDs.map(\.uuidString).joined(separator: " "),
       record.evidenceAttachmentIDs.map(\.uuidString).joined(separator: " "),
       orderText,
+      mailboxText,
       groupText,
       checklistText
     ].joined(separator: " ")
@@ -520,6 +531,14 @@ struct ShipmentManifestRow: View {
           linkedDetail: "This manifest was staged from a Wishlist purchase handoff. Open the linked order to confirm the source trail, tracking, destination, and local dispatch setup before progressing.",
           tone: .pink,
           store: store
+        )
+      }
+
+      if let store {
+        OrderMailboxSourceTrailPanel(
+          summaries: mailboxSummaries(using: store),
+          title: "Mailbox provider manifest trail",
+          symbol: "shippingbox.and.arrow.backward.fill"
         )
       }
 
@@ -649,6 +668,13 @@ struct ShipmentManifestRow: View {
       warnings.append("Review state is \(record.reviewState.rawValue.lowercased()); mark reviewed after local checks are complete.")
     }
     return warnings
+  }
+
+  private func mailboxSummaries(using store: ParcelOpsStore) -> [OrderMailboxSourceSummary] {
+    var seen = Set<String>()
+    return linkedOrders.flatMap { order in
+      store.mailboxSourceSummaries(for: order)
+    }.filter { seen.insert($0.id).inserted }
   }
 }
 

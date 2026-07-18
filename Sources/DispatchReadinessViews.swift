@@ -367,6 +367,16 @@ struct DispatchReadinessView: View {
 
   private func dispatchChecklist(_ checklist: DispatchReadinessChecklist, matches query: String) -> Bool {
     let linkedOrders = linkedOrders(for: checklist)
+    let mailboxText = linkedOrders.flatMap { order in
+      store.mailboxSourceSummaries(for: order).flatMap { summary in
+        [
+          summary.providerName,
+          summary.mailboxLabel,
+          summary.statusLabel,
+          summary.detailText
+        ]
+      }
+    }.joined(separator: " ")
     let linkedManifest = checklist.shipmentManifestID.flatMap { manifestID in
       store.shipmentManifestRecords.first { $0.id == manifestID }
     }
@@ -424,6 +434,7 @@ struct DispatchReadinessView: View {
       checklist.riskLevel.rawValue,
       checklist.reviewState.rawValue,
       orderText,
+      mailboxText,
       manifestText,
       groupText
     ].joined(separator: " ")
@@ -525,6 +536,14 @@ struct DispatchReadinessRow: View {
           linkedDetail: "This readiness checklist was staged from a Wishlist purchase handoff. Open the linked order to confirm source trail, tracking, destination, labels, scans, and custody before completing readiness.",
           tone: .pink,
           store: store
+        )
+      }
+
+      if let store {
+        OrderMailboxSourceTrailPanel(
+          summaries: mailboxSummaries(using: store),
+          title: "Mailbox provider readiness trail",
+          symbol: "envelope.badge.shield.half.filled"
         )
       }
 
@@ -644,6 +663,13 @@ struct DispatchReadinessRow: View {
       warnings.append("Review state is \(checklist.reviewState.rawValue.lowercased()); mark reviewed after local checks are complete.")
     }
     return warnings
+  }
+
+  private func mailboxSummaries(using store: ParcelOpsStore) -> [OrderMailboxSourceSummary] {
+    var seen = Set<String>()
+    return linkedOrders.flatMap { order in
+      store.mailboxSourceSummaries(for: order)
+    }.filter { seen.insert($0.id).inserted }
   }
 }
 
