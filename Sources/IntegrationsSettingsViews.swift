@@ -1693,6 +1693,8 @@ struct GmailMailboxConnectionRow: View {
 
       gmailProviderFitCard
 
+      gmailSetupSequenceCard
+
       gmailCompiledConfigurationCard
 
       VStack(alignment: .leading, spacing: 8) {
@@ -2742,6 +2744,112 @@ struct GmailMailboxConnectionRow: View {
     if !readiness.isReady { return "Preflight is available and will stop before Google sign-in, token requests, Gmail API calls, or mailbox access until callback/readiness matches the compiled app." }
     if authState.status != .connected { return "Auth check is available and should stop before Gmail API calls if no signed-in Google account or read-only scope is available." }
     return "Real refresh is available."
+  }
+
+  private var gmailSetupSequenceCard: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "list.number")
+          .foregroundStyle(.teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Gmail setup sequence")
+            .font(.caption.weight(.semibold))
+          Text("Use this order when turning on real Gmail. Mock refresh remains available for local Inbox testing at any point.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(gmailSetupSequenceBadge, color: gmailSetupSequenceColor)
+      }
+
+      CompactMetadataGrid(minimumWidth: 175) {
+        ForEach(Array(gmailSetupSequenceItems.enumerated()), id: \.offset) { index, item in
+          VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+              Text("\(index + 1)")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 18, height: 18)
+                .background(item.color, in: Circle())
+              Text(item.title)
+                .font(.caption.weight(.semibold))
+            }
+            Badge(item.status, color: item.color)
+            Text(item.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("Real Gmail refresh is manual and read-only. ParcelOps does not store Google token values in JSON and does not delete, move, mark read, send, or modify Gmail messages.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(Color.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailSetupSequenceItems: [(title: String, detail: String, status: String, color: Color)] {
+    let setupSaved = !hasMissingCoreGmailSetup
+    let compiledReady = readiness.isReady
+    let signedIn = authState.status == .connected
+    let realRefreshRecorded = connection.lastRefreshSummary.localizedCaseInsensitiveContains("real gmail")
+      || connection.lastRefreshSummary.localizedCaseInsensitiveContains("gmail refresh completed")
+
+    return [
+      (
+        title: "Confirm mailbox setup",
+        detail: "Save the Gmail address, labels, read-only scope, Google client ID, and callback scheme placeholders.",
+        status: setupSaved ? "Saved" : "Needs setup",
+        color: setupSaved ? .green : .orange
+      ),
+      (
+        title: "Compile Google values",
+        detail: "Add GIDClientID and the Gmail URL scheme to Project.json/App Info, regenerate if needed, then rebuild.",
+        status: compiledReady ? "Matches" : "Blocked",
+        color: compiledReady ? .green : .orange
+      ),
+      (
+        title: "Check readiness",
+        detail: "Run the local readiness check before any real Google sign-in or Gmail API request.",
+        status: compiledReady ? "Ready" : "Check needed",
+        color: compiledReady ? .green : .orange
+      ),
+      (
+        title: "Test sign-in",
+        detail: "Use the explicit real Google sign-in test. ParcelOps records only non-secret session state.",
+        status: authState.status.rawValue,
+        color: signedIn ? .green : .orange
+      ),
+      (
+        title: "Run manual refresh",
+        detail: "Fetch a small read-only page of Gmail messages through the provider-neutral intake path.",
+        status: realRefreshRecorded ? "Recorded" : "Not run",
+        color: realRefreshRecorded ? .blue : .secondary
+      )
+    ]
+  }
+
+  private var gmailSetupSequenceBadge: String {
+    if canRunRealGmailRefresh { return "Ready" }
+    if hasMissingCoreGmailSetup { return "Setup first" }
+    if !readiness.isReady { return "Compile values" }
+    if authState.status != .connected { return "Sign in" }
+    return "Review"
+  }
+
+  private var gmailSetupSequenceColor: Color {
+    if canRunRealGmailRefresh { return .green }
+    if hasMissingCoreGmailSetup || !readiness.isReady || authState.status != .connected { return .orange }
+    return .secondary
   }
 
   private var gmailCompiledConfigurationCard: some View {
