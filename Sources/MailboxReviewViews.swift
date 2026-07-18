@@ -154,14 +154,27 @@ struct MailboxView: View {
       (
         "Gmail / Google Workspace",
         store.gmailMailboxConnections.isEmpty ? "Not set" : gmailProviderFitAttentionCount > 0 ? "Verify host" : gmailSignedIn ? "Signed in" : gmailSetupReady ? "Sign-in needed" : "Setup needed",
-        latestGmailSummary.map(\.namedRefreshCountsText)
+        latestGmailSummary.map { "\($0.namedRefreshCountsText) Next: \($0.nextAction)" }
           ?? (gmailProviderFitAttentionCount > 0
             ? "Custom-domain Gmail setup needs Google Workspace hosting confirmation. Use IMAP/SpaceMail if the mailbox is not Google-hosted."
-            : "Use only for Gmail or Google Workspace mailboxes. Requires matching Google client setup, explicit sign-in, and manual read-only refresh."),
+            : gmailProviderNextActionDetail(gmailSignedIn: gmailSignedIn, gmailSetupReady: gmailSetupReady)),
         "envelope.badge.shield.half.filled",
         store.gmailMailboxConnections.isEmpty ? .secondary : gmailProviderFitAttentionCount > 0 ? .teal : gmailSignedIn ? .green : .orange
       )
     ]
+  }
+
+  private func gmailProviderNextActionDetail(gmailSignedIn: Bool, gmailSetupReady: Bool) -> String {
+    if store.gmailMailboxConnections.isEmpty {
+      return "Use only for Gmail or Google Workspace mailboxes. Add Gmail setup only when the mailbox is Google-hosted."
+    }
+    if !gmailSetupReady {
+      return "Next: finish Gmail setup values and run Check readiness. Do not test sign-in or refresh until the compiled callback values match."
+    }
+    if !gmailSignedIn {
+      return "Next: use Test real Google sign-in. Mailbox refresh stays separate until sign-in and read-only scope consent are ready."
+    }
+    return "Next: run the manual read-only Gmail refresh only when checking this Google-hosted mailbox."
   }
 
   private var wishlistOrderWatchItems: [WishlistItem] {
