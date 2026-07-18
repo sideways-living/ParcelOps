@@ -12976,8 +12976,34 @@ final class ParcelOpsStore {
     priority: TaskPriority = .normal,
     assignee: String = "Operations"
   ) {
+    let title = "Follow up \(label)"
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == linkedEntityType
+        && $0.linkedEntityID == linkedEntityID
+        && $0.title == title
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].summary = summary
+      reviewTasks[existingIndex].priority = priority
+      reviewTasks[existingIndex].dueDate = priority == .urgent ? "Today" : "Tomorrow"
+      reviewTasks[existingIndex].assignee = assignee
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing review task refreshed from \(linkedEntityType.rawValue.lowercased()).",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nNo duplicate open task was created for \(linkedEntityType.rawValue) \(linkedEntityID)."
+      )
+      return
+    }
+
     let task = ReviewTask(
-      title: "Follow up \(label)",
+      title: title,
       summary: summary,
       linkedEntityType: linkedEntityType,
       linkedEntityID: linkedEntityID,
