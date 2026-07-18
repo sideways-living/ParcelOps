@@ -4665,6 +4665,221 @@ struct GmailOperationsRunbook: View {
   }
 }
 
+struct Microsoft365OperationsRunbook: View {
+  private let normalSteps = [
+    ("Confirm setup", "Check mailbox address, monitored folders, tenant/client placeholders, redirect URI, User.Read, and Mail.Read notes."),
+    ("Test Microsoft sign-in", "Use the explicit sign-in test. ParcelOps records only non-secret status, not tokens or callback URLs."),
+    ("Run manual Graph refresh", "Use real Outlook refresh only when a person is ready to review results. It must stay read-only."),
+    ("Review diagnostics", "If Graph returns 401 or a consent issue, use Audit for safe token metadata, /me probe, and Graph response labels."),
+    ("Create or link orders", "Use confirmed order or tracking details from Inbox, then check Orders, Workbench, Tasks, and Audit.")
+  ]
+
+  private let recoverySteps = [
+    ("Setup incomplete", "Add missing tenant ID, client ID, redirect URI, mailbox address, folders, or Mail.Read scope notes."),
+    ("Sign-in required", "Run Test real Microsoft sign-in again and confirm the account matches the mailbox being refreshed."),
+    ("Consent or Graph issue", "Confirm Entra app registration, public client redirect URI, delegated User.Read/Mail.Read consent, and tenant policy."),
+    ("Mailbox blocked", "If /me works but mailbox endpoints fail, identity access works and mailbox Graph access is blocked or challenged."),
+    ("No imports", "Check Inbox, duplicate refresh counts, and Audit. Duplicate Outlook messages update existing rows rather than creating new intake.")
+  ]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "mail.stack.fill")
+          .foregroundStyle(.blue)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Outlook operations runbook")
+            .font(.headline)
+          Text("Use this when connecting or retesting a Microsoft 365 mailbox. It describes operator actions only; it does not start sign-in or refresh.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("Manual", color: .blue)
+      }
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 10)], alignment: .leading, spacing: 10) {
+        runbookColumn(title: "Normal path", symbol: "checkmark.seal.fill", items: normalSteps, color: .green)
+        runbookColumn(title: "If something looks wrong", symbol: "wrench.and.screwdriver.fill", items: recoverySteps, color: .orange)
+      }
+
+      Text("Boundaries: Outlook refresh is manual and read-only. ParcelOps must not delete, move, mark read, send, or modify mailbox messages. Microsoft access tokens, refresh tokens, auth codes, callback URLs, authorization headers, and client secrets must not be written to JSON or Audit.")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.blue.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func runbookColumn(title: String, symbol: String, items: [(String, String)], color: Color) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+        HStack(alignment: .top, spacing: 8) {
+          Text("\(index + 1)")
+            .font(.caption2.bold())
+            .foregroundStyle(.white)
+            .frame(width: 18, height: 18)
+            .background(color, in: Circle())
+          VStack(alignment: .leading, spacing: 2) {
+            Text(item.0)
+              .font(.caption.weight(.semibold))
+            Text(item.1)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct Microsoft365RecoveryCard: View {
+  var summaries: [Microsoft365IntakeHealthSummary]
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool {
+    horizontalSizeClass == .compact
+  }
+
+  private var latest: Microsoft365IntakeHealthSummary? {
+    summaries.first
+  }
+
+  private var totalFetched: Int {
+    summaries.reduce(0) { $0 + $1.fetchedCount }
+  }
+
+  private var totalImported: Int {
+    summaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var totalDuplicates: Int {
+    summaries.reduce(0) { $0 + $1.duplicateCount }
+  }
+
+  private var totalRefreshed: Int {
+    summaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+  }
+
+  private var totalBlocked: Int {
+    summaries.reduce(0) { $0 + $1.blockedCount }
+  }
+
+  private var color: Color {
+    if totalBlocked > 0 || summaries.contains(where: { $0.tone == "warning" }) { return .orange }
+    if totalImported > 0 || totalRefreshed > 0 || summaries.contains(where: { $0.tone == "success" }) { return .green }
+    return .secondary
+  }
+
+  private var visibleSummaries: [Microsoft365IntakeHealthSummary] {
+    Array(summaries.prefix(isCompact ? 2 : 4))
+  }
+
+  private var summaryColumns: [GridItem] {
+    [GridItem(.adaptive(minimum: isCompact ? 190 : 240), spacing: 10)]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "mail.stack.fill")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Outlook recovery context")
+            .font(.headline)
+          Text(latest?.detail ?? "No Microsoft 365 refresh summary exists yet. Add or review an Outlook setup placeholder, then run sign-in and manual Graph refresh when needed.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          if let latest {
+            Text("Next: \(latest.nextAction)")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(color)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        Spacer()
+        Badge(totalBlocked > 0 ? "\(totalBlocked) blocker" : "Outlook", color: color)
+      }
+
+      MetricStrip(items: [
+        ("Fetched", "\(totalFetched)", totalFetched == 0 ? .secondary : .blue),
+        ("Imported", "\(totalImported)", totalImported == 0 ? .secondary : .green),
+        ("Duplicates", "\(totalDuplicates)", totalDuplicates == 0 ? .secondary : .teal),
+        ("Refreshed", "\(totalRefreshed)", totalRefreshed == 0 ? .secondary : .green),
+        ("Blocked", "\(totalBlocked)", totalBlocked == 0 ? .secondary : .orange)
+      ])
+
+      if summaries.isEmpty {
+        MVPEmptyState(
+          title: "No Outlook refresh evidence yet",
+          detail: "Outlook setup, sign-in, token acquisition, and Graph refresh diagnostics will appear here after explicit local actions run.",
+          symbol: "mail.stack"
+        )
+      } else {
+        LazyVGrid(columns: summaryColumns, alignment: .leading, spacing: 10) {
+          ForEach(visibleSummaries) { summary in
+            VStack(alignment: .leading, spacing: 7) {
+              HStack(alignment: .top, spacing: 8) {
+                Label(summary.displayName, systemImage: "mail.stack.fill")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(color(for: summary.tone, blockedCount: summary.blockedCount))
+                  .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                Badge(summary.primaryOutcomeStatus, color: color(for: summary.tone, blockedCount: summary.blockedCount))
+              }
+              Text(summary.compactRefreshCountsText)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+              Text(summary.lastRefreshSummary.isEmpty ? summary.nextAction : summary.lastRefreshSummary)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(color(for: summary.tone, blockedCount: summary.blockedCount).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+      }
+
+      Text("Use Audit for detailed Microsoft sign-in, token metadata, /me probe, and Graph HTTP diagnostics. Tokens, auth headers, callback URLs, and raw message bodies stay out of JSON and Audit.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String, blockedCount: Int) -> Color {
+    if blockedCount > 0 { return .orange }
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct SpaceMailShiftHandoffCard: View {
   var summary: SpaceMailShiftHandoffSummary
   var onCreateDraft: (() -> Void)?
@@ -5983,6 +6198,9 @@ struct MailboxProviderOperatorReadinessStack: View {
           }
           MailboxProviderComparisonCard(summary: store.mailboxProviderComparisonSummary)
           MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
+          if !store.microsoft365MailboxConnections.isEmpty {
+            Microsoft365RecoveryCard(summaries: store.microsoft365IntakeHealthSummaries)
+          }
 
           CompactActionRow {
             if showMailboxLink {
@@ -6045,6 +6263,10 @@ struct MailboxProviderOperatorReadinessStack: View {
             MailboxOperatorDecisionCard(summary: store.gmailOperatorDecisionSummary)
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
             GmailOperationsRunbook()
+            if !store.microsoft365MailboxConnections.isEmpty {
+              Microsoft365RecoveryCard(summaries: store.microsoft365IntakeHealthSummaries)
+              Microsoft365OperationsRunbook()
+            }
           }
           .padding(.top, 10)
         } label: {
