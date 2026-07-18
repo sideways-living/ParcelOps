@@ -94,6 +94,12 @@ struct AuditView: View {
     store.inboxCreatedOrdersMissingSourceTrail()
   }
 
+  private var inboxCreatedOrdersWithMailboxSourceTrail: [TrackedOrder] {
+    inboxCreatedOrdersWithSourceTrail.filter { order in
+      !store.mailboxSourceSummaries(for: order).isEmpty
+    }
+  }
+
   private var mailboxEvidenceEvents: [AuditEvent] {
     searchMatchedEvents.filter { event in
       event.entityType == .spaceMailIMAPConnection
@@ -509,6 +515,18 @@ struct AuditView: View {
     }
   }
 
+  private func mailboxSourceColor(_ summary: OrderMailboxSourceSummary) -> Color {
+    if summary.importedCount > 0 { return .green }
+    if summary.duplicateRefreshedCount > 0 { return .teal }
+    if summary.duplicateCount > 0 { return .orange }
+    switch summary.providerName {
+    case "Gmail": return .blue
+    case "SpaceMail": return .teal
+    case "Microsoft 365": return .purple
+    default: return .secondary
+    }
+  }
+
   private var auditEvidenceReadyCount: Int {
     auditEvidenceItems.filter { item in
       item.count > 0 || item.title == "Technical diagnostics"
@@ -866,8 +884,51 @@ struct AuditView: View {
         MetricStrip(items: [
           ("Source orders", "\(store.inboxCreatedOrderCount)", store.inboxCreatedOrderCount == 0 ? .secondary : .teal),
           ("With source", "\(inboxCreatedOrdersWithSourceTrail.count)", inboxCreatedOrdersWithSourceTrail.isEmpty ? .secondary : .green),
+          ("Mailbox source", "\(inboxCreatedOrdersWithMailboxSourceTrail.count)", inboxCreatedOrdersWithMailboxSourceTrail.isEmpty ? .secondary : .blue),
           ("Missing source", "\(inboxCreatedOrdersMissingSourceTrail.count)", inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange)
         ])
+
+        if !inboxCreatedOrdersWithMailboxSourceTrail.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Mailbox provider source coverage", systemImage: "envelope.badge.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.blue)
+            Text("These source-created orders can be traced back to the mailbox provider that supplied their intake rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(inboxCreatedOrdersWithMailboxSourceTrail.prefix(4)) { order in
+              let mailboxSources = store.mailboxSourceSummaries(for: order)
+              NavigationLink {
+                OrderDetailView(order: order, store: store)
+              } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                  HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("\(order.store) • \(order.orderNumber)")
+                      .font(.caption.weight(.semibold))
+                    Spacer(minLength: 8)
+                    Badge(mailboxSources.count == 1 ? mailboxSources[0].badgeLabel : "\(mailboxSources.count) mailbox sources", color: mailboxSourceColor(mailboxSources[0]))
+                  }
+                  CompactMetadataGrid(minimumWidth: horizontalSizeClass == .compact ? 140 : 165) {
+                    ForEach(mailboxSources.prefix(3)) { source in
+                      Badge(source.badgeLabel, color: mailboxSourceColor(source))
+                      Badge(source.statusLabel, color: mailboxSourceColor(source))
+                    }
+                  }
+                  Text(mailboxSources.prefix(2).map(\.detailText).joined(separator: " "))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(mailboxSourceColor(mailboxSources[0]).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
+              .buttonStyle(.plain)
+            }
+          }
+        }
 
         if inboxCreatedOrdersMissingSourceTrail.isEmpty {
           Label(store.inboxCreatedOrderCount == 0 ? "No source-created orders exist yet." : "All current source-created orders have local source context.", systemImage: "checkmark.seal.fill")
