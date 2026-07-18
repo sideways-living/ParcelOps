@@ -455,6 +455,13 @@ struct StorageLocationsView: View {
     searchParts.append(contentsOf: scanSessions.map(\.title))
     searchParts.append(contentsOf: shipmentManifests.map(\.title))
     searchParts.append(contentsOf: dispatchChecklists.map(\.title))
+    if let order {
+      let mailboxSummaries = store.mailboxSourceSummaries(for: order)
+      searchParts.append(contentsOf: mailboxSummaries.map(\.providerName))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.detailText))
+    }
     let searchableText = searchParts.joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
   }
@@ -573,6 +580,11 @@ struct StorageLocationRow: View {
             }
           }
         }
+        OrderMailboxSourceTrailPanel(
+          summaries: store.mailboxSourceSummaries(for: linkedOrder),
+          title: "Mailbox provider storage trail",
+          symbol: "shippingbox.and.arrow.backward.fill"
+        )
       }
 
       if let feedbackMessage {
