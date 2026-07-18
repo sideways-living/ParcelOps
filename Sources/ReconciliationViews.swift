@@ -45,6 +45,12 @@ struct ReconciliationView: View {
     store.operatorSourceOrdersWithSourceTrail(includeWishlist: true)
   }
 
+  private var sourceOrdersWithMailboxSourceTrail: [TrackedOrder] {
+    sourceOrdersWithSourceTrail.filter { order in
+      !store.mailboxSourceSummaries(for: order).isEmpty
+    }
+  }
+
   private var sourceOrdersMissingSourceTrail: [TrackedOrder] {
     store.operatorSourceOrdersMissingSourceTrail(includeWishlist: true)
   }
@@ -274,6 +280,7 @@ struct ReconciliationView: View {
           ("Inbox orders", "\(store.inboxCreatedOrderCount)", store.inboxCreatedOrderCount == 0 ? .secondary : .teal),
           ("Wishlist orders", "\(store.wishlistLinkedOrderCount)", store.wishlistLinkedOrderCount == 0 ? .secondary : .pink),
           ("With source", "\(sourceOrdersWithSourceTrail.count)", sourceOrdersMissingSourceTrail.isEmpty ? .green : .orange),
+          ("Mailbox source", "\(sourceOrdersWithMailboxSourceTrail.count)", sourceOrdersWithMailboxSourceTrail.isEmpty ? .secondary : .blue),
           ("Missing source", "\(sourceOrdersMissingSourceTrail.count)", sourceOrdersMissingSourceTrail.isEmpty ? .green : .orange),
           ("Related issues", "\(inboxLinkedReconciliationIssues.count)", inboxLinkedReconciliationIssues.isEmpty ? .secondary : .orange)
         ])
@@ -404,6 +411,13 @@ struct ReconciliationView: View {
     searchParts.append(contentsOf: validationIssues.map(\.title))
     searchParts.append(contentsOf: playbooks.map(\.name))
     searchParts.append(contentsOf: handoffNotes.map(\.title))
+    if let order {
+      let mailboxSummaries = store.mailboxSourceSummaries(for: order)
+      searchParts.append(contentsOf: mailboxSummaries.map(\.providerName))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.detailText))
+    }
     let searchableText = searchParts.joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
   }
@@ -546,11 +560,52 @@ struct ReconciliationIssueRow: View {
       if let feedbackMessage {
         ReconciliationIssueActionFeedbackPanel(message: feedbackMessage)
       }
+
+      if let store, let linkedOrder {
+        let mailboxSummaries = store.mailboxSourceSummaries(for: linkedOrder)
+        if !mailboxSummaries.isEmpty {
+          ReconciliationMailboxSourceTrail(summaries: mailboxSummaries)
+        }
+      }
     }
     .padding(12)
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+private struct ReconciliationMailboxSourceTrail: View {
+  var summaries: [OrderMailboxSourceSummary]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Label("Mailbox provider trail", systemImage: "envelope.badge.shield.half.filled")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.blue)
+      CompactMetadataGrid(minimumWidth: 130) {
+        ForEach(summaries) { summary in
+          Badge(summary.badgeLabel, color: color(for: summary.providerName))
+        }
+      }
+      ForEach(summaries) { summary in
+        Text("\(summary.statusLabel): \(summary.detailText)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .background(Color.blue.opacity(0.08))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for providerName: String) -> Color {
+    if providerName.localizedCaseInsensitiveContains("Gmail") { return .blue }
+    if providerName.localizedCaseInsensitiveContains("SpaceMail") { return .teal }
+    if providerName.localizedCaseInsensitiveContains("Mock") { return .purple }
+    if providerName.localizedCaseInsensitiveContains("Microsoft") { return .blue }
+    return .secondary
   }
 }
 
