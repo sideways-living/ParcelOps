@@ -1892,6 +1892,7 @@ struct OperationsWorkbenchView: View {
             needsPreDispatchVerification: needsPreDispatchVerification(order),
             partialTaskCount: partialInboxTaskCount(for: order),
             sourceTrailCount: store.sourceTrailCount(for: order),
+            mailboxSourceSummaries: store.mailboxSourceSummaries(for: order),
             store: store
           )
         }
@@ -2328,6 +2329,7 @@ private struct WorkbenchInboxOrderRow: View {
   var needsPreDispatchVerification: Bool
   var partialTaskCount: Int
   var sourceTrailCount: Int
+  var mailboxSourceSummaries: [OrderMailboxSourceSummary]
   var store: ParcelOpsStore
   @State private var feedbackMessage: String?
 
@@ -2384,6 +2386,24 @@ private struct WorkbenchInboxOrderRow: View {
     return "Order timeline has linked local follow-up context."
   }
 
+  private var mailboxSourceText: String {
+    mailboxSourceSummaries.prefix(2)
+      .map { "\($0.providerName) via \($0.mailboxLabel)" }
+      .joined(separator: "; ")
+  }
+
+  private func mailboxSourceColor(_ summary: OrderMailboxSourceSummary) -> Color {
+    if summary.importedCount > 0 { return .green }
+    if summary.duplicateRefreshedCount > 0 { return .teal }
+    if summary.duplicateCount > 0 { return .orange }
+    switch summary.providerName {
+    case "Gmail": return .blue
+    case "SpaceMail": return .teal
+    case "Microsoft 365": return .purple
+    default: return .secondary
+    }
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -2433,6 +2453,9 @@ private struct WorkbenchInboxOrderRow: View {
           Badge("\(partialTaskCount) verify task", color: .orange)
         }
         Badge(sourceTrailCount > 0 ? "\(sourceTrailCount) source" : "Source trail missing", color: sourceTrailCount > 0 ? .green : .orange)
+        ForEach(mailboxSourceSummaries.prefix(2)) { source in
+          Badge(source.badgeLabel, color: mailboxSourceColor(source))
+        }
         if order.missingInboxOrderFieldCount > 0 {
           Badge("\(order.missingInboxOrderFieldCount) missing", color: .orange)
         }
@@ -2451,6 +2474,11 @@ private struct WorkbenchInboxOrderRow: View {
         Label("Source trail missing: open the order before marking this handoff complete.", systemImage: "link.badge.plus")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      } else if !mailboxSourceSummaries.isEmpty {
+        Label(mailboxSourceText, systemImage: "envelope.badge.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.teal)
           .fixedSize(horizontal: false, vertical: true)
       }
 

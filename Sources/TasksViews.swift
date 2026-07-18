@@ -2986,6 +2986,9 @@ private struct TaskInboxSourceTrail: View {
   private var acceptanceRecords: [AcceptanceRecord] {
     Array(store.acceptanceRecords(for: order).prefix(3))
   }
+  private var mailboxSourceSummaries: [OrderMailboxSourceSummary] {
+    store.mailboxSourceSummaries(for: order)
+  }
   private var sourceTrailCount: Int {
     linkedEmails.count + importItems.count + acceptanceRecords.count
   }
@@ -3000,6 +3003,9 @@ private struct TaskInboxSourceTrail: View {
         Badge("\(linkedEmails.count) intake", color: linkedEmails.isEmpty ? .secondary : .teal)
         Badge("\(importItems.count) import", color: importItems.isEmpty ? .secondary : .blue)
         Badge("\(acceptanceRecords.count) acceptance", color: acceptanceRecords.isEmpty ? .secondary : .purple)
+        ForEach(mailboxSourceSummaries.prefix(2)) { source in
+          Badge(source.badgeLabel, color: mailboxSourceColor(source))
+        }
       }
 
       if sourceTrailCount == 0 {
@@ -3008,6 +3014,31 @@ private struct TaskInboxSourceTrail: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
       } else {
+        if !mailboxSourceSummaries.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Mailbox provider source")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ForEach(mailboxSourceSummaries.prefix(3)) { source in
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: mailboxSourceSymbol(source))
+                  .foregroundStyle(mailboxSourceColor(source))
+                  .frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(source.providerName)
+                    .font(.caption.weight(.semibold))
+                  Text(source.detailText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+              }
+              .padding(8)
+              .background(mailboxSourceColor(source).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
         ForEach(linkedEmails) { email in
           IntakeSourceContextPanel(
             email: email,
@@ -3038,6 +3069,27 @@ private struct TaskInboxSourceTrail: View {
     .padding(10)
     .background((sourceTrailCount == 0 ? Color.orange : Color.teal).opacity(0.08))
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func mailboxSourceColor(_ summary: OrderMailboxSourceSummary) -> Color {
+    if summary.importedCount > 0 { return .green }
+    if summary.duplicateRefreshedCount > 0 { return .teal }
+    if summary.duplicateCount > 0 { return .orange }
+    switch summary.providerName {
+    case "Gmail": return .blue
+    case "SpaceMail": return .teal
+    case "Microsoft 365": return .purple
+    default: return .secondary
+    }
+  }
+
+  private func mailboxSourceSymbol(_ summary: OrderMailboxSourceSummary) -> String {
+    switch summary.providerName {
+    case "Gmail": return "envelope.badge.shield.half.filled"
+    case "SpaceMail": return "server.rack"
+    case "Microsoft 365": return "mail.stack.fill"
+    default: return "envelope.badge.fill"
+    }
   }
 }
 
