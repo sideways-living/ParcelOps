@@ -261,20 +261,41 @@ struct ShipmentManifestsView: View {
   }
 
   private var gmailManifestReleaseBoundary: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail manifest readiness",
-      lead: "Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence should not create shipment manifests directly. Manifest work starts after a confirmed Inbox row or Wishlist source becomes an order or shipment group.",
-      sourceMetricTitle: "Gmail manifest sources",
-      sourceCount: gmailManifestSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, call carrier APIs, book couriers, print labels, or change shipment manifests automatically."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail manifest readiness",
+        lead: "Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence should not create shipment manifests directly. Manifest work starts after a confirmed Inbox row or Wishlist source becomes an order or shipment group.",
+        sourceMetricTitle: "Gmail manifest sources",
+        sourceCount: gmailManifestSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, call carrier APIs, book couriers, print labels, or change shipment manifests automatically."
+      )
+
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook manifest readiness",
+        lead: "Microsoft setup, sign-in, Graph diagnostics, Inbox handoff, and audit evidence should not create shipment manifests directly. Manifest work starts after a confirmed Inbox row or Wishlist source becomes an order or shipment group.",
+        sourceMetricTitle: "Outlook manifest sources",
+        sourceCount: microsoft365ManifestSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, call carrier APIs, book couriers, print labels, mutate mail, or change shipment manifests automatically."
+      )
+    }
   }
 
   private var gmailManifestSourceCount: Int {
     store.intakeLinkedOrders
       .flatMap { store.linkedIntakeEmails(for: $0) }
       .filter { store.intakeSourceSummary(for: $0).label.localizedCaseInsensitiveContains("Gmail") }
+      .count
+  }
+
+  private var microsoft365ManifestSourceCount: Int {
+    store.intakeLinkedOrders
+      .flatMap { store.linkedIntakeEmails(for: $0) }
+      .filter {
+        let label = store.intakeSourceSummary(for: $0).label
+        return label.localizedCaseInsensitiveContains("Microsoft 365") || label.localizedCaseInsensitiveContains("Outlook")
+      }
       .count
   }
 

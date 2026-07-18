@@ -301,6 +301,15 @@ struct EvidenceView: View {
             boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, create evidence attachments, or mutate mailbox messages."
           )
 
+          Microsoft365ReleaseBoundaryPanel(
+            store: store,
+            title: "Outlook evidence readiness",
+            lead: "Use this before treating Outlook source trails as sufficient release evidence. Microsoft setup, sign-in, Graph diagnostics, Inbox handoff, and Audit evidence should be clear before evidence gaps are closed.",
+            sourceMetricTitle: "Outlook source rows",
+            sourceCount: outlookSourceTrailEmails.count,
+            boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, open file pickers, run OCR, create evidence attachments, or mutate mailbox messages."
+          )
+
           if !store.gmailMailboxConnections.isEmpty {
             GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
           }

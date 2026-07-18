@@ -111,14 +111,25 @@ struct TrackingView: View {
   }
 
   private var gmailTrackingReleaseBoundary: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail tracking readiness",
-      lead: "Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence should not create carrier tracking work directly. Tracking starts from a confirmed order or imported Inbox row with tracking context.",
-      sourceMetricTitle: "Gmail tracking sources",
-      sourceCount: gmailTrackingSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, call carrier APIs, create tracking events, mutate mail, or change carrier records automatically."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail tracking readiness",
+        lead: "Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence should not create carrier tracking work directly. Tracking starts from a confirmed order or imported Inbox row with tracking context.",
+        sourceMetricTitle: "Gmail tracking sources",
+        sourceCount: gmailTrackingSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, call carrier APIs, create tracking events, mutate mail, or change carrier records automatically."
+      )
+
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook tracking readiness",
+        lead: "Microsoft setup, sign-in, Graph diagnostics, Inbox handoff, and audit evidence should not create carrier tracking work directly. Tracking starts from a confirmed order or imported Inbox row with tracking context.",
+        sourceMetricTitle: "Outlook tracking sources",
+        sourceCount: microsoft365TrackingSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, call carrier APIs, create tracking events, mutate mail, or change carrier records automatically."
+      )
+    }
   }
 
   private var filterBar: some View {
@@ -317,6 +328,12 @@ struct TrackingView: View {
   private var gmailTrackingSourceCount: Int {
     inboxTrackingProviderRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
+  private var microsoft365TrackingSourceCount: Int {
+    inboxTrackingProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
       .reduce(0) { total, row in total + row.count }
   }
 

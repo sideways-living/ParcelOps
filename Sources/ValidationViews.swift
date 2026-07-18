@@ -168,19 +168,36 @@ struct ValidationView: View {
   }
 
   private var gmailValidationReleaseBoundary: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail validation readiness",
-      lead: "Gmail self-checks should be complete before Gmail-derived parser, order-number, tracking, destination, or confidence validation rows are treated as release-ready.",
-      sourceMetricTitle: "Gmail validation sources",
-      sourceCount: gmailValidationSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, mutate mail, create validation issues, or change review state automatically."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail validation readiness",
+        lead: "Gmail self-checks should be complete before Gmail-derived parser, order-number, tracking, destination, or confidence validation rows are treated as release-ready.",
+        sourceMetricTitle: "Gmail validation sources",
+        sourceCount: gmailValidationSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, mutate mail, create validation issues, or change review state automatically."
+      )
+
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook validation readiness",
+        lead: "Microsoft setup, sign-in, Graph diagnostics, and Inbox review should be complete before Outlook-derived parser, order-number, tracking, destination, or confidence validation rows are treated as release-ready.",
+        sourceMetricTitle: "Outlook validation sources",
+        sourceCount: microsoft365ValidationSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, mutate mail, create validation issues, or change review state automatically."
+      )
+    }
   }
 
   private var gmailValidationSourceCount: Int {
     validationProviderRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
+  private var microsoft365ValidationSourceCount: Int {
+    validationProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
       .reduce(0) { total, row in total + row.count }
   }
 

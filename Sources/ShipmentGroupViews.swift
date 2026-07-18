@@ -273,19 +273,36 @@ struct ShipmentGroupsView: View {
   }
 
   private var gmailShipmentGroupReadinessPanel: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail shipment group readiness",
-      lead: "Gmail-origin intake should create shipment grouping work only after Gmail setup is ready and the imported Inbox order has confirmed split-order, carrier, destination, and related-order context.",
-      sourceMetricTitle: "Gmail group sources",
-      sourceCount: gmailShipmentGroupSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, call carrier APIs, book shipments, or change shipment group records automatically."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail shipment group readiness",
+        lead: "Gmail-origin intake should create shipment grouping work only after Gmail setup is ready and the imported Inbox order has confirmed split-order, carrier, destination, and related-order context.",
+        sourceMetricTitle: "Gmail group sources",
+        sourceCount: gmailShipmentGroupSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, call carrier APIs, book shipments, or change shipment group records automatically."
+      )
+
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook shipment group readiness",
+        lead: "Outlook-origin intake should create shipment grouping work only after Microsoft setup, sign-in, Graph diagnostics, and the imported Inbox order has confirmed split-order, carrier, destination, and related-order context.",
+        sourceMetricTitle: "Outlook group sources",
+        sourceCount: microsoft365ShipmentGroupSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, call carrier APIs, book shipments, mutate mail, or change shipment group records automatically."
+      )
+    }
   }
 
   private var gmailShipmentGroupSourceCount: Int {
     shipmentGroupProviderRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
+  private var microsoft365ShipmentGroupSourceCount: Int {
+    shipmentGroupProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
       .reduce(0) { total, row in total + row.count }
   }
 
