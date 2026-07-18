@@ -237,6 +237,9 @@ struct DashboardView: View {
   private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
     store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
   }
+  private var microsoft365ReleaseSelfChecks: [Microsoft365ReleaseSelfCheckSummary] {
+    store.microsoft365MailboxConnections.map { store.microsoft365ReleaseSelfCheckSummary(for: $0) }
+  }
   private var gmailReleaseWarningCount: Int {
     gmailReleaseSelfChecks.reduce(0) { total, summary in
       total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
@@ -254,6 +257,22 @@ struct DashboardView: View {
   }
   private var gmailReleaseBlockerCount: Int {
     gmailReleaseWarningCount + gmailReleaseAttentionCount
+  }
+  private var microsoft365ReleaseWarningCount: Int {
+    microsoft365ReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+  private var microsoft365ReleaseAttentionCount: Int {
+    microsoft365ReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+  private var microsoft365ReleaseBlockerCount: Int {
+    microsoft365ReleaseWarningCount + microsoft365ReleaseAttentionCount
+  }
+  private var microsoft365GraphBlockerCount: Int {
+    microsoft365ReleaseSelfChecks.reduce(0) { $0 + $1.graphBlockerCount }
   }
   private var pendingGmailUncertainReviewCount: Int {
     store.pendingGmailUncertainReviewCount
@@ -325,9 +344,41 @@ struct DashboardView: View {
   }
   private var latestMicrosoft365Tone: Color {
     guard hasMicrosoft365Setup else { return .secondary }
+    if microsoft365ReleaseWarningCount > 0 { return .red }
+    if microsoft365ReleaseAttentionCount > 0 || microsoft365GraphBlockerCount > 0 { return .orange }
     if hasMicrosoft365ConnectedAuth && hasMicrosoft365ManualRefreshEvidence { return .teal }
     if hasMicrosoft365ConnectedAuth || hasMicrosoft365ReadySetup { return .orange }
     return .secondary
+  }
+  private var dashboardMicrosoft365Title: String {
+    if microsoft365ReleaseWarningCount > 0 { return "Outlook release blockers need attention" }
+    if microsoft365GraphBlockerCount > 0 { return "Outlook Graph diagnostics need review" }
+    if microsoft365ReleaseAttentionCount > 0 { return "Outlook setup needs operator action" }
+    if hasMicrosoft365ConnectedAuth && hasMicrosoft365ManualRefreshEvidence { return "Outlook manual intake evidence exists" }
+    if hasMicrosoft365ConnectedAuth { return "Outlook sign-in is connected" }
+    if hasMicrosoft365ReadySetup { return "Outlook setup is ready for sign-in" }
+    return "Outlook setup is present"
+  }
+  private var dashboardMicrosoft365Detail: String {
+    if microsoft365ReleaseWarningCount > 0 {
+      return "\(microsoft365ReleaseWarningCount) Microsoft 365 release check\(microsoft365ReleaseWarningCount == 1 ? "" : "s") block daily use. Open Mailbox Monitor before trusting Outlook intake."
+    }
+    if microsoft365GraphBlockerCount > 0 {
+      return "Graph refresh diagnostics show \(microsoft365GraphBlockerCount) blocker\(microsoft365GraphBlockerCount == 1 ? "" : "s"). Use Audit for safe details; no mailbox mutation occurred."
+    }
+    if microsoft365ReleaseAttentionCount > 0 {
+      return "\(microsoft365ReleaseAttentionCount) Outlook release check\(microsoft365ReleaseAttentionCount == 1 ? "" : "s") need sign-in, release-task ownership, refresh evidence, or audit review."
+    }
+    if hasMicrosoft365ConnectedAuth && hasMicrosoft365ManualRefreshEvidence {
+      return "Microsoft sign-in and manual Graph refresh evidence exist. Review Inbox only when Outlook has imported order mail."
+    }
+    if hasMicrosoft365ConnectedAuth {
+      return "Microsoft sign-in is connected. Run real Graph refresh manually only when the active mailbox is Outlook-hosted."
+    }
+    if hasMicrosoft365ReadySetup {
+      return "OAuth readiness appears complete. Use explicit Microsoft sign-in only when testing an Outlook-hosted mailbox."
+    }
+    return "Finish tenant, client ID, redirect URI, scope, consent, and release self-check items before using Outlook intake."
   }
   private var latestSpaceMailTitle: String {
     guard let summary = latestSpaceMailSummary else {
@@ -1931,6 +1982,48 @@ struct DashboardView: View {
         }
         .padding(10)
         .background(latestGmailTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+        if hasMicrosoft365Setup {
+          VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+              Image(systemName: "mail.stack.fill")
+                .font(.title3)
+                .foregroundStyle(latestMicrosoft365Tone)
+                .frame(width: 28)
+
+              VStack(alignment: .leading, spacing: 4) {
+                Text(dashboardMicrosoft365Title)
+                  .font(.subheadline.weight(.semibold))
+                Text(dashboardMicrosoft365Detail)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+
+              Spacer()
+              Badge("Outlook", color: latestMicrosoft365Tone)
+            }
+
+            MetricStrip(items: [
+              ("Outlook release", "\(microsoft365ReleaseBlockerCount)", microsoft365ReleaseBlockerCount > 0 ? (microsoft365ReleaseWarningCount > 0 ? .red : .orange) : .green),
+              ("Graph blockers", "\(microsoft365GraphBlockerCount)", microsoft365GraphBlockerCount > 0 ? .orange : .green),
+              ("Setups", "\(store.microsoft365MailboxConnections.count)", .purple),
+              ("Signed in", "\(store.microsoft365MailboxConnections.filter { store.microsoft365AuthSessionState(for: $0).status == .connected }.count)", hasMicrosoft365ConnectedAuth ? .green : .orange),
+              ("Manual refresh", "\(store.microsoft365MailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count)", hasMicrosoft365ManualRefreshEvidence ? .teal : .secondary)
+            ])
+
+            if let summary = microsoft365ReleaseSelfChecks.first {
+              Microsoft365ReleaseSelfCheckCard(summary: summary)
+            }
+
+            Text("Outlook/Microsoft 365 remains a separate, explicit provider path. Use it only for Microsoft-hosted mailboxes; real Graph refresh is manual and read-only, and token values stay out of ParcelOps JSON.")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(latestMicrosoft365Tone)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .background(latestMicrosoft365Tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
 
         MailboxProviderOperatorReadinessStack(
           store: store,

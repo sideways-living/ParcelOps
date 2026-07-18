@@ -275,6 +275,10 @@ struct OperationsWorkbenchView: View {
     store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
   }
 
+  private var microsoft365ReleaseSelfChecks: [Microsoft365ReleaseSelfCheckSummary] {
+    store.microsoft365MailboxConnections.map { store.microsoft365ReleaseSelfCheckSummary(for: $0) }
+  }
+
   private var gmailReleaseBlockingCount: Int {
     gmailReleaseSelfChecks.reduce(0) { total, summary in
       total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
@@ -297,6 +301,38 @@ struct OperationsWorkbenchView: View {
     store.reviewTasks.filter { task in
       task.linkedEntityType == .integration
         && task.linkedEntityID.localizedCaseInsensitiveContains("gmail-latest-refresh-")
+        && task.status != .completed
+    }
+  }
+
+  private var microsoft365ReleaseBlockingCount: Int {
+    microsoft365ReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+
+  private var microsoft365ReleaseAttentionCount: Int {
+    microsoft365ReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+
+  private var microsoft365GraphBlockerCount: Int {
+    microsoft365ReleaseSelfChecks.reduce(0) { $0 + $1.graphBlockerCount }
+  }
+
+  private var microsoft365ImportedCount: Int {
+    store.microsoft365IntakeHealthSummaries.reduce(0) { $0 + $1.importedCount }
+  }
+
+  private var microsoft365BlockedCount: Int {
+    store.microsoft365IntakeHealthSummaries.reduce(0) { $0 + $1.blockedCount }
+  }
+
+  private var activeMicrosoft365ReleaseTasks: [ReviewTask] {
+    store.reviewTasks.filter { task in
+      task.linkedEntityType == .integration
+        && task.title.localizedCaseInsensitiveContains("Outlook release self-check")
         && task.status != .completed
     }
   }
@@ -774,6 +810,7 @@ struct OperationsWorkbenchView: View {
           .fixedSize(horizontal: false, vertical: true)
         mailboxWorkbenchBoundary
         gmailWorkbenchBoundary
+        microsoft365WorkbenchBoundary
         inboxParserQualityHandoff
         mailboxAssignedFollowUpPanel
         workbenchDiagnosticsBoundary
@@ -1504,6 +1541,154 @@ struct OperationsWorkbenchView: View {
       sourceCount: gmailWarningCount + gmailUncertainCount + gmailClassifierTuningCount,
       boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create Workbench exceptions automatically, or mutate mailbox messages."
     )
+  }
+
+  private var microsoft365WorkbenchBoundary: some View {
+    SettingsPanel(title: "Outlook-to-Workbench handoff", symbol: "mail.stack.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: microsoft365WorkbenchTone == .green ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            .foregroundStyle(microsoft365WorkbenchTone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(microsoft365WorkbenchTitle)
+              .font(.headline)
+            Text(microsoft365WorkbenchDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        MetricStrip(items: [
+          ("Setups", "\(store.microsoft365MailboxConnections.count)", store.microsoft365MailboxConnections.isEmpty ? .secondary : .purple),
+          ("Release blockers", "\(microsoft365ReleaseBlockingCount)", microsoft365ReleaseBlockingCount == 0 ? .green : .red),
+          ("Needs action", "\(microsoft365ReleaseAttentionCount)", microsoft365ReleaseAttentionCount == 0 ? .green : .orange),
+          ("Graph blockers", "\(microsoft365GraphBlockerCount)", microsoft365GraphBlockerCount == 0 ? .green : .orange),
+          ("Imported", "\(microsoft365ImportedCount)", microsoft365ImportedCount == 0 ? .secondary : .green),
+          ("Open tasks", "\(activeMicrosoft365ReleaseTasks.count)", activeMicrosoft365ReleaseTasks.isEmpty ? .green : .purple)
+        ])
+
+        if let summary = microsoft365ReleaseSelfChecks.first {
+          Microsoft365ReleaseSelfCheckCard(summary: summary)
+        } else {
+          MVPEmptyState(
+            title: "No Outlook mailbox setup",
+            detail: "Use Outlook/Microsoft 365 only when the active mailbox is Microsoft-hosted. SpaceMail and Gmail remain separate intake paths.",
+            symbol: "mail.stack"
+          )
+        }
+
+        if !activeMicrosoft365ReleaseTasks.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Open Outlook release follow-up", systemImage: "checklist")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.purple)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 180 : 240), spacing: 8)], alignment: .leading, spacing: 8) {
+              ForEach(activeMicrosoft365ReleaseTasks.prefix(3)) { task in
+                VStack(alignment: .leading, spacing: 6) {
+                  Text(task.title)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(2)
+                  Text("Owner: \(task.assignee) • Due: \(task.dueDate)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                  CompactMetadataGrid(minimumWidth: 105) {
+                    Badge(task.status.rawValue, color: .purple)
+                    Badge(task.priority.rawValue, color: microsoft365ReleaseTaskPriorityColor(task))
+                    Badge(task.reviewState.rawValue, color: task.reviewState == .accepted ? .green : .orange)
+                  }
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
+            }
+          }
+          .padding(10)
+          .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
+        Text("Outlook becomes Workbench work only when release checks, Graph diagnostics, imported Inbox rows, or assigned follow-up need operator attention. This panel does not start Microsoft sign-in, request tokens, fetch messages, mutate mailboxes, or store secrets.")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(microsoft365WorkbenchTone)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          if let connection = store.microsoft365MailboxConnections.first {
+            Button {
+              store.createReviewTaskFromMicrosoft365ReleaseSelfCheck(connection)
+            } label: {
+              Label("Create Outlook release task", systemImage: "checklist")
+            }
+          }
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Open Outlook setup", systemImage: "mail.stack.fill")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Review Inbox intake", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Check Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var microsoft365WorkbenchTone: Color {
+    if microsoft365ReleaseBlockingCount > 0 { return .red }
+    if microsoft365ReleaseAttentionCount > 0 || microsoft365GraphBlockerCount > 0 || microsoft365BlockedCount > 0 { return .orange }
+    if microsoft365ImportedCount > 0 { return .teal }
+    if !store.microsoft365MailboxConnections.isEmpty { return .purple }
+    return .secondary
+  }
+
+  private var microsoft365WorkbenchTitle: String {
+    if store.microsoft365MailboxConnections.isEmpty { return "Outlook setup is optional" }
+    if microsoft365ReleaseBlockingCount > 0 { return "Outlook release checks have blockers" }
+    if microsoft365GraphBlockerCount > 0 || microsoft365BlockedCount > 0 { return "Outlook Graph diagnostics need review" }
+    if microsoft365ReleaseAttentionCount > 0 { return "Outlook release checks need action" }
+    if microsoft365ImportedCount > 0 { return "Outlook created Inbox work" }
+    return "Outlook release path has no Workbench exception"
+  }
+
+  private var microsoft365WorkbenchDetail: String {
+    if store.microsoft365MailboxConnections.isEmpty {
+      return "Add Microsoft 365 setup only when the mailbox is Outlook-hosted. This keeps SpaceMail and Gmail as the primary paths for their own mailbox hosts."
+    }
+    if microsoft365ReleaseBlockingCount > 0 {
+      return "\(microsoft365ReleaseBlockingCount) Outlook release check\(microsoft365ReleaseBlockingCount == 1 ? "" : "s") still block daily use. Finish OAuth readiness, Mail.Read consent, sign-in, or refresh diagnostics before relying on this provider."
+    }
+    if microsoft365GraphBlockerCount > 0 || microsoft365BlockedCount > 0 {
+      return "Microsoft Graph has safe diagnostic evidence that needs review in Mailbox Monitor or Audit before this provider is trusted for daily intake."
+    }
+    if microsoft365ReleaseAttentionCount > 0 {
+      return "\(microsoft365ReleaseAttentionCount) Outlook release check\(microsoft365ReleaseAttentionCount == 1 ? "" : "s") need operator action, usually sign-in, implementation plan review, release task ownership, or Audit evidence."
+    }
+    if microsoft365ImportedCount > 0 {
+      return "\(microsoft365ImportedCount) Outlook message\(microsoft365ImportedCount == 1 ? "" : "s") reached Inbox. Review or create/link the order there before expecting Workbench exceptions."
+    }
+    return "Outlook setup exists, but current local evidence did not create imported or blocked order work."
+  }
+
+  private func microsoft365ReleaseTaskPriorityColor(_ task: ReviewTask) -> Color {
+    switch task.priority {
+    case .urgent, .high:
+      return .orange
+    case .normal:
+      return .teal
+    case .low:
+      return .secondary
+    }
   }
 
   private var gmailWorkbenchTone: Color {
