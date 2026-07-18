@@ -19203,6 +19203,12 @@ struct WishlistItemRow: View {
           }
           .padding(8)
           .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+          OrderMailboxSourceTrailPanel(
+            summaries: store.mailboxSourceSummaries(for: linkedOrder),
+            title: "Mailbox provider Wishlist trail",
+            symbol: "bag.badge.checkmark.fill"
+          )
         } else if handoff.linkedOrderID != nil {
           Label("Linked order ID is stored, but the local order record was not found. Recreate or relink the order before staging downstream handoff records.", systemImage: "exclamationmark.triangle.fill")
             .font(.caption)
