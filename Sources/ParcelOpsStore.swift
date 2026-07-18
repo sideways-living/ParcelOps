@@ -14568,6 +14568,36 @@ final class ParcelOpsStore {
   }
 
   func addContactDirectoryEntryPlaceholder() {
+    if let index = contactDirectoryEntries.firstIndex(where: {
+      $0.name.hasPrefix("New contact ")
+        && $0.organisation == "Unassigned organisation"
+        && $0.role == "Operations contact"
+        && $0.email == "contact@parcelops.example"
+        && $0.phone == "Not recorded"
+        && $0.channelPreference == .email
+        && $0.linkedEntityType == .supplier
+        && $0.linkedEntityID == "Unlinked"
+        && $0.notes == "Local placeholder contact awaiting review."
+        && !$0.isEnabled
+        && $0.reviewState == .needsReview
+    }) {
+      let beforeDetail = contactDirectoryEntries[index].auditDetail
+      var contact = contactDirectoryEntries.remove(at: index)
+      contact.lastContactedDate = "Never"
+      contactDirectoryEntries.insert(contact, at: 0)
+      persistContactDirectoryEntries()
+      logAudit(
+        action: .edited,
+        entityType: .contactDirectoryEntry,
+        entityID: contact.id.uuidString,
+        entityLabel: contact.name,
+        summary: "Existing contact placeholder reused.",
+        beforeDetail: beforeDetail,
+        afterDetail: contact.auditDetail
+      )
+      return
+    }
+
     let contact = ContactDirectoryEntry(
       name: "New contact \(contactDirectoryEntries.count + 1)",
       organisation: "Unassigned organisation",
@@ -14752,6 +14782,27 @@ final class ParcelOpsStore {
   }
 
   func addCustomerRecipientProfilePlaceholder() {
+    if let index = customerRecipientProfiles.firstIndex(where: {
+      $0.displayName.hasPrefix("New customer profile ")
+        && $0.profileType == .recipient
+        && $0.organisationTeam == "Unassigned team"
+        && $0.primaryEmail == "recipient@example.com"
+        && $0.phone == "Not recorded"
+        && $0.defaultDestinationAddress == "Address to confirm"
+        && $0.deliveryPreference == .noPreference
+        && $0.notes == "Define recipient, team, destination, and delivery preferences."
+        && !$0.isEnabled
+        && $0.reviewState == .needsReview
+    }) {
+      let beforeDetail = customerRecipientProfiles[index].auditDetail
+      var profile = customerRecipientProfiles.remove(at: index)
+      profile.lastReviewedDate = "Never"
+      customerRecipientProfiles.insert(profile, at: 0)
+      persistCustomerRecipientProfiles()
+      logAudit(action: .edited, entityType: .customerRecipientProfile, entityID: profile.id.uuidString, entityLabel: profile.displayName, summary: "Existing customer profile placeholder reused.", beforeDetail: beforeDetail, afterDetail: profile.auditDetail)
+      return
+    }
+
     let profile = CustomerRecipientProfile(displayName: "New customer profile \(customerRecipientProfiles.count + 1)", profileType: .recipient, organisationTeam: "Unassigned team", primaryEmail: "recipient@example.com", phone: "Not recorded", defaultDestinationAddress: "Address to confirm", deliveryPreference: .noPreference, notes: "Define recipient, team, destination, and delivery preferences.", isEnabled: false, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
     customerRecipientProfiles.insert(profile, at: 0)
     persistCustomerRecipientProfiles()
@@ -14891,6 +14942,32 @@ final class ParcelOpsStore {
   }
 
   func addDestinationAddressPlaceholder() {
+    let placeholderProfile = customerRecipientProfiles.first
+    let placeholderProfileID = placeholderProfile?.id
+    let placeholderTeam = placeholderProfile?.organisationTeam ?? "Unassigned team"
+    if let index = destinationAddresses.firstIndex(where: {
+      $0.label.hasPrefix("New destination ")
+        && $0.addressLineSummary == "Address to confirm"
+        && $0.cityRegion == "City/region"
+        && $0.country == "Australia"
+        && $0.deliveryInstructions == "Add local delivery instructions."
+        && $0.accessNotes == "Add access notes."
+        && $0.preferredCarrier == "Any carrier"
+        && $0.riskLevel == .medium
+        && !$0.isEnabled
+        && $0.reviewState == .needsReview
+    }) {
+      let beforeDetail = destinationAddresses[index].auditDetail
+      var address = destinationAddresses.remove(at: index)
+      address.customerProfileID = placeholderProfileID
+      address.organisationTeam = placeholderTeam
+      address.lastReviewedDate = "Never"
+      destinationAddresses.insert(address, at: 0)
+      persistDestinationAddresses()
+      logAudit(action: .edited, entityType: .destinationAddress, entityID: address.id.uuidString, entityLabel: address.label, summary: "Existing destination address placeholder reused.", beforeDetail: beforeDetail, afterDetail: address.auditDetail)
+      return
+    }
+
     let address = DestinationAddressRecord(label: "New destination \(destinationAddresses.count + 1)", customerProfileID: customerRecipientProfiles.first?.id, organisationTeam: customerRecipientProfiles.first?.organisationTeam ?? "Unassigned team", addressLineSummary: "Address to confirm", cityRegion: "City/region", country: "Australia", deliveryInstructions: "Add local delivery instructions.", accessNotes: "Add access notes.", preferredCarrier: "Any carrier", riskLevel: .medium, isEnabled: false, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
     destinationAddresses.insert(address, at: 0)
     persistDestinationAddresses()
@@ -15041,6 +15118,34 @@ final class ParcelOpsStore {
 
   func addDeliveryInstructionPlaceholder() {
     let address = destinationAddresses.first
+    let placeholderDestinationID = address?.id
+    let placeholderCustomerID = address?.customerProfileID ?? customerRecipientProfiles.first?.id
+    let placeholderLinkedID = address?.id.uuidString ?? "Unlinked"
+    if let index = deliveryInstructions.firstIndex(where: {
+      $0.title.hasPrefix("New instruction ")
+        && $0.linkedEntityType == .destinationAddress
+        && $0.instructionType == .accessConstraint
+        && $0.instructionSummary == "Add local delivery instruction summary."
+        && $0.accessConstraintSummary == "Add access constraints to review."
+        && $0.preferredDeliveryWindow == "To confirm"
+        && $0.restrictedDeliveryWindow == "To confirm"
+        && $0.carrierNotes == "Carrier notes to confirm."
+        && $0.riskLevel == .medium
+        && !$0.isEnabled
+        && $0.reviewState == .needsReview
+    }) {
+      let beforeDetail = deliveryInstructions[index].auditDetail
+      var instruction = deliveryInstructions.remove(at: index)
+      instruction.destinationAddressID = placeholderDestinationID
+      instruction.customerProfileID = placeholderCustomerID
+      instruction.linkedEntityID = placeholderLinkedID
+      instruction.lastReviewedDate = "Never"
+      deliveryInstructions.insert(instruction, at: 0)
+      persistDeliveryInstructions()
+      logAudit(action: .edited, entityType: .deliveryInstruction, entityID: instruction.id.uuidString, entityLabel: instruction.title, summary: "Existing delivery instruction placeholder reused.", beforeDetail: beforeDetail, afterDetail: instruction.auditDetail)
+      return
+    }
+
     let instruction = DeliveryInstructionRecord(title: "New instruction \(deliveryInstructions.count + 1)", destinationAddressID: address?.id, customerProfileID: address?.customerProfileID ?? customerRecipientProfiles.first?.id, linkedEntityType: .destinationAddress, linkedEntityID: address?.id.uuidString ?? "Unlinked", instructionType: .accessConstraint, instructionSummary: "Add local delivery instruction summary.", accessConstraintSummary: "Add access constraints to review.", preferredDeliveryWindow: "To confirm", restrictedDeliveryWindow: "To confirm", carrierNotes: "Carrier notes to confirm.", riskLevel: .medium, isEnabled: false, createdDate: Self.auditTimestamp(), lastReviewedDate: "Never", reviewState: .needsReview)
     deliveryInstructions.insert(instruction, at: 0)
     persistDeliveryInstructions()
