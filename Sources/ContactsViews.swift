@@ -107,19 +107,35 @@ struct ContactsView: View {
 
   @ViewBuilder
   private var gmailContactReadinessPanel: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail contact readiness",
-      lead: "Gmail-origin intake can create customer, supplier, carrier, or internal follow-up contacts after a confirmed Inbox order. Use this before treating Gmail contact coverage as routine.",
-      sourceMetricTitle: "Gmail contacts",
-      sourceCount: gmailContactSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create contacts automatically, or mutate mailbox messages."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail contact readiness",
+        lead: "Gmail-origin intake can create customer, supplier, carrier, or internal follow-up contacts after a confirmed Inbox order. Use this before treating Gmail contact coverage as routine.",
+        sourceMetricTitle: "Gmail contacts",
+        sourceCount: gmailContactSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create contacts automatically, or mutate mailbox messages."
+      )
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook contact readiness",
+        lead: "Outlook-origin intake can create customer, supplier, carrier, or internal follow-up contacts only after Microsoft setup and confirmed Inbox order context are clear.",
+        sourceMetricTitle: "Outlook contacts",
+        sourceCount: microsoft365ContactSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, create contacts automatically, or mutate mailbox messages."
+      )
+    }
   }
 
   private var gmailContactSourceCount: Int {
     contactProviderRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
+  private var microsoft365ContactSourceCount: Int {
+    contactProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
       .reduce(0) { total, row in total + row.count }
   }
 

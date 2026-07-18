@@ -52,6 +52,12 @@ struct AccountsView: View {
       .reduce(0) { total, row in total + row.count }
   }
 
+  private var microsoft365AccountSourceCount: Int {
+    accountProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -179,14 +185,24 @@ struct AccountsView: View {
 
   @ViewBuilder
   private var gmailAccountReadinessPanel: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail account readiness",
-      lead: "Gmail-origin intake should create account follow-up only after the Gmail setup can sign in, fetch read-only messages, classify likely order mail, and hand confirmed Inbox rows into Orders.",
-      sourceMetricTitle: "Gmail account sources",
-      sourceCount: gmailAccountSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, create credentials, or change account placeholders automatically."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail account readiness",
+        lead: "Gmail-origin intake should create account follow-up only after the Gmail setup can sign in, fetch read-only messages, classify likely order mail, and hand confirmed Inbox rows into Orders.",
+        sourceMetricTitle: "Gmail account sources",
+        sourceCount: gmailAccountSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, create credentials, or change account placeholders automatically."
+      )
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook account readiness",
+        lead: "Outlook-origin intake should create account follow-up only after Microsoft setup, sign-in, Graph diagnostics, and confirmed Inbox rows are clear.",
+        sourceMetricTitle: "Outlook account sources",
+        sourceCount: microsoft365AccountSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, create credentials, or change account placeholders automatically."
+      )
+    }
   }
 
   private var inboxAccountCoverage: some View {
