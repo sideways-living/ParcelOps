@@ -433,6 +433,13 @@ struct CostsBudgetsView: View {
     searchParts.append(contentsOf: returnClaims.map(\.reasonSummary))
     searchParts.append(contentsOf: procurementRequests.map(\.title))
     searchParts.append(contentsOf: procurementRequests.map(\.requestedItemsSummary))
+    if let order {
+      let mailboxSummaries = store.mailboxSourceSummaries(for: order)
+      searchParts.append(contentsOf: mailboxSummaries.map(\.providerName))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.detailText))
+    }
     let searchableText = searchParts.joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
   }
@@ -522,6 +529,13 @@ struct CostRecordRow: View {
 
       if !linkedIntakeEmails.isEmpty || !linkedWishlistItems.isEmpty || !costReadinessWarnings.isEmpty {
         costInboxSourceTrail
+      }
+      if let store, let linkedOrder {
+        OrderMailboxSourceTrailPanel(
+          summaries: store.mailboxSourceSummaries(for: linkedOrder),
+          title: "Mailbox provider cost trail",
+          symbol: "dollarsign.arrow.circlepath"
+        )
       }
 
       ReturnClaimStrip(claims: returnClaims)
