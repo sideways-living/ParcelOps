@@ -141,6 +141,12 @@ struct MailboxView: View {
     let gmailSetupReady = store.gmailMailboxConnections.contains {
       store.gmailOAuthReadinessSummary(for: $0).isReady
     }
+    let microsoft365Connected = store.microsoft365MailboxConnections.contains {
+      store.microsoft365AuthSessionState(for: $0).status == .connected
+    }
+    let microsoft365Ready = store.microsoft365MailboxConnections.contains {
+      store.microsoft365OAuthReadinessSummary(for: $0).isReady
+    }
 
     return [
       (
@@ -160,6 +166,13 @@ struct MailboxView: View {
             : gmailProviderNextActionDetail(gmailSignedIn: gmailSignedIn, gmailSetupReady: gmailSetupReady)),
         "envelope.badge.shield.half.filled",
         store.gmailMailboxConnections.isEmpty ? .secondary : gmailProviderFitAttentionCount > 0 ? .teal : gmailSignedIn ? .green : .orange
+      ),
+      (
+        "Microsoft 365 / Outlook",
+        store.microsoft365MailboxConnections.isEmpty ? "Advanced option" : microsoft365Connected ? "Signed in" : microsoft365Ready ? "Sign-in needed" : "Setup needed",
+        microsoft365ProviderNextActionDetail(connected: microsoft365Connected, setupReady: microsoft365Ready),
+        "mail.stack.fill",
+        store.microsoft365MailboxConnections.isEmpty ? .secondary : microsoft365Connected ? .blue : .orange
       )
     ]
   }
@@ -175,6 +188,19 @@ struct MailboxView: View {
       return "Next: use Test real Google sign-in. Mailbox refresh stays separate until sign-in and read-only scope consent are ready."
     }
     return "Next: run the manual read-only Gmail refresh only when checking this Google-hosted mailbox."
+  }
+
+  private func microsoft365ProviderNextActionDetail(connected: Bool, setupReady: Bool) -> String {
+    guard !store.microsoft365MailboxConnections.isEmpty else {
+      return "Use only for Microsoft-hosted Outlook or Microsoft 365 mailboxes. Keep this secondary when the active mailbox is SpaceMail or Gmail."
+    }
+    if !setupReady {
+      return "Next: finish tenant, client, redirect, folder, and Mail.Read/User.Read setup notes before sign-in or Graph refresh testing."
+    }
+    if !connected {
+      return "Next: use the explicit Microsoft sign-in test only for Microsoft-hosted mailboxes. SpaceMail and Gmail remain separate provider paths."
+    }
+    return "Next: run manual read-only Graph refresh only when this Outlook/Microsoft 365 mailbox is the active intake source."
   }
 
   private var wishlistOrderWatchItems: [WishlistItem] {
