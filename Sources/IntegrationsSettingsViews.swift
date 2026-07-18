@@ -1,0 +1,8145 @@
+import SwiftUI
+
+struct IntegrationsView: View {
+  var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var setupSearchText = ""
+  @State private var setupFeedbackMessage: String?
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var hasSpaceMailSetup: Bool { !store.spaceMailIMAPConnections.isEmpty }
+  private var hasSpaceMailCredentialReference: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.latestSpaceMailIntakeHealthSummary
+  }
+  private var hasGmailSetup: Bool { !store.gmailMailboxConnections.isEmpty }
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.latestGmailIntakeHealthSummary
+  }
+  private var hasSpaceMailUncertainReview: Bool {
+    (latestSpaceMailSummary?.totalUncertainCount ?? 0) > 0
+  }
+  private var hasGmailUncertainReview: Bool {
+    (latestGmailSummary?.totalUncertainCount ?? 0) > 0
+  }
+  private var hasGmailConnectedAuth: Bool {
+    store.hasGmailConnectedAuth
+  }
+  private var hasMicrosoft365Setup: Bool { !store.microsoft365MailboxConnections.isEmpty }
+  private var hasMicrosoft365ConnectedAuth: Bool {
+    store.microsoft365MailboxConnections.contains {
+      store.microsoft365AuthSessionState(for: $0).status == .connected
+    }
+  }
+  private var hasMicrosoft365CoreSetup: Bool {
+    store.microsoft365MailboxConnections.contains { connection in
+      store.microsoft365OAuthReadinessSummary(for: connection).isReady
+    }
+  }
+  private var hasGmailCoreSetup: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      !connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !(connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !(connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
+    }
+  }
+  private var gmailReadinessSummaries: [GmailOAuthReadinessSummary] {
+    store.gmailMailboxConnections.map { store.gmailOAuthReadinessSummary(for: $0) }
+  }
+  private var gmailReadySetupCount: Int {
+    gmailReadinessSummaries.filter(\.isReady).count
+  }
+  private var gmailSetupBlockerCount: Int {
+    gmailReadinessSummaries.filter { !$0.isReady }.count
+  }
+  private var microsoft365SetupBlockerCount: Int {
+    store.microsoft365MailboxConnections
+      .map { store.microsoft365OAuthReadinessSummary(for: $0) }
+      .filter { !$0.isReady }
+      .count
+  }
+  private var gmailCompiledCallbackBlockerCount: Int {
+    gmailReadinessSummaries.filter { summary in
+      summary.compiledClientIDStatus.localizedCaseInsensitiveContains("placeholder")
+        || summary.compiledClientIDStatus.localizedCaseInsensitiveContains("missing")
+        || summary.compiledClientIDStatus.localizedCaseInsensitiveContains("does not match")
+        || summary.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("placeholder")
+        || summary.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("missing")
+        || summary.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("does not include")
+    }.count
+  }
+  private func gmailDomain(for emailAddress: String) -> String {
+    let parts = emailAddress
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .split(separator: "@", maxSplits: 1)
+    guard parts.count == 2 else { return "" }
+    return String(parts[1]).lowercased()
+  }
+  private var gmailProviderFitAttentionCount: Int {
+    store.gmailMailboxConnections.filter { connection in
+      let domain = gmailDomain(for: connection.emailAddress)
+      return !domain.isEmpty
+        && domain != "gmail.com"
+        && domain != "googlemail.com"
+        && !domain.hasSuffix(".example")
+    }.count
+  }
+  private var gmailReadinessBlockerDetails: [String] {
+    store.gmailMailboxConnections.flatMap { connection in
+      let summary = store.gmailOAuthReadinessSummary(for: connection)
+      return summary.missingFields.prefix(3).map { "\(connection.displayName): \($0)" }
+    }
+  }
+  private var gmailSetupNextAction: String {
+    if !hasGmailSetup {
+      return "Add Gmail only when a mailbox is hosted by Gmail or Google Workspace."
+    }
+    if gmailSetupBlockerCount > 0 {
+      return "Open the Gmail setup row, complete the missing non-secret Google fields, then run Check readiness."
+    }
+    if gmailCompiledCallbackBlockerCount > 0 {
+      return "Update Project.json and App/Info.plist to match the saved Google iOS client ID and reversed callback scheme, then rebuild."
+    }
+    if gmailProviderFitAttentionCount > 0 {
+      return "Confirm each custom-domain Gmail setup is hosted by Google Workspace; use IMAP/SpaceMail when it is not."
+    }
+    if !hasGmailConnectedAuth {
+      return "Run Check readiness and Test real Google sign-in before running real Gmail refresh."
+    }
+    return "Run real Gmail refresh manually only after setup readiness and Google sign-in are clear."
+  }
+  private var gmailLatestOutcomeTitle: String {
+    guard hasGmailSetup else { return "Gmail is optional" }
+    guard let summary = latestGmailSummary else { return "Gmail has no refresh result yet" }
+    if summary.tone == "warning" { return "Gmail latest result needs setup review" }
+    if summary.importedCount > 0 { return "Gmail imported likely order mail" }
+    if summary.totalUncertainCount > 0 { return "Gmail has uncertain messages to review" }
+    if summary.filteredCount > 0 { return "Gmail filtered non-order mail" }
+    if summary.duplicateRefreshedCount > 0 { return "Gmail refreshed existing Inbox rows" }
+    if summary.duplicateCount > 0 { return "Gmail found no new order mail" }
+    if summary.fetchedCount > 0 { return "Gmail refresh was quiet" }
+    return summary.verdict
+  }
+  private var gmailLatestOutcomeDetail: String {
+    guard hasGmailSetup else {
+      return "Leave Gmail unconfigured unless the mailbox is hosted by Gmail or Google Workspace."
+    }
+    guard let summary = latestGmailSummary else {
+      return "After setup and sign-in, run manual read-only Gmail refresh. Results will be summarized here without exposing tokens or mailbox bodies."
+    }
+    if summary.tone == "warning" {
+      return summary.detail
+    }
+    if summary.importedCount > 0 {
+      return "\(summary.importedCount) Gmail message\(summary.importedCount == 1 ? "" : "s") reached Inbox. Process those rows in Inbox before creating or linking orders."
+    }
+    if summary.totalUncertainCount > 0 {
+      return "\(summary.totalUncertainCount) ambiguous Gmail preview\(summary.totalUncertainCount == 1 ? "" : "s") stayed outside Inbox. Review them in Mailbox Monitor."
+    }
+    if summary.filteredCount > 0 {
+      return "\(summary.filteredCount) Gmail preview\(summary.filteredCount == 1 ? "" : "s") were counted as non-order mail and kept out of Inbox."
+    }
+    if summary.duplicateRefreshedCount > 0 {
+      return "\(summary.duplicateRefreshedCount) duplicate Gmail message\(summary.duplicateRefreshedCount == 1 ? "" : "s") refreshed existing local intake rows rather than creating duplicates."
+    }
+    if summary.duplicateCount > 0 {
+      return "\(summary.duplicateCount) Gmail message\(summary.duplicateCount == 1 ? "" : "s") were already known. Duplicate tracking prevented extra Inbox rows."
+    }
+    if summary.fetchedCount > 0 {
+      return "Gmail fetched messages, but none created imported or uncertain order work."
+    }
+    return summary.detail
+  }
+  private var gmailLatestOutcomeNextAction: String {
+    guard hasGmailSetup else { return "Next: use SpaceMail/IMAP unless you add a Google-hosted mailbox." }
+    guard let summary = latestGmailSummary else { return gmailSetupNextAction }
+    return summary.nextAction
+  }
+  private var gmailLatestOutcomeColor: Color {
+    guard hasGmailSetup else { return .secondary }
+    guard let summary = latestGmailSummary else { return .orange }
+    if summary.tone == "warning" { return .orange }
+    if summary.importedCount > 0 { return .green }
+    if summary.totalUncertainCount > 0 { return .orange }
+    if summary.filteredCount > 0 { return .teal }
+    if summary.duplicateRefreshedCount > 0 { return .green }
+    if summary.fetchedCount > 0 || summary.duplicateCount > 0 { return .teal }
+    return .secondary
+  }
+  private var providerChoiceRows: [(title: String, status: String, detail: String, symbol: String, color: Color)] {
+    [
+      (
+        "SpaceMail / IMAP",
+        hasSpaceMailSetup ? (hasSpaceMailCredentialReference ? "Ready for manual refresh" : "Credential needed") : "Not configured",
+        hasSpaceMailSetup
+          ? "Use for SpaceMail or other IMAP mailboxes. Real refresh is manual, read-only, and uses the Keychain credential prompt."
+          : "Choose this when the mailbox provider gives IMAP host, port, SSL/TLS, username, and folder settings.",
+        "server.rack",
+        hasSpaceMailSetup ? (hasSpaceMailCredentialReference ? .green : .orange) : .secondary
+      ),
+      (
+        "Gmail / Google Workspace",
+        hasGmailSetup ? (gmailProviderFitAttentionCount > 0 ? "Verify host" : hasGmailConnectedAuth ? "Signed in" : "Sign-in/setup needed") : "Not configured",
+        hasGmailSetup
+          ? gmailSetupNextAction
+          : "Choose this only when the mailbox is hosted by Gmail or Google Workspace. It uses Google sign-in planning and the same Inbox intake path.",
+        "envelope.badge.shield.half.filled",
+        hasGmailSetup ? (gmailProviderFitAttentionCount > 0 ? .teal : hasGmailConnectedAuth && gmailSetupBlockerCount == 0 ? .green : .orange) : .secondary
+      ),
+      (
+        "Microsoft 365",
+        store.microsoft365MailboxConnections.isEmpty ? "Not configured" : hasMicrosoft365ConnectedAuth ? "Signed in" : hasMicrosoft365CoreSetup ? "Sign-in needed" : "Setup needed",
+        store.microsoft365MailboxConnections.isEmpty
+          ? "Choose this when the mailbox is hosted by Outlook or Microsoft 365. It uses Microsoft sign-in and explicit read-only Graph refresh."
+          : "Use this only for Microsoft-hosted mailboxes. Graph refresh stays explicit, manual, and read-only.",
+        "mail.stack.fill",
+        store.microsoft365MailboxConnections.isEmpty ? .secondary : hasMicrosoft365ConnectedAuth ? .green : .orange
+      )
+    ]
+  }
+
+  private var recommendedSetupTitle: String {
+    if !hasSpaceMailSetup && !hasGmailSetup && !hasMicrosoft365Setup {
+      return "Start with mailbox setup"
+    }
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference {
+      return "Add the SpaceMail Keychain credential"
+    }
+    if hasGmailSetup && !hasGmailCoreSetup {
+      return "Finish Gmail setup details"
+    }
+    if hasMicrosoft365Setup && !hasMicrosoft365CoreSetup {
+      return "Finish Outlook setup details"
+    }
+    if gmailProviderFitAttentionCount > 0 {
+      return "Verify Gmail mailbox hosting"
+    }
+    if hasGmailSetup && !hasGmailConnectedAuth {
+      return "Test Google sign-in"
+    }
+    if hasMicrosoft365Setup && !hasMicrosoft365ConnectedAuth {
+      return "Test Microsoft sign-in"
+    }
+    if hasSpaceMailUncertainReview {
+      return "Review uncertain mixed-mailbox messages"
+    }
+    if hasGmailUncertainReview {
+      return "Review uncertain Gmail messages"
+    }
+    return "Run manual mailbox refresh when needed"
+  }
+
+  private var recommendedSetupDetail: String {
+    if !hasSpaceMailSetup && !hasGmailSetup && !hasMicrosoft365Setup {
+      return "Use SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes. All feed the same local Inbox intake path."
+    }
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference {
+      return "Use the secure password prompt on the SpaceMail row. Passwords and app passwords must not be typed into setup notes or JSON-backed fields."
+    }
+    if hasGmailSetup && !hasGmailCoreSetup {
+      return "Add Gmail address, labels, OAuth client placeholder, redirect/scheme, and read-only Gmail scope notes. Do not enter client secrets or token values."
+    }
+    if hasMicrosoft365Setup && !hasMicrosoft365CoreSetup {
+      return "Add Outlook mailbox address, folder names, Entra tenant/client placeholders, redirect URI, and read-only Microsoft Graph scope notes. Do not enter client secrets or token values."
+    }
+    if gmailProviderFitAttentionCount > 0 {
+      return "One or more Gmail setup records use custom domains. Confirm those domains are hosted by Google Workspace before relying on Gmail API refresh; otherwise use SpaceMail/IMAP."
+    }
+    if hasGmailSetup && !hasGmailConnectedAuth {
+      return "Use readiness check and the explicit Google sign-in test before real Gmail refresh. ParcelOps keeps token values out of JSON and Audit."
+    }
+    if hasSpaceMailUncertainReview {
+      return "Uncertain mixed-mailbox messages stay out of Inbox until an operator imports or dismisses them locally."
+    }
+    if hasGmailUncertainReview {
+      return "Uncertain Gmail previews stay out of Inbox until an operator imports or dismisses them locally."
+    }
+    return "Use explicit manual read-only refresh for the active mailbox provider. Microsoft 365, Shopify, watched folders, and login placeholders remain secondary planning surfaces."
+  }
+
+  private var recommendedSetupTone: Color {
+    if !hasSpaceMailSetup && !hasGmailSetup { return .orange }
+    if hasSpaceMailSetup && !hasSpaceMailCredentialReference { return .orange }
+    if hasGmailSetup && (!hasGmailCoreSetup || !hasGmailConnectedAuth) { return .orange }
+    if gmailProviderFitAttentionCount > 0 { return .teal }
+    if hasSpaceMailUncertainReview { return .orange }
+    if hasGmailUncertainReview { return .orange }
+    return .green
+  }
+
+  private var normalizedSetupSearch: String {
+    setupSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+  }
+
+  private func matchesSetupSection(_ terms: String...) -> Bool {
+    let query = normalizedSetupSearch
+    guard !query.isEmpty else { return true }
+    return terms.joined(separator: " ").lowercased().contains(query)
+  }
+
+  private var showsRecommendedSetup: Bool {
+    matchesSetupSection("recommended", "setup", "path", "current", "next", "SpaceMail", "Gmail", "Google", "credential", "uncertain", "manual refresh")
+  }
+
+  private var showsEditorSafety: Bool {
+    matchesSetupSection("editor", "save", "cancel", "short window", "credential", "password", "secret", "safe setup")
+  }
+
+  private var showsLocalDataSafety: Bool {
+    matchesSetupSection("local", "data", "JSON", "persistence", "backup", "storage", "credentials", "Keychain", "privacy")
+  }
+
+  private var showsSpaceMailSetup: Bool {
+    matchesSetupSection("SpaceMail", "IMAP", "Keychain", "credential", "mixed mailbox", "classifier", "uncertain", "filtered", "real refresh", "mock refresh")
+  }
+
+  private var showsMicrosoftSetup: Bool {
+    matchesSetupSection("Microsoft", "365", "Graph", "OAuth", "MSAL", "mock", "sign in", "mailbox")
+  }
+
+  private var showsGmailSetup: Bool {
+    matchesSetupSection("Gmail", "Google", "Workspace", "OAuth", "labels", "mock", "mailbox", "sign-in", "real refresh", "read-only")
+  }
+
+  private var showsTrackedMailboxes: Bool {
+    matchesSetupSection("tracked", "mailboxes", "mailbox", "email", "placeholder")
+  }
+
+  private var showsShopifySetup: Bool {
+    matchesSetupSection("Shopify", "store", "commerce", "placeholder")
+  }
+
+  private var showsFolderSetup: Bool {
+    matchesSetupSection("watched", "folders", "folder", "local", "placeholder")
+  }
+
+  private var showsSourceConnections: Bool {
+    matchesSetupSection("source", "connections", "accounts", "vendor", "credentials", "reference")
+  }
+
+  private var visibleSetupSectionCount: Int {
+    [
+      showsRecommendedSetup,
+      showsEditorSafety,
+      showsLocalDataSafety,
+      showsSpaceMailSetup,
+      showsMicrosoftSetup,
+      showsGmailSetup,
+      showsTrackedMailboxes,
+      showsShopifySetup,
+      showsFolderSetup,
+      showsSourceConnections
+    ].filter(\.self).count
+  }
+
+  private func focusSetupSection(_ query: String, message: String) {
+    setupSearchText = query
+    setupFeedbackMessage = message
+  }
+
+  private func addOrFocusSpaceMailSetup() {
+    if hasSpaceMailSetup {
+      focusSetupSection("SpaceMail", message: "Showing existing SpaceMail setup. Add another setup only if you are configuring a second IMAP mailbox.")
+    } else {
+      store.addSpaceMailIMAPConnectionPlaceholder()
+      focusSetupSection("SpaceMail", message: "SpaceMail IMAP setup placeholder added locally. Add the Keychain credential before running real manual refresh.")
+    }
+  }
+
+  private func addOrFocusGmailSetup() {
+    if hasGmailSetup {
+      focusSetupSection("Gmail", message: "Showing existing Gmail setup. Add another setup only if you are configuring a second Gmail or Google Workspace mailbox.")
+    } else {
+      store.addGmailMailboxConnectionPlaceholder()
+      focusSetupSection("Gmail", message: "Gmail setup added locally. Save non-secret app details, test Google sign-in, then run manual read-only refresh.")
+    }
+  }
+
+  private func addOrFocusMicrosoft365Setup() {
+    if store.microsoft365MailboxConnections.isEmpty {
+      store.addMicrosoft365MailboxConnectionPlaceholder()
+      focusSetupSection("Microsoft", message: "Microsoft 365 setup placeholder added locally. Graph remains optional; no mailbox fetch starts here.")
+    } else {
+      focusSetupSection("Microsoft", message: "Showing existing Microsoft 365 setup. Keep this as an advanced path unless the mailbox is Microsoft-hosted.")
+    }
+  }
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
+          Text("Local source setup")
+            .font(isCompact ? .title2.bold() : .title.bold())
+          Text("SpaceMail IMAP and Gmail are the current manual read-only mailbox paths. Shopify, folders, logins, and Microsoft 365 remain setup or planning surfaces unless explicitly enabled.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button(hasSpaceMailSetup ? "Show SpaceMail setup" : "SpaceMail IMAP setup", systemImage: "server.rack") {
+              addOrFocusSpaceMailSetup()
+            }
+            Button(store.microsoft365MailboxConnections.isEmpty ? "Microsoft 365 setup" : "Show Microsoft 365 setup", systemImage: "mail.stack.fill") {
+              addOrFocusMicrosoft365Setup()
+            }
+            Button(hasGmailSetup ? "Show Gmail setup" : "Gmail setup", systemImage: "envelope.badge.shield.half.filled") {
+              addOrFocusGmailSetup()
+            }
+            Button("Mailbox setup", systemImage: "envelope.badge.fill") {
+              store.addTrackedMailboxPlaceholder()
+              setupFeedbackMessage = "Mailbox setup placeholder added locally for planning and review."
+            }
+            Button("Shopify planning", systemImage: "cart.badge.plus") {
+              store.connectShopifyPlaceholder()
+              setupFeedbackMessage = "Shopify planning placeholder added locally. No Shopify API or store login was contacted."
+            }
+            Button("Folder setup", systemImage: "folder.badge.plus") {
+              store.addWatchedFolderPlaceholder()
+              setupFeedbackMessage = "Folder setup placeholder added locally. No file picker, folder scan, or background watcher was started."
+            }
+            Button("Login planning", systemImage: "key.fill") {
+              store.addStoreLoginPlaceholder()
+              setupFeedbackMessage = "Login planning placeholder added locally. No credential, password vault, or Keychain item was created."
+            }
+          }
+          if let setupFeedbackMessage {
+            SettingsActionFeedbackPanel(message: setupFeedbackMessage)
+          }
+        }
+
+        ActiveOperatorQueueFocusCard(store: store)
+        PrimaryRouteShortcutGuideCard()
+
+        SettingsPanel(title: "Find setup section", symbol: "magnifyingglass") {
+          VStack(alignment: .leading, spacing: 10) {
+            FilterControlGrid {
+              TextField("Search setup, SpaceMail, JSON, credentials, Microsoft 365, Shopify", text: $setupSearchText)
+                .textFieldStyle(.roundedBorder)
+
+              Button("Clear", systemImage: "xmark.circle") {
+                setupSearchText = ""
+              }
+              .buttonStyle(.bordered)
+              .disabled(normalizedSetupSearch.isEmpty)
+
+              Badge("\(visibleSetupSectionCount) sections", color: visibleSetupSectionCount == 0 ? .orange : .blue)
+            }
+
+            Text("Use this to narrow the setup page. It only changes which local setup sections are visible.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        if visibleSetupSectionCount == 0 {
+          MVPEmptyState(title: "No setup sections match", detail: "Clear the setup search or try SpaceMail, JSON, persistence, Microsoft 365, Shopify, folder, mailbox, credential, or classifier.", symbol: "magnifyingglass")
+        }
+
+        if showsRecommendedSetup {
+          SettingsPanel(title: "Recommended setup path", symbol: "arrow.forward.circle.fill") {
+          VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+              Image(systemName: hasSpaceMailSetup ? "server.rack" : hasGmailSetup ? "envelope.badge.shield.half.filled" : "envelope.badge.fill")
+                .foregroundStyle(recommendedSetupTone)
+                .frame(width: 24)
+              VStack(alignment: .leading, spacing: 4) {
+                Text(recommendedSetupTitle)
+                  .font(.headline)
+                Text(recommendedSetupDetail)
+                  .font(.subheadline)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              Spacer()
+              Badge(hasSpaceMailSetup ? "SpaceMail" : hasGmailSetup ? "Gmail" : "Setup needed", color: recommendedSetupTone)
+            }
+
+            MetricStrip(items: [
+              ("SpaceMail", hasSpaceMailSetup ? "Configured" : "Not set", hasSpaceMailSetup ? .green : hasGmailSetup ? .secondary : .orange),
+              ("Credential", hasSpaceMailCredentialReference ? "Keychain" : hasSpaceMailSetup ? "Needed" : "N/A", hasSpaceMailCredentialReference ? .green : hasSpaceMailSetup ? .orange : .secondary),
+              ("Gmail", hasGmailSetup ? "Configured" : "Not set", hasGmailSetup ? .green : .secondary),
+              ("Google sign-in", hasGmailConnectedAuth ? "Connected" : hasGmailSetup ? "Needed" : "N/A", hasGmailConnectedAuth ? .green : hasGmailSetup ? .orange : .secondary),
+              ("Fetched", "\(store.latestMailboxFetchedCount)", .blue),
+              ("Imported", "\(store.latestMailboxImportedCount)", (store.latestMailboxImportedCount) > 0 ? .green : .secondary),
+              ("Uncertain", "\(store.latestMailboxUncertainCount)", ((store.latestMailboxUncertainCount) > 0) ? .orange : .secondary)
+            ])
+
+            if hasGmailSetup {
+              HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "envelope.badge.shield.half.filled")
+                  .foregroundStyle(gmailLatestOutcomeColor)
+                  .frame(width: 22)
+                VStack(alignment: .leading, spacing: 4) {
+                  Text(gmailLatestOutcomeTitle)
+                    .font(.subheadline.weight(.semibold))
+                  Text(gmailLatestOutcomeDetail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                  Text("Next: \(gmailLatestOutcomeNextAction)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(gmailLatestOutcomeColor)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Badge(latestGmailSummary?.primaryOutcomeStatus ?? "No refresh", color: gmailLatestOutcomeColor)
+              }
+              .padding(10)
+              .background(gmailLatestOutcomeColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+              Label("Choose the mailbox provider path", systemImage: "point.3.connected.trianglepath.dotted")
+                .font(.subheadline.weight(.semibold))
+              Text("Use one provider path per mailbox. SpaceMail/IMAP and Gmail are the practical daily paths; Microsoft 365 remains available only when a mailbox is actually hosted there.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              ForEach(providerChoiceRows, id: \.title) { row in
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: row.symbol)
+                    .foregroundStyle(row.color)
+                    .frame(width: 22)
+                  VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 8) {
+                      Text(row.title)
+                        .font(.caption.weight(.semibold))
+                      Badge(row.status, color: row.color)
+                    }
+                    Text(row.detail)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                  Spacer(minLength: 0)
+                }
+              }
+            }
+            .padding(10)
+            .background(.background, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+
+            if hasGmailSetup {
+              VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: "envelope.badge.shield.half.filled")
+                    .foregroundStyle(gmailSetupBlockerCount == 0 && gmailCompiledCallbackBlockerCount == 0 ? .green : .orange)
+                    .frame(width: 22)
+                  VStack(alignment: .leading, spacing: 4) {
+                    Text("Gmail real-refresh readiness")
+                      .font(.subheadline.weight(.semibold))
+                    Text("This summarizes the saved Gmail setup records against the compiled app callback values before anyone tries sign-in or refresh.")
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                  Spacer()
+                  Badge(gmailReadySetupCount == store.gmailMailboxConnections.count ? "Ready" : "Check setup", color: gmailReadySetupCount == store.gmailMailboxConnections.count ? .green : .orange)
+                }
+
+                CompactMetadataGrid(minimumWidth: 145) {
+                  Badge("\(gmailReadySetupCount) ready", color: gmailReadySetupCount > 0 ? .green : .secondary)
+                  Badge("\(gmailSetupBlockerCount) setup blockers", color: gmailSetupBlockerCount == 0 ? .green : .orange)
+                  Badge("\(gmailCompiledCallbackBlockerCount) callback blockers", color: gmailCompiledCallbackBlockerCount == 0 ? .green : .orange)
+                  Badge("\(gmailProviderFitAttentionCount) host checks", color: gmailProviderFitAttentionCount == 0 ? .green : .teal)
+                  Badge(hasGmailConnectedAuth ? "Google signed in" : "Sign-in needed", color: hasGmailConnectedAuth ? .green : .orange)
+                }
+
+                Text("Next: \(gmailSetupNextAction)")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(gmailSetupBlockerCount == 0 && gmailCompiledCallbackBlockerCount == 0 ? .teal : .orange)
+                  .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(gmailReadinessBlockerDetails.prefix(4), id: \.self) { detail in
+                  Label(detail, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(10)
+              .background((gmailSetupBlockerCount == 0 && gmailCompiledCallbackBlockerCount == 0 ? Color.green : Color.orange).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            SpaceMailPrimaryStatusStrip(store: store, title: "Current mailbox intake", showTitle: true)
+
+            SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
+            SpaceMailQACheckCard(summary: store.liveMailboxQACheckSummary)
+            MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
+
+            Text("Advanced providers stay available below, but they should not be treated as the daily mailbox path unless the project explicitly switches the active mailbox intake provider.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            MailboxProviderOperatorReadinessStack(
+              store: store,
+              title: "Provider readiness for setup decisions",
+              detail: "Use this shared summary to choose the current live mailbox path. Open advanced evidence only when setup, release gates, Gmail, SpaceMail, or parser behavior needs investigation.",
+              showHandoffPacket: true
+            )
+
+            CompactActionRow {
+              Button("Create provider handoff", systemImage: "arrow.left.arrow.right.square.fill") {
+                store.createHandoffNoteFromMailboxProviderHandoffPacket()
+                setupFeedbackMessage = "Mailbox provider handoff note created or refreshed. Check Handoff Notes."
+              }
+              NavigationLink {
+                MailboxView(store: store)
+              } label: {
+                Label("Open Mailbox Monitor", systemImage: "server.rack")
+              }
+              NavigationLink {
+                InboxView(store: store)
+              } label: {
+                Label("Open Inbox", systemImage: "tray.full.fill")
+              }
+              NavigationLink {
+                HandoffNotesView(store: store)
+              } label: {
+                Label("Open Handoff Notes", systemImage: "arrow.left.arrow.right.square.fill")
+              }
+              NavigationLink {
+                AuditView(store: store)
+              } label: {
+                Label("Open Audit", systemImage: "list.clipboard.fill")
+              }
+            }
+            .buttonStyle(.bordered)
+
+            SettingsReleaseCandidateCard(store: store)
+          }
+        }
+        }
+
+        if showsLocalDataSafety {
+          SettingsPanel(title: "Local data and privacy", symbol: "internaldrive.fill") {
+            Text("Use this section when checking where the MVP stores local records, what is deliberately excluded from JSON, and how to reason about manual test backups.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            LocalDataSafetyCard(store: store, compact: isCompact)
+
+            Text("This is a read-only support view. It does not export files, open a file picker, sync to cloud, read Keychain passwords, change JSON contents, or mutate mailbox messages.")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        if showsEditorSafety {
+          SettingsPanel(title: "Setup editor safety", symbol: "rectangle.and.pencil.and.ellipsis") {
+            VStack(alignment: .leading, spacing: 12) {
+              Text("SpaceMail and Microsoft setup editors are for non-secret configuration only. Their forms scroll, and Save/Cancel stay pinned at the bottom of the sheet so they remain reachable on shorter windows.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
+                SetupEditorSafetyItem(
+                  title: "Non-secret setup",
+                  detail: "Use setup editors for mailbox address, host, folder, mode, planning notes, and classifier hints.",
+                  symbol: "doc.text.magnifyingglass",
+                  color: .blue
+                )
+                SetupEditorSafetyItem(
+                  title: "Credential prompts only",
+                  detail: "SpaceMail passwords or app passwords belong in the secure credential action, not setup notes or JSON-backed fields.",
+                  symbol: "lock.shield.fill",
+                  color: .green
+                )
+                SetupEditorSafetyItem(
+                  title: "Pinned actions",
+                  detail: "If the sheet is taller than the screen, scroll the form; Save and Cancel should remain visible at the bottom.",
+                  symbol: "arrow.down.to.line.compact",
+                  color: .teal
+                )
+                SetupEditorSafetyItem(
+                  title: "No mailbox mutation",
+                  detail: "Editing setup does not fetch mail, start background sync, mark read, delete, move, send, or modify mailbox items.",
+                  symbol: "envelope.badge.shield.half.filled",
+                  color: .orange
+                )
+              }
+
+              Text("If Save is not visible after opening a setup editor, that is a layout bug. The intended behavior is a scrollable form with a fixed bottom action bar.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+
+        if showsSpaceMailSetup {
+          SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
+          Text("Use this as the current mailbox path for SpaceMail. This section stores non-secret IMAP setup fields, manages the password/app-password in Keychain, and keeps mock refresh separate from the real manual refresh boundary.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          Text("Do not enter passwords here. No password, app password, auth string, or Keychain item is stored in JSON or audit logs.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          SpaceMailOperatorGuidanceStack(store: store)
+          CompactActionRow {
+            Button(store.spaceMailIMAPConnections.isEmpty ? "Add SpaceMail setup" : "Show existing SpaceMail setup", systemImage: store.spaceMailIMAPConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
+              addOrFocusSpaceMailSetup()
+            }
+            .buttonStyle(.bordered)
+            Badge("\(store.spaceMailIMAPConnections.count) setup records", color: .blue)
+          }
+          if store.spaceMailIMAPConnections.isEmpty {
+            MVPEmptyState(title: "No SpaceMail IMAP setup", detail: "Add a SpaceMail setup to capture host, port, folder, mixed-mailbox mode, and Keychain credential status before manual refresh.", symbol: "server.rack")
+          }
+          ForEach(store.spaceMailIMAPConnections) { connection in
+            SpaceMailIMAPConnectionRow(
+              connection: connection,
+              healthSummary: store.spaceMailIntakeHealthSummary(for: connection),
+              assignedFollowUpSummaries: store.spaceMailAssignedFollowUpSummaries(for: connection),
+              classifierImpactPreviews: store.spaceMailClassifierImpactPreviews(for: connection)
+            ) { updatedConnection in
+              store.updateSpaceMailIMAPConnection(updatedConnection)
+            } onReviewed: {
+              store.markSpaceMailIMAPConnectionReviewed(connection)
+            } onMockRefresh: {
+              store.importMockSpaceMailIMAPMessages(for: connection)
+            } onRealRefresh: {
+              store.importRealSpaceMailIMAPMessages(for: connection)
+            } onImportUncertain: { uncertainMessage in
+              store.importUncertainSpaceMailMessage(uncertainMessage, for: connection)
+            } onDismissUncertain: { uncertainMessage in
+              store.dismissUncertainSpaceMailMessage(uncertainMessage, for: connection)
+            } onImportFiltered: { filteredMessage in
+              store.importFilteredSpaceMailMessage(filteredMessage, for: connection)
+            } onDismissFiltered: { filteredMessage in
+              store.dismissFilteredSpaceMailMessage(filteredMessage, for: connection)
+            } onPromoteFiltered: { filteredMessage in
+              store.promoteFilteredSpaceMailMessageToUncertain(filteredMessage, for: connection)
+            } onDismissAllUncertain: {
+              store.dismissAllUncertainSpaceMailMessages(for: connection)
+            } onDismissAllFiltered: {
+              store.dismissAllFilteredSpaceMailMessages(for: connection)
+            } onCreateTasksForAllUncertain: {
+              store.createReviewTasksForAllUncertainSpaceMailMessages(for: connection)
+            } onTaskFromUncertain: { uncertainMessage in
+              store.createReviewTask(from: uncertainMessage, connection: connection)
+            } onDraftFromUncertain: { uncertainMessage in
+              store.createDraftMessage(from: uncertainMessage, connection: connection)
+            } onTaskFromFiltered: { filteredMessage in
+              store.createReviewTask(from: filteredMessage, connection: connection)
+            } onDraftFromFiltered: { filteredMessage in
+              store.createDraftMessage(from: filteredMessage, connection: connection)
+            } onAddUncertainHint: { uncertainMessage, target in
+              store.addSpaceMailHintFromUncertain(uncertainMessage, target: target, for: connection)
+            } onAddFilteredHint: { filteredMessage, target in
+              store.addSpaceMailHintFromFiltered(filteredMessage, target: target, for: connection)
+            } onTestClassifier: {
+              store.testSpaceMailAmbiguousClassifier(for: connection)
+            } onAddDemoUncertain: {
+              store.addSpaceMailDemoUncertainMessage(for: connection)
+            } onTestCustomClassifier: { sender, subject, preview in
+              store.testSpaceMailCustomClassifier(for: connection, sender: sender, subject: subject, preview: preview)
+            } onRunClassifierSuite: {
+              store.runSpaceMailClassifierTestSuite(for: connection)
+            } onApplyFilterPreset: { preset in
+              store.applySpaceMailFilterPreset(preset, to: connection)
+            } onSaveCredential: { password in
+              store.saveSpaceMailCredential(password, for: connection)
+            } onCheckCredential: {
+              store.checkSpaceMailCredential(connection)
+            } onClearCredential: {
+              store.clearSpaceMailCredential(connection)
+            } onCredentialReady: {
+              store.simulateSpaceMailCredentialReady(connection)
+            } onCredentialMissing: {
+              store.simulateSpaceMailCredentialMissing(connection)
+            } onCredentialError: {
+              store.simulateSpaceMailCredentialStorageError(connection)
+            } onCredentialClear: {
+              store.simulateSpaceMailCredentialClear(connection)
+            } onCreateShiftHandoff: {
+              store.createSpaceMailShiftHandoffNote(for: connection)
+            } onCreateShiftTask: {
+              store.createSpaceMailShiftReviewTask(for: connection)
+            } onCreateLatestRefreshTask: {
+              store.createSpaceMailLatestRefreshReviewTask(for: connection)
+            } onCreateParserQATask: {
+              store.createSpaceMailParserQAReviewTask(for: connection)
+            } onRemove: {
+              store.removeSpaceMailIMAPConnection(connection)
+            }
+          }
+        }
+        }
+
+        if showsGmailSetup {
+          SettingsPanel(title: "Gmail mailbox setup", symbol: "envelope.badge.shield.half.filled") {
+          Text("Use this for Gmail or Google Workspace mailboxes that feed the same Inbox intake path. Mock refresh remains available; real Gmail refresh is manual, read-only, and separate from sign-in.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          GmailIntakeFoundationCard()
+          GmailGoogleCloudSetupGuide()
+          MailboxGmailReadinessPanel(store: store)
+          SettingsGmailManualRunbookPanel(store: store)
+          CompactActionRow {
+            Button(store.gmailMailboxConnections.isEmpty ? "Add Gmail setup" : "Show existing Gmail setup", systemImage: store.gmailMailboxConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
+              addOrFocusGmailSetup()
+            }
+            .buttonStyle(.bordered)
+            Badge("\(store.gmailMailboxConnections.count) setup records", color: .teal)
+          }
+          if store.gmailMailboxConnections.isEmpty {
+            MVPEmptyState(title: "No Gmail setup", detail: "Add a Gmail setup record to capture email address, labels, mixed-mailbox mode, OAuth app notes, and real/manual refresh readiness.", symbol: "envelope.badge.shield.half.filled")
+          }
+          if !store.gmailMailboxConnections.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+              Label("Gmail release readiness", systemImage: "checkmark.seal.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              ForEach(store.gmailMailboxConnections) { connection in
+                GmailReleaseSelfCheckSummaryCard(summary: store.gmailReleaseSelfCheckSummary(for: connection))
+              }
+            }
+            MailboxReleaseBlockerCard(summary: store.gmailReleaseBlockerSummary)
+          }
+          ForEach(store.gmailMailboxConnections) { connection in
+            GmailMailboxConnectionRow(
+              connection: connection,
+              readiness: store.gmailOAuthReadinessSummary(for: connection),
+              implementationPlan: store.gmailOAuthImplementationPlan(for: connection),
+              setupTestChecklist: store.gmailSetupTestChecklist(for: connection),
+              releaseSelfCheck: store.gmailReleaseSelfCheckSummary(for: connection),
+              labelReadiness: store.gmailLabelReadinessSummary(for: connection),
+              authState: store.gmailAuthSessionState(for: connection),
+              activeRefreshTask: store.activeGmailLatestRefreshTask(for: connection)
+            ) { updatedConnection in
+              store.updateGmailMailboxConnection(updatedConnection)
+            } onReviewed: {
+              store.markGmailMailboxConnectionReviewed(connection)
+            } onMarkHostVerified: {
+              store.markGmailProviderHostVerified(connection)
+            } onResetHostVerification: {
+              store.resetGmailProviderHostVerification(connection)
+            } onMockRefresh: {
+              store.importMockGmailMessages(for: connection)
+            } onRealReadinessCheck: {
+              store.checkRealGmailReadiness(for: connection)
+            } onRealRefresh: {
+              store.importRealGmailMessages(for: connection)
+            } onRealAuthReadinessCheck: {
+              store.testRealGmailSignIn(connection)
+            } onMockAuthConnect: {
+              store.connectGmailAuthMock(connection)
+            } onMockAuthFailure: {
+              store.simulateGmailAuthFailure(connection)
+            } onTokenStoreReady: {
+              store.simulateGmailTokenStoreReady(connection)
+            } onTokenMissing: {
+              store.simulateGmailTokenMissing(connection)
+            } onTokenStorageError: {
+              store.simulateGmailTokenStorageError(connection)
+            } onTokenClear: {
+              store.simulateGmailTokenClear(connection)
+            } onReviewPlan: {
+              store.markGmailOAuthImplementationPlanReviewed(connection)
+            } onCreatePlanTask: {
+              store.createReviewTaskFromGmailOAuthPlan(connection)
+            } onCreateReleaseTask: {
+              store.createReviewTaskFromGmailReleaseSelfCheck(connection)
+            } onCreateRefreshTask: {
+              store.createReviewTaskFromGmailLatestRefresh(connection)
+            } onImportUncertain: { message in
+              store.importUncertainGmailMessage(message, for: connection)
+            } onDismissUncertain: { message in
+              store.dismissUncertainGmailMessage(message, for: connection)
+            } onDismissAllUncertain: {
+              store.dismissAllUncertainGmailMessages(for: connection)
+            } onDismissAllFiltered: {
+              store.dismissAllFilteredGmailMessages(for: connection)
+            } onCreateTasksForAllUncertain: {
+              store.createReviewTasksForAllUncertainGmailMessages(for: connection)
+            } onCreateUncertainTask: { message in
+              store.createReviewTask(from: message, connection: connection, reviewQueue: "uncertain")
+            } onCreateUncertainDraft: { message in
+              store.createDraftMessage(from: message, connection: connection, reviewQueue: "uncertain")
+            } onTrustUncertainSender: { message in
+              store.addGmailHintFromUncertain(message, target: .trustedSender, for: connection)
+            } onImportUncertainHint: { message in
+              store.addGmailHintFromUncertain(message, target: .importKeyword, for: connection)
+            } onFilterUncertainHint: { message in
+              store.addGmailHintFromUncertain(message, target: .filterKeyword, for: connection)
+            } onImportFiltered: { message in
+              store.importFilteredGmailMessage(message, for: connection)
+            } onDismissFiltered: { message in
+              store.dismissFilteredGmailMessage(message, for: connection)
+            } onPromoteFiltered: { message in
+              store.promoteFilteredGmailMessageToUncertain(message, for: connection)
+            } onCreateFilteredTask: { message in
+              store.createReviewTask(from: message, connection: connection, reviewQueue: "filtered")
+            } onCreateFilteredDraft: { message in
+              store.createDraftMessage(from: message, connection: connection, reviewQueue: "filtered")
+            } onTrustFilteredSender: { message in
+              store.addGmailHintFromFiltered(message, target: .trustedSender, for: connection)
+            } onImportFilteredHint: { message in
+              store.addGmailHintFromFiltered(message, target: .importKeyword, for: connection)
+            } onFilterFilteredHint: { message in
+              store.addGmailHintFromFiltered(message, target: .filterKeyword, for: connection)
+            } onTestClassifier: {
+              store.testGmailAmbiguousClassifier(for: connection)
+            } onAddDemoUncertain: {
+              store.addGmailDemoUncertainMessage(for: connection)
+            } onTestCustomClassifier: { sender, subject, preview in
+              store.testGmailCustomClassifier(for: connection, sender: sender, subject: subject, preview: preview)
+            } onRunClassifierSuite: {
+              store.runGmailClassifierTestSuite(for: connection)
+            } onRemove: {
+              store.removeGmailMailboxConnection(connection)
+            }
+          }
+        }
+        }
+
+        if showsMicrosoftSetup {
+          SettingsPanel(title: "Microsoft 365 mailbox setup", symbol: "mail.stack.fill") {
+          Text("Use Microsoft 365 when the active mailbox is hosted by Outlook or Microsoft 365. Real Graph refresh remains explicit, manual, read-only, and separate from SpaceMail and Gmail.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          Microsoft365SetupFlowGuide()
+          CompactActionRow {
+            Button(store.microsoft365MailboxConnections.isEmpty ? "Add mailbox setup" : "Show Microsoft 365 setup", systemImage: store.microsoft365MailboxConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
+              addOrFocusMicrosoft365Setup()
+            }
+            .buttonStyle(.bordered)
+            Badge("\(store.microsoft365MailboxConnections.count) setup records", color: .orange)
+          }
+          if store.microsoft365MailboxConnections.isEmpty {
+            MVPEmptyState(title: "No Microsoft 365 mailbox setup", detail: "Add a setup record to capture the mailbox address, OAuth planning notes, and mock refresh setup before real authentication is used.", symbol: "mail.stack")
+          }
+          ForEach(store.microsoft365MailboxConnections) { connection in
+            Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection), authState: store.microsoft365AuthSessionState(for: connection)) { updatedConnection in
+              store.updateMicrosoft365MailboxConnection(updatedConnection)
+            } onReadyForReview: {
+              store.markMicrosoft365MailboxConnectionReadyForReview(connection)
+            } onMockAuthConnect: {
+              store.connectMicrosoft365AuthMock(connection)
+            } onMockAuthFailure: {
+              store.simulateMicrosoft365AuthFailure(connection)
+            } onRealAuthConnect: {
+              store.connectMicrosoft365AuthReal(connection)
+            } onTokenStoreReady: {
+              store.simulateMicrosoft365TokenStoreReady(connection)
+            } onTokenMissing: {
+              store.simulateMicrosoft365TokenMissing(connection)
+            } onTokenStorageError: {
+              store.simulateMicrosoft365TokenStorageError(connection)
+            } onTokenClear: {
+              store.simulateMicrosoft365TokenClear(connection)
+            } onSimulatedRefresh: {
+              store.importSimulatedFetchedMailboxMessages(for: connection)
+            } onRealGraphRefresh: {
+              store.importRealMicrosoftGraphMailboxMessages(for: connection)
+            } onReviewOAuth: {
+              store.markMicrosoft365OAuthSetupReviewed(connection)
+            } onResetOAuth: {
+              store.resetMicrosoft365OAuthReadiness(connection)
+            } onReviewImplementationPlan: {
+              store.markMicrosoft365OAuthImplementationPlanReviewed(connection)
+            } onCreatePlanTask: {
+              store.createReviewTaskFromMicrosoft365OAuthPlan(connection)
+            } onRemove: {
+              store.removeMicrosoft365MailboxConnection(connection)
+            }
+          }
+        }
+        }
+
+        if showsTrackedMailboxes {
+          SettingsPanel(title: "Tracked mailboxes", symbol: "envelope.badge.fill") {
+          ForEach(store.mailboxes) { mailbox in
+            MailboxConnectionRow(mailbox: mailbox) {
+              store.markTrackedMailboxPlaceholderReviewed(mailbox)
+            } onRemove: {
+              store.removeTrackedMailboxPlaceholder(mailbox)
+            }
+          }
+        }
+        }
+        if showsShopifySetup {
+          SettingsPanel(title: "Shopify stores", symbol: "cart.badge.plus") {
+          ForEach(store.shopifyConnections) { connection in
+            ShopifyConnectionRow(connection: connection, suggestedAccounts: store.suggestedAccounts(for: connection), suggestedProfiles: store.suggestedVendorProfiles(for: connection)) {
+              store.addAccountCredentialRecord(linkedEntityType: .shopifyStore, linkedEntityID: connection.id.uuidString, organisation: connection.storeName, label: connection.storeName)
+            } onTaskFromAccount: { account in
+              store.createReviewTask(from: account)
+            } onDraftFromAccount: { account in
+              store.createDraftMessage(from: account)
+            } onCreateProfile: {
+              store.addVendorProfile(profileType: .shopifyStore, organisation: connection.storeName, label: connection.storeName)
+            } onTaskFromProfile: { profile in
+              store.createReviewTask(from: profile)
+            } onDraftFromProfile: { profile in
+              store.createDraftMessage(from: profile)
+            } onReviewed: {
+              store.markShopifyPlaceholderReviewed(connection)
+            } onRemove: {
+              store.removeShopifyPlaceholder(connection)
+            }
+          }
+        }
+        }
+        if showsFolderSetup {
+          SettingsPanel(title: "Watched folders", symbol: "folder.fill.badge.gearshape") {
+          ForEach(store.watchedFolders) { folder in
+            WatchedFolderRow(folder: folder) {
+              store.markWatchedFolderPlaceholderReviewed(folder)
+            } onRemove: {
+              store.removeWatchedFolderPlaceholder(folder)
+            }
+          }
+        }
+        }
+        if showsSourceConnections {
+          ForEach(store.connections) { connection in
+            SourceConnectionRow(connection: connection, suggestedAccounts: store.suggestedAccounts(for: connection), suggestedProfiles: store.suggestedVendorProfiles(for: connection)) {
+              store.addAccountCredentialRecord(linkedEntityType: .sourceConnection, linkedEntityID: connection.id.uuidString, organisation: connection.name, label: connection.name)
+            } onTaskFromAccount: { account in
+              store.createReviewTask(from: account)
+            } onDraftFromAccount: { account in
+              store.createDraftMessage(from: account)
+            } onCreateProfile: {
+              store.addVendorProfile(profileType: .supplier, organisation: connection.name, label: connection.name)
+            } onTaskFromProfile: { profile in
+              store.createReviewTask(from: profile)
+            } onDraftFromProfile: { profile in
+              store.createDraftMessage(from: profile)
+            } onReviewed: {
+              store.markStoreLoginPlaceholderReviewed(connection)
+            } onRemove: {
+              store.removeStoreLoginPlaceholder(connection)
+            }
+          }
+        }
+      }
+      .padding(isCompact ? 14 : 24)
+    }
+  }
+}
+
+struct SetupEditorSafetyItem: View {
+  var title: String
+  var detail: String
+  var symbol: String
+  var color: Color
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct Microsoft365SetupFlowGuide: View {
+  private let steps: [(String, String, String)] = [
+    ("1", "Set up mailbox record", "Record the mailbox address, tenant hint, folders, and local setup notes."),
+    ("2", "Prepare OAuth planning fields", "Capture non-secret tenant, client, redirect, scope, and consent planning details."),
+    ("3", "Review implementation checklist", "Confirm the plan for app registration, consent, token storage, refresh, errors, and audit."),
+    ("4", "Run mock Graph test", "Import deterministic sample messages through the provider-neutral intake path."),
+    ("5", "Review imported intake", "Open Inbox or Mailbox Monitor and accept, ignore, review, task, or draft from local records."),
+    ("6", "Check Audit and Tasks", "Confirm local actions were logged and follow-up work was created where needed.")
+  ]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Label("Local setup flow", systemImage: "list.number")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
+        ForEach(steps, id: \.0) { step in
+          HStack(alignment: .top, spacing: 10) {
+            Text(step.0)
+              .font(.caption.weight(.bold))
+              .foregroundStyle(.blue)
+              .frame(width: 24, height: 24)
+              .background(.blue.opacity(0.12))
+              .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 3) {
+              Text(step.1)
+                .font(.caption.weight(.semibold))
+              Text(step.2)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+      }
+      Text("Local-only boundary: OAuth, browser sign-in, token exchange, Keychain, Microsoft Graph network calls, real mailbox access, background sync, and notifications are not active.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct Microsoft365MailboxConnectionRow: View {
+  var connection: Microsoft365MailboxConnection
+  var readiness: Microsoft365OAuthReadinessSummary
+  var implementationPlan: Microsoft365OAuthImplementationPlan
+  var authState: Microsoft365AuthSessionState
+  var onSave: (Microsoft365MailboxConnection) -> Void
+  var onReadyForReview: () -> Void
+  var onMockAuthConnect: () -> Void
+  var onMockAuthFailure: () -> Void
+  var onRealAuthConnect: () -> Void
+  var onTokenStoreReady: () -> Void
+  var onTokenMissing: () -> Void
+  var onTokenStorageError: () -> Void
+  var onTokenClear: () -> Void
+  var onSimulatedRefresh: () -> Void
+  var onRealGraphRefresh: () -> Void
+  var onReviewOAuth: () -> Void
+  var onResetOAuth: () -> Void
+  var onReviewImplementationPlan: () -> Void
+  var onCreatePlanTask: () -> Void
+  var onRemove: () -> Void
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var isEditing = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "mail.stack.fill")
+          .foregroundStyle(.blue)
+          .frame(width: 28)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(connection.displayName)
+            .font(.headline)
+          Text(connection.mailboxAddress)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text("\(connection.tenantDomainHint) • \(connection.monitoredFolderNames)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text(connection.setupNotes)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Label(readiness.statusText, systemImage: readiness.isReady ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(readiness.isReady ? .green : .orange)
+          if !readiness.missingFields.isEmpty {
+            Text(readiness.detailText)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
+          Label(implementationPlan.statusText, systemImage: "list.clipboard.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.blue)
+        }
+        Spacer()
+        VStack(alignment: .trailing, spacing: 4) {
+          Badge(connection.reviewState.rawValue, color: connection.reviewState.color)
+          Text(connection.connectionStatus)
+            .font(.caption.weight(.semibold))
+            .multilineTextAlignment(.trailing)
+          Text("Refresh: \(connection.lastManualRefreshDate)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+      }
+
+      Text("Mock Graph refresh remains available for local checks. Real Graph refresh is manual, read-only, and imports only message previews after Microsoft sign-in and Mail.Read consent.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      microsoftGraphRefreshSummary
+      Microsoft365AuthStateSection(authState: authState)
+      Microsoft365RealSignInChecklist(connection: connection, readiness: readiness)
+
+      VStack(alignment: .leading, spacing: 6) {
+        Label("OAuth readiness and implementation checklist", systemImage: "checklist")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text("Use this as a planning review before real Microsoft authentication work starts.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+        ForEach(implementationPlan.items) { item in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
+              .foregroundStyle(item.isComplete ? .green : .secondary)
+              .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(item.title)
+                .font(.caption.weight(.semibold))
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        ActionGroupHeader(title: "Microsoft sign-in boundary", symbol: "person.badge.key.fill")
+        Text("Use real sign-in only after the checklist is ready. If signing, consent, or Keychain cache setup blocks the flow, use mock auth and Mock Graph refresh to keep intake review moving.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+        CompactActionRow {
+          Button("Test real Microsoft sign-in", systemImage: "person.crop.circle.badge.checkmark", action: onRealAuthConnect)
+            .buttonStyle(.borderedProminent)
+          Button("Use mock Microsoft auth", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
+            .buttonStyle(.bordered)
+          Button("Mock auth failure", systemImage: "xmark.octagon", action: onMockAuthFailure)
+            .buttonStyle(.bordered)
+        }
+        ActionGroupHeader(title: "Token storage planning", symbol: "key.fill")
+        CompactActionRow {
+          Button("Mock token ready", systemImage: "checkmark.seal", action: onTokenStoreReady)
+            .buttonStyle(.bordered)
+          Button("Token missing", systemImage: "exclamationmark.triangle", action: onTokenMissing)
+            .buttonStyle(.bordered)
+          Button("Storage error", systemImage: "xmark.octagon", action: onTokenStorageError)
+            .buttonStyle(.bordered)
+          Button("Clear token ref", systemImage: "trash", action: onTokenClear)
+            .buttonStyle(.bordered)
+        }
+        ActionGroupHeader(title: "Setup and mock refresh", symbol: "mail.and.text.magnifyingglass")
+        CompactActionRow {
+          Button("Edit setup", systemImage: "pencil") {
+            isEditing = true
+          }
+          .buttonStyle(.bordered)
+          Button("Ready for review", systemImage: "checkmark.shield.fill", action: onReadyForReview)
+            .buttonStyle(.bordered)
+          Button("Run mock Graph refresh", systemImage: "tray.and.arrow.down.fill", action: onSimulatedRefresh)
+            .buttonStyle(.borderedProminent)
+        }
+        ActionGroupHeader(title: "Real mailbox read", symbol: "envelope.open.fill")
+        Text("Manual read-only refresh: requests User.Read and Mail.Read, fetches at most 10 message previews from the configured folder, then imports through the existing duplicate-safe intake path.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+        CompactActionRow {
+          Button("Run real Graph refresh", systemImage: "arrow.down.message.fill", action: onRealGraphRefresh)
+            .buttonStyle(.bordered)
+            .disabled(authState.status != .connected)
+        }
+        Text(realGraphActionHint)
+          .font(.caption2)
+          .foregroundStyle(realGraphActionHintColor)
+        ActionGroupHeader(title: "OAuth planning", symbol: "list.clipboard.fill")
+        CompactActionRow {
+          Button("Review OAuth setup", systemImage: "checkmark.seal", action: onReviewOAuth)
+            .buttonStyle(.bordered)
+          Button("Review plan", systemImage: "list.clipboard.fill", action: onReviewImplementationPlan)
+            .buttonStyle(.bordered)
+          Button("Create plan task", systemImage: "checklist", action: onCreatePlanTask)
+            .buttonStyle(.bordered)
+        }
+        ActionGroupHeader(title: "Maintenance", symbol: "wrench.and.screwdriver.fill")
+        CompactActionRow {
+          Button("Reset OAuth placeholders", systemImage: "arrow.counterclockwise", action: onResetOAuth)
+            .buttonStyle(.bordered)
+          Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+            .buttonStyle(.bordered)
+        }
+      }
+    }
+    .padding(10)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .sheet(isPresented: $isEditing) {
+      Microsoft365MailboxConnectionEditor(connection: connection, implementationPlan: implementationPlan) { updatedConnection in
+        onSave(updatedConnection)
+        isEditing = false
+      }
+      .presentationDetents(horizontalSizeClass == .compact ? [.large] : [.medium, .large])
+    }
+  }
+
+  private var microsoftGraphRefreshSummary: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Label("Mailbox refresh status", systemImage: refreshStatusIcon)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(refreshStatusColor)
+      Text(refreshStatusSummary)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+      Text(refreshStatusDetail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(refreshStatusColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var refreshStatusSummary: String {
+    let status = connection.connectionStatus
+    if status.localizedCaseInsensitiveContains("Real Graph: Success") {
+      return "Real Graph refresh completed. New message previews, if any, were imported into Inbox through duplicate-safe intake."
+    }
+    if status.localizedCaseInsensitiveContains("Real Graph: Duplicate skipped") {
+      return "Real Graph refresh completed and only found messages ParcelOps had already captured."
+    }
+    if status.localizedCaseInsensitiveContains("Mock Graph") {
+      return "Last refresh used the local Mock Graph path, not Microsoft Graph."
+    }
+    if status.localizedCaseInsensitiveContains("Consent required") {
+      return "Mail.Read consent or tenant policy needs attention before real Graph refresh can read message previews."
+    }
+    if status.localizedCaseInsensitiveContains("Folder not found") {
+      return "The configured folder was not found. Check the first monitored folder name, or use Inbox."
+    }
+    if status.localizedCaseInsensitiveContains("Auth required") {
+      return "Real Graph refresh needs a successful Microsoft sign-in before it can request Mail.Read."
+    }
+    if authState.status == .connected {
+      return "Microsoft sign-in is connected. Real Graph refresh is ready for a manual read-only check."
+    }
+    return "Connect Microsoft 365 before running a real Graph refresh, or use Mock Graph refresh for local review."
+  }
+
+  private var refreshStatusDetail: String {
+    "Last refresh: \(connection.lastManualRefreshDate). Current status: \(connection.connectionStatus). Mock refresh and real Graph refresh are separate actions."
+  }
+
+  private var refreshStatusIcon: String {
+    let status = connection.connectionStatus
+    if status.localizedCaseInsensitiveContains("Success") { return "checkmark.seal.fill" }
+    if status.localizedCaseInsensitiveContains("Duplicate skipped") { return "doc.on.doc.fill" }
+    if status.localizedCaseInsensitiveContains("Consent required") || status.localizedCaseInsensitiveContains("Folder not found") || status.localizedCaseInsensitiveContains("Auth required") {
+      return "exclamationmark.triangle.fill"
+    }
+    if status.localizedCaseInsensitiveContains("Mock Graph") { return "testtube.2" }
+    return authState.status == .connected ? "envelope.open.fill" : "mail.stack.fill"
+  }
+
+  private var refreshStatusColor: Color {
+    let status = connection.connectionStatus
+    if status.localizedCaseInsensitiveContains("Success") { return .green }
+    if status.localizedCaseInsensitiveContains("Duplicate skipped") { return .blue }
+    if status.localizedCaseInsensitiveContains("Consent required") || status.localizedCaseInsensitiveContains("Folder not found") || status.localizedCaseInsensitiveContains("Auth required") {
+      return .orange
+    }
+    if status.localizedCaseInsensitiveContains("Mock Graph") { return .purple }
+    return authState.status == .connected ? .teal : .secondary
+  }
+
+  private var realGraphActionHint: String {
+    authState.status == .connected
+      ? "This reads message previews only. It will not delete, move, mark read, send, or change mailbox messages."
+      : "Real Graph refresh is disabled until real Microsoft sign-in succeeds. Mock Graph refresh remains available."
+  }
+
+  private var realGraphActionHintColor: Color {
+    authState.status == .connected ? .secondary : .orange
+  }
+}
+
+struct Microsoft365AuthStateSection: View {
+  var authState: Microsoft365AuthSessionState
+
+  private var statusColor: Color {
+    switch authState.status {
+    case .notConfigured, .consentRequired, .tokenExpired: .orange
+    case .notConnected, .connecting: .blue
+    case .connected: .green
+    case .authFailed: .red
+    }
+  }
+
+  private var tokenStoreColor: Color {
+    switch authState.tokenStoreStatus {
+    case .keychainNotConfigured, .tokenMissing, .tokenClearSimulated: .orange
+    case .mockTokenReferenceAvailable: .green
+    case .storageErrorSimulated: .red
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("Microsoft 365 sign-in state", systemImage: "person.badge.key.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      CompactMetadataGrid(minimumWidth: 140) {
+        Badge(authState.status.rawValue, color: statusColor)
+        Label(authState.signedInAccount, systemImage: "person.crop.circle")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Label("Attempt: \(authState.lastAuthAttemptDate)", systemImage: "clock")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Label("Success: \(authState.lastSuccessfulAuthDate)", systemImage: "checkmark.seal")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Label(authState.keychainStatus, systemImage: "key.slash")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Badge(authState.tokenStoreStatus.rawValue, color: tokenStoreColor)
+      }
+      Text(authState.detailText)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(authState.tokenStoreDetail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(statusGuidance)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(statusColor)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("Real sign-in is opt-in. ParcelOps does not store token values in JSON. Mock Graph remains available, and real Graph refresh is manual/read-only.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+
+  private var statusGuidance: String {
+    switch authState.status {
+    case .notConfigured:
+      "Missing setup: confirm tenant/domain, client ID, and redirect URI before trying real sign-in."
+    case .notConnected:
+      authState.detailText.localizedCaseInsensitiveContains("cancelled")
+        ? "Cancelled: no account was connected. You can retry real sign-in or use mock auth."
+        : "Not connected: use mock auth for local review or complete setup before real sign-in."
+    case .connecting:
+      "Sign-in started: wait for Microsoft authentication to finish or return to ParcelOps."
+    case .connected:
+      "Connected: identity sign-in succeeded. Use Run real Graph refresh only when you want a manual read-only mailbox check."
+    case .authFailed:
+      "Failed: check Xcode signing, active app window, redirect URI, and MSAL runtime setup."
+    case .consentRequired:
+      "Consent/admin review: check Entra app registration, tenant policy, and User.Read permission consent."
+    case .tokenExpired:
+      "Token cache needs attention: retry sign-in. ParcelOps still does not store token values in JSON."
+    }
+  }
+}
+
+struct Microsoft365RealSignInChecklist: View {
+  var connection: Microsoft365MailboxConnection
+  var readiness: Microsoft365OAuthReadinessSummary
+
+  private let expectedRedirectURI = MSALMicrosoft365AuthAdapter.redirectURI
+
+  private var hasTenant: Bool {
+    !connection.tenantIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !connection.tenantDomainHint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var hasClientID: Bool {
+    !connection.clientIDPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var hasRedirect: Bool {
+    connection.redirectURIPlaceholder.trimmingCharacters(in: .whitespacesAndNewlines) == expectedRedirectURI
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("Before real sign-in", systemImage: "checklist.checked")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      Text("Required Entra setup: public client/native app registration, tenant or domain, application client ID, redirect URI \(expectedRedirectURI), delegated User.Read for sign-in, and delegated Mail.Read for manual real Graph refresh.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 170) {
+        ReadinessPill(title: "Tenant/domain", isReady: hasTenant)
+        ReadinessPill(title: "Client ID", isReady: hasClientID)
+        ReadinessPill(title: "Redirect URI", isReady: hasRedirect)
+        ReadinessPill(title: "User.Read only", isReady: connection.requestedScopesSummary.localizedCaseInsensitiveContains("User.Read"))
+        ReadinessPill(title: "Planning reviewed", isReady: readiness.isReady)
+      }
+      Text("Fallback: mock Microsoft auth checks auth state locally. Mock Graph refresh imports deterministic sample messages without contacting Microsoft Graph.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+struct ReadinessPill: View {
+  var title: String
+  var isReady: Bool
+
+  var body: some View {
+    Label(title, systemImage: isReady ? "checkmark.circle.fill" : "circle")
+      .font(.caption)
+      .foregroundStyle(isReady ? .green : .secondary)
+  }
+}
+
+struct ActionGroupHeader: View {
+  var title: String
+  var symbol: String
+
+  var body: some View {
+    Label(title, systemImage: symbol)
+      .font(.caption.weight(.semibold))
+      .foregroundStyle(.secondary)
+  }
+}
+
+struct GmailMailboxConnectionRow: View {
+  var connection: GmailMailboxConnection
+  var readiness: GmailOAuthReadinessSummary
+  var implementationPlan: GmailOAuthImplementationPlan
+  var setupTestChecklist: GmailSetupTestChecklist
+  var releaseSelfCheck: GmailReleaseSelfCheckSummary
+  var labelReadiness: GmailLabelReadinessSummary
+  var authState: GmailAuthSessionState
+  var activeRefreshTask: ReviewTask?
+  var onSave: (GmailMailboxConnection) -> Void
+  var onReviewed: () -> Void
+  var onMarkHostVerified: () -> Void
+  var onResetHostVerification: () -> Void
+  var onMockRefresh: () -> Void
+  var onRealReadinessCheck: () -> Void
+  var onRealRefresh: () -> Void
+  var onRealAuthReadinessCheck: () -> Void
+  var onMockAuthConnect: () -> Void
+  var onMockAuthFailure: () -> Void
+  var onTokenStoreReady: () -> Void
+  var onTokenMissing: () -> Void
+  var onTokenStorageError: () -> Void
+  var onTokenClear: () -> Void
+  var onReviewPlan: () -> Void
+  var onCreatePlanTask: () -> Void
+  var onCreateReleaseTask: () -> Void
+  var onCreateRefreshTask: () -> Void
+  var onImportUncertain: (GmailReviewMessage) -> Void
+  var onDismissUncertain: (GmailReviewMessage) -> Void
+  var onDismissAllUncertain: () -> Void
+  var onDismissAllFiltered: () -> Void
+  var onCreateTasksForAllUncertain: () -> Void
+  var onCreateUncertainTask: (GmailReviewMessage) -> Void
+  var onCreateUncertainDraft: (GmailReviewMessage) -> Void
+  var onTrustUncertainSender: (GmailReviewMessage) -> Void
+  var onImportUncertainHint: (GmailReviewMessage) -> Void
+  var onFilterUncertainHint: (GmailReviewMessage) -> Void
+  var onImportFiltered: (GmailReviewMessage) -> Void
+  var onDismissFiltered: (GmailReviewMessage) -> Void
+  var onPromoteFiltered: (GmailReviewMessage) -> Void
+  var onCreateFilteredTask: (GmailReviewMessage) -> Void
+  var onCreateFilteredDraft: (GmailReviewMessage) -> Void
+  var onTrustFilteredSender: (GmailReviewMessage) -> Void
+  var onImportFilteredHint: (GmailReviewMessage) -> Void
+  var onFilterFilteredHint: (GmailReviewMessage) -> Void
+  var onTestClassifier: () -> Void
+  var onAddDemoUncertain: () -> Void
+  var onTestCustomClassifier: (String, String, String) -> Void
+  var onRunClassifierSuite: () -> Void
+  var onRemove: () -> Void
+
+  @State private var draft: GmailMailboxConnection
+  @State private var isEditing = false
+  @State private var classifierSender = ""
+  @State private var classifierSubject = "Delivery question"
+  @State private var classifierPreview = "Can you check whether this relates to an order? I do not have the tracking number yet."
+
+  private var totalUncertainCount: Int {
+    max(connection.lastRefreshUncertainCount ?? 0, (connection.uncertainMessages ?? []).count)
+  }
+
+  init(
+    connection: GmailMailboxConnection,
+    readiness: GmailOAuthReadinessSummary,
+    implementationPlan: GmailOAuthImplementationPlan,
+    setupTestChecklist: GmailSetupTestChecklist,
+    releaseSelfCheck: GmailReleaseSelfCheckSummary,
+    labelReadiness: GmailLabelReadinessSummary,
+    authState: GmailAuthSessionState,
+    activeRefreshTask: ReviewTask?,
+    onSave: @escaping (GmailMailboxConnection) -> Void,
+    onReviewed: @escaping () -> Void,
+    onMarkHostVerified: @escaping () -> Void,
+    onResetHostVerification: @escaping () -> Void,
+    onMockRefresh: @escaping () -> Void,
+    onRealReadinessCheck: @escaping () -> Void,
+    onRealRefresh: @escaping () -> Void,
+    onRealAuthReadinessCheck: @escaping () -> Void,
+    onMockAuthConnect: @escaping () -> Void,
+    onMockAuthFailure: @escaping () -> Void,
+    onTokenStoreReady: @escaping () -> Void,
+    onTokenMissing: @escaping () -> Void,
+    onTokenStorageError: @escaping () -> Void,
+    onTokenClear: @escaping () -> Void,
+    onReviewPlan: @escaping () -> Void,
+    onCreatePlanTask: @escaping () -> Void,
+    onCreateReleaseTask: @escaping () -> Void,
+    onCreateRefreshTask: @escaping () -> Void,
+    onImportUncertain: @escaping (GmailReviewMessage) -> Void,
+    onDismissUncertain: @escaping (GmailReviewMessage) -> Void,
+    onDismissAllUncertain: @escaping () -> Void,
+    onDismissAllFiltered: @escaping () -> Void,
+    onCreateTasksForAllUncertain: @escaping () -> Void,
+    onCreateUncertainTask: @escaping (GmailReviewMessage) -> Void,
+    onCreateUncertainDraft: @escaping (GmailReviewMessage) -> Void,
+    onTrustUncertainSender: @escaping (GmailReviewMessage) -> Void,
+    onImportUncertainHint: @escaping (GmailReviewMessage) -> Void,
+    onFilterUncertainHint: @escaping (GmailReviewMessage) -> Void,
+    onImportFiltered: @escaping (GmailReviewMessage) -> Void,
+    onDismissFiltered: @escaping (GmailReviewMessage) -> Void,
+    onPromoteFiltered: @escaping (GmailReviewMessage) -> Void,
+    onCreateFilteredTask: @escaping (GmailReviewMessage) -> Void,
+    onCreateFilteredDraft: @escaping (GmailReviewMessage) -> Void,
+    onTrustFilteredSender: @escaping (GmailReviewMessage) -> Void,
+    onImportFilteredHint: @escaping (GmailReviewMessage) -> Void,
+    onFilterFilteredHint: @escaping (GmailReviewMessage) -> Void,
+    onTestClassifier: @escaping () -> Void,
+    onAddDemoUncertain: @escaping () -> Void,
+    onTestCustomClassifier: @escaping (String, String, String) -> Void,
+    onRunClassifierSuite: @escaping () -> Void,
+    onRemove: @escaping () -> Void
+  ) {
+    self.connection = connection
+    self.readiness = readiness
+    self.implementationPlan = implementationPlan
+    self.setupTestChecklist = setupTestChecklist
+    self.releaseSelfCheck = releaseSelfCheck
+    self.labelReadiness = labelReadiness
+    self.authState = authState
+    self.activeRefreshTask = activeRefreshTask
+    self.onSave = onSave
+    self.onReviewed = onReviewed
+    self.onMarkHostVerified = onMarkHostVerified
+    self.onResetHostVerification = onResetHostVerification
+    self.onMockRefresh = onMockRefresh
+    self.onRealReadinessCheck = onRealReadinessCheck
+    self.onRealRefresh = onRealRefresh
+    self.onRealAuthReadinessCheck = onRealAuthReadinessCheck
+    self.onMockAuthConnect = onMockAuthConnect
+    self.onMockAuthFailure = onMockAuthFailure
+    self.onTokenStoreReady = onTokenStoreReady
+    self.onTokenMissing = onTokenMissing
+    self.onTokenStorageError = onTokenStorageError
+    self.onTokenClear = onTokenClear
+    self.onReviewPlan = onReviewPlan
+    self.onCreatePlanTask = onCreatePlanTask
+    self.onCreateReleaseTask = onCreateReleaseTask
+    self.onCreateRefreshTask = onCreateRefreshTask
+    self.onImportUncertain = onImportUncertain
+    self.onDismissUncertain = onDismissUncertain
+    self.onDismissAllUncertain = onDismissAllUncertain
+    self.onDismissAllFiltered = onDismissAllFiltered
+    self.onCreateTasksForAllUncertain = onCreateTasksForAllUncertain
+    self.onCreateUncertainTask = onCreateUncertainTask
+    self.onCreateUncertainDraft = onCreateUncertainDraft
+    self.onTrustUncertainSender = onTrustUncertainSender
+    self.onImportUncertainHint = onImportUncertainHint
+    self.onFilterUncertainHint = onFilterUncertainHint
+    self.onImportFiltered = onImportFiltered
+    self.onDismissFiltered = onDismissFiltered
+    self.onPromoteFiltered = onPromoteFiltered
+    self.onCreateFilteredTask = onCreateFilteredTask
+    self.onCreateFilteredDraft = onCreateFilteredDraft
+    self.onTrustFilteredSender = onTrustFilteredSender
+    self.onImportFilteredHint = onImportFilteredHint
+    self.onFilterFilteredHint = onFilterFilteredHint
+    self.onTestClassifier = onTestClassifier
+    self.onAddDemoUncertain = onAddDemoUncertain
+    self.onTestCustomClassifier = onTestCustomClassifier
+    self.onRunClassifierSuite = onRunClassifierSuite
+    self.onRemove = onRemove
+    _draft = State(initialValue: connection)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "envelope.badge.shield.half.filled")
+          .foregroundStyle(.teal)
+          .frame(width: 28)
+        VStack(alignment: .leading, spacing: 5) {
+          Text(connection.displayName)
+            .font(.headline)
+          Text(connection.emailAddress)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          Text("Labels: \(connection.monitoredLabelNames)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text("Mailbox mode: \(connection.mailboxMode.rawValue)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          CompactMetadataGrid(minimumWidth: 130) {
+            Badge(readiness.isReady ? "Setup ready" : "Setup blocked", color: readiness.isReady ? .green : .orange)
+            Badge(authState.status == .connected ? "Google signed in" : "Sign-in needed", color: authState.status == .connected ? .green : .orange)
+            Badge(connection.lastManualRefreshDate == "Never" ? "No refresh" : "Refresh recorded", color: connection.lastManualRefreshDate == "Never" ? .secondary : .blue)
+            Badge("\(connection.lastRefreshImportedCount) imported", color: connection.lastRefreshImportedCount > 0 ? .green : .secondary)
+            Badge("\(totalUncertainCount) uncertain", color: totalUncertainCount > 0 ? .orange : .secondary)
+            Badge("\(connection.lastRefreshFilteredNonOrderCount) filtered", color: connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary)
+            Badge("\((connection.trustedSenderHints ?? []).count) trusted", color: (connection.trustedSenderHints ?? []).isEmpty ? .secondary : .purple)
+            Badge("\((connection.importKeywordHints ?? []).count) import hints", color: (connection.importKeywordHints ?? []).isEmpty ? .secondary : .green)
+            Badge("\((connection.uncertainKeywordHints ?? []).count) uncertain hints", color: (connection.uncertainKeywordHints ?? []).isEmpty ? .secondary : .orange)
+            Badge("\((connection.filterKeywordHints ?? []).count) filter hints", color: (connection.filterKeywordHints ?? []).isEmpty ? .secondary : .teal)
+          }
+        }
+        Spacer()
+        Badge(connection.reviewState.rawValue, color: connection.reviewState == .accepted ? .green : .orange)
+      }
+
+      Text("Status: \(connection.connectionStatus) • Last refresh: \(connection.lastManualRefreshDate)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      Text("OAuth readiness: \(connection.oauthReadinessStatus)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      Text("Credential storage: \(connection.credentialStorageStatus)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      gmailProviderFitCard
+
+      gmailSetupSequenceCard
+
+      gmailCompiledConfigurationCard
+
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: gmailSetupBlockerSymbol)
+            .foregroundStyle(gmailSetupBlockerColor)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(gmailSetupBlockerTitle)
+              .font(.caption.weight(.semibold))
+            Text(gmailSetupBlockerDetail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(gmailSetupBlockerNextAction)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(gmailSetupBlockerColor)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(gmailSetupBlockerBadge, color: gmailSetupBlockerColor)
+        }
+        CompactMetadataGrid(minimumWidth: 140) {
+          Badge(gmailClientIDBadgeText, color: gmailClientIDBadgeColor)
+          Badge(gmailRedirectBadgeText, color: gmailRedirectBadgeColor)
+          Badge(gmailScopeBadgeText, color: gmailScopeBadgeColor)
+          Badge(gmailCompiledConfigBadgeText, color: gmailCompiledConfigBadgeColor)
+        }
+        if !readiness.missingFields.isEmpty {
+          Text("Missing or mismatched: \(readiness.missingFields.prefix(4).joined(separator: "; "))\(readiness.missingFields.count > 4 ? "; plus \(readiness.missingFields.count - 4) more" : "")")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Text("No Google token, auth code, callback URL, client secret, password, Gmail response body, or mailbox content is shown here or stored in JSON.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(gmailSetupBlockerColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      gmailOperatorNextStepCard
+
+      gmailReviewQueueCard
+
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: labelReadiness.tone == "success" ? "tag.fill" : "tag.slash.fill")
+            .foregroundStyle(color(forReleaseTone: labelReadiness.tone))
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Gmail label readiness")
+              .font(.caption.weight(.semibold))
+            Text(labelReadiness.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(labelReadiness.nextAction)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(color(forReleaseTone: labelReadiness.tone))
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(labelReadiness.status, color: color(forReleaseTone: labelReadiness.tone))
+        }
+        CompactMetadataGrid(minimumWidth: 135) {
+          Badge("Primary: \(labelReadiness.primaryLabel)", color: color(forReleaseTone: labelReadiness.tone))
+          Badge(labelReadiness.refreshMode, color: .teal)
+          Badge("\(labelReadiness.labelCount) label\(labelReadiness.labelCount == 1 ? "" : "s") saved", color: labelReadiness.labelCount > 1 ? .orange : .secondary)
+          Badge("Manual refresh", color: .blue)
+        }
+      }
+      .padding(10)
+      .background(color(forReleaseTone: labelReadiness.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("How Gmail labels are resolved", systemImage: "tag")
+          .font(.caption.weight(.semibold))
+        Text("Use INBOX for the primary inbox. For a custom Gmail label, enter the exact label name from Gmail; ParcelOps resolves it through Gmail label metadata before listing messages.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        CompactMetadataGrid(minimumWidth: 145) {
+          Badge("System labels direct", color: .blue)
+          Badge("Custom labels resolved", color: .purple)
+          Badge("Read-only metadata", color: .teal)
+          Badge("No mailbox mutation", color: .green)
+        }
+        Text("Refresh diagnostics may show safe label name, ID, and type only. Token values, authorization headers, full request URLs, full message bodies, and mailbox mutations stay out of JSON and Audit.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      VStack(alignment: .leading, spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: gmailOperatorNextSymbol)
+            .foregroundStyle(gmailOperatorNextColor)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(gmailOperatorNextTitle)
+              .font(.subheadline.weight(.semibold))
+            Text(gmailOperatorNextDetail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        MetricStrip(items: [
+          ("Setup", readiness.isReady ? "Ready" : "Missing", readiness.isReady ? .green : .orange),
+          ("Sign-in", authState.status.rawValue, authState.status == .connected ? .green : .orange),
+          ("Refresh", gmailRefreshModeLabel, gmailRefreshGuidanceColor),
+          ("Inbox", connection.lastRefreshImportedCount > 0 ? "\(connection.lastRefreshImportedCount)" : "0", connection.lastRefreshImportedCount > 0 ? .green : .secondary)
+        ])
+        CompactActionRow {
+          if hasMissingCoreGmailSetup {
+            Button("Edit setup", systemImage: "pencil") {
+              draft = connection
+              isEditing = true
+            }
+          } else if !readiness.isReady {
+            Button("Check readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
+          } else if authState.status != .connected {
+            Button("Test real Google sign-in", systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
+          } else if connection.lastRefreshUncertainCount ?? 0 > 0 || !(connection.uncertainMessages ?? []).isEmpty {
+            Label("Review uncertain section below", systemImage: "arrow.down.circle")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.orange)
+          } else {
+            Button("Run real Gmail refresh", systemImage: "envelope.badge.shield.half.filled", action: onRealRefresh)
+          }
+          Button("Run mock refresh", systemImage: "envelope.badge", action: onMockRefresh)
+          Button("Run classifier suite", systemImage: "checklist", action: onRunClassifierSuite)
+        }
+        .buttonStyle(.bordered)
+        Text("This card is the operator path. The detailed setup, OAuth, token, and classifier sections below remain available for diagnostics.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(gmailOperatorNextColor)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(gmailOperatorNextColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      VStack(alignment: .leading, spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: releaseSelfCheck.tone == "success" ? "checkmark.seal.fill" : "exclamationmark.shield.fill")
+            .foregroundStyle(releaseSelfCheckColor)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(releaseSelfCheck.title)
+              .font(.subheadline.weight(.semibold))
+            Text(releaseSelfCheck.detail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(releaseSelfCheck.nextAction)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(releaseSelfCheckColor)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(releaseSelfCheck.verdict, color: releaseSelfCheckColor)
+        }
+        MetricStrip(items: [
+          ("Checks", "\(releaseSelfCheck.completedCount)/\(releaseSelfCheck.totalCount)", releaseSelfCheckColor),
+          ("Setup", readiness.isReady ? "Ready" : "Blocked", readiness.isReady ? .green : .orange),
+          ("Sign-in", authState.status.rawValue, authState.status == .connected ? .green : .orange),
+          ("Refresh", connection.lastManualRefreshDate == "Never" ? "Not run" : "Recorded", connection.lastManualRefreshDate == "Never" ? .secondary : .teal)
+        ])
+        CompactActionRow {
+          Button("Create release task", systemImage: "checklist", action: onCreateReleaseTask)
+          Button("Run readiness check", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
+          Button("Open setup plan", systemImage: "list.clipboard.fill", action: onReviewPlan)
+        }
+        .buttonStyle(.bordered)
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 8)], alignment: .leading, spacing: 8) {
+          ForEach(releaseSelfCheck.items) { item in
+            VStack(alignment: .leading, spacing: 5) {
+              Label(item.title, systemImage: item.symbolName)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color(forReleaseTone: item.tone))
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+              Text(item.nextAction)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(color(forReleaseTone: item.tone))
+                .lineLimit(2)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(color(forReleaseTone: item.tone).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+        Text("This is a local release gate only. It does not open Google sign-in, fetch Gmail, store token values, or change mailbox messages.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(releaseSelfCheckColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Latest Gmail refresh", systemImage: "tray.and.arrow.down")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(gmailLatestRefreshColor)
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: gmailLatestRefreshSymbol)
+            .foregroundStyle(gmailLatestRefreshColor)
+          VStack(alignment: .leading, spacing: 3) {
+            Text(gmailLatestRefreshTitle)
+              .font(.subheadline.weight(.semibold))
+            Text(gmailLatestRefreshDetail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(gmailLatestRefreshNextAction)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(gmailLatestRefreshColor)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 0)
+        }
+        .padding(8)
+        .background(gmailLatestRefreshColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        MetricStrip(items: [
+          ("Fetched", "\(connection.lastRefreshFetchedCount)", .blue),
+          ("Imported", "\(connection.lastRefreshImportedCount)", connection.lastRefreshImportedCount > 0 ? .green : .secondary),
+          ("Duplicates", "\(connection.lastRefreshDuplicateCount)", connection.lastRefreshDuplicateCount > 0 ? .orange : .secondary),
+          ("Filtered", "\(connection.lastRefreshFilteredNonOrderCount)", connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary),
+          ("Uncertain", "\(totalUncertainCount)", totalUncertainCount > 0 ? .orange : .secondary)
+        ])
+        CompactMetadataGrid(minimumWidth: 145) {
+          Badge("Label: \(gmailPrimaryLabelDisplay)", color: gmailLabelResolutionColor)
+          Badge(gmailLabelResolutionStatus, color: gmailLabelResolutionColor)
+          Badge(gmailRefreshModeLabel, color: gmailRefreshGuidanceColor)
+          Badge(connection.mailboxMode == .mixedFiltered ? "Mixed mailbox" : "Dedicated mailbox", color: .teal)
+        }
+        Text(gmailLabelResolutionDetail)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(gmailLabelResolutionColor)
+          .fixedSize(horizontal: false, vertical: true)
+        if let activeRefreshTask {
+          VStack(alignment: .leading, spacing: 6) {
+            Label("Refresh follow-up task is active", systemImage: "checklist")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(gmailRefreshTaskColor(activeRefreshTask))
+            Text(activeRefreshTask.title)
+              .font(.caption2.weight(.semibold))
+              .fixedSize(horizontal: false, vertical: true)
+            Text("Owner: \(activeRefreshTask.assignee) • Due: \(activeRefreshTask.dueDate)")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+            CompactMetadataGrid(minimumWidth: 120) {
+              Badge(activeRefreshTask.status.rawValue, color: gmailRefreshTaskColor(activeRefreshTask))
+              Badge(activeRefreshTask.priority.rawValue, color: gmailRefreshTaskColor(activeRefreshTask))
+              Badge(activeRefreshTask.reviewState.rawValue, color: activeRefreshTask.reviewState == .accepted ? .green : .orange)
+            }
+            Text("Use Tasks to close this assigned follow-up. Use this row to refresh the existing task from the latest local Gmail counters.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(8)
+          .background(gmailRefreshTaskColor(activeRefreshTask).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        } else {
+          Label("No active refresh follow-up task. Create one only when a named owner needs this refresh result assigned.", systemImage: "checklist.unchecked")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        CompactActionRow {
+          Button(activeRefreshTask == nil ? "Create refresh task" : "Refresh task details", systemImage: "checklist", action: onCreateRefreshTask)
+        }
+        .buttonStyle(.bordered)
+        Text(connection.lastRefreshSummary)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        if connection.lastRefreshDuplicateCount > 0 {
+          Label("Duplicate Gmail messages were not imported again. Existing linked Inbox rows can still be refreshed locally when newly parsed fields change.", systemImage: "arrow.triangle.2.circlepath")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.teal)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        VStack(alignment: .leading, spacing: 6) {
+          Label(gmailRefreshGuidanceTitle, systemImage: gmailRefreshGuidanceSymbol)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(gmailRefreshGuidanceColor)
+          Text(gmailRefreshGuidanceDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          CompactMetadataGrid(minimumWidth: 135) {
+            Badge(gmailRefreshModeLabel, color: gmailRefreshGuidanceColor)
+            Badge(connection.mailboxMode == .mixedFiltered ? "Mixed filtering" : "Dedicated mailbox", color: .teal)
+            Badge("Read-only", color: .blue)
+            Badge("Manual", color: .secondary)
+          }
+        }
+        .padding(8)
+        .background(gmailRefreshGuidanceColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        if connection.mailboxMode == .mixedFiltered {
+          Text("Mixed Gmail mode keeps filtered non-order messages out of Inbox. Use real refresh only after Google sign-in and read-only Gmail consent are ready.")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.teal)
+            .fixedSize(horizontal: false, vertical: true)
+        } else {
+          Text("Dedicated Gmail mode passes fetched messages straight to intake duplicate/import handling.")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if let examples = connection.lastRefreshFilteredExamples, !examples.isEmpty {
+          Text("Filtered examples: \(examples.joined(separator: "; "))")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if let examples = connection.lastRefreshUncertainExamples, !examples.isEmpty {
+          Text("Uncertain examples: \(examples.joined(separator: "; "))")
+            .font(.caption2)
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if let reasons = connection.lastRefreshReasonBreakdown, !reasons.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Gmail classifier reasons")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ForEach(Array(reasons.prefix(6))) { item in
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Badge(item.decision, color: classifierReasonColor(item.decision))
+                Text("\(item.count)x \(item.reason)")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+              }
+            }
+          }
+          .padding(8)
+          .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+      .padding(10)
+      .background(totalUncertainCount > 0 ? Color.orange.opacity(0.10) : connection.lastRefreshFilteredNonOrderCount > 0 ? Color.teal.opacity(0.10) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      if let history = connection.refreshHistory, !history.isEmpty {
+        gmailRefreshHistory(history)
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Gmail troubleshooting runbook", systemImage: "wrench.and.screwdriver.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(gmailTroubleshootingTone)
+        Text("Follow these local checks in order when Gmail setup, sign-in, refresh, filtering, or Inbox handoff does not behave as expected.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        gmailMostLikelyBlockerCard
+        ForEach(Array(gmailTroubleshootingSteps.enumerated()), id: \.offset) { _, step in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: step.symbol)
+              .foregroundStyle(step.color)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(step.title)
+                .font(.caption.weight(.semibold))
+              Text(step.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(8)
+          .background(step.color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        }
+        Text("Safe boundary: this runbook does not fetch mail, open sign-in, read credentials, store tokens, or mutate Gmail messages.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(gmailTroubleshootingTone.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+
+      gmailReviewQueueSummary
+
+      if let messages = connection.uncertainMessages, !messages.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Review uncertain Gmail messages", systemImage: "questionmark.folder.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+          Text("These previews looked order-related but were missing a strong order or tracking ID. They stay out of Inbox until imported locally.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          CompactActionRow {
+            Button("Task all uncertain", systemImage: "checklist", action: onCreateTasksForAllUncertain)
+            Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
+          }
+          ForEach(messages) { message in
+            VStack(alignment: .leading, spacing: 6) {
+              HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(message.subject)
+                    .font(.caption.weight(.semibold))
+                  Text("\(message.sender) • \(message.receivedDate)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Badge("Uncertain", color: .orange)
+              }
+              Text(message.bodyPreview)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+              Text("Reason: \(message.reason)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.orange)
+              CompactActionRow {
+                Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill") {
+                  onImportUncertain(message)
+                }
+                .buttonStyle(.bordered)
+                Button("Task", systemImage: "checklist") {
+                  onCreateUncertainTask(message)
+                }
+                .buttonStyle(.bordered)
+                Button("Draft", systemImage: "envelope.open.fill") {
+                  onCreateUncertainDraft(message)
+                }
+                .buttonStyle(.bordered)
+                Button("Dismiss", systemImage: "xmark.circle", role: .destructive) {
+                  onDismissUncertain(message)
+                }
+                .buttonStyle(.bordered)
+              }
+              ActionGroupHeader(title: "Classifier tuning", symbol: "slider.horizontal.3")
+              CompactActionRow {
+                Button("Trust sender", systemImage: "person.badge.shield.checkmark") {
+                  onTrustUncertainSender(message)
+                }
+                Button("Import hint", systemImage: "plus.circle") {
+                  onImportUncertainHint(message)
+                }
+                Button("Filter hint", systemImage: "line.3.horizontal.decrease.circle") {
+                  onFilterUncertainHint(message)
+                }
+              }
+              .buttonStyle(.bordered)
+            }
+            .padding(8)
+            .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      if let messages = connection.filteredMessages, !messages.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Review filtered Gmail examples", systemImage: "line.3.horizontal.decrease.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.teal)
+          Text("These previews were treated as non-order Gmail. Import one only when the classifier was too strict; otherwise dismiss it locally to keep review focused.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          CompactActionRow {
+            Button("Dismiss all filtered", systemImage: "line.3.horizontal.decrease.circle", role: .destructive, action: onDismissAllFiltered)
+          }
+          ForEach(messages) { message in
+            VStack(alignment: .leading, spacing: 6) {
+              HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(message.subject)
+                    .font(.caption.weight(.semibold))
+                  Text("\(message.sender) • \(message.receivedDate)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Badge("Filtered", color: .teal)
+              }
+              Text(message.bodyPreview)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+              Text("Reason: \(message.reason)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.teal)
+              CompactActionRow {
+                Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill") {
+                  onImportFiltered(message)
+                }
+                .buttonStyle(.bordered)
+                Button("Review as uncertain", systemImage: "questionmark.folder") {
+                  onPromoteFiltered(message)
+                }
+                .buttonStyle(.bordered)
+                Button("Task", systemImage: "checklist") {
+                  onCreateFilteredTask(message)
+                }
+                .buttonStyle(.bordered)
+                Button("Draft", systemImage: "envelope.open.fill") {
+                  onCreateFilteredDraft(message)
+                }
+                .buttonStyle(.bordered)
+                Button("Dismiss", systemImage: "xmark.circle", role: .destructive) {
+                  onDismissFiltered(message)
+                }
+                .buttonStyle(.bordered)
+              }
+              ActionGroupHeader(title: "Classifier tuning", symbol: "slider.horizontal.3")
+              CompactActionRow {
+                Button("Trust sender", systemImage: "person.badge.shield.checkmark") {
+                  onTrustFilteredSender(message)
+                }
+                Button("Import hint", systemImage: "plus.circle") {
+                  onImportFilteredHint(message)
+                }
+                Button("Filter hint", systemImage: "line.3.horizontal.decrease.circle") {
+                  onFilterFilteredHint(message)
+                }
+              }
+              .buttonStyle(.bordered)
+            }
+            .padding(8)
+            .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+        .padding(10)
+        .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Gmail classifier test", systemImage: "text.magnifyingglass")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(gmailClassifierColor)
+        Text("Local tests only. Use this to check how mixed Gmail messages would be imported, held as uncertain, or filtered before running a real refresh.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        CompactMetadataGrid(minimumWidth: 170) {
+          Badge("Import: signal + ID", color: .green)
+          Badge("Uncertain: order-ish, no ID", color: .orange)
+          Badge("Filter: marketing/security", color: .teal)
+          Badge("No mailbox fetch", color: .secondary)
+        }
+        Text(connection.classifierTestSummary ?? "No Gmail classifier test has run yet.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(gmailClassifierColor)
+          .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 6) {
+          TextField("Sender", text: $classifierSender)
+            .textFieldStyle(.roundedBorder)
+          TextField("Subject", text: $classifierSubject)
+            .textFieldStyle(.roundedBorder)
+          TextField("Body preview", text: $classifierPreview, axis: .vertical)
+            .lineLimit(2...4)
+            .textFieldStyle(.roundedBorder)
+        }
+        CompactActionRow {
+          Button("Test ambiguous sample", systemImage: "play.circle", action: onTestClassifier)
+          Button("Add demo uncertain", systemImage: "questionmark.folder", action: onAddDemoUncertain)
+          Button("Run custom test", systemImage: "text.magnifyingglass") {
+            onTestCustomClassifier(classifierSender, classifierSubject, classifierPreview)
+          }
+          .disabled(classifierSubject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && classifierPreview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          Button("Run Gmail suite", systemImage: "checklist", action: onRunClassifierSuite)
+        }
+        if let results = connection.classifierTestResults, !results.isEmpty {
+          VStack(alignment: .leading, spacing: 6) {
+            ForEach(results) { result in
+              VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                  Text(result.sampleName)
+                    .font(.caption.weight(.semibold))
+                  Spacer()
+                  Badge(result.decision, color: gmailClassifierDecisionColor(result.decision))
+                }
+                Text("\(result.reason) • score \(result.score)")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                Text(result.decisionStatus)
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(result.decisionStatus.localizedCaseInsensitiveContains("needs review") ? .orange : .green)
+                if let parserStatus = result.parserStatus {
+                  Text(parserStatus)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(parserStatus.localizedCaseInsensitiveContains("needs review") ? .orange : .green)
+                }
+                CompactMetadataGrid(minimumWidth: 120) {
+                  Badge(result.detectedOrderNumber, color: result.detectedOrderNumber.isPlaceholderValidationValue ? .secondary : .blue)
+                  Badge(result.detectedTrackingNumber, color: result.detectedTrackingNumber.isPlaceholderValidationValue ? .secondary : .purple)
+                  if result.expectedDecision != "No expected decision" {
+                    Badge("Expected \(result.expectedDecision)", color: gmailClassifierDecisionColor(result.expectedDecision))
+                  }
+                  if let expectedOrder = result.expectedOrderNumber {
+                    Badge("Order \(expectedOrder)", color: result.detectedOrderNumber.normalizedValidationKey == expectedOrder.normalizedValidationKey ? .green : .orange)
+                  }
+                  if let expectedTracking = result.expectedTrackingNumber {
+                    Badge("Tracking \(expectedTracking)", color: result.detectedTrackingNumber.normalizedValidationKey == expectedTracking.normalizedValidationKey ? .green : .orange)
+                  }
+                }
+              }
+              .padding(8)
+              .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+      }
+      .padding(10)
+      .background(Color.orange.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: authState.status.symbol)
+          .foregroundStyle(authState.status == .connected ? .green : authState.status == .authFailed ? .red : .orange)
+          .frame(width: 20)
+        VStack(alignment: .leading, spacing: 3) {
+          Text("Gmail auth state: \(authState.status.rawValue)")
+            .font(.caption.weight(.semibold))
+          Text("Account: \(authState.signedInAccount) • Last attempt: \(authState.lastAuthAttemptDate)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text(authState.detailText)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
+
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "key.slash")
+          .foregroundStyle(authState.tokenStoreStatus.localizedCaseInsensitiveContains("available") ? .green : .orange)
+          .frame(width: 20)
+        VStack(alignment: .leading, spacing: 3) {
+          Text("Gmail token storage: \(authState.tokenStoreStatus)")
+            .font(.caption.weight(.semibold))
+          Text(authState.tokenStoreDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("Planning only. No Google token value or Keychain item is created, read, written, deleted, stored in JSON, or logged.")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Google app setup and callback readiness", systemImage: "gearshape.2.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(readiness.isReady ? .green : .orange)
+        Text("Real Gmail sign-in needs the saved Google iOS OAuth client ID, the reversed callback URL scheme, and the compiled App Info.plist values to match. Do not enter client secrets, auth codes, access tokens, refresh tokens, API keys, passwords, or Keychain values.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        CompactMetadataGrid(minimumWidth: 160) {
+          Badge((connection.googleCloudProjectHint ?? "").isEmpty ? "Project missing" : "Project noted", color: (connection.googleCloudProjectHint ?? "").isEmpty ? .orange : .green)
+          Badge(gmailClientIDBadgeText, color: gmailClientIDBadgeColor)
+          Badge(gmailRedirectBadgeText, color: gmailRedirectBadgeColor)
+          Badge(readiness.isReady ? "App callback ready" : "App callback blocked", color: readiness.isReady ? .green : .orange)
+          Badge((connection.consentScreenNotes ?? "").isEmpty ? "Consent notes missing" : "Consent noted", color: (connection.consentScreenNotes ?? "").isEmpty ? .orange : .green)
+        }
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Compiled app callback check", systemImage: "app.badge.checkmark")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(readiness.isReady ? .green : .orange)
+          Text("Expected scheme: \(readiness.expectedCallbackScheme)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("Client ID: \(readiness.compiledClientIDStatus)")
+            .font(.caption2)
+            .foregroundStyle(readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("matches") ? .green : .orange)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("URL scheme: \(readiness.compiledCallbackSchemeStatus)")
+            .font(.caption2)
+            .foregroundStyle(readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes") ? .green : .orange)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("Compile-time handoff: update Project.json and App/Info.plist with the same Google iOS OAuth client ID and reversed URL scheme saved here, then regenerate/rebuild the Xcode project. Bundle ID must remain app.bitrig.parcelops; never add a Google client secret.")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          if !readiness.isReady {
+            Text("Before real sign-in can be reliable: \(readiness.missingFields.prefix(5).joined(separator: ", "))\(readiness.missingFields.count > 5 ? ", ..." : "")")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.orange)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        .padding(8)
+        .background((readiness.isReady ? Color.green : Color.orange).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        Text(readiness.detailText)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(readiness.isReady ? .green : .orange)
+          .fixedSize(horizontal: false, vertical: true)
+        if let project = connection.googleCloudProjectHint, !project.isEmpty {
+          Text("Project: \(project)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+        if let redirect = connection.redirectURIPlaceholder, !redirect.isEmpty {
+          Text("Redirect/scheme: \(redirect)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Gmail sign-in and refresh readiness", systemImage: "checklist")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(readiness.isReady ? .green : .orange)
+        Text(readiness.detailText)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        MetricStrip(items: [
+          ("Plan", "\(implementationPlan.completedCount)/\(implementationPlan.totalCount)", implementationPlan.completedCount == implementationPlan.totalCount ? .green : .orange),
+          ("Readiness", readiness.isReady ? "Ready" : "Missing", readiness.isReady ? .green : .orange),
+          ("Mode", connection.mailboxMode == .mixedFiltered ? "Mixed" : "Dedicated", .teal),
+          ("Real Gmail", "Manual only", .teal)
+        ])
+        ForEach(implementationPlan.items) { item in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
+              .foregroundStyle(item.isComplete ? .green : .secondary)
+              .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(item.title)
+                .font(.caption.weight(.semibold))
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+        Text("This checklist verifies non-secret setup for the existing opt-in Google sign-in and manual read-only Gmail refresh. It does not store tokens or change mailbox messages.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
+
+      Text("Recommended order: save setup, run Check readiness, test real Google sign-in, then run real Gmail refresh. Mock Gmail refresh is still available for local intake testing.")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.teal)
+        .fixedSize(horizontal: false, vertical: true)
+
+      Text("Real Gmail sign-in is opt-in. Real refresh may use the current GoogleSignIn session in memory; no token values are stored in ParcelOps JSON.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      Text(GoogleGmailAuthAdapter().setupReadinessDetail(for: connection))
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Gmail setup test checklist", systemImage: "checklist.checked")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(setupTestChecklist.completedCount == setupTestChecklist.totalCount ? .green : .orange)
+        Text("Follow these steps in order when connecting or retesting a Gmail mailbox. This checklist is computed from local setup, sign-in, refresh, and audit state.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        MetricStrip(items: [
+          ("Steps", "\(setupTestChecklist.completedCount)/\(setupTestChecklist.totalCount)", setupTestChecklist.completedCount == setupTestChecklist.totalCount ? .green : .orange),
+          ("Auth", authState.status.rawValue, authState.status == .connected ? .green : .orange),
+          ("Refresh", gmailRefreshModeLabel, gmailRefreshGuidanceColor),
+          ("Inbox", connection.lastRefreshImportedCount > 0 ? "Has intake" : "No intake", connection.lastRefreshImportedCount > 0 ? .green : .secondary)
+        ])
+        ForEach(Array(setupTestChecklist.items.enumerated()), id: \.element.id) { index, item in
+          GmailSetupChecklistStepRow(index: index + 1, item: item)
+        }
+        Text("Real Gmail refresh remains manual and read-only. ParcelOps does not delete, move, mark read, send, or modify Gmail messages.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(10)
+      .background(Color.teal.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+
+      if isEditing {
+        VStack(alignment: .leading, spacing: 8) {
+          TextField("Display name", text: $draft.displayName)
+          TextField("Email address", text: $draft.emailAddress)
+          TextField("Label names", text: $draft.monitoredLabelNames)
+          Picker("Mailbox mode", selection: $draft.mailboxMode) {
+            ForEach(SpaceMailMailboxMode.allCases) { mode in
+              Text(mode.rawValue).tag(mode)
+            }
+          }
+          TextField("Connection status", text: $draft.connectionStatus)
+          TextField("OAuth readiness", text: $draft.oauthReadinessStatus)
+          TextField("Google Cloud project hint", text: optionalTextBinding(\.googleCloudProjectHint))
+          TextField("OAuth client ID placeholder", text: optionalTextBinding(\.oauthClientIDPlaceholder))
+          TextField("Redirect URI or URL scheme placeholder", text: optionalTextBinding(\.redirectURIPlaceholder))
+          TextField("Requested scopes", text: $draft.requestedScopesSummary)
+          TextField("Consent screen notes", text: optionalTextBinding(\.consentScreenNotes), axis: .vertical)
+            .lineLimit(2...5)
+          TextField("Credential storage", text: $draft.credentialStorageStatus)
+          ActionGroupHeader(title: "Mixed-mailbox classifier hints", symbol: "slider.horizontal.3")
+          Text("Comma-separated local hints only. Use these to tune Gmail mixed-mailbox filtering after reviewing uncertain or filtered previews.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+          TextField("Trusted sender hints", text: optionalListBinding(\.trustedSenderHints), axis: .vertical)
+            .lineLimit(1...3)
+          TextField("Import keyword hints", text: optionalListBinding(\.importKeywordHints), axis: .vertical)
+            .lineLimit(1...3)
+          TextField("Uncertain keyword hints", text: optionalListBinding(\.uncertainKeywordHints), axis: .vertical)
+            .lineLimit(1...3)
+          TextField("Filter keyword hints", text: optionalListBinding(\.filterKeywordHints), axis: .vertical)
+            .lineLimit(1...3)
+          TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
+            .lineLimit(2...5)
+          CompactActionRow {
+            Button("Save Gmail setup", systemImage: "checkmark.circle.fill") {
+              onSave(draft)
+              isEditing = false
+            }
+            .buttonStyle(.borderedProminent)
+            Button("Cancel", systemImage: "xmark.circle") {
+              draft = connection
+              isEditing = false
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+        .textFieldStyle(.roundedBorder)
+      }
+
+      VStack(alignment: .leading, spacing: 10) {
+        Label("Gmail actions", systemImage: "slider.horizontal.3")
+          .font(.caption.weight(.semibold))
+        Text("Primary actions are first. Mock and token-state actions are kept separate so they do not look like the normal operator path.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        gmailRealActionSafetyCard
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Primary")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button(isEditing ? "Close editor" : "Edit setup", systemImage: "pencil") {
+              draft = connection
+              isEditing.toggle()
+            }
+            Button("Mark reviewed", systemImage: "checkmark.circle", action: onReviewed)
+            Button(gmailRealSignInActionLabel, systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
+              .disabled(shouldDisableRealGmailSignIn)
+            Button("Check readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
+            Button(gmailRealRefreshActionLabel, systemImage: gmailRealRefreshActionSymbol, action: onRealRefresh)
+              .disabled(hasMissingCoreGmailSetup)
+          }
+          if shouldDisableRealGmailSignIn {
+            Label(gmailRealSignInDisabledReason, systemImage: "lock.fill")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          if !canRunRealGmailRefresh {
+            Label(gmailRealRefreshGuidanceText, systemImage: hasMissingCoreGmailSetup ? "lock.fill" : "shield.lefthalf.filled")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Local testing and planning")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button("Run mock refresh", systemImage: "envelope.badge", action: onMockRefresh)
+            Button("Mock Gmail auth", systemImage: "person.crop.circle.badge.checkmark", action: onMockAuthConnect)
+            Button("Mock auth failure", systemImage: "xmark.octagon", action: onMockAuthFailure)
+            Button("Review Gmail plan", systemImage: "list.clipboard.fill", action: onReviewPlan)
+            Button("Create setup task", systemImage: "checklist", action: onCreatePlanTask)
+          }
+        }
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Token simulation and maintenance")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          CompactActionRow {
+            Button("Token ready", systemImage: "key.fill", action: onTokenStoreReady)
+            Button("Token missing", systemImage: "key.slash", action: onTokenMissing)
+            Button("Token error", systemImage: "exclamationmark.triangle", action: onTokenStorageError)
+            Button("Clear token ref", systemImage: "trash.circle", action: onTokenClear)
+            Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+          }
+        }
+      }
+      .buttonStyle(.bordered)
+      .padding(10)
+      .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
+    }
+    .padding()
+    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func gmailRefreshHistory(_ history: [GmailRefreshHistoryEntry]) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline) {
+        Label("Recent Gmail activity", systemImage: "clock.arrow.circlepath")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.blue)
+        Spacer()
+        Badge("\(history.count) saved", color: .blue)
+      }
+      Text("Local history keeps recent readiness, refresh, and review outcomes here. Use Audit only when you need the full diagnostic detail.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      ForEach(Array(history.prefix(6))) { entry in
+        VStack(alignment: .leading, spacing: 5) {
+          HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(entry.eventType)
+                .font(.caption.weight(.semibold))
+              Text(entry.timestamp)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Badge(entry.status, color: gmailHistoryColor(for: entry))
+          }
+          CompactMetadataGrid(minimumWidth: 96) {
+            Badge("\(entry.fetchedCount) fetched", color: .blue)
+            Badge("\(entry.importedCount) imported", color: entry.importedCount > 0 ? .green : .secondary)
+            Badge("\(entry.duplicateCount) dupes", color: entry.duplicateCount > 0 ? .orange : .secondary)
+            Badge("\(entry.filteredNonOrderCount) filtered", color: entry.filteredNonOrderCount > 0 ? .teal : .secondary)
+            Badge("\(entry.uncertainCount) uncertain", color: entry.uncertainCount > 0 ? .orange : .secondary)
+          }
+          Text(entry.summary)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+            .fixedSize(horizontal: false, vertical: true)
+          let highlights = gmailHistoryHighlights(from: entry.summary)
+          if !highlights.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+              ForEach(highlights, id: \.self) { highlight in
+                HStack(alignment: .top, spacing: 6) {
+                  Image(systemName: "tag.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+                    .frame(width: 12)
+                  Text(highlight)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+            }
+            .padding(8)
+            .background(Color.blue.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+        .padding(8)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func gmailHistoryColor(for entry: GmailRefreshHistoryEntry) -> Color {
+    let status = entry.status.lowercased()
+    if status.contains("auth") || status.contains("failed") || status.contains("rejected") || status.contains("not configured") {
+      return .red
+    }
+    if entry.importedCount > 0 { return .green }
+    if entry.uncertainCount > 0 || status.contains("dismissed") { return .orange }
+    if entry.filteredNonOrderCount > 0 || entry.duplicateCount > 0 { return .teal }
+    if status.contains("ready") || status.contains("success") { return .green }
+    return .secondary
+  }
+
+  private func gmailHistoryHighlights(from summary: String) -> [String] {
+    let sentenceCandidates = summary
+      .components(separatedBy: ". ")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+
+    var highlights: [String] = []
+    for sentence in sentenceCandidates {
+      let lower = sentence.lowercased()
+      let isUseful =
+        lower.hasPrefix("label '") ||
+        lower.contains("gmail label resolution") ||
+        lower.contains("gmail profile preflight") ||
+        lower.contains("gmail multi-label fetch") ||
+        lower.contains("gmail api manual refresh") ||
+        lower.contains("google signin")
+
+      guard isUseful else { continue }
+      let cleaned = sentence
+        .replacingOccurrences(of: "\n", with: " ")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      if !cleaned.isEmpty, !highlights.contains(cleaned) {
+        highlights.append(String(cleaned.prefix(180)))
+      }
+      if highlights.count >= 4 { break }
+    }
+
+    return highlights
+  }
+
+  private var hasMissingCoreGmailSetup: Bool {
+    connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || !connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
+  }
+
+  private var canRunRealGmailRefresh: Bool {
+    readiness.isReady && authState.status == .connected
+  }
+
+  private var gmailRealRefreshActionLabel: String {
+    if hasMissingCoreGmailSetup { return "Run real Gmail refresh" }
+    if !readiness.isReady { return "Record refresh preflight" }
+    if authState.status != .connected { return "Check refresh auth" }
+    return "Run real Gmail refresh"
+  }
+
+  private var gmailRealRefreshActionSymbol: String {
+    if !readiness.isReady { return "shield.lefthalf.filled" }
+    if authState.status != .connected { return "person.badge.key" }
+    return "envelope.badge.shield.half.filled"
+  }
+
+  private var gmailRealRefreshGuidanceText: String {
+    if hasMissingCoreGmailSetup { return "Real refresh waits for saved Gmail setup fields." }
+    if !readiness.isReady { return "Preflight is available and will stop before Google sign-in, token requests, Gmail API calls, or mailbox access until callback/readiness matches the compiled app." }
+    if authState.status != .connected { return "Auth check is available and should stop before Gmail API calls if no signed-in Google account or read-only scope is available." }
+    return "Real refresh is available."
+  }
+
+  private var shouldDisableRealGmailSignIn: Bool {
+    hasMissingCoreGmailSetup || !readiness.isReady
+  }
+
+  private var gmailRealSignInActionLabel: String {
+    if hasMissingCoreGmailSetup { return "Setup before sign-in" }
+    if !readiness.isReady { return "Check readiness first" }
+    return "Test real Google sign-in"
+  }
+
+  private var gmailRealSignInDisabledReason: String {
+    if hasMissingCoreGmailSetup {
+      return "Save Gmail address, labels, Google client ID, callback scheme, and read-only scope before real sign-in."
+    }
+    return "Run Check readiness after the app has been rebuilt with matching Google client and callback values."
+  }
+
+  private var gmailRealActionSafetyCard: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "shield.checkered")
+          .foregroundStyle(gmailRealActionSafetyColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(gmailRealActionSafetyTitle)
+            .font(.caption.weight(.semibold))
+          Text(gmailRealActionSafetyDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(gmailRealActionSafetyBadge, color: gmailRealActionSafetyColor)
+      }
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        ForEach(Array(gmailRealActionGateRows.enumerated()), id: \.offset) { _, row in
+          HStack(alignment: .top, spacing: 6) {
+            Image(systemName: row.isReady ? "checkmark.circle.fill" : row.symbol)
+              .font(.caption)
+              .foregroundStyle(row.isReady ? Color.green : Color.orange)
+              .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(row.title)
+                .font(.caption2.weight(.semibold))
+              Text(row.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(7)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background((row.isReady ? Color.green : Color.orange).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("Mock refresh is still available for local Inbox testing and does not require Google sign-in, tokens, or Gmail API access.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(gmailRealActionSafetyColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailRealActionGateRows: [(title: String, detail: String, isReady: Bool, symbol: String)] {
+    [
+      (
+        title: "Setup fields",
+        detail: hasMissingCoreGmailSetup ? "Save Gmail address, labels, client ID, callback scheme, and Gmail read-only scope." : "Required Gmail setup fields are saved.",
+        isReady: !hasMissingCoreGmailSetup,
+        symbol: "square.and.pencil"
+      ),
+      (
+        title: "Compiled callback",
+        detail: readiness.isReady ? "App configuration matches the saved Google callback values." : "Run Check readiness after rebuilding with the compiled Google values.",
+        isReady: readiness.isReady,
+        symbol: "gear.badge.questionmark"
+      ),
+      (
+        title: "Google sign-in",
+        detail: authState.status == .connected ? "A Google identity session is connected for the read-only refresh path." : "Use real sign-in only after setup and readiness pass.",
+        isReady: authState.status == .connected,
+        symbol: "person.badge.key"
+      ),
+      (
+        title: "Manual refresh",
+        detail: canRunRealGmailRefresh ? "Real Gmail refresh can run manually and read-only." : "Real refresh will stop at the next missing gate.",
+        isReady: canRunRealGmailRefresh,
+        symbol: "envelope.badge.shield.half.filled"
+      )
+    ]
+  }
+
+  private var gmailRealActionSafetyTitle: String {
+    if hasMissingCoreGmailSetup { return "Real Gmail is waiting for setup" }
+    if !readiness.isReady { return "Real Gmail needs a readiness check" }
+    if authState.status != .connected { return "Real Gmail needs sign-in" }
+    return "Real Gmail is ready for manual refresh"
+  }
+
+  private var gmailRealActionSafetyDetail: String {
+    if hasMissingCoreGmailSetup { return "Next safe action: open Edit setup and save the Gmail address, labels, client ID, callback scheme, and read-only scope placeholders." }
+    if !readiness.isReady { return "Next safe action: run Check readiness. It is local and should stop before Google sign-in, tokens, or Gmail API calls if compiled values do not match." }
+    if authState.status != .connected { return "Next safe action: Test real Google sign-in. Mailbox fetching remains separate until sign-in succeeds." }
+    return "Next safe action: Run real Gmail refresh. It is manual, read-only, limited, and keeps mock refresh separate."
+  }
+
+  private var gmailRealActionSafetyBadge: String {
+    if canRunRealGmailRefresh { return "Ready" }
+    if hasMissingCoreGmailSetup { return "Setup" }
+    if !readiness.isReady { return "Preflight" }
+    return "Sign in"
+  }
+
+  private var gmailRealActionSafetyColor: Color {
+    canRunRealGmailRefresh ? .green : .orange
+  }
+
+  private var gmailSetupSequenceCard: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "list.number")
+          .foregroundStyle(.teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Gmail setup sequence")
+            .font(.caption.weight(.semibold))
+          Text("Use this order when turning on real Gmail. Mock refresh remains available for local Inbox testing at any point.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(gmailSetupSequenceBadge, color: gmailSetupSequenceColor)
+      }
+
+      CompactMetadataGrid(minimumWidth: 175) {
+        ForEach(Array(gmailSetupSequenceItems.enumerated()), id: \.offset) { index, item in
+          VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+              Text("\(index + 1)")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 18, height: 18)
+                .background(item.color, in: Circle())
+              Text(item.title)
+                .font(.caption.weight(.semibold))
+            }
+            Badge(item.status, color: item.color)
+            Text(item.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("Real Gmail refresh is manual and read-only. ParcelOps does not store Google token values in JSON and does not delete, move, mark read, send, or modify Gmail messages.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(Color.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailSetupSequenceItems: [(title: String, detail: String, status: String, color: Color)] {
+    let setupSaved = !hasMissingCoreGmailSetup
+    let compiledReady = readiness.isReady
+    let signedIn = authState.status == .connected
+    let realRefreshRecorded = connection.lastRefreshSummary.localizedCaseInsensitiveContains("real gmail")
+      || connection.lastRefreshSummary.localizedCaseInsensitiveContains("gmail refresh completed")
+
+    return [
+      (
+        title: "Confirm mailbox setup",
+        detail: "Save the Gmail address, labels, read-only scope, Google client ID, and callback scheme placeholders.",
+        status: setupSaved ? "Saved" : "Needs setup",
+        color: setupSaved ? .green : .orange
+      ),
+      (
+        title: "Compile Google values",
+        detail: "Add GIDClientID and the Gmail URL scheme to Project.json/App Info, regenerate if needed, then rebuild.",
+        status: compiledReady ? "Matches" : "Blocked",
+        color: compiledReady ? .green : .orange
+      ),
+      (
+        title: "Check readiness",
+        detail: "Run the local readiness check before any real Google sign-in or Gmail API request.",
+        status: compiledReady ? "Ready" : "Check needed",
+        color: compiledReady ? .green : .orange
+      ),
+      (
+        title: "Test sign-in",
+        detail: "Use the explicit real Google sign-in test. ParcelOps records only non-secret session state.",
+        status: authState.status.rawValue,
+        color: signedIn ? .green : .orange
+      ),
+      (
+        title: "Run manual refresh",
+        detail: "Fetch a small read-only page of Gmail messages through the provider-neutral intake path.",
+        status: realRefreshRecorded ? "Recorded" : "Not run",
+        color: realRefreshRecorded ? .blue : .secondary
+      )
+    ]
+  }
+
+  private var gmailSetupSequenceBadge: String {
+    if canRunRealGmailRefresh { return "Ready" }
+    if hasMissingCoreGmailSetup { return "Setup first" }
+    if !readiness.isReady { return "Compile values" }
+    if authState.status != .connected { return "Sign in" }
+    return "Review"
+  }
+
+  private var gmailSetupSequenceColor: Color {
+    if canRunRealGmailRefresh { return .green }
+    if hasMissingCoreGmailSetup || !readiness.isReady || authState.status != .connected { return .orange }
+    return .secondary
+  }
+
+  private var gmailCompiledConfigurationCard: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: readiness.isReady ? "app.badge.checkmark.fill" : "app.badge")
+          .foregroundStyle(gmailCompiledConfigurationColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Compiled Gmail app configuration")
+            .font(.caption.weight(.semibold))
+          Text(gmailCompiledConfigurationDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(gmailCompiledConfigurationNextAction)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(gmailCompiledConfigurationColor)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(readiness.isReady ? "Matches" : "Blocked", color: gmailCompiledConfigurationColor)
+      }
+
+      CompactMetadataGrid(minimumWidth: 155) {
+        Badge(gmailSavedClientIDSummary, color: gmailClientIDBadgeColor)
+        Badge(gmailSavedCallbackSchemeSummary, color: gmailRedirectBadgeColor)
+        Badge(readiness.compiledClientIDStatus, color: gmailCompiledClientStatusColor)
+        Badge(readiness.compiledCallbackSchemeStatus, color: gmailCompiledCallbackStatusColor)
+      }
+
+      if !gmailCompiledBlockingFields.isEmpty {
+        Text("Compile blockers: \(gmailCompiledBlockingFields.joined(separator: "; "))")
+          .font(.caption2)
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      VStack(alignment: .leading, spacing: 6) {
+        Label("Values to compile into the app", systemImage: "doc.on.clipboard.fill")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(gmailCompiledHandoffColor)
+        Text(gmailCompiledHandoffDetail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 4) {
+          compiledValueRow(label: "GIDClientID", value: gmailExpectedCompiledClientID)
+          compiledValueRow(label: "Gmail URL scheme", value: gmailExpectedCompiledCallbackScheme)
+        }
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Exact compile targets", systemImage: "target")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(gmailCompiledHandoffColor)
+          Text("Use these non-secret targets when updating the app config. Do not paste token values, client secrets, passwords, or mailbox content into these files.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          CompactMetadataGrid(minimumWidth: 210) {
+            ForEach(gmailCompileTargetRows, id: \.label) { row in
+              VStack(alignment: .leading, spacing: 4) {
+                Label(row.file, systemImage: row.symbol)
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(row.color)
+                Text(row.label)
+                  .font(.caption2.weight(.semibold))
+                Text(row.value)
+                  .font(.caption.monospaced())
+                  .foregroundStyle(.secondary)
+                  .textSelection(.enabled)
+                  .lineLimit(4)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(8)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+          Text(gmailCompileTargetWarning)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(gmailCompiledHandoffColor)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(8)
+        .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
+        CompactMetadataGrid(minimumWidth: 240) {
+          ForEach(gmailCompiledConfigFileRows, id: \.title) { row in
+            VStack(alignment: .leading, spacing: 5) {
+              Label(row.title, systemImage: row.symbol)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(row.color)
+              Text(row.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Text(row.nextAction)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(row.color)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Operator handoff checklist", systemImage: "checklist")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(gmailCompiledHandoffColor)
+          gmailCompiledHandoffStep(
+            number: "1",
+            title: "Google Cloud",
+            detail: "Create an iOS OAuth client for bundle ID app.bitrig.parcelops. Do not create or paste a client secret."
+          )
+          gmailCompiledHandoffStep(
+            number: "2",
+            title: "App config",
+            detail: "Compile the saved GIDClientID and reversed URL scheme into App/Info.plist through Project.json."
+          )
+          gmailCompiledHandoffStep(
+            number: "3",
+            title: "Rebuild",
+            detail: "Regenerate the Xcode project if needed, build the app, then rerun Check readiness in this row."
+          )
+          gmailCompiledHandoffStep(
+            number: "4",
+            title: "Manual test",
+            detail: "Use Test real Google sign-in first. Run real Gmail refresh only after setup, compiled callback readiness, sign-in, and read-only scope consent are clear."
+          )
+        }
+        .padding(8)
+        .background(.background.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
+        Text("After these values are updated in Project.json/App Info.plist and the Xcode project is regenerated, rerun Check readiness before testing real Google sign-in.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(gmailCompiledHandoffColor)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(8)
+      .background(gmailCompiledHandoffColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      Text("Client IDs and URL schemes are non-secret app configuration. ParcelOps still does not store Google access tokens, refresh tokens, auth codes, client secrets, passwords, raw callback URLs, or Gmail message bodies.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(gmailCompiledConfigurationColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailCompiledConfigurationColor: Color {
+    readiness.isReady ? .green : .orange
+  }
+
+  private var gmailEmailDomain: String {
+    let parts = connection.emailAddress
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .split(separator: "@", maxSplits: 1)
+    guard parts.count == 2 else { return "" }
+    return String(parts[1]).lowercased()
+  }
+
+  private var gmailProviderFitTitle: String {
+    if gmailEmailDomain.isEmpty { return "Confirm Gmail provider fit" }
+    if gmailEmailDomain == "gmail.com" || gmailEmailDomain == "googlemail.com" { return "Consumer Gmail mailbox" }
+    if gmailEmailDomain.hasSuffix(".example") { return "Sample Gmail setup record" }
+    if isGmailHostVerifiedLocally { return "Google Workspace host verified locally" }
+    return "Google Workspace or custom-domain mailbox"
+  }
+
+  private var gmailProviderFitDetail: String {
+    if gmailEmailDomain.isEmpty {
+      return "Add the mailbox address before choosing Gmail. If the account is hosted by SpaceMail or another IMAP provider, use the IMAP setup instead."
+    }
+    if gmailEmailDomain == "gmail.com" || gmailEmailDomain == "googlemail.com" {
+      return "This address looks like consumer Gmail. Use Gmail setup with a Google iOS OAuth client and read-only Gmail scope."
+    }
+    if gmailEmailDomain.hasSuffix(".example") {
+      return "This is sample data. Replace it with the real Google-hosted mailbox before testing sign-in or refresh."
+    }
+    if isGmailHostVerifiedLocally {
+      return "This custom-domain mailbox has local operator verification recorded as Google-hosted. Use Gmail refresh only if that external hosting check remains true."
+    }
+    return "A custom-domain address should use this Gmail path only if the domain is hosted by Google Workspace. If MX/mail hosting is SpaceMail or another IMAP provider, use the SpaceMail/IMAP path."
+  }
+
+  private var gmailProviderFitColor: Color {
+    if gmailEmailDomain.isEmpty || gmailEmailDomain.hasSuffix(".example") { return .orange }
+    if gmailEmailDomain == "gmail.com" || gmailEmailDomain == "googlemail.com" { return .green }
+    if isGmailHostVerifiedLocally { return .green }
+    return .teal
+  }
+
+  private var gmailProviderFitBadge: String {
+    if gmailEmailDomain.isEmpty { return "Check" }
+    if gmailEmailDomain == "gmail.com" || gmailEmailDomain == "googlemail.com" { return "Gmail" }
+    if gmailEmailDomain.hasSuffix(".example") { return "Sample" }
+    if isGmailHostVerifiedLocally { return "Host verified" }
+    return "Verify host"
+  }
+
+  private var isCustomDomainGmailSetup: Bool {
+    !gmailEmailDomain.isEmpty
+      && gmailEmailDomain != "gmail.com"
+      && gmailEmailDomain != "googlemail.com"
+      && !gmailEmailDomain.hasSuffix(".example")
+  }
+
+  private var isGmailHostVerifiedLocally: Bool {
+    connection.providerHostVerificationStatus.localizedCaseInsensitiveContains("verified")
+  }
+
+  private var gmailProviderFitCard: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "server.rack")
+          .foregroundStyle(gmailProviderFitColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(gmailProviderFitTitle)
+            .font(.caption.weight(.semibold))
+          Text(gmailProviderFitDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(gmailProviderFitBadge, color: gmailProviderFitColor)
+      }
+      CompactMetadataGrid(minimumWidth: 155) {
+        Badge(gmailEmailDomain.isEmpty ? "No domain" : gmailEmailDomain, color: gmailProviderFitColor)
+        Badge(connection.providerHostVerificationStatus, color: isGmailHostVerifiedLocally ? .green : .secondary)
+        Badge("Checked: \(connection.providerHostVerifiedDate)", color: isGmailHostVerifiedLocally ? .green : .secondary)
+        Badge("Gmail API only", color: .blue)
+        Badge("Use IMAP if not Google-hosted", color: .orange)
+        Badge("Manual refresh", color: .secondary)
+      }
+      Text(connection.providerHostVerificationNotes)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      if isCustomDomainGmailSetup {
+        CompactActionRow {
+          Button("Mark Google-hosted", systemImage: "checkmark.shield.fill", action: onMarkHostVerified)
+          Button("Reset host check", systemImage: "arrow.counterclockwise", action: onResetHostVerification)
+        }
+        .buttonStyle(.bordered)
+      }
+      Text("This is a local provider-choice check only. ParcelOps does not look up DNS, contact Google, contact IMAP servers, store tokens, or fetch mail from this card.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(gmailProviderFitColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailOperatorNextStepCard: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: gmailPrimaryActionSymbol)
+          .foregroundStyle(gmailPrimaryActionColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Next Gmail setup action")
+            .font(.caption.weight(.semibold))
+          Text(gmailPrimaryActionDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(gmailPrimaryActionBadge, color: gmailPrimaryActionColor)
+      }
+      CompactActionRow {
+        Button(gmailPrimaryActionLabel, systemImage: gmailPrimaryActionSymbol) {
+          runGmailPrimaryAction()
+        }
+        .buttonStyle(.borderedProminent)
+        Button("Mock refresh fallback", systemImage: "envelope.badge", action: onMockRefresh)
+          .buttonStyle(.bordered)
+        Button("Create setup task", systemImage: "checklist", action: onCreatePlanTask)
+          .buttonStyle(.bordered)
+      }
+      Text("Use the real action only when the setup state says it is ready. Mock refresh remains the local test path and does not contact Google.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(gmailPrimaryActionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailPrimaryActionLabel: String {
+    if hasMissingCoreGmailSetup { return "Edit Gmail setup" }
+    if !readiness.isReady { return "Check readiness" }
+    if authState.status != .connected { return "Test real Google sign-in" }
+    return "Run real Gmail refresh"
+  }
+
+  private var gmailPrimaryActionSymbol: String {
+    if hasMissingCoreGmailSetup { return "pencil" }
+    if !readiness.isReady { return "network.badge.shield.half.filled" }
+    if authState.status != .connected { return "person.badge.key" }
+    return "envelope.badge.shield.half.filled"
+  }
+
+  private var gmailPrimaryActionBadge: String {
+    if hasMissingCoreGmailSetup { return "Setup" }
+    if !readiness.isReady { return "Verify" }
+    if authState.status != .connected { return "Sign in" }
+    return "Refresh"
+  }
+
+  private var gmailPrimaryActionDetail: String {
+    if hasMissingCoreGmailSetup {
+      return "Complete the non-secret mailbox, label, Google iOS client ID, callback scheme, and read-only Gmail scope fields before testing real sign-in."
+    }
+    if !readiness.isReady {
+      return "Run the readiness check after updating Project.json/App Info.plist and rebuilding, or use the compile handoff details above to fix the mismatch."
+    }
+    if authState.status != .connected {
+      return "Run the explicit real Google sign-in test. ParcelOps records only non-secret session status and keeps Gmail refresh manual."
+    }
+    return "Run one manual read-only Gmail refresh. ParcelOps requests message metadata/snippets only and does not mutate Gmail messages."
+  }
+
+  private var gmailPrimaryActionColor: Color {
+    if readiness.isReady && authState.status == .connected { return .green }
+    if hasMissingCoreGmailSetup || !readiness.isReady || authState.status != .connected { return .orange }
+    return .secondary
+  }
+
+  private func runGmailPrimaryAction() {
+    if hasMissingCoreGmailSetup {
+      draft = connection
+      isEditing = true
+    } else if !readiness.isReady {
+      onRealReadinessCheck()
+    } else if authState.status != .connected {
+      onRealAuthReadinessCheck()
+    } else {
+      onRealRefresh()
+    }
+  }
+
+  private var gmailExpectedCompiledClientID: String {
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if clientID.isEmpty { return "Add the Google iOS OAuth client ID first" }
+    if clientID == GoogleGmailAuthAdapter.placeholderClientID || clientID.localizedCaseInsensitiveContains("placeholder") {
+      return "Replace placeholder with the Google iOS OAuth client ID"
+    }
+    return clientID
+  }
+
+  private var gmailExpectedCompiledCallbackScheme: String {
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if let expected = gmailExpectedRedirectScheme(for: clientID) {
+      return expected
+    }
+    let savedScheme = gmailRedirectSchemeDisplay
+    if savedScheme.isEmpty { return "Add the reversed client ID URL scheme first" }
+    if savedScheme == GoogleGmailAuthAdapter.placeholderCallbackScheme || savedScheme.localizedCaseInsensitiveContains("placeholder") {
+      return "Replace placeholder with the reversed client ID URL scheme"
+    }
+    return savedScheme
+  }
+
+  private var gmailCompiledHandoffColor: Color {
+    gmailExpectedCompiledClientID.hasSuffix(".apps.googleusercontent.com")
+      && gmailExpectedCompiledCallbackScheme.hasPrefix("com.googleusercontent.apps.")
+      ? .blue
+      : .orange
+  }
+
+  private var gmailCompiledHandoffDetail: String {
+    if gmailCompiledHandoffColor == .blue {
+      return "These are the non-secret values the compiled app should contain for this saved Gmail setup."
+    }
+    return "Finish the saved Google iOS OAuth client ID and reversed URL scheme first; then this handoff will show exact compile-time values."
+  }
+
+  private var gmailCompiledConfigFileRows: [(title: String, detail: String, nextAction: String, symbol: String, color: Color)] {
+    let clientReady = gmailExpectedCompiledClientID.hasSuffix(".apps.googleusercontent.com")
+    let schemeReady = gmailExpectedCompiledCallbackScheme.hasPrefix("com.googleusercontent.apps.")
+    let savedValuesReady = clientReady && schemeReady
+    let compiledValuesMatch = readiness.isReady
+    return [
+      (
+        "Project.json",
+        savedValuesReady
+          ? "XcodeGen should define GIDClientID and the Gmail URL scheme here so regenerated projects keep the Google callback setup."
+          : "Project.json cannot be finalized until the real Google iOS client ID and reversed URL scheme are saved.",
+        savedValuesReady
+          ? "Update Project.json first, then regenerate the Xcode project if the generated project is stale."
+          : "Add the Google iOS client ID and reversed URL scheme in this setup row first.",
+        "curlybraces.square",
+        savedValuesReady ? .blue : .orange
+      ),
+      (
+        "App/Info.plist",
+        savedValuesReady
+          ? "The built app must contain GIDClientID and CFBundleURLSchemes with the same non-secret values shown above."
+          : "Info.plist callback readiness is blocked until the setup values are real, not placeholders.",
+        compiledValuesMatch
+          ? "Compiled values currently match this Gmail setup."
+          : "After Project.json/Info.plist are updated, rebuild and run Check readiness again.",
+        "doc.text.fill",
+        compiledValuesMatch ? .green : savedValuesReady ? .blue : .orange
+      ),
+      (
+        "Generated project",
+        "ParcelOps.xcodeproj may be regenerated from Project.json, so local generated project edits are not the source of truth.",
+        "Do not rely on Xcode-only generated edits for Gmail callback setup; keep Project.json and Info.plist aligned.",
+        "hammer.fill",
+        compiledValuesMatch ? .green : .secondary
+      )
+    ]
+  }
+
+  private var gmailCompileTargetRows: [(file: String, label: String, value: String, symbol: String, color: Color)] {
+    let clientReady = gmailExpectedCompiledClientID.hasSuffix(".apps.googleusercontent.com")
+    let schemeReady = gmailExpectedCompiledCallbackScheme.hasPrefix("com.googleusercontent.apps.")
+    return [
+      (
+        "Project.json",
+        "settings.GIDClientID",
+        "\"GIDClientID\": \"\(gmailExpectedCompiledClientID)\"",
+        "curlybraces.square",
+        clientReady ? .blue : .orange
+      ),
+      (
+        "Project.json",
+        "settings.CFBundleURLTypes Gmail scheme",
+        "\"CFBundleURLSchemes\": [\"\(gmailExpectedCompiledCallbackScheme)\"]",
+        "curlybraces.square",
+        schemeReady ? .blue : .orange
+      ),
+      (
+        "App/Info.plist",
+        "GIDClientID",
+        "<string>\(gmailExpectedCompiledClientID)</string>",
+        "doc.text.fill",
+        readiness.isReady ? .green : clientReady ? .blue : .orange
+      ),
+      (
+        "App/Info.plist",
+        "CFBundleURLSchemes",
+        "<string>\(gmailExpectedCompiledCallbackScheme)</string>",
+        "doc.text.fill",
+        readiness.isReady ? .green : schemeReady ? .blue : .orange
+      )
+    ]
+  }
+
+  private var gmailCompileTargetWarning: String {
+    if readiness.isReady {
+      return "Compiled values currently match this Gmail setup. Keep Project.json as the source of truth for regeneration."
+    }
+    if gmailExpectedCompiledClientID.localizedCaseInsensitiveContains("placeholder") ||
+        gmailExpectedCompiledCallbackScheme.localizedCaseInsensitiveContains("placeholder") {
+      return "Replace placeholder values before rebuilding. Google sign-in will not work with placeholder client ID or callback scheme values."
+    }
+    return "After updating Project.json/App Info.plist, regenerate the Xcode project if needed, rebuild, then run Check readiness."
+  }
+
+  @ViewBuilder
+  private func gmailCompiledHandoffStep(number: String, title: String, detail: String) -> some View {
+    HStack(alignment: .top, spacing: 8) {
+      Text(number)
+        .font(.caption2.weight(.bold))
+        .foregroundStyle(.white)
+        .frame(width: 18, height: 18)
+        .background(gmailCompiledHandoffColor, in: Circle())
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption2.weight(.semibold))
+        Text(detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func compiledValueRow(label: String, value: String) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+      Text(label)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+      Text(value)
+        .font(.caption.monospaced())
+        .textSelection(.enabled)
+        .lineLimit(3)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailCompiledClientStatusColor: Color {
+    readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("matches")
+      || readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("present")
+      ? .green
+      : .orange
+  }
+
+  private var gmailCompiledCallbackStatusColor: Color {
+    readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes")
+      || readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("present")
+      ? .green
+      : .orange
+  }
+
+  private var gmailCompiledBlockingFields: [String] {
+    readiness.missingFields.filter { field in
+      field.localizedCaseInsensitiveContains("compiled App Info.plist")
+        || field.localizedCaseInsensitiveContains("callback URL scheme matching")
+        || field.localizedCaseInsensitiveContains("OAuth iOS client ID ending")
+    }
+  }
+
+  private var gmailCompiledConfigurationDetail: String {
+    if readiness.isReady {
+      return "Saved Gmail setup matches the compiled app client ID and callback scheme. Real Google sign-in can be tested explicitly."
+    }
+    if !gmailCompiledBlockingFields.isEmpty {
+      return "Saved Gmail setup does not yet match the compiled app values required by GoogleSignIn callback handling."
+    }
+    return readiness.detailText
+  }
+
+  private var gmailCompiledConfigurationNextAction: String {
+    if readiness.isReady {
+      return "Next: run Check readiness, use Test real Google sign-in, then run manual read-only Gmail refresh only when needed."
+    }
+    if !gmailCompiledBlockingFields.isEmpty {
+      return "Next: replace the Gmail placeholder values in Project.json and App/Info.plist with the Google iOS OAuth client ID and reversed URL scheme, regenerate/rebuild, then rerun readiness."
+    }
+    return "Next: finish the saved Gmail setup fields, then rerun readiness."
+  }
+
+  private var gmailSavedClientIDSummary: String {
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if clientID.isEmpty { return "Saved client ID missing" }
+    if clientID == GoogleGmailAuthAdapter.placeholderClientID || clientID.localizedCaseInsensitiveContains("placeholder") {
+      return "Saved client ID placeholder"
+    }
+    return "Saved client ID set"
+  }
+
+  private var gmailSavedCallbackSchemeSummary: String {
+    let scheme = gmailRedirectSchemeDisplay
+    if scheme.isEmpty { return "Saved scheme missing" }
+    if scheme == GoogleGmailAuthAdapter.placeholderCallbackScheme || scheme.localizedCaseInsensitiveContains("placeholder") {
+      return "Saved scheme placeholder"
+    }
+    return "Saved scheme set"
+  }
+
+  private var gmailRedirectSchemeDisplay: String {
+    gmailRedirectScheme(from: (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
+  }
+
+  private var gmailSetupBlockerTitle: String {
+    if readiness.isReady && authState.status == .connected { return "Gmail setup is ready for manual refresh" }
+    if hasMissingCoreGmailSetup { return "Gmail setup fields need attention" }
+    if !readiness.isReady { return "Gmail app/callback setup does not match" }
+    if authState.status != .connected { return "Google sign-in still needs testing" }
+    return "Gmail setup needs review"
+  }
+
+  private var gmailSetupBlockerDetail: String {
+    if readiness.isReady && authState.status == .connected {
+      return "Saved Gmail setup values and the current Google sign-in state look ready for an explicit manual read-only refresh."
+    }
+    if hasMissingCoreGmailSetup {
+      return "Complete the mailbox address, label list, Google iOS OAuth client ID, reversed callback scheme, and read-only Gmail scope before real sign-in or refresh."
+    }
+    if !readiness.isReady {
+      return "The saved Gmail setup and the compiled app callback configuration need to agree before Google sign-in can be trusted."
+    }
+    if authState.status != .connected {
+      return "Run Check readiness, then the explicit real Google sign-in test. ParcelOps records only non-secret session status and keeps mock refresh available."
+    }
+    return readiness.detailText
+  }
+
+  private var gmailSetupBlockerNextAction: String {
+    if readiness.isReady && authState.status == .connected { return "Next: run manual real Gmail refresh only when you want to check the mailbox." }
+    if hasMissingCoreGmailSetup { return "Next: edit setup and save the missing non-secret Gmail fields." }
+    if !readiness.isReady { return "Next: fix the listed setup/configuration mismatch, regenerate if needed, then rebuild." }
+    if authState.status != .connected { return "Next: tap Check readiness, then Test real Google sign-in; do not run real refresh until readiness and sign-in succeed." }
+    return readiness.detailText
+  }
+
+  private var gmailSetupBlockerBadge: String {
+    if readiness.isReady && authState.status == .connected { return "Ready" }
+    if hasMissingCoreGmailSetup { return "Setup missing" }
+    if !readiness.isReady { return "Config mismatch" }
+    if authState.status != .connected { return "Sign-in needed" }
+    return "Review"
+  }
+
+  private var gmailSetupBlockerSymbol: String {
+    if readiness.isReady && authState.status == .connected { return "checkmark.seal.fill" }
+    if hasMissingCoreGmailSetup { return "pencil.and.list.clipboard" }
+    if !readiness.isReady { return "app.badge.checkmark" }
+    if authState.status != .connected { return "person.badge.key" }
+    return "exclamationmark.triangle.fill"
+  }
+
+  private var gmailSetupBlockerColor: Color {
+    if readiness.isReady && authState.status == .connected { return .green }
+    if !readiness.isReady || hasMissingCoreGmailSetup || authState.status != .connected { return .orange }
+    return .secondary
+  }
+
+  private var gmailClientIDBadgeText: String {
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if clientID.isEmpty { return "Client ID missing" }
+    if clientID == GoogleGmailAuthAdapter.placeholderClientID || clientID.localizedCaseInsensitiveContains("placeholder") {
+      return "Client placeholder"
+    }
+    if clientID.hasSuffix(".apps.googleusercontent.com") {
+      return "Client ID shaped"
+    }
+    return "Client ID shape issue"
+  }
+
+  private var gmailClientIDBadgeColor: Color {
+    gmailClientIDBadgeText == "Client ID shaped" ? .green : .orange
+  }
+
+  private var gmailRedirectBadgeText: String {
+    let redirect = (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if redirect.isEmpty { return "Callback missing" }
+    if redirect == GoogleGmailAuthAdapter.placeholderCallbackScheme || redirect.localizedCaseInsensitiveContains("placeholder") {
+      return "Callback placeholder"
+    }
+    if gmailRedirectScheme(from: redirect).hasPrefix("com.googleusercontent.apps.") {
+      return "Callback shaped"
+    }
+    return "Callback shape issue"
+  }
+
+  private var gmailRedirectBadgeColor: Color {
+    gmailRedirectBadgeText == "Callback shaped" ? .green : .orange
+  }
+
+  private var gmailScopeBadgeText: String {
+    if connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.readonly") {
+      return "gmail.readonly planned"
+    }
+    if connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.metadata") {
+      return "gmail.metadata planned"
+    }
+    if connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.") {
+      return "Gmail scope planned"
+    }
+    return "Gmail scope missing"
+  }
+
+  private var gmailScopeBadgeColor: Color {
+    gmailScopeBadgeText == "Gmail scope missing" ? .orange : .green
+  }
+
+  private var gmailCompiledConfigBadgeText: String {
+    let combined = "\(readiness.compiledClientIDStatus) \(readiness.compiledCallbackSchemeStatus)"
+    if combined.localizedCaseInsensitiveContains("placeholder") { return "Compiled placeholder" }
+    if combined.localizedCaseInsensitiveContains("missing") { return "Compiled missing" }
+    if combined.localizedCaseInsensitiveContains("does not match") ||
+      combined.localizedCaseInsensitiveContains("does not include") {
+      return "Compiled mismatch"
+    }
+    return "Compiled callback ready"
+  }
+
+  private var gmailCompiledConfigBadgeColor: Color {
+    gmailCompiledConfigBadgeText == "Compiled callback ready" ? .green : .orange
+  }
+
+  private func gmailRedirectScheme(from value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    if let url = URL(string: trimmed), let scheme = url.scheme, !scheme.isEmpty {
+      return scheme
+    }
+    if let scheme = trimmed.components(separatedBy: "://").first, scheme != trimmed {
+      return scheme
+    }
+    if let scheme = trimmed.components(separatedBy: ":").first, scheme != trimmed {
+      return scheme
+    }
+    return trimmed
+  }
+
+  private func gmailExpectedRedirectScheme(for clientID: String) -> String? {
+    let trimmed = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+    let suffix = ".apps.googleusercontent.com"
+    guard trimmed.hasSuffix(suffix), trimmed.count > suffix.count else {
+      return nil
+    }
+    return "com.googleusercontent.apps.\(trimmed.dropLast(suffix.count))"
+  }
+
+  private var gmailOperatorNextTitle: String {
+    if hasMissingCoreGmailSetup { return "Finish Gmail setup details" }
+    if !readiness.isReady { return "Check Gmail callback readiness before sign-in" }
+    if authState.status != .connected { return "Test Google sign-in before real refresh" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") { return "Gmail auth needs a fresh sign-in" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") { return "Gmail consent needs review" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") { return "Fix the Gmail label before refreshing" }
+    if (connection.uncertainMessages ?? []).isEmpty == false { return "Review uncertain Gmail messages" }
+    if connection.lastRefreshImportedCount > 0 { return "Review imported Gmail intake in Inbox" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "Gmail filter is holding non-order mail out of Inbox" }
+    if connection.lastManualRefreshDate == "Never" { return "Run the first manual Gmail refresh" }
+    return "Gmail is ready for the next manual check"
+  }
+
+  private var gmailOperatorNextDetail: String {
+    if hasMissingCoreGmailSetup {
+      return "Add the mailbox address, label, OAuth client placeholder, redirect/scheme, and a read-only Gmail scope note. Do not enter client secrets or token values."
+    }
+    if !readiness.isReady {
+      return "Saved Gmail setup values and compiled app callback configuration need to match before real Google sign-in or real refresh should be used."
+    }
+    if authState.status != .connected {
+      return "Use the explicit sign-in test. ParcelOps should only keep non-secret session status in JSON; token values remain outside app persistence."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") {
+      return "The latest real refresh could not use the current Google session. Sign in again, then retry the manual read-only refresh."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      return "Confirm Gmail API is enabled and that the signed-in account has consent for the read-only Gmail scope before retrying."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") {
+      return "Use INBOX or an existing Gmail label. The refresh will stay read-only and will not mark, move, or delete mail."
+    }
+    if (connection.uncertainMessages ?? []).isEmpty == false {
+      return "Uncertain previews are deliberately held out of Inbox. Import only genuine order mail or dismiss non-order messages locally."
+    }
+    if connection.lastRefreshImportedCount > 0 {
+      return "\(connection.lastRefreshImportedCount) likely order message\(connection.lastRefreshImportedCount == 1 ? "" : "s") reached Inbox. Review, create, or link orders from Inbox."
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      return "\(connection.lastRefreshFilteredNonOrderCount) mixed-mailbox message\(connection.lastRefreshFilteredNonOrderCount == 1 ? "" : "s") were filtered and not imported. Check examples only if an order email was missed."
+    }
+    if connection.lastManualRefreshDate == "Never" {
+      return "Run real Gmail refresh when setup readiness and sign-in are clear, or use mock refresh to test the local intake path without Google access."
+    }
+    return "Run manual refresh when you want to check Gmail again. Background sync and mailbox mutation are still not enabled."
+  }
+
+  private var gmailOperatorNextSymbol: String {
+    if hasMissingCoreGmailSetup { return "gearshape.2.fill" }
+    if !readiness.isReady { return "app.badge.checkmark" }
+    if authState.status != .connected ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      return "person.badge.key"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") { return "tag.slash" }
+    if (connection.uncertainMessages ?? []).isEmpty == false { return "questionmark.folder.fill" }
+    if connection.lastRefreshImportedCount > 0 { return "tray.and.arrow.down.fill" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "line.3.horizontal.decrease.circle" }
+    return "envelope.badge.shield.half.filled"
+  }
+
+  private var gmailOperatorNextColor: Color {
+    if hasMissingCoreGmailSetup ||
+      !readiness.isReady ||
+      authState.status != .connected ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") ||
+      (connection.uncertainMessages ?? []).isEmpty == false {
+      return .orange
+    }
+    if connection.lastRefreshImportedCount > 0 { return .green }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    return .secondary
+  }
+
+  private var gmailReviewQueueCard: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: gmailReviewQueueSymbol)
+          .foregroundStyle(gmailReviewQueueColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(gmailReviewQueueTitle)
+            .font(.subheadline.weight(.semibold))
+          Text(gmailReviewQueueDetail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(gmailReviewQueueBadge, color: gmailReviewQueueColor)
+      }
+
+      MetricStrip(items: [
+        ("Inbox", "\(connection.lastRefreshImportedCount)", connection.lastRefreshImportedCount > 0 ? .green : .secondary),
+        ("Uncertain", "\(gmailPendingUncertainCount)", gmailPendingUncertainCount > 0 ? .orange : .secondary),
+        ("Filtered", "\(gmailPendingFilteredCount)", gmailPendingFilteredCount > 0 ? .teal : .secondary),
+        ("Last filtered", "\(connection.lastRefreshFilteredNonOrderCount)", connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary),
+        ("Duplicates", "\(connection.lastRefreshDuplicateCount)", connection.lastRefreshDuplicateCount > 0 ? .orange : .secondary)
+      ])
+
+      CompactActionRow {
+        if gmailPendingUncertainCount > 0 {
+          Button("Task all uncertain", systemImage: "checklist", action: onCreateTasksForAllUncertain)
+          Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
+        }
+        if gmailPendingFilteredCount > 0 {
+          Button("Dismiss all filtered", systemImage: "line.3.horizontal.decrease.circle", role: .destructive, action: onDismissAllFiltered)
+        }
+        Button("Add demo uncertain", systemImage: "questionmark.folder", action: onAddDemoUncertain)
+        Button("Run classifier suite", systemImage: "checklist", action: onRunClassifierSuite)
+      }
+      .buttonStyle(.bordered)
+
+      Text("Imported Gmail order mail appears in Inbox. Uncertain and filtered previews stay out of Inbox until an operator imports, dismisses, or tunes them locally.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(gmailReviewQueueColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailPendingUncertainCount: Int {
+    connection.uncertainMessages?.count ?? 0
+  }
+
+  private var gmailPendingFilteredCount: Int {
+    connection.filteredMessages?.count ?? 0
+  }
+
+  private var gmailReviewQueueTitle: String {
+    if connection.lastRefreshImportedCount > 0 { return "Gmail imported mail is ready in Inbox" }
+    if gmailPendingUncertainCount > 0 { return "Gmail uncertain queue needs review" }
+    if gmailPendingFilteredCount > 0 { return "Gmail filtered examples are available" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "Gmail filtered non-order mail" }
+    if connection.lastRefreshDuplicateCount > 0 { return "Gmail refresh found duplicates" }
+    if connection.lastManualRefreshDate == "Never" { return "Gmail review queue not started" }
+    return "Gmail review queue is clear"
+  }
+
+  private var gmailReviewQueueDetail: String {
+    if connection.lastRefreshImportedCount > 0 {
+      return "Open Inbox to confirm merchant, order, tracking, and destination before creating or linking orders."
+    }
+    if gmailPendingUncertainCount > 0 {
+      return "\(gmailPendingUncertainCount) Gmail preview\(gmailPendingUncertainCount == 1 ? "" : "s") look order-ish but need a person to import or dismiss them."
+    }
+    if gmailPendingFilteredCount > 0 {
+      return "\(gmailPendingFilteredCount) filtered preview\(gmailPendingFilteredCount == 1 ? "" : "s") can be spot-checked when expected order mail is missing."
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      return "\(connection.lastRefreshFilteredNonOrderCount) message\(connection.lastRefreshFilteredNonOrderCount == 1 ? "" : "s") were filtered from the mixed mailbox and not added to Inbox."
+    }
+    if connection.lastRefreshDuplicateCount > 0 {
+      return "\(connection.lastRefreshDuplicateCount) duplicate Gmail message\(connection.lastRefreshDuplicateCount == 1 ? "" : "s") were already captured, so no duplicate Inbox rows were created."
+    }
+    if connection.lastManualRefreshDate == "Never" {
+      return "Run mock refresh for local testing or real Gmail refresh after setup and sign-in are ready."
+    }
+    return "No Gmail review previews are waiting. Run another manual refresh when you want to check the mailbox again."
+  }
+
+  private var gmailReviewQueueBadge: String {
+    if connection.lastRefreshImportedCount > 0 { return "\(connection.lastRefreshImportedCount) Inbox" }
+    if gmailPendingUncertainCount > 0 { return "\(gmailPendingUncertainCount) uncertain" }
+    if gmailPendingFilteredCount > 0 { return "\(gmailPendingFilteredCount) filtered" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "\(connection.lastRefreshFilteredNonOrderCount) filtered" }
+    if connection.lastRefreshDuplicateCount > 0 { return "\(connection.lastRefreshDuplicateCount) duplicate" }
+    return "Clear"
+  }
+
+  private var gmailReviewQueueSymbol: String {
+    if connection.lastRefreshImportedCount > 0 { return "tray.and.arrow.down.fill" }
+    if gmailPendingUncertainCount > 0 { return "questionmark.folder.fill" }
+    if gmailPendingFilteredCount > 0 || connection.lastRefreshFilteredNonOrderCount > 0 { return "line.3.horizontal.decrease.circle.fill" }
+    if connection.lastRefreshDuplicateCount > 0 { return "doc.on.doc.fill" }
+    return "checkmark.seal.fill"
+  }
+
+  private var gmailReviewQueueColor: Color {
+    if connection.lastRefreshImportedCount > 0 { return .green }
+    if gmailPendingUncertainCount > 0 { return .orange }
+    if gmailPendingFilteredCount > 0 || connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    if connection.lastRefreshDuplicateCount > 0 { return .orange }
+    return .secondary
+  }
+
+  private var releaseSelfCheckColor: Color {
+    color(forReleaseTone: releaseSelfCheck.tone)
+  }
+
+  private func color(forReleaseTone tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+
+  private func classifierReasonColor(_ decision: String) -> Color {
+    if decision.localizedCaseInsensitiveContains("import") { return .green }
+    if decision.localizedCaseInsensitiveContains("uncertain") { return .orange }
+    if decision.localizedCaseInsensitiveContains("filter") { return .teal }
+    return .secondary
+  }
+
+  private var gmailClassifierColor: Color {
+    guard let summary = connection.classifierTestSummary else { return .secondary }
+    if summary.localizedCaseInsensitiveContains("needs review") { return .orange }
+    if summary.localizedCaseInsensitiveContains("Uncertain") { return .orange }
+    if summary.localizedCaseInsensitiveContains("Imported") { return .green }
+    if summary.localizedCaseInsensitiveContains("Filtered") { return .teal }
+    if summary.localizedCaseInsensitiveContains("passed") { return .green }
+    return .secondary
+  }
+
+  private var gmailRefreshGuidanceTitle: String {
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") {
+      return "Sign in again before refresh"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      return "Gmail consent needs attention"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") {
+      return "Check Gmail label setup"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") {
+      return "Gmail API returned a diagnostic"
+    }
+    if connection.lastRefreshImportedCount > 0 {
+      return "Refresh imported Inbox items"
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 || totalUncertainCount > 0 {
+      return "Refresh completed with filtering"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("No messages") {
+      return "No Gmail messages matched"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Ready") {
+      return "Ready for manual real refresh"
+    }
+    return "Gmail refresh status"
+  }
+
+  private var gmailRefreshGuidanceDetail: String {
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") {
+      return "Use Test real Google sign-in, confirm the same mailbox account, then retry Run real Gmail refresh. ParcelOps does not store token values in JSON."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      return "The signed-in Google session is missing read-only Gmail consent or the Google Cloud consent screen/API access needs review. Re-run sign-in and confirm gmail.readonly or gmail.metadata is granted."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") {
+      return "Check the label field. Use INBOX for the primary inbox, or an existing custom Gmail label name. Refresh stays read-only."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") {
+      return "Open Audit for the safe Gmail HTTP status, error code/message, response size, and non-secret response preview. No tokens, auth headers, full URLs, or raw bodies are logged."
+    }
+    if connection.lastRefreshImportedCount > 0 {
+      return "\(connection.lastRefreshImportedCount) message\(connection.lastRefreshImportedCount == 1 ? "" : "s") entered Inbox intake. Review Inbox triage before creating or linking orders."
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 || totalUncertainCount > 0 {
+      let uncertainCount = totalUncertainCount
+      return "\(connection.lastRefreshFilteredNonOrderCount) non-order message\(connection.lastRefreshFilteredNonOrderCount == 1 ? "" : "s") stayed out of Inbox; \(uncertainCount) uncertain preview\(uncertainCount == 1 ? "" : "s") can be reviewed locally."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("No messages") {
+      return "The read-only Gmail request succeeded but returned no messages for the configured label/filter. Check the label or try again after new mail arrives."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Ready") {
+      return "Setup fields are present. Run Check readiness and Test real Google sign-in first, then Run real Gmail refresh when you are ready to fetch up to 10 read-only message previews."
+    }
+    return "Use mock refresh for local testing, or complete Google setup and sign-in before real refresh. Gmail refresh remains manual and read-only."
+  }
+
+  private var gmailRefreshGuidanceSymbol: String {
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      return "person.badge.key"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") {
+      return "tag.slash"
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") {
+      return "exclamationmark.triangle"
+    }
+    if connection.lastRefreshImportedCount > 0 { return "tray.and.arrow.down.fill" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 || totalUncertainCount > 0 {
+      return "line.3.horizontal.decrease.circle"
+    }
+    return "info.circle"
+  }
+
+  private var gmailRefreshGuidanceColor: Color {
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") {
+      return .orange
+    }
+    if connection.lastRefreshImportedCount > 0 { return .green }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    if totalUncertainCount > 0 { return .orange }
+    return .secondary
+  }
+
+  private func gmailRefreshTaskColor(_ task: ReviewTask) -> Color {
+    if task.status == .blocked { return .red }
+    if task.priority == .urgent || task.priority == .high { return .orange }
+    if task.status == .inProgress { return .blue }
+    if task.reviewState != .accepted { return .orange }
+    return .teal
+  }
+
+  private var gmailRefreshModeLabel: String {
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Real Gmail") { return "Real Gmail" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Mock Gmail") { return "Mock Gmail" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("readiness") { return "Readiness" }
+    return "No refresh"
+  }
+
+  private var gmailPrimaryLabelDisplay: String {
+    let first = connection.monitoredLabelNames
+      .split(separator: ",")
+      .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+      .first { !$0.isEmpty }
+    return first ?? "INBOX"
+  }
+
+  private var gmailLabelResolutionStatus: String {
+    let summary = connection.lastRefreshSummary
+    let status = connection.connectionStatus
+    if status.localizedCaseInsensitiveContains("Label not found") ||
+        summary.localizedCaseInsensitiveContains("was not found in safe label metadata") {
+      return "Label not found"
+    }
+    if summary.localizedCaseInsensitiveContains("matched configured label") {
+      return "Custom label resolved"
+    }
+    if summary.localizedCaseInsensitiveContains("used configured label ID directly") {
+      return "Label ID used"
+    }
+    if summary.localizedCaseInsensitiveContains("used system label") || gmailPrimaryLabelDisplay.uppercased() == "INBOX" {
+      return "System label direct"
+    }
+    if connection.lastManualRefreshDate == "Never" {
+      return "Label not checked"
+    }
+    return "Check Audit detail"
+  }
+
+  private var gmailLabelResolutionDetail: String {
+    switch gmailLabelResolutionStatus {
+    case "Label not found":
+      return "The configured Gmail label was not found. Use INBOX or the exact label name shown in Gmail, then retry manual refresh."
+    case "Custom label resolved":
+      return "Custom label metadata was resolved before message listing. Only safe label name, ID, and type diagnostics are shown."
+    case "Label ID used":
+      return "The configured Gmail label ID was used directly. Refresh remains read-only and manual."
+    case "System label direct":
+      return "System labels such as INBOX are used directly; no custom-label lookup is needed."
+    case "Label not checked":
+      return "Run a readiness check or manual refresh after sign-in to confirm the configured Gmail label."
+    default:
+      return "Open Audit for the safe label-resolution detail from the latest Gmail refresh."
+    }
+  }
+
+  private var gmailLabelResolutionColor: Color {
+    switch gmailLabelResolutionStatus {
+    case "Label not found":
+      return .orange
+    case "Custom label resolved", "Label ID used", "System label direct":
+      return .green
+    case "Label not checked":
+      return .secondary
+    default:
+      return .teal
+    }
+  }
+
+  private var gmailTroubleshootingTone: Color {
+    if hasMissingCoreGmailSetup || !readiness.isReady { return .orange }
+    if authState.status != .connected { return .orange }
+    if gmailRefreshGuidanceColor == .orange { return .orange }
+    if totalUncertainCount > 0 { return .orange }
+    if connection.lastRefreshImportedCount > 0 { return .green }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    return .secondary
+  }
+
+  private var gmailMostLikelyBlockerCard: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: gmailMostLikelyBlockerSymbol)
+          .foregroundStyle(gmailMostLikelyBlockerColor)
+          .frame(width: 20)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(gmailMostLikelyBlockerTitle)
+            .font(.caption.weight(.semibold))
+          Text(gmailMostLikelyBlockerDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(gmailMostLikelyBlockerBadge, color: gmailMostLikelyBlockerColor)
+      }
+      Text("This summary uses local setup, sign-in, and latest refresh status only. It does not start Google sign-in, request tokens, call Gmail, or mutate mailbox messages.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(gmailMostLikelyBlockerColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailMostLikelyBlockerTitle: String {
+    if hasMissingCoreGmailSetup { return "Most likely blocker: missing Gmail setup values" }
+    if !readiness.isReady { return "Most likely blocker: compiled callback mismatch" }
+    if authState.status != .connected { return "Most likely blocker: Google sign-in not connected" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") { return "Most likely blocker: Gmail read-only consent" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") { return "Most likely blocker: Google session expired or missing" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") { return "Most likely blocker: Gmail label mismatch" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") { return "Most likely blocker: Gmail API rejected the request" }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") { return "Most likely blocker: network/API connection failed" }
+    if totalUncertainCount > 0 { return "Most likely next step: review uncertain Gmail previews" }
+    if connection.lastRefreshImportedCount > 0 { return "Most likely next step: work imported Inbox rows" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "Most likely next step: no action unless expected mail is missing" }
+    return "Most likely next step: run the provider action sequence"
+  }
+
+  private var gmailMostLikelyBlockerDetail: String {
+    if hasMissingCoreGmailSetup {
+      return "Open Edit setup and save the Gmail address, labels, Google iOS client ID, callback scheme, and read-only Gmail scope placeholders."
+    }
+    if !readiness.isReady {
+      return "Update Project.json/App Info values, rebuild, then run Check readiness. Real sign-in should wait until the compiled callback matches setup."
+    }
+    if authState.status != .connected {
+      return "Use Test real Google sign-in. Refresh stays separate and read-only after sign-in succeeds."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      return "Re-run real Google sign-in and confirm read-only Gmail scope consent. Check Google Cloud consent screen/API settings if the prompt is blocked."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") {
+      return "Sign in again with the same Google mailbox account, then retry manual real Gmail refresh."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") {
+      return "Use INBOX or an exact existing Gmail label name, save setup, then retry manual refresh."
+    }
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") {
+      return "Open Audit for safe HTTP/API diagnostics, then retry only after the setup or network issue is resolved."
+    }
+    if totalUncertainCount > 0 {
+      return "\(totalUncertainCount) uncertain preview\(totalUncertainCount == 1 ? "" : "s") are held out of Inbox. Import only true order mail."
+    }
+    if connection.lastRefreshImportedCount > 0 {
+      return "\(connection.lastRefreshImportedCount) Gmail message\(connection.lastRefreshImportedCount == 1 ? "" : "s") reached Inbox. Review and create or link orders there."
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      return "Mixed-mailbox filtering kept likely non-order mail out of Inbox. Spot-check filtered examples only when an expected order email is missing."
+    }
+    return "Use the sequence: Check readiness, Test real Google sign-in, Run real Gmail refresh. Use mock refresh for local workflow testing."
+  }
+
+  private var gmailMostLikelyBlockerBadge: String {
+    if hasMissingCoreGmailSetup { return "Setup" }
+    if !readiness.isReady { return "Compile" }
+    if authState.status != .connected { return "Sign in" }
+    if gmailRefreshGuidanceColor == .orange { return "Diagnose" }
+    if totalUncertainCount > 0 { return "Review" }
+    if connection.lastRefreshImportedCount > 0 { return "Inbox" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "Filtered" }
+    return "Sequence"
+  }
+
+  private var gmailMostLikelyBlockerSymbol: String {
+    if hasMissingCoreGmailSetup { return "square.and.pencil" }
+    if !readiness.isReady { return "gear.badge.questionmark" }
+    if authState.status != .connected { return "person.badge.key" }
+    if gmailRefreshGuidanceColor == .orange { return gmailRefreshGuidanceSymbol }
+    if totalUncertainCount > 0 { return "questionmark.folder.fill" }
+    if connection.lastRefreshImportedCount > 0 { return "tray.and.arrow.down.fill" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "line.3.horizontal.decrease.circle" }
+    return "list.bullet.rectangle.portrait.fill"
+  }
+
+  private var gmailMostLikelyBlockerColor: Color {
+    if hasMissingCoreGmailSetup || !readiness.isReady || authState.status != .connected || gmailRefreshGuidanceColor == .orange { return .orange }
+    if totalUncertainCount > 0 { return .orange }
+    if connection.lastRefreshImportedCount > 0 { return .green }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    return .secondary
+  }
+
+  private var gmailReviewQueueSummary: some View {
+    let uncertainCount = connection.uncertainMessages?.count ?? 0
+    let filteredCount = connection.filteredMessages?.count ?? 0
+
+    return VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("Review queued Gmail examples", systemImage: "tray.full.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(uncertainCount > 0 ? .orange : (filteredCount > 0 ? .teal : .secondary))
+        Spacer()
+        Badge("\(uncertainCount) uncertain", color: uncertainCount > 0 ? .orange : .secondary)
+        Badge("\(filteredCount) filtered", color: filteredCount > 0 ? .teal : .secondary)
+      }
+      Text(gmailReviewQueueSummaryText(uncertainCount: uncertainCount, filteredCount: filteredCount))
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      if uncertainCount > 0 || filteredCount > 0 {
+        CompactActionRow {
+          if uncertainCount > 0 {
+            Button("Task all uncertain", systemImage: "checklist", action: onCreateTasksForAllUncertain)
+            Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
+          }
+          if filteredCount > 0 {
+            Button("Dismiss all filtered", systemImage: "line.3.horizontal.decrease.circle", role: .destructive, action: onDismissAllFiltered)
+          }
+        }
+        Text("Bulk actions only update local Gmail review queues. They do not delete intake, clear duplicate metadata, read tokens, call Gmail, or mutate mailbox messages.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background((uncertainCount > 0 ? Color.orange : (filteredCount > 0 ? Color.teal : Color.secondary)).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func gmailReviewQueueSummaryText(uncertainCount: Int, filteredCount: Int) -> String {
+    if uncertainCount > 0 {
+      return "\(uncertainCount) uncertain Gmail preview\(uncertainCount == 1 ? "" : "s") need operator review before Inbox import. Create follow-up tasks in bulk when review cannot happen now."
+    }
+    if filteredCount > 0 {
+      return "\(filteredCount) filtered Gmail preview\(filteredCount == 1 ? "" : "s") stayed out of Inbox. Dismiss them locally when they are clear non-order mail, or inspect individual rows if an expected order is missing."
+    }
+    return "No Gmail review previews are queued. Imported order-like mail appears in Inbox; filtered non-order mail stays out of the primary flow."
+  }
+
+  private var gmailLatestRefreshTitle: String {
+    if connection.lastManualRefreshDate == "Never" {
+      return "No Gmail refresh has run yet"
+    }
+    if gmailRefreshGuidanceColor == .orange {
+      return "Latest Gmail refresh needs attention"
+    }
+    if connection.lastRefreshImportedCount > 0 {
+      return "Latest Gmail refresh imported Inbox work"
+    }
+    if totalUncertainCount > 0 {
+      return "Latest Gmail refresh found uncertain messages"
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      return "Latest Gmail refresh filtered non-order mail"
+    }
+    if connection.lastRefreshDuplicateCount > 0 {
+      return "Latest Gmail refresh found duplicates"
+    }
+    if connection.lastRefreshFetchedCount == 0 {
+      return "Latest Gmail refresh found no messages"
+    }
+    return "Latest Gmail refresh completed"
+  }
+
+  private var gmailLatestRefreshDetail: String {
+    if connection.lastManualRefreshDate == "Never" {
+      return "Run Mock Gmail refresh to test the local intake path, or finish Google setup before using the manual real Gmail refresh."
+    }
+    if gmailRefreshGuidanceColor == .orange {
+      return "The last Gmail action recorded a setup, sign-in, consent, label, or API diagnostic. Use the guidance below before retrying real refresh."
+    }
+    let mode = gmailRefreshModeLabel
+    let base = "\(mode): \(connection.lastRefreshFetchedCount) fetched, \(connection.lastRefreshImportedCount) imported, \(connection.lastRefreshDuplicateCount) duplicate\(connection.lastRefreshDuplicateCount == 1 ? "" : "s"), \(connection.lastRefreshFilteredNonOrderCount) filtered, \(totalUncertainCount) uncertain."
+    if connection.mailboxMode == .mixedFiltered {
+      return "\(base) Mixed mailbox mode keeps filtered messages out of Inbox."
+    }
+    return "\(base) Dedicated mailbox mode sends fetched messages through duplicate-safe intake."
+  }
+
+  private var gmailLatestRefreshNextAction: String {
+    if connection.lastManualRefreshDate == "Never" {
+      return "Next: run a mock refresh or complete Google readiness."
+    }
+    if gmailRefreshGuidanceColor == .orange {
+      return "Next: follow the diagnostic guidance and retry only when setup is clear."
+    }
+    if connection.lastRefreshImportedCount > 0 {
+      return "Next: open Inbox triage and create or link orders from imported Gmail rows."
+    }
+    if totalUncertainCount > 0 {
+      return "Next: review uncertain Gmail messages here before importing anything into Inbox."
+    }
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      return "Next: no Inbox action needed unless a filtered example should be promoted manually."
+    }
+    if connection.lastRefreshDuplicateCount > 0 {
+      return "Next: no duplicate Inbox rows were created."
+    }
+    return "Next: leave as-is or refresh again manually when new mailbox activity is expected."
+  }
+
+  private var gmailLatestRefreshSymbol: String {
+    if connection.lastManualRefreshDate == "Never" { return "tray" }
+    if gmailRefreshGuidanceColor == .orange { return "exclamationmark.triangle" }
+    if connection.lastRefreshImportedCount > 0 { return "tray.and.arrow.down.fill" }
+    if totalUncertainCount > 0 { return "questionmark.folder.fill" }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return "line.3.horizontal.decrease.circle" }
+    if connection.lastRefreshDuplicateCount > 0 { return "arrow.triangle.2.circlepath" }
+    return "checkmark.circle"
+  }
+
+  private var gmailLatestRefreshColor: Color {
+    if connection.lastManualRefreshDate == "Never" { return .secondary }
+    if gmailRefreshGuidanceColor == .orange { return .orange }
+    if connection.lastRefreshImportedCount > 0 { return .green }
+    if totalUncertainCount > 0 { return .orange }
+    if connection.lastRefreshFilteredNonOrderCount > 0 { return .teal }
+    if connection.lastRefreshDuplicateCount > 0 { return .blue }
+    return .secondary
+  }
+
+  private var gmailTroubleshootingSteps: [(title: String, detail: String, symbol: String, color: Color)] {
+    var steps: [(title: String, detail: String, symbol: String, color: Color)] = []
+    let missingText = readiness.missingFields.joined(separator: " ")
+
+    if hasMissingCoreGmailSetup {
+      steps.append((
+        "Finish editable Gmail setup",
+        "Add the Gmail address, label list, Google iOS OAuth client ID, reversed callback scheme, read-only scope, and consent notes. Keep client secrets out of ParcelOps.",
+        "pencil.and.list.clipboard",
+        .orange
+      ))
+    }
+
+    if missingText.localizedCaseInsensitiveContains("Compiled") || !readiness.isReady {
+      steps.append((
+        "Verify compiled app values",
+        "Project.json and App/Info.plist must compile the same GIDClientID and callback scheme saved in this setup record. Regenerate/rebuild after changing them.",
+        "app.badge.checkmark",
+        missingText.localizedCaseInsensitiveContains("Compiled") ? .orange : .secondary
+      ))
+    }
+
+    if authState.status != .connected {
+      steps.append((
+        "Run explicit Google sign-in",
+        "Use Test real Google sign-in after compiled values match. The callback should return to ParcelOps without starting a Gmail refresh.",
+        "person.badge.key",
+        .orange
+      ))
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") {
+      steps.append((
+        "Refresh the Google session",
+        "Run Test real Google sign-in again, confirm the mailbox account, then retry the manual real Gmail refresh.",
+        "arrow.triangle.2.circlepath",
+        .orange
+      ))
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
+      steps.append((
+        "Check Gmail consent",
+        "Confirm the Google Cloud OAuth consent screen and the signed-in account allow gmail.readonly or gmail.metadata before retrying.",
+        "checkmark.shield",
+        .orange
+      ))
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Label not found") {
+      steps.append((
+        "Check label names",
+        "Use INBOX or an exact existing Gmail label. The refresh uses read-only message preview calls and will not mark or move mail.",
+        "tag.slash",
+        .orange
+      ))
+    }
+
+    if connection.connectionStatus.localizedCaseInsensitiveContains("Gmail API rejected") ||
+        connection.connectionStatus.localizedCaseInsensitiveContains("Network failed") {
+      steps.append((
+        "Open Audit diagnostics",
+        "Audit carries safe HTTP/error details and response previews only. It should not include auth headers, raw tokens, full request URLs, or full message bodies.",
+        "exclamationmark.triangle",
+        .orange
+      ))
+    }
+
+    if totalUncertainCount > 0 {
+      steps.append((
+        "Review uncertain previews",
+        "Uncertain Gmail previews stay out of Inbox until imported. Import genuine order mail, dismiss non-order mail, or create a task.",
+        "questionmark.folder.fill",
+        .orange
+      ))
+    }
+
+    if connection.lastRefreshImportedCount > 0 {
+      steps.append((
+        "Continue in Inbox",
+        "\(connection.lastRefreshImportedCount) Gmail intake row\(connection.lastRefreshImportedCount == 1 ? "" : "s") imported. Review, create/link orders, or task from Inbox.",
+        "tray.and.arrow.down.fill",
+        .green
+      ))
+    }
+
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      steps.append((
+        "Filtered mail is not Inbox work",
+        "\(connection.lastRefreshFilteredNonOrderCount) mixed-mailbox message\(connection.lastRefreshFilteredNonOrderCount == 1 ? "" : "s") were filtered. Use examples only when investigating a missed order email.",
+        "line.3.horizontal.decrease.circle",
+        .teal
+      ))
+    }
+
+    if steps.isEmpty {
+      steps.append((
+        "Ready for the next manual check",
+        "Run real Gmail refresh only after setup readiness and sign-in are clear, or run mock refresh for local workflow testing.",
+        "checkmark.seal.fill",
+        .green
+      ))
+    }
+
+    return Array(steps.prefix(6))
+  }
+
+  private func gmailClassifierDecisionColor(_ decision: String) -> Color {
+    if decision.localizedCaseInsensitiveContains("Imported") { return .green }
+    if decision.localizedCaseInsensitiveContains("Uncertain") { return .orange }
+    if decision.localizedCaseInsensitiveContains("Filtered") { return .teal }
+    return .secondary
+  }
+
+  private func optionalTextBinding(_ keyPath: WritableKeyPath<GmailMailboxConnection, String?>) -> Binding<String> {
+    Binding(
+      get: { draft[keyPath: keyPath] ?? "" },
+      set: { draft[keyPath: keyPath] = $0 }
+    )
+  }
+
+  private func optionalListBinding(_ keyPath: WritableKeyPath<GmailMailboxConnection, [String]?>) -> Binding<String> {
+    Binding(
+      get: { (draft[keyPath: keyPath] ?? []).joined(separator: ", ") },
+      set: { newValue in
+        let values = newValue
+          .split(separator: ",")
+          .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+          .filter { !$0.isEmpty }
+        draft[keyPath: keyPath] = values.isEmpty ? nil : values
+      }
+    )
+  }
+}
+
+private struct GmailSetupChecklistStepRow: View {
+  var index: Int
+  var item: GmailSetupTestChecklistItem
+
+  private var accentColor: Color {
+    item.isComplete ? .green : .orange
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      ZStack {
+        Circle()
+          .fill(accentColor.opacity(item.isComplete ? 0.20 : 0.16))
+          .frame(width: 24, height: 24)
+        Text("\(index)")
+          .font(.caption2.weight(.bold))
+          .foregroundStyle(accentColor)
+      }
+      VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+          Image(systemName: item.symbolName)
+            .foregroundStyle(accentColor)
+            .frame(width: 16)
+          Text(item.title)
+            .font(.caption.weight(.semibold))
+          Spacer()
+          Badge(item.isComplete ? "Done" : "Next", color: accentColor)
+        }
+        Text(item.detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        Text(item.nextAction)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(item.isComplete ? Color.secondary : Color.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(8)
+    .background(accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct GmailGoogleCloudSetupGuide: View {
+  private var compiledBundleID: String {
+    Bundle.main.bundleIdentifier ?? GoogleGmailAuthAdapter.bundleID
+  }
+
+  private var compiledClientID: String {
+    Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String ?? "Missing"
+  }
+
+  private var compiledURLSchemes: [String] {
+    guard let urlTypes = Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] else {
+      return []
+    }
+    return urlTypes.flatMap { entry in
+      (entry["CFBundleURLSchemes"] as? [String]) ?? []
+    }
+  }
+
+  private var gmailURLSchemes: [String] {
+    compiledURLSchemes.filter { scheme in
+      scheme.localizedCaseInsensitiveContains("googleusercontent")
+        || scheme.localizedCaseInsensitiveContains("gmail")
+    }
+  }
+
+  private var compiledConfigRows: [(label: String, value: String, color: Color)] {
+    [
+      ("Bundle ID", compiledBundleID, compiledBundleID == GoogleGmailAuthAdapter.bundleID ? .green : .orange),
+      ("GIDClientID", compiledClientID, compiledClientID == GoogleGmailAuthAdapter.placeholderClientID ? .orange : .green),
+      ("Callback scheme", gmailURLSchemes.isEmpty ? "Missing" : gmailURLSchemes.joined(separator: ", "), gmailURLSchemes.contains(GoogleGmailAuthAdapter.placeholderCallbackScheme) ? .orange : gmailURLSchemes.isEmpty ? .red : .green)
+    ]
+  }
+
+  private let steps: [(number: String, title: String, detail: String, color: Color)] = [
+    (
+      "1",
+      "Create Google OAuth client",
+      "Use Google Cloud Console OAuth client type iOS. Bundle ID must be app.bitrig.parcelops. Do not create or enter a client secret.",
+      .blue
+    ),
+    (
+      "2",
+      "Copy non-secret values",
+      "Save the iOS client ID ending in .apps.googleusercontent.com and its reversed URL scheme beginning com.googleusercontent.apps.",
+      .teal
+    ),
+    (
+      "3",
+      "Update compiled app config",
+      "Project.json and App/Info.plist must use the same GIDClientID and URL scheme before real Google sign-in can callback.",
+      .orange
+    ),
+    (
+      "4",
+      "Use read-only Gmail access",
+      "Use gmail.readonly or gmail.metadata only. Real refresh is implemented as manual, read-only Gmail API access for message metadata, headers, snippets, and previews.",
+      .green
+    )
+  ]
+
+  private let boundaryBadges: [(String, Color)] = [
+    ("Real sign-in", .green),
+    ("Manual read-only refresh", .green),
+    ("No background sync", .secondary),
+    ("No mailbox mutation", .secondary),
+    ("No token JSON", .secondary)
+  ]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "checklist.checked")
+          .foregroundStyle(.teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Google setup before real Gmail sign-in")
+            .font(.caption.weight(.semibold))
+          Text("These are local setup checks only. ParcelOps does not store Google access tokens, refresh tokens, auth codes, client secrets, passwords, or full Gmail message bodies in JSON or Audit.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 185) {
+        ForEach(steps, id: \.number) { step in
+          GmailGoogleCloudSetupStep(number: step.number, title: step.title, detail: step.detail, color: step.color)
+        }
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Compiled app values to match", systemImage: "app.badge.checkmark")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        CompactMetadataGrid(minimumWidth: 220) {
+          ForEach(compiledConfigRows, id: \.label) { row in
+            VStack(alignment: .leading, spacing: 4) {
+              Text(row.label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(row.color)
+              Text(row.value)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+        Text("If GIDClientID or callback scheme still shows a placeholder, update Project.json/App Info values and rebuild before real Google sign-in. These values are not secrets.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Text("Recommended sequence: save the Gmail setup record, run Check readiness, test real Google sign-in, then run manual real Gmail refresh. Keep mock refresh available for local workflow testing.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.teal)
+        .fixedSize(horizontal: false, vertical: true)
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        ForEach(boundaryBadges, id: \.0) { badge in
+          Badge(badge.0, color: badge.1)
+        }
+      }
+
+      Text("Current boundary: ParcelOps can use GoogleSignIn and the Gmail API for an explicit manual refresh after setup, but it still does not run background checks, send mail, mark messages read, delete or move messages, store token values in JSON, or use Gmail as an automation trigger.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(Color.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct GmailIntakeFoundationCard: View {
+  private let setupSteps: [(String, String, Color)] = [
+    ("1 Save setup", "Capture Gmail address, labels, mailbox mode, and non-secret OAuth notes.", .blue),
+    ("2 Run mock refresh", "Test provider-neutral Inbox intake without Google sign-in or Gmail API calls.", .teal),
+    ("3 Review results", "Use fetched/imported/duplicate/filtered/uncertain counts before trusting the flow.", .orange),
+    ("4 Enable real path later", "Only after Google app config, sign-in, and read-only consent are ready.", .green)
+  ]
+
+  private let boundaryBadges: [(String, Color)] = [
+    ("Mock intake ready", .teal),
+    ("JSON stores non-secrets", .blue),
+    ("No Gmail tokens", .secondary),
+    ("No background sync", .secondary),
+    ("No mailbox mutation", .secondary)
+  ]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "envelope.badge.shield.half.filled")
+          .foregroundStyle(.teal)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Gmail intake foundation")
+            .font(.caption.weight(.semibold))
+          Text("Start with the mock Gmail refresh to verify the local Inbox workflow. Real Google sign-in and Gmail API refresh stay explicit, manual, and separate.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 175) {
+        ForEach(setupSteps, id: \.0) { step in
+          VStack(alignment: .leading, spacing: 4) {
+            Text(step.0)
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(step.2)
+            Text(step.1)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(step.2.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      CompactMetadataGrid(minimumWidth: 140) {
+        ForEach(boundaryBadges, id: \.0) { badge in
+          Badge(badge.0, color: badge.1)
+        }
+      }
+
+      Text("Safe boundary: mock Gmail refresh creates deterministic local message payloads and routes them through the existing duplicate-safe intake path. It does not open browser sign-in, request scopes, call Google APIs, store tokens, use Keychain for Gmail, send mail, or alter mailbox messages.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(Color.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct SettingsGmailManualRunbookPanel: View {
+  var store: ParcelOpsStore
+
+  private var primaryConnection: GmailMailboxConnection? {
+    store.gmailMailboxConnections.first
+  }
+
+  private var latestSummary: GmailIntakeHealthSummary? {
+    store.latestGmailIntakeHealthSummary
+  }
+
+  private var readiness: GmailOAuthReadinessSummary? {
+    primaryConnection.map { store.gmailOAuthReadinessSummary(for: $0) }
+  }
+
+  private var authState: GmailAuthSessionState? {
+    primaryConnection.map { store.gmailAuthSessionState(for: $0) }
+  }
+
+  private var hasSetup: Bool {
+    primaryConnection != nil
+  }
+
+  private var hasMailboxBasics: Bool {
+    guard let connection = primaryConnection else { return false }
+    return !connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var hasOAuthValues: Bool {
+    guard let connection = primaryConnection else { return false }
+    return !(connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !(connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && (connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.readonly")
+        || connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.metadata"))
+  }
+
+  private var hasCompiledReadiness: Bool {
+    readiness?.isReady == true
+  }
+
+  private var hasConnectedAuth: Bool {
+    authState?.status == .connected
+  }
+
+  private var hasRefreshEvidence: Bool {
+    store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  private var pendingReviewCount: Int {
+    store.pendingGmailReviewSignalCount
+  }
+
+  private var importedCount: Int {
+    store.totalGmailImportedCount
+  }
+
+  private var filteredCount: Int {
+    store.totalGmailFilteredSignalCount
+  }
+
+  private var fetchedCount: Int {
+    store.totalGmailFetchedCount
+  }
+
+  private var headline: String {
+    if !hasSetup { return "Add Gmail setup only for Google-hosted mailboxes" }
+    if !hasMailboxBasics { return "Save Gmail address and label names" }
+    if !hasOAuthValues { return "Fill non-secret Google OAuth values" }
+    if !hasCompiledReadiness { return "Match Google values to compiled app config" }
+    if !hasConnectedAuth { return "Test Google sign-in before real refresh" }
+    if !hasRefreshEvidence { return "Run a manual read-only Gmail refresh" }
+    if pendingReviewCount > 0 { return "Review Gmail uncertain or filtered previews" }
+    return "Gmail setup path is clear"
+  }
+
+  private var headlineColor: Color {
+    if !hasSetup || !hasMailboxBasics || !hasOAuthValues || !hasCompiledReadiness || !hasConnectedAuth || pendingReviewCount > 0 {
+      return .orange
+    }
+    return hasRefreshEvidence ? .green : .teal
+  }
+
+  private var runbookItems: [(title: String, detail: String, status: String, symbol: String, color: Color)] {
+    [
+      (
+        "Setup record",
+        hasSetup ? "Saved for \(primaryConnection?.emailAddress ?? "Gmail mailbox")." : "Create one Gmail setup record for each Google-hosted mailbox.",
+        hasSetup ? "Ready" : "Needed",
+        "envelope.badge.shield.half.filled",
+        hasSetup ? .green : .orange
+      ),
+      (
+        "Labels",
+        hasMailboxBasics ? "Labels: \(primaryConnection?.monitoredLabelNames ?? "INBOX")." : "Save the mailbox address and labels, usually INBOX.",
+        hasMailboxBasics ? "Ready" : "Needed",
+        "tag.fill",
+        hasMailboxBasics ? .green : .orange
+      ),
+      (
+        "OAuth values",
+        hasOAuthValues ? "Client ID, callback scheme, and read-only scope are recorded as non-secret setup values." : "Add iOS client ID, reversed URL scheme, and gmail.readonly or gmail.metadata scope.",
+        hasOAuthValues ? "Ready" : "Needed",
+        "key.fill",
+        hasOAuthValues ? .green : .orange
+      ),
+      (
+        "Compiled app",
+        hasCompiledReadiness ? "Saved values match the compiled Info.plist callback configuration." : "Run readiness, then align saved values with the compiled app before sign-in.",
+        hasCompiledReadiness ? "Ready" : "Blocked",
+        "app.badge.checkmark",
+        hasCompiledReadiness ? .green : .orange
+      ),
+      (
+        "Sign-in",
+        hasConnectedAuth ? "Google sign-in is connected for this app session." : "Use explicit real Google sign-in. Mock auth remains available for local testing.",
+        hasConnectedAuth ? "Connected" : "Needed",
+        "person.crop.circle.badge.checkmark",
+        hasConnectedAuth ? .green : .orange
+      ),
+      (
+        "Manual refresh",
+        hasRefreshEvidence ? "\(fetchedCount) fetched, \(importedCount) imported, \(filteredCount) filtered in recent Gmail summaries." : "Run real Gmail refresh only after setup, callback, and sign-in are ready.",
+        hasRefreshEvidence ? "Seen" : "Waiting",
+        "arrow.triangle.2.circlepath",
+        hasRefreshEvidence ? .blue : .secondary
+      ),
+      (
+        "Review",
+        pendingReviewCount > 0 ? "\(pendingReviewCount) Gmail preview\(pendingReviewCount == 1 ? "" : "s") need optional local review." : "No Gmail uncertain or filtered preview rows are waiting.",
+        pendingReviewCount > 0 ? "Review" : "Clear",
+        "questionmark.folder.fill",
+        pendingReviewCount > 0 ? .orange : .green
+      )
+    ]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: headlineColor == .green ? "checkmark.circle.fill" : "arrow.right.circle.fill")
+          .foregroundStyle(headlineColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(headline)
+            .font(.caption.weight(.semibold))
+          Text("Settings setup path for Gmail. This panel reads local state only; it does not sign in, fetch Gmail, store tokens, classify mail, or mutate messages.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(headlineColor == .green ? "Clear" : "Next", color: headlineColor)
+      }
+
+      CompactMetadataGrid(minimumWidth: 180) {
+        ForEach(runbookItems, id: \.title) { item in
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: item.symbol)
+              .foregroundStyle(item.color)
+              .frame(width: 20)
+            VStack(alignment: .leading, spacing: 3) {
+              HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(item.title)
+                  .font(.caption.weight(.semibold))
+                Badge(item.status, color: item.color)
+              }
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      if let latestSummary {
+        Text("Latest Gmail result: \(latestSummary.lastRefreshDate). \(latestSummary.lastRefreshSummary)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Text("Gmail remains opt-in, manual, read-only, and separate from SpaceMail. No background sync, mailbox mutation, token logging, password storage, outbound email, or external classification is added here.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(Color.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct GmailGoogleCloudSetupStep: View {
+  var number: String
+  var title: String
+  var detail: String
+  var color: Color
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      ZStack {
+        Circle()
+          .fill(color.opacity(0.16))
+          .frame(width: 22, height: 22)
+        Text(number)
+          .font(.caption2.weight(.bold))
+          .foregroundStyle(color)
+      }
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+        Text(detail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(8)
+    .background(.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct SpaceMailIMAPConnectionRow: View {
+  var connection: SpaceMailIMAPConnection
+  var healthSummary: SpaceMailIntakeHealthSummary
+  var assignedFollowUpSummaries: [String]
+  var classifierImpactPreviews: [SpaceMailClassifierImpactPreview]
+  var onSave: (SpaceMailIMAPConnection) -> Void
+  var onReviewed: () -> Void
+  var onMockRefresh: () -> Void
+  var onRealRefresh: () -> Void
+  var onImportUncertain: (SpaceMailUncertainMessage) -> Void
+  var onDismissUncertain: (SpaceMailUncertainMessage) -> Void
+  var onImportFiltered: (SpaceMailFilteredMessage) -> Void
+  var onDismissFiltered: (SpaceMailFilteredMessage) -> Void
+  var onPromoteFiltered: (SpaceMailFilteredMessage) -> Void
+  var onDismissAllUncertain: () -> Void
+  var onDismissAllFiltered: () -> Void
+  var onCreateTasksForAllUncertain: () -> Void
+  var onTaskFromUncertain: (SpaceMailUncertainMessage) -> Void
+  var onDraftFromUncertain: (SpaceMailUncertainMessage) -> Void
+  var onTaskFromFiltered: (SpaceMailFilteredMessage) -> Void
+  var onDraftFromFiltered: (SpaceMailFilteredMessage) -> Void
+  var onAddUncertainHint: (SpaceMailUncertainMessage, SpaceMailHintTarget) -> Void
+  var onAddFilteredHint: (SpaceMailFilteredMessage, SpaceMailHintTarget) -> Void
+  var onTestClassifier: () -> Void
+  var onAddDemoUncertain: () -> Void
+  var onTestCustomClassifier: (String, String, String) -> Void
+  var onRunClassifierSuite: () -> Void
+  var onApplyFilterPreset: (SpaceMailFilterPreset) -> Void
+  var onSaveCredential: (String) -> Void
+  var onCheckCredential: () -> Void
+  var onClearCredential: () -> Void
+  var onCredentialReady: () -> Void
+  var onCredentialMissing: () -> Void
+  var onCredentialError: () -> Void
+  var onCredentialClear: () -> Void
+  var onCreateShiftHandoff: () -> Void
+  var onCreateShiftTask: () -> Void
+  var onCreateLatestRefreshTask: () -> Void
+  var onCreateParserQATask: () -> Void
+  var onRemove: () -> Void
+
+  @State private var isEditing = false
+  @State private var isCredentialSheetPresented = false
+  @State private var classifierSender = "customer@example.com"
+  @State private var classifierSubject = "Delivery question"
+  @State private var classifierPreview = "Can you check whether this relates to an order? I do not have the tracking number yet."
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "server.rack")
+          .foregroundStyle(.blue)
+          .frame(width: 28)
+        VStack(alignment: .leading, spacing: 5) {
+          Text(connection.displayName)
+            .font(.headline)
+          Text(connection.emailAddressUsername)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          Text("\(connection.imapHost):\(connection.imapPort) • \(connection.securityMode) • \(connection.folderName)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text("Mailbox mode: \(connection.mailboxMode.rawValue)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text("Credential storage: \(connection.credentialStorageStatus)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Badge(connection.reviewState.rawValue, color: connection.reviewState == .accepted ? .green : .orange)
+      }
+
+      Text("Status: \(connection.connectionStatus) • Last refresh: \(connection.lastManualRefreshDate)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      if !connection.setupNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        Text(connection.setupNotes)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
+      spaceMailSetupFlow
+
+      setupActions
+
+      keychainCredentialSection
+
+      SpaceMailIntakeHealthCard(summary: healthSummary)
+
+      spaceMailRefreshSummary
+      spaceMailNextSteps
+      spaceMailCurrentHandoffTrail
+      spaceMailShiftHandoffActions
+      spaceMailReviewQueueSummary
+
+      if !connection.uncertainMessages.isEmpty {
+        uncertainMessagesReview
+      }
+
+      if !connection.filteredMessages.isEmpty {
+        filteredMessagesReview
+      }
+
+      if connection.mailboxMode == .mixedFiltered {
+        spaceMailFilterTuningSummary
+      }
+
+      if connection.mailboxMode == .mixedFiltered {
+        spaceMailTestMessageTemplates
+        spaceMailClassifierTest
+      }
+
+      if !connection.refreshHistory.isEmpty {
+        spaceMailRefreshHistory
+      }
+
+      credentialStateTestSection
+
+      maintenanceActions
+    }
+    .padding()
+    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    .sheet(isPresented: $isEditing) {
+      SpaceMailIMAPConnectionEditor(connection: connection) { updatedConnection in
+        onSave(updatedConnection)
+      }
+    }
+    .sheet(isPresented: $isCredentialSheetPresented) {
+      SpaceMailCredentialSheet(connection: connection) { password in
+        onSaveCredential(password)
+      }
+    }
+  }
+
+  private var spaceMailSetupFlow: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("SpaceMail operator flow", systemImage: "list.number")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.blue)
+      Text("Use this row from top to bottom: confirm setup, set the Keychain password, choose the mailbox mode, run a manual refresh, review the results, then tune the classifier only if the result looks wrong.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 170) {
+        Badge("1 Confirm setup", color: .blue)
+        Badge("2 Keychain password", color: .purple)
+        Badge("3 Mailbox mode", color: .teal)
+        Badge("4 Manual refresh", color: .green)
+        Badge("5 Review results", color: .orange)
+        Badge("6 Tune classifier", color: .secondary)
+      }
+      Text("Real refresh is read-only IMAP. ParcelOps must not delete, move, mark read, flag, send, or modify mailbox items.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailTestMessageTemplates: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline) {
+        Label("Classifier test message templates", systemImage: "doc.text.magnifyingglass")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.indigo)
+        Spacer()
+        Badge("Local guide", color: .indigo)
+      }
+      Text("Use these as known-good manual samples when testing a mixed-use mailbox. They are examples only; this panel does not fetch mail, send mail, store secrets, or change mailbox messages.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 8)], alignment: .leading, spacing: 8) {
+        spaceMailTestTemplateCard(
+          title: "Should import",
+          badge: "Imported",
+          color: .green,
+          subject: "Order TEST-123 shipped tracking ABC123",
+          body: "Order TEST-123 shipped tracking ABC123 to Melbourne.",
+          note: "Strong order/shipping signal plus order and tracking IDs."
+        )
+        spaceMailTestTemplateCard(
+          title: "Should be uncertain",
+          badge: "Uncertain",
+          color: .orange,
+          subject: "Delivery question",
+          body: "Can you check whether this relates to an order? I do not have the tracking number yet.",
+          note: "Order-adjacent language without a reliable order or tracking ID."
+        )
+        spaceMailTestTemplateCard(
+          title: "Should filter",
+          badge: "Filtered",
+          color: .teal,
+          subject: "Final days for free delivery",
+          body: "Final days to get free delivery on your next purchase. View this email or unsubscribe.",
+          note: "Marketing/newsletter wording even though it contains weak delivery language."
+        )
+      }
+      Text("After sending a real sample to the mailbox, run manual refresh. Imported examples appear in Inbox, uncertain examples stay in this row for review, and filtered examples stay out of Inbox.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.indigo.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func spaceMailTestTemplateCard(title: String, badge: String, color: Color, subject: String, body: String, note: String) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .firstTextBaseline) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+        Spacer()
+        Badge(badge, color: color)
+      }
+      VStack(alignment: .leading, spacing: 3) {
+        Text("Subject")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text(subject)
+          .font(.caption2.monospaced())
+          .textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      VStack(alignment: .leading, spacing: 3) {
+        Text("Body")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Text(body)
+          .font(.caption2.monospaced())
+          .textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Text(note)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var setupActions: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      ActionGroupHeader(title: "1. Confirm mailbox settings", symbol: "server.rack")
+      Text("Check email address, host, port, SSL/TLS mode, folder, and mixed-mailbox mode before running a real refresh.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactActionRow {
+        Button("Edit setup", systemImage: "pencil") { isEditing = true }
+        Button("Mark reviewed", systemImage: "checkmark.circle", action: onReviewed)
+      }
+    }
+  }
+
+  private var keychainCredentialSection: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      ActionGroupHeader(title: "2. Set Keychain credential", symbol: "key.horizontal")
+      Text("Set, check, or clear the SpaceMail password/app-password in Keychain. ParcelOps stores only the non-secret status label in JSON and Audit.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactActionRow {
+        Button("Set/update password", systemImage: "key.fill") { isCredentialSheetPresented = true }
+        Button("Check credential", systemImage: "checkmark.seal", action: onCheckCredential)
+        Button("Clear credential", systemImage: "xmark.circle", role: .destructive, action: onClearCredential)
+      }
+    }
+  }
+
+  private var credentialStateTestSection: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      ActionGroupHeader(title: "Advanced local test controls", symbol: "wrench.and.screwdriver")
+      Text("Use these only to simulate credential status labels while testing UI states. They do not create, read, write, delete, store, or log passwords or Keychain items.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactActionRow {
+        Button("Credential ready", systemImage: "key.radiowaves.forward", action: onCredentialReady)
+        Button("Credential missing", systemImage: "key.slash", action: onCredentialMissing)
+        Button("Storage error", systemImage: "exclamationmark.triangle", action: onCredentialError)
+        Button("Clear reference", systemImage: "xmark.circle", action: onCredentialClear)
+        Button("Run mock refresh", systemImage: "tray.and.arrow.down", action: onMockRefresh)
+      }
+    }
+  }
+
+  private var maintenanceActions: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      ActionGroupHeader(title: "Maintenance", symbol: "gearshape")
+      CompactActionRow {
+        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+      }
+    }
+  }
+
+  private var spaceMailRefreshSummary: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("4. Run manual refresh", systemImage: "tray.and.arrow.down.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(spaceMailRefreshColor)
+      CompactActionRow {
+        Button("Run real SpaceMail refresh", systemImage: "network", action: onRealRefresh)
+      }
+      CompactMetadataGrid(minimumWidth: 120) {
+        Badge("\(connection.lastRefreshFetchedCount) fetched", color: .blue)
+        Badge("\(connection.lastRefreshImportedCount) imported", color: connection.lastRefreshImportedCount > 0 ? .green : .secondary)
+        Badge("\(connection.lastRefreshDuplicateCount) duplicates", color: connection.lastRefreshDuplicateCount > 0 ? .orange : .secondary)
+        Badge("\(connection.lastRefreshFilteredNonOrderCount) filtered", color: connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary)
+        Badge("\(connection.lastRefreshUncertainCount) uncertain", color: connection.lastRefreshUncertainCount > 0 ? .orange : .secondary)
+      }
+      Text(connection.lastRefreshSummary)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      if connection.mailboxMode == .mixedFiltered {
+        Text("Mixed mailbox mode keeps filtered non-order messages out of Inbox. Uncertain previews stay here for review; Audit remains available for detailed reason labels.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.teal)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      if !connection.lastRefreshFilteredExamples.isEmpty {
+        Text("Filtered examples: \(connection.lastRefreshFilteredExamples.joined(separator: "; "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      if !connection.lastRefreshUncertainExamples.isEmpty {
+        Text("Uncertain examples: \(connection.lastRefreshUncertainExamples.joined(separator: "; "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      if !connection.lastRefreshReasonBreakdown.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Classifier reasons")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(Array(connection.lastRefreshReasonBreakdown.prefix(6))) { item in
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              Badge(item.decision, color: classifierReasonColor(item.decision))
+              Text("\(item.count)x \(item.reason)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Spacer(minLength: 0)
+            }
+          }
+        }
+        .padding(8)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(spaceMailRefreshColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailNextSteps: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("5. What to do after refresh", systemImage: "arrow.turn.down.right")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.blue)
+
+      ForEach(Array(spaceMailNextStepItems.enumerated()), id: \.offset) { _, item in
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: item.symbol)
+            .foregroundStyle(item.color)
+            .frame(width: 18)
+          VStack(alignment: .leading, spacing: 2) {
+            Text(item.title)
+              .font(.caption.weight(.semibold))
+            Text(item.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailCurrentHandoffTrail: some View {
+    let recentHistory = Array(connection.refreshHistory.prefix(3))
+    return VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("Current handoff trail", systemImage: "point.3.connected.trianglepath.dotted")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.teal)
+        Spacer()
+        Badge("\(assignedFollowUpSummaries.count) assigned", color: assignedFollowUpSummaries.isEmpty ? .secondary : .purple)
+      }
+
+      Text("This is the quick shift view: latest refresh outcomes plus open SpaceMail follow-up created from this mailbox. Use Audit only when you need the full event detail.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if recentHistory.isEmpty && assignedFollowUpSummaries.isEmpty {
+        Text("No refresh or SpaceMail follow-up has been recorded for this setup yet.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+      } else {
+        if !recentHistory.isEmpty {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 8)], alignment: .leading, spacing: 8) {
+            ForEach(recentHistory) { entry in
+              VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                  Text(entry.eventType)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                  Spacer()
+                  Badge(entry.status, color: historyColor(for: entry.status))
+                }
+                Text("\(entry.importedCount) imported, \(entry.filteredNonOrderCount) filtered, \(entry.uncertainCount) uncertain")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                Text(entry.summary)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .padding(8)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        if !assignedFollowUpSummaries.isEmpty {
+          VStack(alignment: .leading, spacing: 5) {
+            Text("Assigned follow-up")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.purple)
+            ForEach(Array(assignedFollowUpSummaries.prefix(4)), id: \.self) { summary in
+              Label(summary, systemImage: "checklist")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("This panel reads local JSON state only. It does not fetch mail, read credentials, import messages, change classifier hints, or modify mailbox items.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailShiftHandoffActions: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("6. Shift handoff", systemImage: "person.2.wave.2.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.purple)
+        Spacer()
+        Badge("Local only", color: .purple)
+      }
+      Text("Capture the current SpaceMail state as a handoff note or review task so the next operator can continue without opening Audit first.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactActionRow {
+        Button("Create handoff note", systemImage: "arrow.left.arrow.right.square.fill", action: onCreateShiftHandoff)
+        Button("Create refresh task", systemImage: "arrow.clockwise.circle.fill", action: onCreateLatestRefreshTask)
+        Button("Create shift task", systemImage: "person.crop.circle.badge.clock", action: onCreateShiftTask)
+      }
+      Text("Uses current local refresh counts, parser diagnostics, mixed-mailbox review queues, and Inbox/order handoff state. It does not fetch mail, read passwords, change classifier rules, or modify mailbox messages.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.purple.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailReviewQueueSummary: some View {
+    let uncertainCount = connection.uncertainMessages.count
+    let filteredCount = connection.filteredMessages.count
+
+    return VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("7. Review queued examples", systemImage: "tray.full.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(uncertainCount > 0 ? .orange : (filteredCount > 0 ? .teal : .secondary))
+        Spacer()
+        Badge("\(uncertainCount) uncertain", color: uncertainCount > 0 ? .orange : .secondary)
+        Badge("\(filteredCount) filtered", color: filteredCount > 0 ? .teal : .secondary)
+      }
+      Text(reviewQueueSummaryText(uncertainCount: uncertainCount, filteredCount: filteredCount))
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      if uncertainCount > 0 || filteredCount > 0 {
+        CompactActionRow {
+          if uncertainCount > 0 {
+            Button("Task all uncertain", systemImage: "checklist") {
+              onCreateTasksForAllUncertain()
+            }
+            Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
+          }
+          if filteredCount > 0 {
+            Button("Dismiss all filtered", systemImage: "line.3.horizontal.decrease.circle", role: .destructive, action: onDismissAllFiltered)
+          }
+        }
+        Text("Bulk dismiss only clears local review queues. It does not delete intake, reset duplicate metadata, or modify mailbox messages.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func reviewQueueSummaryText(uncertainCount: Int, filteredCount: Int) -> String {
+    if uncertainCount == 0 && filteredCount == 0 {
+      return "No mixed-mailbox examples are waiting for local review. Imported order mail should be handled in Inbox."
+    }
+    if uncertainCount > 0 && filteredCount > 0 {
+      return "Review uncertain previews first. Filtered examples are lower priority and should only be imported or promoted when a real order was filtered too aggressively."
+    }
+    if uncertainCount > 0 {
+      return "Uncertain previews are order-adjacent but missing strong IDs. Import only true order updates, or dismiss locally after review."
+    }
+    return "Filtered examples stayed out of Inbox. Move one to uncertain review if it may be relevant, or dismiss after spot-checking."
+  }
+
+  private var spaceMailNextStepItems: [(title: String, detail: String, symbol: String, color: Color)] {
+    if connection.lastManualRefreshDate == "Never" {
+      return [
+        ("Run a manual refresh", "After setup and Keychain credential checks pass, run the real read-only refresh from this row.", "tray.and.arrow.down.fill", .blue),
+        ("Then review results here", "Imported messages go to Inbox; uncertain and filtered examples stay in this Mailbox Monitor section.", "list.bullet.clipboard.fill", .teal)
+      ]
+    }
+
+    var items: [(title: String, detail: String, symbol: String, color: Color)] = []
+
+    if connection.lastRefreshImportedCount > 0 {
+      items.append((
+        "Review imported Inbox rows",
+        "\(connection.lastRefreshImportedCount) likely order message\(connection.lastRefreshImportedCount == 1 ? "" : "s") reached Inbox. Confirm fields, then link or create orders.",
+        "tray.full.fill",
+        .green
+      ))
+    }
+
+    if !connection.uncertainMessages.isEmpty || connection.lastRefreshUncertainCount > 0 {
+      let count = max(connection.uncertainMessages.count, connection.lastRefreshUncertainCount)
+      items.append((
+        "Review uncertain previews",
+        "\(count) message\(count == 1 ? "" : "s") looked order-adjacent but lacked strong identifiers. Import only true order updates.",
+        "questionmark.folder.fill",
+        .orange
+      ))
+    }
+
+    if connection.lastRefreshFilteredNonOrderCount > 0 {
+      items.append((
+        "Filtered mail stayed out of Inbox",
+        "\(connection.lastRefreshFilteredNonOrderCount) message\(connection.lastRefreshFilteredNonOrderCount == 1 ? "" : "s") were treated as non-order mail. Check filtered examples only if expected order mail is missing.",
+        "line.3.horizontal.decrease.circle.fill",
+        .teal
+      ))
+    }
+
+    if connection.lastRefreshImportedCount == 0 && connection.lastRefreshUncertainCount == 0 && connection.lastRefreshFilteredNonOrderCount == 0 {
+      items.append((
+        "No operator action from latest refresh",
+        "The latest refresh did not produce imported, uncertain, or filtered messages. Check host/folder only if this is unexpected.",
+        "checkmark.seal.fill",
+        .green
+      ))
+    }
+
+    if connection.lastRefreshDuplicateCount > 0 {
+      items.append((
+        "Duplicates were not re-added",
+        "\(connection.lastRefreshDuplicateCount) already-seen message\(connection.lastRefreshDuplicateCount == 1 ? "" : "s") were skipped or refreshed in place, so Inbox should not be duplicated.",
+        "doc.on.doc.fill",
+        .secondary
+      ))
+    }
+
+    return Array(items.prefix(4))
+  }
+
+  private func classifierReasonColor(_ decision: String) -> Color {
+    if decision.localizedCaseInsensitiveContains("import") { return .green }
+    if decision.localizedCaseInsensitiveContains("uncertain") { return .orange }
+    if decision.localizedCaseInsensitiveContains("filter") { return .teal }
+    return .secondary
+  }
+
+  private func classifierCautionColor(_ label: String) -> Color {
+    if label.localizedCaseInsensitiveContains("score") { return .secondary }
+    if label.localizedCaseInsensitiveContains("no order") || label.localizedCaseInsensitiveContains("no strong") { return .orange }
+    return .teal
+  }
+
+  private func parserStatusColor(_ status: String) -> Color {
+    if status.localizedCaseInsensitiveContains("needs review") { return .orange }
+    if status.localizedCaseInsensitiveContains("passed") { return .green }
+    return .secondary
+  }
+
+  private func classifierStatusColor(_ status: String) -> Color {
+    if status.localizedCaseInsensitiveContains("needs review") { return .orange }
+    if status.localizedCaseInsensitiveContains("passed") { return .green }
+    return .secondary
+  }
+
+  private var spaceMailFilterTuningSummary: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("6. Tune mixed-mailbox classifier", systemImage: "line.3.horizontal.decrease.circle")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.purple)
+      Text("Use this after reviewing refresh results. Presets and hints tune the built-in classifier before messages reach Inbox. They do not call external AI and do not change mailbox messages.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 130) {
+        Badge("\(connection.trustedSenderHints.count) trusted senders", color: connection.trustedSenderHints.isEmpty ? .secondary : .purple)
+        Badge("\(connection.importKeywordHints.count) import hints", color: connection.importKeywordHints.isEmpty ? .secondary : .green)
+        Badge("\(connection.uncertainKeywordHints.count) uncertain hints", color: connection.uncertainKeywordHints.isEmpty ? .secondary : .orange)
+        Badge("\(connection.filterKeywordHints.count) filter hints", color: connection.filterKeywordHints.isEmpty ? .secondary : .teal)
+      }
+      if !connection.trustedSenderHints.isEmpty {
+        Text("Trusted senders: \(connection.trustedSenderHints.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      if !connection.importKeywordHints.isEmpty {
+        Text("Import hints: \(connection.importKeywordHints.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      if !connection.uncertainKeywordHints.isEmpty {
+        Text("Uncertain hints: \(connection.uncertainKeywordHints.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      if !connection.filterKeywordHints.isEmpty {
+        Text("Filter hints: \(connection.filterKeywordHints.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      if !classifierImpactPreviews.isEmpty {
+        spaceMailClassifierImpactPreview
+      }
+      CompactActionRow {
+        ForEach(SpaceMailFilterPreset.allCases) { preset in
+          Button(presetButtonTitle(preset), systemImage: presetSymbol(preset)) {
+            onApplyFilterPreset(preset)
+          }
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.purple.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var spaceMailClassifierImpactPreview: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline) {
+        Label("Preset impact preview", systemImage: "chart.bar.doc.horizontal")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.teal)
+        Spacer()
+        Badge("Local samples only", color: .teal)
+      }
+      Text("Preview uses built-in samples plus stored uncertain and filtered previews. It does not fetch mail, import messages, change classifier hints, or modify mailbox items.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 8)], alignment: .leading, spacing: 8) {
+        ForEach(classifierImpactPreviews) { preview in
+          VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+              Text(presetButtonTitle(preview.preset))
+                .font(.caption.weight(.semibold))
+              Spacer()
+              Badge(preview.riskLabel, color: impactColor(preview.riskLabel))
+            }
+            CompactMetadataGrid(minimumWidth: 74) {
+              Badge("\(preview.sampleCount) samples", color: .secondary)
+              Badge("\(preview.importedCount) import", color: preview.importedCount > 0 ? .green : .secondary)
+              Badge("\(preview.uncertainCount) uncertain", color: preview.uncertainCount > 0 ? .orange : .secondary)
+              Badge("\(preview.filteredCount) filtered", color: preview.filteredCount > 0 ? .teal : .secondary)
+              Badge("\(preview.changedCount) changed", color: preview.changedCount > 0 ? .purple : .secondary)
+            }
+            Text(preview.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            ForEach(preview.examples, id: \.self) { example in
+              Label(example, systemImage: "arrow.triangle.branch")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(impactColor(preview.riskLabel).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+    }
+    .padding(8)
+    .background(Color.teal.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func impactColor(_ label: String) -> Color {
+    if label.localizedCaseInsensitiveContains("import") { return .orange }
+    if label.localizedCaseInsensitiveContains("review") { return .purple }
+    if label.localizedCaseInsensitiveContains("stable") { return .green }
+    if label.localizedCaseInsensitiveContains("filter") { return .teal }
+    return .secondary
+  }
+
+  private func presetButtonTitle(_ preset: SpaceMailFilterPreset) -> String {
+    switch preset {
+    case .conservative: "Conservative"
+    case .balanced: "Balanced"
+    case .forwardedOrders: "Forwarded orders"
+    }
+  }
+
+  private func presetSymbol(_ preset: SpaceMailFilterPreset) -> String {
+    switch preset {
+    case .conservative: "line.3.horizontal.decrease.circle"
+    case .balanced: "slider.horizontal.3"
+    case .forwardedOrders: "envelope.badge.fill"
+    }
+  }
+
+  private var spaceMailRefreshHistory: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline) {
+        Label("Recent SpaceMail activity", systemImage: "clock.arrow.circlepath")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.blue)
+        Spacer()
+        Badge("\(connection.refreshHistory.count) saved", color: .blue)
+      }
+      Text("Local history keeps the latest refresh and review outcomes here, so Audit can stay for deeper investigation.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      ForEach(Array(connection.refreshHistory.prefix(6))) { entry in
+        VStack(alignment: .leading, spacing: 5) {
+          HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(entry.eventType)
+                .font(.caption.weight(.semibold))
+              Text(entry.timestamp)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Badge(entry.status, color: historyColor(for: entry.status))
+          }
+          CompactMetadataGrid(minimumWidth: 96) {
+            Badge("\(entry.fetchedCount) fetched", color: .blue)
+            Badge("\(entry.importedCount) imported", color: entry.importedCount > 0 ? .green : .secondary)
+            Badge("\(entry.duplicateCount) dupes", color: entry.duplicateCount > 0 ? .orange : .secondary)
+            Badge("\(entry.filteredNonOrderCount) filtered", color: entry.filteredNonOrderCount > 0 ? .teal : .secondary)
+            Badge("\(entry.uncertainCount) uncertain", color: entry.uncertainCount > 0 ? .orange : .secondary)
+          }
+          Text(entry.summary)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(8)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func historyColor(for status: String) -> Color {
+    if status.localizedCaseInsensitiveContains("success") || status.localizedCaseInsensitiveContains("imported") { return .green }
+    if status.localizedCaseInsensitiveContains("duplicate") || status.localizedCaseInsensitiveContains("filtered") { return .teal }
+    if status.localizedCaseInsensitiveContains("uncertain") || status.localizedCaseInsensitiveContains("dismissed") { return .orange }
+    if status.localizedCaseInsensitiveContains("failed") || status.localizedCaseInsensitiveContains("missing") { return .red }
+    return .secondary
+  }
+
+  private var spaceMailClassifierTest: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline) {
+        Label("6. Test classifier and parser", systemImage: "text.magnifyingglass")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.orange)
+        Spacer()
+        classifierTestBadge
+      }
+      Text("Built-in sample: Delivery question / Can you check whether this relates to an order? I do not have the tracking number yet.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("Results show two separate checks: whether the mixed-mailbox classifier would import/filter/hold the message, and whether the intake parser would extract order and tracking values correctly.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      spaceMailClassifierRuleGuide
+      Text(connection.classifierTestSummary)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(classifierTestColor)
+        .fixedSize(horizontal: false, vertical: true)
+      VStack(alignment: .leading, spacing: 6) {
+        TextField("Sender", text: $classifierSender)
+          .textFieldStyle(.roundedBorder)
+        TextField("Subject", text: $classifierSubject)
+          .textFieldStyle(.roundedBorder)
+        TextField("Body preview", text: $classifierPreview, axis: .vertical)
+          .lineLimit(2...4)
+          .textFieldStyle(.roundedBorder)
+      }
+      CompactActionRow {
+        Button("Test ambiguous sample", systemImage: "play.circle", action: onTestClassifier)
+        Button("Add demo uncertain", systemImage: "questionmark.diamond") {
+          onAddDemoUncertain()
+        }
+        Button("Run custom test", systemImage: "text.magnifyingglass") {
+          onTestCustomClassifier(classifierSender, classifierSubject, classifierPreview)
+        }
+        .disabled(classifierSubject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && classifierPreview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        Button("Run parser/classifier suite", systemImage: "checklist") {
+          onRunClassifierSuite()
+        }
+      }
+      parserQASummary
+      if !connection.classifierTestResults.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Sample results")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          classifierSuiteSummary
+          ForEach(connection.classifierTestResults) { result in
+            VStack(alignment: .leading, spacing: 4) {
+              HStack(alignment: .firstTextBaseline) {
+                Text(result.sampleName)
+                  .font(.caption.weight(.semibold))
+                Spacer()
+                Badge(result.decision, color: classifierReasonColor(result.decision))
+              }
+              Text("\(result.reason) • score \(result.score)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+              if !result.positiveEvidenceLabels.isEmpty {
+                CompactMetadataGrid(minimumWidth: 150) {
+                  ForEach(result.positiveEvidenceLabels, id: \.self) { label in
+                    Badge(label, color: .green)
+                  }
+                }
+              }
+              if !result.cautionLabels.isEmpty {
+                CompactMetadataGrid(minimumWidth: 150) {
+                  ForEach(result.cautionLabels, id: \.self) { label in
+                    Badge(label, color: classifierCautionColor(label))
+                  }
+                }
+              }
+              Text(result.nextActionText)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(classifierReasonColor(result.decision))
+                .fixedSize(horizontal: false, vertical: true)
+              Text(result.decisionStatus)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(classifierStatusColor(result.decisionStatus))
+                .fixedSize(horizontal: false, vertical: true)
+              Text(result.parserStatus)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(parserStatusColor(result.parserStatus))
+                .fixedSize(horizontal: false, vertical: true)
+              CompactMetadataGrid(minimumWidth: 120) {
+                Badge(result.detectedOrderNumber, color: result.detectedOrderNumber.isPlaceholderValidationValue ? .secondary : .blue)
+                Badge(result.detectedTrackingNumber, color: result.detectedTrackingNumber.isPlaceholderValidationValue ? .secondary : .purple)
+                Badge(result.detectedMerchant, color: .secondary)
+                if result.expectedOrderNumber != "No expected order" {
+                  Badge("Expected \(result.expectedOrderNumber)", color: .blue)
+                }
+                if result.expectedTrackingNumber != "No expected tracking" {
+                  Badge("Expected \(result.expectedTrackingNumber)", color: .purple)
+                }
+                if result.expectedDecision != "No expected decision" {
+                  Badge("Expected \(result.expectedDecision)", color: classifierReasonColor(result.expectedDecision))
+                }
+              }
+            }
+            .padding(8)
+            .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var classifierSuiteSummary: some View {
+    let decisionChecks = connection.classifierTestResults.filter { !$0.decisionStatus.localizedCaseInsensitiveContains("No classifier expectation") }
+    let decisionPasses = decisionChecks.filter { $0.decisionStatus.localizedCaseInsensitiveContains("passed") }
+    let decisionFailures = decisionChecks.filter { $0.decisionStatus.localizedCaseInsensitiveContains("needs review") }
+    let parserChecks = connection.classifierTestResults.filter { !$0.parserStatus.localizedCaseInsensitiveContains("No parser expectation") }
+    let parserPasses = parserChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("passed") }
+    let parserFailures = parserChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("needs review") }
+    let hasFailures = !decisionFailures.isEmpty || !parserFailures.isEmpty
+
+    return VStack(alignment: .leading, spacing: 6) {
+      CompactMetadataGrid(minimumWidth: 130) {
+        Badge("\(decisionPasses.count)/\(decisionChecks.count) decisions", color: decisionFailures.isEmpty ? .green : .orange)
+        Badge("\(parserPasses.count)/\(parserChecks.count) parser", color: parserFailures.isEmpty ? .green : .orange)
+        Badge(hasFailures ? "Needs review" : "Suite passed", color: hasFailures ? .orange : .green)
+      }
+      Text(hasFailures ? classifierSuiteFailureSummary(decisionFailures: decisionFailures, parserFailures: parserFailures) : "Built-in classifier expectations passed. Clear order/tracking samples import, ambiguous delivery questions stay uncertain, and obvious non-order mail filters out.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(hasFailures ? .orange : .green)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(8)
+    .background((hasFailures ? Color.orange : Color.green).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var parserQASummary: some View {
+    let parserChecks = connection.classifierTestResults.filter { !$0.parserStatus.localizedCaseInsensitiveContains("No parser expectation") }
+    let parserPasses = parserChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("passed") }
+    let parserFailures = parserChecks.filter { $0.parserStatus.localizedCaseInsensitiveContains("needs review") }
+    let clearOrderSamples = connection.classifierTestResults.filter {
+      !$0.detectedOrderNumber.isPlaceholderValidationValue || !$0.detectedTrackingNumber.isPlaceholderValidationValue
+    }
+
+    return VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("Parser QA", systemImage: "number.square.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(parserFailures.isEmpty && !parserChecks.isEmpty ? .green : .orange)
+        Spacer()
+        if parserChecks.isEmpty {
+          Badge("Not run", color: .secondary)
+        } else {
+          Badge("\(parserPasses.count)/\(parserChecks.count) passed", color: parserFailures.isEmpty ? .green : .orange)
+        }
+      }
+
+      if parserChecks.isEmpty {
+        Text("Run the parser/classifier suite before trusting live order extraction. It includes samples for clear order shipped tracking text, refund/order text, tracking-only updates, ambiguous delivery questions, and non-order marketing/security mail.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        Button("Create parser QA task", systemImage: "checklist", action: onCreateParserQATask)
+          .buttonStyle(.bordered)
+      } else {
+        CompactMetadataGrid(minimumWidth: 140) {
+          Badge("\(parserPasses.count) parser passes", color: parserFailures.isEmpty ? .green : .orange)
+          Badge("\(parserFailures.count) parser checks", color: parserFailures.isEmpty ? .green : .orange)
+          Badge("\(clearOrderSamples.count) extracted IDs", color: clearOrderSamples.isEmpty ? .secondary : .blue)
+        }
+        Text(parserFailures.isEmpty ? "Parser expectations passed for the built-in samples with explicit order/tracking values." : "Review parser failures before relying on live SpaceMail extraction.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(parserFailures.isEmpty ? .green : .orange)
+          .fixedSize(horizontal: false, vertical: true)
+        ForEach(parserFailures.prefix(3)) { result in
+          Text("\(result.sampleName): \(result.parserStatus)")
+            .font(.caption2)
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if !parserFailures.isEmpty {
+          Button("Create parser QA task", systemImage: "checklist", action: onCreateParserQATask)
+            .buttonStyle(.bordered)
+        }
+      }
+    }
+    .padding(8)
+    .background((parserFailures.isEmpty && !parserChecks.isEmpty ? Color.green : Color.orange).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func classifierSuiteFailureSummary(decisionFailures: [SpaceMailClassifierTestResult], parserFailures: [SpaceMailClassifierTestResult]) -> String {
+    let decisionText = decisionFailures.prefix(3).map { "\($0.sampleName): \($0.decisionStatus)" }
+    let parserText = parserFailures.prefix(3).map { "\($0.sampleName): \($0.parserStatus)" }
+    let combined = (decisionText + parserText).joined(separator: "; ")
+    return combined.isEmpty ? "Review classifier and parser expectations before trusting mixed-mailbox filtering." : combined
+  }
+
+  private var spaceMailClassifierRuleGuide: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text("Decision guide")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+      CompactMetadataGrid(minimumWidth: 180) {
+        Badge("Import: signal + order/tracking ID", color: .green)
+        Badge("Uncertain: order-ish, missing ID", color: .orange)
+        Badge("Filter: marketing/security/social", color: .teal)
+        Badge("Manual review: safe previews only", color: .secondary)
+      }
+      Text("Use the built-in suite after changing presets or hints. It should import clear order/refund samples, keep delivery questions uncertain, and filter obvious marketing or security messages.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(8)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  @ViewBuilder
+  private var classifierTestBadge: some View {
+    let decisionFailures = connection.classifierTestResults.filter { $0.decisionStatus.localizedCaseInsensitiveContains("needs review") }
+    let parserFailures = connection.classifierTestResults.filter { $0.parserStatus.localizedCaseInsensitiveContains("needs review") }
+    if !decisionFailures.isEmpty || !parserFailures.isEmpty {
+      Badge("Needs review", color: .orange)
+    } else if !connection.classifierTestResults.isEmpty {
+      Badge("Suite passed", color: .green)
+    } else if connection.classifierTestSummary.localizedCaseInsensitiveContains("Uncertain") {
+      Badge("Uncertain", color: .orange)
+    } else if connection.classifierTestSummary.localizedCaseInsensitiveContains("Imported") {
+      Badge("Imported", color: .green)
+    } else if connection.classifierTestSummary.localizedCaseInsensitiveContains("Filtered") {
+      Badge("Filtered", color: .teal)
+    } else {
+      Badge("Not run", color: .secondary)
+    }
+  }
+
+  private var classifierTestColor: Color {
+    if connection.classifierTestResults.contains(where: { $0.decisionStatus.localizedCaseInsensitiveContains("needs review") || $0.parserStatus.localizedCaseInsensitiveContains("needs review") }) { return .orange }
+    if !connection.classifierTestResults.isEmpty { return .green }
+    if connection.classifierTestSummary.localizedCaseInsensitiveContains("Uncertain") { return .orange }
+    if connection.classifierTestSummary.localizedCaseInsensitiveContains("Imported") { return .green }
+    if connection.classifierTestSummary.localizedCaseInsensitiveContains("Filtered") { return .teal }
+    return .secondary
+  }
+
+  private var spaceMailRefreshColor: Color {
+    let status = connection.connectionStatus
+    if status.localizedCaseInsensitiveContains("success") { return .green }
+    if status.localizedCaseInsensitiveContains("duplicate") { return .teal }
+    if status.localizedCaseInsensitiveContains("failed") || status.localizedCaseInsensitiveContains("missing") { return .orange }
+    return .secondary
+  }
+
+  private var uncertainMessagesReview: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("5. Review uncertain SpaceMail messages", systemImage: "questionmark.folder.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.orange)
+      Text("These previews looked possibly order-related, but not strong enough for automatic Inbox import. Import only if the preview is relevant, or dismiss it locally.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+      CompactActionRow {
+        Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
+      }
+      ForEach(connection.uncertainMessages) { message in
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(message.subject)
+                .font(.caption.weight(.semibold))
+              Text("\(message.sender) • \(message.receivedDate)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Badge("Uncertain", color: .orange)
+          }
+          Text(message.bodyPreview)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+          Text("Reason: \(message.reason)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.orange)
+          CompactActionRow {
+            Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill") {
+              onImportUncertain(message)
+            }
+            Button("Task", systemImage: "checklist") {
+              onTaskFromUncertain(message)
+            }
+            Button("Draft", systemImage: "envelope.open.fill") {
+              onDraftFromUncertain(message)
+            }
+            Button("Trust sender", systemImage: "person.badge.shield.checkmark") {
+              onAddUncertainHint(message, .trustedSender)
+            }
+            Button("Uncertain hint", systemImage: "questionmark.diamond") {
+              onAddUncertainHint(message, .uncertainKeyword)
+            }
+            Button("Import hint", systemImage: "plus.circle") {
+              onAddUncertainHint(message, .importKeyword)
+            }
+            Button("Dismiss", systemImage: "xmark.circle", role: .destructive) {
+              onDismissUncertain(message)
+            }
+          }
+        }
+        .padding(8)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var filteredMessagesReview: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label("5. Review filtered SpaceMail examples", systemImage: "line.3.horizontal.decrease.circle.fill")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.teal)
+      Text("These previews were filtered out of Inbox. Import one only if the classifier was too strict, or dismiss it locally to clear the review list.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+      CompactActionRow {
+        Button("Dismiss all filtered", systemImage: "xmark.circle", role: .destructive, action: onDismissAllFiltered)
+      }
+      ForEach(connection.filteredMessages) { message in
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(message.subject)
+                .font(.caption.weight(.semibold))
+              Text("\(message.sender) • \(message.receivedDate)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Badge("Filtered", color: .teal)
+          }
+          Text(message.bodyPreview)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+          Text("Reason: \(message.reason)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.teal)
+          CompactActionRow {
+            Button("Import anyway", systemImage: "tray.and.arrow.down.fill") {
+              onImportFiltered(message)
+            }
+            Button("Move to uncertain", systemImage: "questionmark.folder") {
+              onPromoteFiltered(message)
+            }
+            Button("Task", systemImage: "checklist") {
+              onTaskFromFiltered(message)
+            }
+            Button("Draft", systemImage: "envelope.open.fill") {
+              onDraftFromFiltered(message)
+            }
+            Button("Trust sender", systemImage: "person.badge.shield.checkmark") {
+              onAddFilteredHint(message, .trustedSender)
+            }
+            Button("Import hint", systemImage: "plus.circle") {
+              onAddFilteredHint(message, .importKeyword)
+            }
+            Button("Filter hint", systemImage: "line.3.horizontal.decrease.circle") {
+              onAddFilteredHint(message, .filterKeyword)
+            }
+            Button("Dismiss", systemImage: "xmark.circle", role: .destructive) {
+              onDismissFiltered(message)
+            }
+          }
+        }
+        .padding(8)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct SpaceMailIntakeHealthCard: View {
+  var summary: SpaceMailIntakeHealthSummary
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("Intake health", systemImage: symbol)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(toneColor)
+        Spacer()
+        Badge(summary.verdict, color: toneColor)
+      }
+      Text(summary.detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(summary.nextAction)
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(toneColor)
+        .fixedSize(horizontal: false, vertical: true)
+
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: queueSymbol)
+          .foregroundStyle(queueColor)
+          .frame(width: 18)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(queueTitle)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(queueColor)
+          Text(queueDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(queueColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      CompactMetadataGrid(minimumWidth: 112) {
+        Badge("\(summary.fetchedCount) fetched", color: .blue)
+        Badge("\(summary.importedCount) imported", color: summary.importedCount > 0 ? .green : .secondary)
+        Badge("\(summary.duplicateCount) duplicates", color: summary.duplicateCount > 0 ? .orange : .secondary)
+        Badge("\(summary.duplicateRefreshedCount) refreshed", color: summary.duplicateRefreshedCount > 0 ? .green : .secondary)
+        Badge("\(summary.filteredCount) filtered", color: summary.filteredCount > 0 ? .teal : .secondary)
+        Badge("\(summary.uncertainCount) uncertain", color: summary.uncertainCount > 0 ? .orange : .secondary)
+        Badge("\(summary.parserIssueCount) parser checks", color: summary.parserIssueCount > 0 ? .orange : .secondary)
+        Badge("\(summary.linkedIntakeCount) linked intake", color: summary.linkedIntakeCount > 0 ? .blue : .secondary)
+      }
+      if summary.pendingUncertainReviewCount > 0 || summary.pendingFilteredReviewCount > 0 {
+        Text("Pending local review: \(summary.pendingUncertainReviewCount) uncertain, \(summary.pendingFilteredReviewCount) filtered examples.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.orange)
+      }
+      if !summary.topReasonLabels.isEmpty {
+        VStack(alignment: .leading, spacing: 5) {
+          Text("Latest reason labels")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(summary.topReasonLabels, id: \.self) { reason in
+            Text(reason)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        .padding(8)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
+      Text("Last refresh: \(summary.lastRefreshDate)")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(toneColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var toneColor: Color {
+    switch summary.tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+
+  private var symbol: String {
+    switch summary.tone {
+    case "success":
+      return "checkmark.seal.fill"
+    case "attention":
+      return "exclamationmark.triangle.fill"
+    case "warning":
+      return "xmark.octagon.fill"
+    default:
+      return "waveform.path.ecg"
+    }
+  }
+
+  private var queueTitle: String {
+    if summary.parserIssueCount > 0 {
+      return "Active queue: parser review"
+    }
+    if summary.pendingUncertainReviewCount > 0 {
+      return "Active queue: uncertain SpaceMail review"
+    }
+    if summary.linkedIntakeCount > 0 && summary.importedCount > 0 {
+      return "Active queue: Inbox triage"
+    }
+    if summary.pendingFilteredReviewCount > 0 {
+      return "Optional queue: filtered examples"
+    }
+    if summary.filteredCount > 0 && summary.importedCount == 0 && summary.uncertainCount == 0 {
+      return "No primary queue: mixed-mailbox filter handled this refresh"
+    }
+    if summary.duplicateRefreshedCount > 0 && summary.importedCount == 0 {
+      return "No new queue: duplicate refresh updated Inbox"
+    }
+    if summary.duplicateCount > 0 && summary.importedCount == 0 {
+      return "No primary queue: duplicate refresh"
+    }
+    return "No primary queue waiting"
+  }
+
+  private var queueDetail: String {
+    if summary.parserIssueCount > 0 {
+      return "Review parser diagnostics before creating orders so weak order, tracking, sender, or destination fields do not flow downstream."
+    }
+    if summary.pendingUncertainReviewCount > 0 {
+      return "Uncertain previews stayed out of Inbox. Import only true order mail, or dismiss/filter non-order messages locally."
+    }
+    if summary.linkedIntakeCount > 0 && summary.importedCount > 0 {
+      return "Imported SpaceMail rows are ready for human confirmation in Inbox before order creation or linking."
+    }
+    if summary.pendingFilteredReviewCount > 0 {
+      return "Filtered examples are not work items by default. Spot-check them only when an expected order email is missing."
+    }
+    if summary.filteredCount > 0 && summary.importedCount == 0 && summary.uncertainCount == 0 {
+      return "This is expected for a mixed-use mailbox when recent mail does not contain strong order or tracking evidence."
+    }
+    if summary.duplicateRefreshedCount > 0 && summary.importedCount == 0 {
+      return "Existing Inbox rows were refreshed from duplicate provider message IDs. Review those rows in Inbox; no duplicate work item was created."
+    }
+    if summary.duplicateCount > 0 && summary.importedCount == 0 {
+      return "ParcelOps already saw these provider message IDs, so no duplicate Inbox rows were created."
+    }
+    return "Run a manual refresh when new order mail is expected, or wait for the next forwarded update."
+  }
+
+  private var queueColor: Color {
+    if summary.parserIssueCount > 0 { return .orange }
+    if summary.pendingUncertainReviewCount > 0 { return .orange }
+    if summary.linkedIntakeCount > 0 && summary.importedCount > 0 { return .green }
+    if summary.pendingFilteredReviewCount > 0 { return .teal }
+    if summary.filteredCount > 0 && summary.importedCount == 0 && summary.uncertainCount == 0 { return .teal }
+    return .secondary
+  }
+
+  private var queueSymbol: String {
+    if summary.parserIssueCount > 0 { return "text.magnifyingglass" }
+    if summary.pendingUncertainReviewCount > 0 { return "questionmark.folder.fill" }
+    if summary.linkedIntakeCount > 0 && summary.importedCount > 0 { return "tray.full.fill" }
+    if summary.pendingFilteredReviewCount > 0 { return "line.3.horizontal.decrease.circle.fill" }
+    if summary.filteredCount > 0 && summary.importedCount == 0 && summary.uncertainCount == 0 { return "line.3.horizontal.decrease.circle" }
+    return "clock.arrow.circlepath"
+  }
+}
+
+struct SpaceMailCredentialSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  var connection: SpaceMailIMAPConnection
+  var onSave: (String) -> Void
+
+  @State private var password = ""
+
+  var body: some View {
+    NavigationStack {
+      VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 6) {
+          Text(connection.displayName)
+            .font(.headline)
+          Text(connection.emailAddressUsername)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          Text("The password/app-password is sent to Keychain only. It is not stored in ParcelOps JSON or Audit.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+
+        SecureField("SpaceMail password or app password", text: $password)
+          .textFieldStyle(.roundedBorder)
+
+        Text("Use this only for the configured SpaceMail inbox. Clearing or checking credentials can be done from the setup row after saving.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        Spacer()
+      }
+      .padding()
+      .frame(minWidth: 420, idealWidth: 520, maxWidth: 620, minHeight: 220, idealHeight: 280, maxHeight: 360)
+      .navigationTitle("SpaceMail Credential")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { dismiss() }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save to Keychain") {
+            onSave(password)
+            password = ""
+            dismiss()
+          }
+          .disabled(password.isEmpty)
+        }
+      }
+    }
+  }
+
+}
+
+struct SpaceMailIMAPConnectionEditor: View {
+  @Environment(\.dismiss) private var dismiss
+  @State private var draft: SpaceMailIMAPConnection
+  var onSave: (SpaceMailIMAPConnection) -> Void
+
+  init(connection: SpaceMailIMAPConnection, onSave: @escaping (SpaceMailIMAPConnection) -> Void) {
+    self._draft = State(initialValue: connection)
+    self.onSave = onSave
+  }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section("1. SpaceMail mailbox") {
+          TextField("Display name", text: $draft.displayName)
+          TextField("Email address / username", text: $draft.emailAddressUsername)
+          TextField("IMAP host", text: $draft.imapHost)
+          TextField("IMAP port", text: $draft.imapPort)
+          TextField("Security mode", text: $draft.securityMode)
+          TextField("Folder name", text: $draft.folderName)
+          Picker("Mailbox mode", selection: $draft.mailboxMode) {
+            ForEach(SpaceMailMailboxMode.allCases) { mode in
+              Text(mode.rawValue).tag(mode)
+            }
+          }
+        }
+        Section("2. Local status") {
+          TextField("Connection status", text: $draft.connectionStatus)
+          TextField("Last manual refresh", text: $draft.lastManualRefreshDate)
+          TextField("Credential storage status", text: $draft.credentialStorageStatus)
+          Picker("Review state", selection: $draft.reviewState) {
+            Text("Accepted").tag(ReviewState.accepted)
+            Text("Needs review").tag(ReviewState.needsReview)
+            Text("Monitor").tag(ReviewState.monitor)
+          }
+        }
+        Section("3. Setup notes") {
+          TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
+            .lineLimit(4...8)
+          Text("Do not enter passwords, app passwords, OAuth codes, tokens, API keys, or client secrets here. Use the secure credential prompt on the setup row for SpaceMail passwords.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Section("4. Mixed mailbox filter hints") {
+          TextField("Trusted sender hints", text: listBinding(\.trustedSenderHints), axis: .vertical)
+            .lineLimit(1...3)
+          TextField("Import keyword hints", text: listBinding(\.importKeywordHints), axis: .vertical)
+            .lineLimit(1...3)
+          TextField("Uncertain keyword hints", text: listBinding(\.uncertainKeywordHints), axis: .vertical)
+            .lineLimit(1...3)
+          TextField("Filter keyword hints", text: listBinding(\.filterKeywordHints), axis: .vertical)
+            .lineLimit(1...3)
+          Text("Separate hints with commas. Import hints only help messages that already look order-related; uncertain hints keep ambiguous order/delivery questions out of Inbox but available for review; filter hints suppress obvious non-order mail.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Section("Read-only plan") {
+          Text("SpaceMail IMAP refresh selects the configured folder read-only, fetches a small page of message headers/previews, then imports likely order messages through the provider-neutral intake path. Mixed mailbox mode keeps obvious non-order messages out of the primary Inbox. It must not delete, move, mark read, send, or modify mailbox messages.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .formStyle(.grouped)
+      .safeAreaInset(edge: .bottom) {
+        HStack {
+          Spacer()
+          Button("Cancel") { dismiss() }
+            .keyboardShortcut(.cancelAction)
+          Button("Save") {
+            onSave(draft)
+            dismiss()
+          }
+          .buttonStyle(.borderedProminent)
+          .keyboardShortcut(.defaultAction)
+        }
+        .padding()
+        .background(.background)
+        .overlay(Divider(), alignment: .top)
+      }
+      .frame(minWidth: 460, idealWidth: 620, maxWidth: 740, minHeight: 320, idealHeight: 600)
+      .navigationTitle("SpaceMail IMAP")
+    }
+  }
+
+  private func listBinding(_ keyPath: WritableKeyPath<SpaceMailIMAPConnection, [String]>) -> Binding<String> {
+    Binding(
+      get: { draft[keyPath: keyPath].joined(separator: ", ") },
+      set: { draft[keyPath: keyPath] = Self.parseHintList($0) }
+    )
+  }
+
+  private static func parseHintList(_ value: String) -> [String] {
+    value
+      .split(separator: ",")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+  }
+}
+
+struct Microsoft365MailboxConnectionEditor: View {
+  @Environment(\.dismiss) private var dismiss
+  @State private var draft: Microsoft365MailboxConnection
+  var implementationPlan: Microsoft365OAuthImplementationPlan
+  var onSave: (Microsoft365MailboxConnection) -> Void
+
+  init(connection: Microsoft365MailboxConnection, implementationPlan: Microsoft365OAuthImplementationPlan, onSave: @escaping (Microsoft365MailboxConnection) -> Void) {
+    self._draft = State(initialValue: connection)
+    self.implementationPlan = implementationPlan
+    self.onSave = onSave
+  }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section("1. Mailbox placeholder") {
+          TextField("Display name", text: $draft.displayName)
+          TextField("Tenant/domain hint", text: $draft.tenantDomainHint)
+          TextField("Mailbox address", text: $draft.mailboxAddress)
+          TextField("Monitored folders", text: $draft.monitoredFolderNames)
+        }
+        Section("2. Local status and notes") {
+          TextField("Connection status", text: $draft.connectionStatus)
+          TextField("Last manual refresh", text: $draft.lastManualRefreshDate)
+          Picker("Review state", selection: $draft.reviewState) {
+            Text("Accepted").tag(ReviewState.accepted)
+            Text("Needs review").tag(ReviewState.needsReview)
+            Text("Monitor").tag(ReviewState.monitor)
+          }
+          TextField("Setup notes", text: $draft.setupNotes, axis: .vertical)
+            .lineLimit(3...6)
+        }
+        Section("3. OAuth readiness placeholders") {
+          Text("Non-secret planning fields only. These prepare future OAuth work but do not start sign-in or store credentials.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          TextField("Tenant ID placeholder", text: $draft.tenantIDPlaceholder)
+          TextField("Client ID placeholder", text: $draft.clientIDPlaceholder)
+          TextField("Redirect URI placeholder", text: $draft.redirectURIPlaceholder)
+          TextField("Requested scopes summary", text: $draft.requestedScopesSummary, axis: .vertical)
+            .lineLimit(2...4)
+          TextField("OAuth readiness status", text: $draft.oauthReadinessStatus)
+          TextField("Consent/admin notes", text: $draft.consentAdminNotes, axis: .vertical)
+            .lineLimit(3...6)
+        }
+        Section("4. Implementation checklist") {
+          Text(implementationPlan.statusText)
+            .font(.subheadline.weight(.semibold))
+          Text("Review these planning items before adding a real OAuth flow in a later pass.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          ForEach(implementationPlan.items) { item in
+            Label {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                Text(item.detail)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            } icon: {
+              Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(item.isComplete ? .green : .secondary)
+            }
+          }
+        }
+        Section("Not connected") {
+          Text("Use non-secret app registration notes only. Do not enter passwords, OAuth codes, client secrets, tokens, API keys, refresh tokens, or Keychain values. This placeholder does not run OAuth, open browser sign-in, request or store tokens, use Keychain, contact Microsoft Graph, or access any mailbox.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .formStyle(.grouped)
+      .safeAreaInset(edge: .bottom) {
+        HStack {
+          Spacer()
+          Button("Cancel") { dismiss() }
+            .keyboardShortcut(.cancelAction)
+          Button("Save") {
+            onSave(draft)
+            dismiss()
+          }
+          .buttonStyle(.borderedProminent)
+          .keyboardShortcut(.defaultAction)
+        }
+        .padding()
+        .background(.background)
+        .overlay(Divider(), alignment: .top)
+      }
+      .frame(minWidth: 480, idealWidth: 640, maxWidth: 760, minHeight: 320, idealHeight: 680)
+      .navigationTitle("Microsoft 365 mailbox")
+    }
+  }
+}
+
+struct MailboxConnectionRow: View {
+  var mailbox: TrackedMailbox
+  var onReviewed: () -> Void = {}
+  var onRemove: () -> Void = {}
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      Image(systemName: mailbox.provider.symbol)
+        .foregroundStyle(.blue)
+        .frame(width: 28)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(mailbox.address)
+          .font(.headline)
+        Text("\(mailbox.provider.rawValue) • \(mailbox.monitoredFolders)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Text(mailbox.routingRule)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Spacer()
+      VStack(alignment: .trailing, spacing: 4) {
+        Text(mailbox.status)
+          .font(.callout.weight(.semibold))
+        Text(mailbox.lastChecked)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Button("Reviewed", systemImage: "checkmark.circle", action: onReviewed)
+          .buttonStyle(.bordered)
+        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+          .buttonStyle(.bordered)
+      }
+    }
+    .padding(10)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct ShopifyConnectionRow: View {
+  var connection: ShopifyConnection
+  var suggestedAccounts: [AccountCredentialRecord] = []
+  var suggestedProfiles: [VendorProfile] = []
+  var onCreateAccount: () -> Void = {}
+  var onTaskFromAccount: (AccountCredentialRecord) -> Void = { _ in }
+  var onDraftFromAccount: (AccountCredentialRecord) -> Void = { _ in }
+  var onCreateProfile: () -> Void = {}
+  var onTaskFromProfile: (VendorProfile) -> Void = { _ in }
+  var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
+  var onReviewed: () -> Void = {}
+  var onRemove: () -> Void = {}
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "cart.fill")
+          .foregroundStyle(.green)
+          .frame(width: 28)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(connection.storeName)
+            .font(.headline)
+          Text(connection.storeDomain)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text("\(connection.mappedTeam) • \(connection.mappedMailbox)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        VStack(alignment: .trailing, spacing: 4) {
+          Text(connection.isEnabled ? connection.status : "Disabled")
+            .font(.callout.weight(.semibold))
+          Text(connection.lastSync)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+
+      HStack {
+        Button("Account", systemImage: "key.badge.plus", action: onCreateAccount)
+          .buttonStyle(.bordered)
+        Button("Profile", systemImage: "building.2.crop.circle", action: onCreateProfile)
+          .buttonStyle(.bordered)
+        Button("Reviewed", systemImage: "checkmark.circle", action: onReviewed)
+          .buttonStyle(.bordered)
+        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+          .buttonStyle(.bordered)
+      }
+
+      ForEach(suggestedAccounts) { account in
+        AccountSuggestionRow(account: account) {
+          onTaskFromAccount(account)
+        } onCreateDraft: {
+          onDraftFromAccount(account)
+        }
+      }
+
+      ForEach(suggestedProfiles) { profile in
+        VendorProfileSuggestionRow(profile: profile) {
+          onTaskFromProfile(profile)
+        } onCreateDraft: {
+          onDraftFromProfile(profile)
+        }
+      }
+    }
+    .padding(10)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct WatchedFolderRow: View {
+  var folder: WatchedFolder
+  var onReviewed: () -> Void = {}
+  var onRemove: () -> Void = {}
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      Image(systemName: "folder.fill.badge.gearshape")
+        .foregroundStyle(.orange)
+        .frame(width: 28)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(folder.name)
+          .font(.headline)
+        Text(folder.location)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Text("\(folder.platform) • \(folder.fileTypes) • \(folder.cadence)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Spacer()
+      VStack(alignment: .trailing, spacing: 4) {
+        Text(folder.status)
+          .font(.callout.weight(.semibold))
+        Text(folder.lastScan)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Button("Reviewed", systemImage: "checkmark.circle", action: onReviewed)
+          .buttonStyle(.bordered)
+        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+          .buttonStyle(.bordered)
+      }
+    }
+    .padding(10)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct SourceConnectionRow: View {
+  var connection: SourceConnection
+  var suggestedAccounts: [AccountCredentialRecord] = []
+  var suggestedProfiles: [VendorProfile] = []
+  var onCreateAccount: () -> Void = {}
+  var onTaskFromAccount: (AccountCredentialRecord) -> Void = { _ in }
+  var onDraftFromAccount: (AccountCredentialRecord) -> Void = { _ in }
+  var onCreateProfile: () -> Void = {}
+  var onTaskFromProfile: (VendorProfile) -> Void = { _ in }
+  var onDraftFromProfile: (VendorProfile) -> Void = { _ in }
+  var onReviewed: () -> Void = {}
+  var onRemove: () -> Void = {}
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 14) {
+        Image(systemName: connection.kind.symbol)
+          .foregroundStyle(.teal)
+          .frame(width: 34)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(connection.name)
+            .font(.headline)
+          Text("\(connection.kind.rawValue) • \(connection.account)")
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        VStack(alignment: .trailing, spacing: 4) {
+          Text(connection.status)
+            .font(.callout.weight(.semibold))
+          Text(connection.lastSync)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+
+      HStack {
+        Button("Account", systemImage: "key.badge.plus", action: onCreateAccount)
+          .buttonStyle(.bordered)
+        Button("Profile", systemImage: "building.2.crop.circle", action: onCreateProfile)
+          .buttonStyle(.bordered)
+        Button("Reviewed", systemImage: "checkmark.circle", action: onReviewed)
+          .buttonStyle(.bordered)
+        Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+          .buttonStyle(.bordered)
+      }
+
+      ForEach(suggestedAccounts) { account in
+        AccountSuggestionRow(account: account) {
+          onTaskFromAccount(account)
+        } onCreateDraft: {
+          onDraftFromAccount(account)
+        }
+      }
+
+      ForEach(suggestedProfiles) { profile in
+        VendorProfileSuggestionRow(profile: profile) {
+          onTaskFromProfile(profile)
+        } onCreateDraft: {
+          onDraftFromProfile(profile)
+        }
+      }
+    }
+    .padding(14)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+struct SettingsReleaseCandidateCard: View {
+  var store: ParcelOpsStore
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.latestSpaceMailIntakeHealthSummary
+  }
+
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.latestGmailIntakeHealthSummary
+  }
+
+  private var hasMailboxSetup: Bool {
+    store.hasMailboxProviderSetup
+  }
+
+  private var hasSpaceMailCredentialReference: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+
+  private var hasGmailConnectedAuth: Bool {
+    store.hasGmailConnectedAuth
+  }
+
+  private var hasManualCredentialOrAuth: Bool {
+    store.hasMailboxCredentialOrAuthReadiness
+  }
+
+  private var latestManualFetchedCount: Int {
+    store.latestMailboxMaxFetchedCount
+  }
+
+  private var latestManualImportedCount: Int {
+    store.latestMailboxImportedCount
+  }
+
+  private var latestManualFilteredCount: Int {
+    store.latestMailboxFilteredCount
+  }
+
+  private var latestManualUncertainCount: Int {
+    max(latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0, latestSpaceMailSummary?.uncertainCount ?? 0)
+      + max(latestGmailSummary?.pendingUncertainReviewCount ?? 0, latestGmailSummary?.uncertainCount ?? 0)
+  }
+
+  private var inboxCreatedOrdersCount: Int {
+    store.orders.filter { order in
+      order.source == .forwardedMailbox || order.checkedMailbox == "manual-import"
+    }.count
+  }
+
+  private var manualRefreshCount: Int {
+    store.mailboxManualRefreshCount
+  }
+
+  private var unresolvedOperatorCount: Int {
+    store.reviewIntakeEmails.count
+      + store.intakeParserDiagnostics.count
+      + store.openWorkbenchItems.count
+      + store.reviewTasksNeedingAttention.count
+      + store.blockedShipmentManifests.count
+      + store.blockedDispatchChecklists.count
+  }
+
+  private var tone: Color {
+    if !hasMailboxSetup || manualRefreshCount == 0 { return .orange }
+    if inboxCreatedOrdersCount == 0 { return .orange }
+    if unresolvedOperatorCount > 0 { return .teal }
+    return .green
+  }
+
+  private var title: String {
+    if !hasMailboxSetup { return "Mailbox setup needed" }
+    if manualRefreshCount == 0 { return "Manual mailbox refresh needed" }
+    if inboxCreatedOrdersCount == 0 { return "Source-created order needed" }
+    if unresolvedOperatorCount > 0 { return "Open operator work remains" }
+    return "Daily workflow is clean"
+  }
+
+  private var detail: String {
+    if !hasMailboxSetup {
+      return "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes before judging the daily operator flow."
+    }
+    if !hasManualCredentialOrAuth {
+      return "Finish the active provider credential or sign-in before relying on real manual mailbox refresh."
+    }
+    if manualRefreshCount == 0 {
+      return "Run one explicit manual mailbox refresh from Mailbox Monitor. Active providers feed the same local Inbox intake path."
+    }
+    if inboxCreatedOrdersCount == 0 {
+      return "Create or link one order from a confirmed intake or Wishlist source so Orders, Workbench, Tasks, Dashboard, and Audit can show the handoff."
+    }
+    if unresolvedOperatorCount > 0 {
+      return "Use Inbox, Workbench, Dispatch, Tasks, and Audit to clear or deliberately leave assigned follow-up work."
+    }
+    return "Core local workflow has refresh evidence, source-to-order handoff, and audit history. Keep integrations local/manual until the next approved implementation slice."
+  }
+
+  private var readinessChecklistRows: [(title: String, detail: String, isReady: Bool, symbol: String)] {
+    [
+      (
+        "Active mailbox path",
+        hasMailboxSetup ? "A mailbox provider setup exists for manual intake." : "Add SpaceMail for IMAP, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes.",
+        hasMailboxSetup,
+        "tray.full.fill"
+      ),
+      (
+        "Credential or sign-in",
+        hasManualCredentialOrAuth ? "A provider can be used for explicit manual refresh." : "Add the SpaceMail Keychain credential, complete Gmail sign-in, or complete Microsoft sign-in.",
+        hasManualCredentialOrAuth,
+        "key.fill"
+      ),
+      (
+        "Refresh evidence",
+        manualRefreshCount > 0 ? "\(manualRefreshCount) manual refresh run\(manualRefreshCount == 1 ? "" : "s") recorded." : "Run one manual read-only refresh from Mailbox Monitor.",
+        manualRefreshCount > 0,
+        "arrow.triangle.2.circlepath"
+      ),
+      (
+        "Mailbox classifier result",
+        store.latestMailboxClassifierResultText,
+        latestManualFetchedCount > 0,
+        "line.3.horizontal.decrease.circle.fill"
+      ),
+      (
+        "Source-to-order handoff",
+        inboxCreatedOrdersCount > 0 ? "\(inboxCreatedOrdersCount) order\(inboxCreatedOrdersCount == 1 ? "" : "s") linked to forwarded mailbox intake." : "Create or link one order from a confirmed intake or Wishlist source.",
+        inboxCreatedOrdersCount > 0,
+        "shippingbox.fill"
+      ),
+      (
+        "Operator backlog visible",
+        unresolvedOperatorCount > 0 ? "\(unresolvedOperatorCount) review, task, dispatch, or workbench item\(unresolvedOperatorCount == 1 ? "" : "s") are visible for triage." : "No immediate operator backlog is blocking the checklist.",
+        true,
+        "checklist"
+      )
+    ]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: tone == .green ? "checkmark.seal.fill" : "checklist")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.headline)
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(tone == .green ? "Ready" : "Review", color: tone)
+      }
+
+      MetricStrip(items: [
+        ("Refreshes", "\(manualRefreshCount)", manualRefreshCount == 0 ? .orange : .green),
+        ("Fetched", "\(latestManualFetchedCount)", .blue),
+        ("Imported", "\(latestManualImportedCount)", latestManualImportedCount > 0 ? .green : .secondary),
+        ("Inbox orders", "\(inboxCreatedOrdersCount)", inboxCreatedOrdersCount == 0 ? .orange : .green),
+        ("Open work", "\(unresolvedOperatorCount)", unresolvedOperatorCount == 0 ? .green : .teal)
+      ])
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Operator readiness checklist", systemImage: "checklist.checked")
+          .font(.caption.weight(.semibold))
+
+        CompactMetadataGrid(minimumWidth: 220) {
+          ForEach(readinessChecklistRows, id: \.title) { row in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: row.isReady ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(row.isReady ? .green : .orange)
+                .frame(width: 18)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(row.title)
+                  .font(.caption.weight(.semibold))
+                Text(row.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.background, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+          }
+        }
+      }
+
+      CompactActionRow {
+        NavigationLink {
+          MailboxView(store: store)
+        } label: {
+          Label(manualRefreshCount == 0 ? "Run mailbox refresh" : "Open Mailbox Monitor", systemImage: "server.rack")
+        }
+        NavigationLink {
+          InboxView(store: store)
+        } label: {
+          Label(inboxCreatedOrdersCount == 0 ? "Create/link order" : "Open Inbox", systemImage: "tray.full.fill")
+        }
+        NavigationLink {
+          OrdersView(store: store)
+        } label: {
+          Label("Open Orders", systemImage: "shippingbox.fill")
+        }
+        NavigationLink {
+          AuditView(store: store)
+        } label: {
+          Label("Verify Audit", systemImage: "list.clipboard.fill")
+        }
+      }
+      .buttonStyle(.bordered)
+
+      Text("Local boundary: manual read-only mailbox intake, local JSON records, provider credentials kept out of JSON, no mailbox mutation, no Shopify/carrier APIs, no background sync, no notifications, no OCR/scanner/calendar/file-picker workflows.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct SettingsView: View {
+  var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var settingsSearchText = ""
+  @State private var settingsFeedbackMessage: String?
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var hasSpaceMailSetup: Bool { !store.spaceMailIMAPConnections.isEmpty }
+  private var hasSpaceMailCredentialReference: Bool {
+    store.spaceMailIMAPConnections.contains {
+      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
+        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
+    }
+  }
+  private var hasGmailSetup: Bool { !store.gmailMailboxConnections.isEmpty }
+  private var latestGmailSummary: GmailIntakeHealthSummary? {
+    store.latestGmailIntakeHealthSummary
+  }
+  private var hasGmailConnectedAuth: Bool {
+    store.hasGmailConnectedAuth
+  }
+  private var hasMicrosoft365Setup: Bool { !store.microsoft365MailboxConnections.isEmpty }
+  private var hasMicrosoft365ConnectedAuth: Bool {
+    store.microsoft365MailboxConnections.contains {
+      store.microsoft365AuthSessionState(for: $0).status == .connected
+    }
+  }
+  private var hasMicrosoft365CoreSetup: Bool {
+    store.microsoft365MailboxConnections.contains { connection in
+      store.microsoft365OAuthReadinessSummary(for: connection).isReady
+    }
+  }
+  private var hasGmailCoreSetup: Bool {
+    store.gmailMailboxConnections.contains { connection in
+      !connection.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !connection.monitoredLabelNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !(connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !(connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && connection.requestedScopesSummary.localizedCaseInsensitiveContains("gmail.")
+    }
+  }
+  private var hasLiveMailboxSetup: Bool {
+    hasSpaceMailSetup || hasGmailSetup || hasMicrosoft365Setup
+  }
+  private var hasLiveMailboxCredentialOrAuth: Bool {
+    store.hasMailboxCredentialOrAuthReadiness
+  }
+
+  private var mailboxStatus: (String, Color) {
+    let providers = [
+      hasSpaceMailSetup ? "SpaceMail" : nil,
+      hasGmailSetup ? "Gmail" : nil,
+      hasMicrosoft365Setup ? "Outlook" : nil
+    ].compactMap { $0 }
+    if providers.count > 1 { return (providers.joined(separator: " + "), .green) }
+    if hasSpaceMailSetup { return ("SpaceMail manual", .green) }
+    if hasGmailSetup { return ("Gmail manual", hasGmailConnectedAuth ? .green : .orange) }
+    if hasMicrosoft365Setup { return ("Outlook manual", hasMicrosoft365ConnectedAuth ? .green : .orange) }
+    return ("Not connected", .orange)
+  }
+
+  private var credentialStatus: (String, Color) {
+    let readyProviders = [
+      hasSpaceMailCredentialReference ? "SpaceMail Keychain" : nil,
+      hasGmailConnectedAuth ? "Google signed in" : nil,
+      hasMicrosoft365ConnectedAuth ? "Microsoft signed in" : nil
+    ].compactMap { $0 }
+    if readyProviders.count > 1 { return ("Multiple ready", .green) }
+    if hasSpaceMailCredentialReference { return ("SpaceMail Keychain", .green) }
+    if hasGmailConnectedAuth { return ("Google signed in", .green) }
+    if hasMicrosoft365ConnectedAuth { return ("Microsoft signed in", .green) }
+    if hasGmailSetup { return ("Google sign-in needed", .orange) }
+    if hasMicrosoft365Setup { return ("Microsoft sign-in needed", .orange) }
+    return ("Credential needed", .orange)
+  }
+
+  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
+    store.latestSpaceMailIntakeHealthSummary
+  }
+
+  private var settingsManualRefreshCount: Int {
+    store.mailboxManualRefreshCount
+  }
+
+  private var latestManualMailboxFetchedCount: Int {
+    store.latestMailboxMaxFetchedCount
+  }
+
+  private var latestManualMailboxImportedCount: Int {
+    store.latestMailboxImportedCount
+  }
+
+  private var latestManualMailboxFilteredCount: Int {
+    store.latestMailboxFilteredCount
+  }
+
+  private var latestManualMailboxUncertainCount: Int {
+    max(latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0, latestSpaceMailSummary?.uncertainCount ?? 0)
+      + max(latestGmailSummary?.pendingUncertainReviewCount ?? 0, latestGmailSummary?.uncertainCount ?? 0)
+  }
+
+  private var settingsInboxCreatedOrdersCount: Int {
+    store.inboxCreatedOrderCount
+  }
+
+  private var settingsOpenOperatorWorkCount: Int {
+    store.reviewIntakeEmails.count
+      + store.intakeParserDiagnostics.count
+      + store.openWorkbenchItems.count
+      + store.reviewTasksNeedingAttention.count
+      + store.handoffNotesNeedingAttention.count
+      + store.blockedShipmentManifests.count
+      + store.blockedDispatchChecklists.count
+  }
+
+  private var setupPlanningPlaceholderCount: Int {
+    store.mailboxes.count
+      + store.shopifyConnections.count
+      + store.watchedFolders.count
+  }
+
+  private var activeWishlistItems: [WishlistItem] {
+    store.activeWishlistItems
+  }
+
+  private var wishlistManualItemCount: Int {
+    activeWishlistItems.filter { $0.source == .manual }.count
+  }
+
+  private var wishlistCapturedItemCount: Int {
+    activeWishlistItems.filter { $0.source != .manual }.count
+  }
+
+  private var wishlistItemsWithSellerOptionsCount: Int {
+    activeWishlistItems.filter { $0.comparisonOptions?.isEmpty == false }.count
+  }
+
+  private var wishlistItemsWaitingForAgentScopeCount: Int {
+    store.activeWishlistResearchRequestCount
+  }
+
+  private var wishlistItemsWithPurchaseHandoffCount: Int {
+    activeWishlistItems.filter { $0.purchaseHandoff != nil }.count
+  }
+
+  private var wishlistOrderWatchRecordCount: Int {
+    store.wishlistOrderWatchRecordCount
+  }
+
+  private var wishlistAgentReadiness: WishlistAgentReadinessSummary {
+    store.wishlistAgentReadinessSummary
+  }
+
+  private var wishlistWorkflowBlockerCount: Int {
+    wishlistAgentReadiness.scopeGapCount
+      + wishlistAgentReadiness.sellerOptionGapCount
+      + wishlistAgentReadiness.trustReviewCount
+      + wishlistAgentReadiness.purchaseHandoffGapCount
+      + wishlistAgentReadiness.orderWatchGapCount
+      + wishlistAgentReadiness.operationsClosureGapCount
+  }
+
+  private var wishlistSettingsTone: Color {
+    switch wishlistAgentReadiness.tone {
+    case "success": return .green
+    case "warning": return .orange
+    case "attention": return .orange
+    default: return store.activeWishlistItemCount == 0 ? .secondary : .purple
+    }
+  }
+
+  private var wishlistSettingsTitle: String {
+    if store.activeWishlistItemCount == 0 { return "Wishlist is ready for first manual items" }
+    if wishlistWorkflowBlockerCount > 0 { return "Wishlist purchase planning needs local checks" }
+    if wishlistItemsWithPurchaseHandoffCount > 0 { return "Wishlist handoff trail is active" }
+    if wishlistItemsWithSellerOptionsCount > 0 { return "Wishlist comparison planning is active" }
+    return "Wishlist items need comparison detail"
+  }
+
+  private var wishlistSettingsDetail: String {
+    if store.activeWishlistItemCount == 0 {
+      return "Add wanted items manually first. Browser extension, retailer research agents, live price comparison, currency lookup, postage lookup, account monitoring, and checkout automation are not active."
+    }
+    if wishlistWorkflowBlockerCount > 0 {
+      return "\(wishlistAgentReadiness.verdict). Clear seller option, trust, handoff, order-watch, and operations closure gaps in Wishlist before treating any item as ready to buy."
+    }
+    if wishlistItemsWithPurchaseHandoffCount > 0 {
+      return "Wishlist has local purchase handoff records. Continue in Wishlist, Orders, Tasks, Workbench, and Audit to keep manual purchase follow-up traceable."
+    }
+    return "Use Wishlist to add seller options, AUD landed cost notes, postage timing, trust evidence, and a manual purchase decision before handoff."
+  }
+
+  private var setupUncertainReviewCount: Int {
+    store.pendingMailboxUncertainReviewCount
+  }
+
+  private var setupCompletionItems: [(title: String, detail: String, blockers: Int, destination: String, symbol: String, color: Color)] {
+    [
+      (
+        "Mailbox provider setup",
+        "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes before treating live intake as the primary path.",
+        hasLiveMailboxSetup ? 0 : 1,
+        "Mailbox Monitor",
+        "envelope.badge.fill",
+        hasLiveMailboxSetup ? .green : .orange
+      ),
+      (
+        "Credential or sign-in",
+        "SpaceMail uses the secure Keychain action; Gmail and Outlook use explicit provider sign-in. Do not put credentials or tokens into setup notes or JSON.",
+        hasLiveMailboxCredentialOrAuth ? 0 : 1,
+        "Mailbox provider row",
+        "lock.shield.fill",
+        hasLiveMailboxCredentialOrAuth ? .green : .orange
+      ),
+      (
+        "Hosted OAuth setup details",
+        "When Gmail or Outlook is configured, confirm address/mailbox, labels/folders, OAuth placeholders, redirect/scheme, and read-only scope notes before real refresh.",
+        (hasGmailSetup && !hasGmailCoreSetup ? 1 : 0) + (hasMicrosoft365Setup && !hasMicrosoft365CoreSetup ? 1 : 0),
+        "Gmail or Outlook row",
+        hasMicrosoft365Setup && !hasGmailSetup ? "mail.stack.fill" : "envelope.badge.shield.half.filled",
+        (hasGmailSetup && !hasGmailCoreSetup) || (hasMicrosoft365Setup && !hasMicrosoft365CoreSetup) ? .orange : .green
+      ),
+      (
+        "Manual refresh proof",
+        "Run at least one explicit read-only mailbox refresh so setup has fetched/imported/filtered evidence.",
+        settingsManualRefreshCount == 0 ? 1 : 0,
+        "Mailbox Monitor",
+        "tray.and.arrow.down.fill",
+        settingsManualRefreshCount == 0 ? .orange : .green
+      ),
+      (
+        "Mixed-mailbox review",
+        "Uncertain messages and parser diagnostics should be reviewed without flooding the primary Inbox.",
+        setupUncertainReviewCount + store.intakeParserDiagnostics.count,
+        "Mailbox Monitor",
+        "text.magnifyingglass",
+        setupUncertainReviewCount + store.intakeParserDiagnostics.count == 0 ? .green : .orange
+      ),
+      (
+        "Inbox to order handoff",
+        "At least one source-created order confirms the operator path from live intake into Orders, Workbench, Tasks, and Audit.",
+        settingsInboxCreatedOrdersCount == 0 ? 1 : 0,
+        "Inbox or Orders",
+        "shippingbox.fill",
+        settingsInboxCreatedOrdersCount == 0 ? .teal : .green
+      ),
+      (
+        "Open operator work",
+        "Outstanding review, Workbench, task, handoff, and blocked dispatch work should be assigned or deliberately left open.",
+        settingsOpenOperatorWorkCount,
+        "Dashboard or Tasks",
+        "checklist",
+        settingsOpenOperatorWorkCount == 0 ? .green : .blue
+      ),
+      (
+        "Planning-only records",
+        "Tracked mailbox, Shopify, folder, and account placeholders are allowed, but should not be mistaken for live integrations.",
+        setupPlanningPlaceholderCount,
+        "Settings",
+        "lock.shield.fill",
+        setupPlanningPlaceholderCount == 0 ? .secondary : .teal
+      )
+    ]
+  }
+
+  private var setupCompletionBlockerCount: Int {
+    setupCompletionItems.reduce(0) { total, item in
+      item.title == "Planning-only records" ? total : total + item.blockers
+    }
+  }
+
+  private var setupCompletionCompleteCount: Int {
+    setupCompletionItems.filter { item in
+      item.blockers == 0 || item.title == "Planning-only records"
+    }.count
+  }
+
+  private var settingsReadinessTone: Color {
+    if !hasLiveMailboxSetup || !hasLiveMailboxCredentialOrAuth { return .orange }
+    if hasGmailSetup && !hasGmailCoreSetup { return .orange }
+    if hasMicrosoft365Setup && !hasMicrosoft365CoreSetup { return .orange }
+    if settingsManualRefreshCount == 0 { return .orange }
+    if settingsInboxCreatedOrdersCount == 0 { return .teal }
+    if settingsOpenOperatorWorkCount > 0 { return .blue }
+    return .green
+  }
+
+  private var settingsReadinessTitle: String {
+    if !hasLiveMailboxSetup { return "Set up a mailbox provider before live intake testing" }
+    if !hasLiveMailboxCredentialOrAuth { return "Add SpaceMail credential or complete hosted mailbox sign-in" }
+    if hasGmailSetup && !hasGmailCoreSetup { return "Finish Gmail setup details" }
+    if hasMicrosoft365Setup && !hasMicrosoft365CoreSetup { return "Finish Outlook setup details" }
+    if settingsManualRefreshCount == 0 { return "Run one manual mailbox refresh" }
+    if settingsInboxCreatedOrdersCount == 0 { return "Create or link one Inbox order" }
+    if settingsOpenOperatorWorkCount > 0 { return "Operator workflow has open follow-up" }
+    return "Daily operator setup is ready"
+  }
+
+  private var settingsReadinessDetail: String {
+    if !hasLiveMailboxSetup {
+      return "Use Mailbox Monitor or Integrations to add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes. Keep secrets out of setup notes and JSON fields."
+    }
+    if !hasLiveMailboxCredentialOrAuth {
+      return "Use the secure SpaceMail credential action, explicit Google sign-in for Gmail, or explicit Microsoft sign-in for Outlook. Passwords, tokens, and app secrets must stay out of JSON."
+    }
+    if hasGmailSetup && !hasGmailCoreSetup {
+      return "Complete the Gmail address, labels, OAuth client placeholder, redirect/scheme, and read-only Gmail scope notes before real Gmail refresh."
+    }
+    if hasMicrosoft365Setup && !hasMicrosoft365CoreSetup {
+      return "Complete the Outlook mailbox address, folder names, Entra tenant/client placeholders, redirect URI, and read-only Microsoft Graph scope notes before real Graph refresh."
+    }
+    if settingsManualRefreshCount == 0 {
+      return "Run an explicit read-only mailbox refresh so the app has a real refresh result before hands-on testing."
+    }
+    if settingsInboxCreatedOrdersCount == 0 {
+      return "Review imported intake in Inbox, then create or link one order so Orders, Workbench, Tasks, Dashboard, and Audit show the handoff."
+    }
+    if settingsOpenOperatorWorkCount > 0 {
+      return "Use Inbox, Workbench, Dispatch, Tasks, and Audit to clear or deliberately leave assigned follow-up work."
+    }
+    return "Mailbox setup, manual refresh, source-to-order handoff, local tasks, and audit trace are in place for hands-on MVP use."
+  }
+
+  private var activeProviderCandidate: (provider: String, title: String, detail: String, tone: Color, rank: Int)? {
+    let spaceMailCandidate = latestSpaceMailSummary.map { summary in
+      activeProviderCandidate(
+        provider: "SpaceMail",
+        summaryDetail: summary.detail,
+        nextAction: summary.nextAction,
+        importedCount: summary.importedCount,
+        uncertainCount: summary.totalUncertainCount,
+        filteredCount: summary.filteredCount,
+        duplicateCount: summary.duplicateCount,
+        duplicateRefreshedCount: summary.duplicateRefreshedCount,
+        fetchedCount: summary.fetchedCount,
+        tone: summary.tone
+      )
+    }
+    let gmailCandidate = latestGmailSummary.map { summary in
+      activeProviderCandidate(
+        provider: "Gmail",
+        summaryDetail: summary.detail,
+        nextAction: summary.nextAction,
+        importedCount: summary.importedCount,
+        uncertainCount: summary.totalUncertainCount,
+        filteredCount: summary.filteredCount,
+        duplicateCount: summary.duplicateCount,
+        duplicateRefreshedCount: summary.duplicateRefreshedCount,
+        fetchedCount: summary.fetchedCount,
+        tone: summary.tone
+      )
+    }
+    return [spaceMailCandidate, gmailCandidate]
+      .compactMap { $0 }
+      .sorted { lhs, rhs in
+        if lhs.rank == rhs.rank { return lhs.provider < rhs.provider }
+        return lhs.rank > rhs.rank
+      }
+      .first
+  }
+
+  private func activeProviderCandidate(
+    provider: String,
+    summaryDetail: String,
+    nextAction: String,
+    importedCount: Int,
+    uncertainCount: Int,
+    filteredCount: Int,
+    duplicateCount: Int,
+    duplicateRefreshedCount: Int,
+    fetchedCount: Int,
+    tone: String
+  ) -> (provider: String, title: String, detail: String, tone: Color, rank: Int) {
+    let title: String
+    let rank: Int
+    if importedCount > 0 {
+      title = "\(provider) imported order mail"
+      rank = 500 + importedCount
+    } else if uncertainCount > 0 {
+      title = "\(provider) has uncertain mail to review"
+      rank = 400 + uncertainCount
+    } else if filteredCount > 0 {
+      title = "\(provider) filtered mixed mailbox mail"
+      rank = 300 + filteredCount
+    } else if duplicateRefreshedCount > 0 {
+      title = "\(provider) refreshed existing Inbox rows"
+      rank = 250 + duplicateRefreshedCount
+    } else if duplicateCount > 0 {
+      title = "\(provider) found duplicate mailbox messages"
+      rank = 200 + duplicateCount
+    } else if fetchedCount > 0 {
+      title = "\(provider) fetched mailbox messages"
+      rank = 100 + fetchedCount
+    } else {
+      title = "\(provider) is ready for manual intake"
+      rank = 50
+    }
+
+    return (
+      provider,
+      title,
+      "\(provider): \(summaryDetail) \(nextAction)",
+      activeProviderTone(for: tone),
+      rank
+    )
+  }
+
+  private func activeProviderTone(for tone: String) -> Color {
+    switch tone {
+    case "success": return .green
+    case "attention": return .orange
+    case "warning": return .red
+    default: return .teal
+    }
+  }
+
+  private var activeSetupTitle: String {
+    if let activeProviderCandidate { return activeProviderCandidate.title }
+    if store.mailboxProviderSetupCount > 1 { return "Run a manual refresh for an active mailbox provider" }
+    if hasSpaceMailSetup { return "Finish SpaceMail setup to start real intake" }
+    if hasGmailSetup {
+      return "Finish Gmail setup to start real intake"
+    }
+    if !store.microsoft365MailboxConnections.isEmpty {
+      return "Finish Outlook setup to start Microsoft mailbox intake"
+    }
+    return "Set up a mailbox provider to start real intake"
+  }
+
+  private var activeSetupDetail: String {
+    if let activeProviderCandidate { return activeProviderCandidate.detail }
+    if store.mailboxProviderSetupCount > 1 {
+      return "Multiple mailbox provider setup rows exist. Run the explicit manual read-only refresh for whichever mailbox is active today."
+    }
+    if hasSpaceMailSetup {
+      return "SpaceMail setup exists. Set or check the Keychain credential, confirm host/folder settings, then use the explicit manual read-only SpaceMail refresh."
+    }
+    if hasGmailSetup {
+      return "Gmail setup exists. Finish required setup values, test Google sign-in, then use the explicit manual read-only Gmail refresh."
+    }
+    if !store.microsoft365MailboxConnections.isEmpty {
+      return "Outlook setup exists. Finish Entra/OAuth readiness, test Microsoft sign-in, then use the explicit manual read-only Graph refresh only for Microsoft-hosted mailboxes."
+    }
+    return "No live mailbox provider is configured yet. Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook for Microsoft-hosted mailboxes."
+  }
+
+  private var activeSetupTone: Color {
+    activeProviderCandidate?.tone ?? .orange
+  }
+
+  private var normalizedSettingsSearch: String {
+    settingsSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+  }
+
+  private func matchesSettingsSection(_ terms: String...) -> Bool {
+    let query = normalizedSettingsSearch
+    guard !query.isEmpty else { return true }
+    return terms.joined(separator: " ").lowercased().contains(query)
+  }
+
+  private var showsActiveSetup: Bool {
+    matchesSettingsSection("active", "setup", "SpaceMail", "Gmail", "Google", "mailbox", "credential", "Keychain", "manual", "refresh")
+  }
+
+  private var showsLocalOnlyStatus: Bool {
+    matchesSettingsSection("MVP", "local-only", "status", "JSON", "Shopify", "carrier", "credential", "background sync", "notifications")
+  }
+
+  private var showsMailboxIntake: Bool {
+    matchesSettingsSection("mailbox", "intake", "forwarded", "email", "order creation", "confidence", "review")
+  }
+
+  private var showsWishlistPlanning: Bool {
+    matchesSettingsSection("wishlist", "wanted", "items", "manual", "browser", "extension", "agent", "comparison", "AUD", "postage", "trust", "seller", "handoff", "order watch")
+  }
+
+  private var showsTrackedMailboxes: Bool {
+    matchesSettingsSection("tracked", "mailboxes", "email", "placeholder")
+  }
+
+  private var showsShopifyAccounts: Bool {
+    matchesSettingsSection("Shopify", "accounts", "store", "placeholder")
+  }
+
+  private var showsWatchedFolders: Bool {
+    matchesSettingsSection("watched", "folders", "folder", "scan", "cadence", "manual")
+  }
+
+  private var showsReviewControls: Bool {
+    matchesSettingsSection("review", "risky", "matches", "delivery", "exception", "alerts", "threshold")
+  }
+
+  private var showsFuturePlanning: Bool {
+    matchesSettingsSection("future", "source", "planning", "Shopify", "password", "vault", "carrier", "tracking", "settings")
+  }
+
+  private var visibleSettingsSectionCount: Int {
+    [
+      showsActiveSetup,
+      showsLocalOnlyStatus,
+      showsMailboxIntake,
+      showsWishlistPlanning,
+      showsTrackedMailboxes,
+      showsShopifyAccounts,
+      showsWatchedFolders,
+      showsReviewControls,
+      showsFuturePlanning
+    ].filter(\.self).count
+  }
+
+  private var settingsReadinessPanel: some View {
+    SettingsPanel(title: "Daily operator readiness", symbol: "checkmark.seal.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: settingsReadinessTone == .green ? "checkmark.seal.fill" : "arrow.forward.circle.fill")
+            .font(.title3)
+            .foregroundStyle(settingsReadinessTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(settingsReadinessTitle)
+              .font(.headline)
+            Text(settingsReadinessDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge(settingsReadinessTone == .green ? "Ready" : "Next step", color: settingsReadinessTone)
+        }
+
+        MetricStrip(items: [
+          ("Mailbox", mailboxStatus.0, mailboxStatus.1),
+          ("Credential", credentialStatus.0, credentialStatus.1),
+          ("Refreshes", "\(settingsManualRefreshCount)", settingsManualRefreshCount == 0 ? .orange : .green),
+          ("Inbox orders", "\(settingsInboxCreatedOrdersCount)", settingsInboxCreatedOrdersCount == 0 ? .teal : .green),
+          ("Open work", "\(settingsOpenOperatorWorkCount)", settingsOpenOperatorWorkCount == 0 ? .green : .blue)
+        ])
+
+        Text("Local boundary: mailbox refreshes are manual and read-only; credentials and tokens stay out of JSON; Shopify, carriers, scanners, OCR, calendars, notifications, outbound email, and background sync are not live.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Inbox", systemImage: "tray.full.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Tasks", systemImage: "checklist")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var setupCompletionLadderPanel: some View {
+    SettingsPanel(title: "Setup completion ladder", symbol: "checklist.checked") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: setupCompletionBlockerCount == 0 ? "checkmark.seal.fill" : "list.bullet.clipboard.fill")
+            .font(.title3)
+            .foregroundStyle(setupCompletionBlockerCount == 0 ? .green : .orange)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(setupCompletionBlockerCount == 0 ? "Setup path is ready for hands-on use" : "Clear setup blockers before relying on daily intake")
+              .font(.headline)
+            Text("This breaks Settings into the daily operator sequence: configure the active mailbox provider, protect the credential or sign-in, run a manual refresh, review mixed-mailbox results, create/link an order, then close visible follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge("\(setupCompletionCompleteCount)/\(setupCompletionItems.count)", color: setupCompletionBlockerCount == 0 ? .green : .orange)
+        }
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 160 : 215), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(setupCompletionItems, id: \.title) { item in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(item.title, systemImage: item.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(item.color)
+                Spacer()
+                Badge(item.title == "Planning-only records" ? "\(item.blockers)" : (item.blockers == 0 ? "Clear" : "\(item.blockers)"), color: item.color)
+              }
+
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              Text("Check \(item.destination)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(item.color)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("Local boundary: this panel reads existing local setup, JSON-backed records, Keychain status labels, and auditable workflow counts only. It does not fetch mail, save passwords, contact Shopify/carriers, start background sync, send notifications, or mutate mailbox messages.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var wishlistPlanningSettingsPanel: some View {
+    SettingsPanel(title: "Wishlist planning boundary", symbol: "star.square.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: wishlistWorkflowBlockerCount == 0 && store.activeWishlistItemCount > 0 ? "checkmark.seal.fill" : "star.square.on.square.fill")
+            .font(.title3)
+            .foregroundStyle(wishlistSettingsTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(wishlistSettingsTitle)
+              .font(.headline)
+            Text(wishlistSettingsDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge(store.activeWishlistItemCount == 0 ? "Not started" : "\(store.activeWishlistItemCount) active", color: wishlistSettingsTone)
+        }
+
+        MetricStrip(items: [
+          ("Active items", "\(store.activeWishlistItemCount)", store.activeWishlistItemCount == 0 ? .secondary : .purple),
+          ("Manual", "\(wishlistManualItemCount)", wishlistManualItemCount == 0 ? .secondary : .blue),
+          ("Captured", "\(wishlistCapturedItemCount)", wishlistCapturedItemCount == 0 ? .secondary : .teal),
+          ("Seller options", "\(wishlistItemsWithSellerOptionsCount)", wishlistItemsWithSellerOptionsCount == 0 ? .orange : .green),
+          ("Agent scopes", "\(wishlistItemsWaitingForAgentScopeCount)", wishlistItemsWaitingForAgentScopeCount == 0 ? .secondary : .purple),
+          ("Handoffs", "\(wishlistItemsWithPurchaseHandoffCount)", wishlistItemsWithPurchaseHandoffCount == 0 ? .secondary : .orange),
+          ("Order watch", "\(wishlistOrderWatchRecordCount)", wishlistOrderWatchRecordCount == 0 ? .secondary : .teal),
+          ("Open gaps", "\(wishlistWorkflowBlockerCount)", wishlistWorkflowBlockerCount == 0 ? .green : .orange)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 170 : 220), spacing: 10)], alignment: .leading, spacing: 10) {
+          WishlistSettingsBoundaryStep(
+            number: "1",
+            title: "Add wanted item",
+            detail: "Manual entry is live. Browser extension/share capture is represented as local placeholders until a real extension is built.",
+            symbol: "square.and.pencil",
+            color: .blue
+          )
+          WishlistSettingsBoundaryStep(
+            number: "2",
+            title: "Compare sellers",
+            detail: "Record seller URLs, AUD landed cost, postage cost/time, trust notes, and returns manually. No live web search, scraping, or currency API runs.",
+            symbol: "list.bullet.rectangle.portrait.fill",
+            color: .purple
+          )
+          WishlistSettingsBoundaryStep(
+            number: "3",
+            title: "Prepare agent packet",
+            detail: "Agent-ready briefs are local packets only. They do not launch an external research agent or browse retailer sites from ParcelOps.",
+            symbol: "sparkles.rectangle.stack.fill",
+            color: .teal
+          )
+          WishlistSettingsBoundaryStep(
+            number: "4",
+            title: "Manual purchase handoff",
+            detail: "Use handoff, account, cost, procurement, receiving, and order-watch records before buying outside ParcelOps.",
+            symbol: "person.crop.circle.badge.checkmark",
+            color: .orange
+          )
+          WishlistSettingsBoundaryStep(
+            number: "5",
+            title: "Watch for order",
+            detail: "Order confirmation matching uses imported Inbox mail and local order links. ParcelOps does not monitor retailer accounts in the background.",
+            symbol: "envelope.badge.fill",
+            color: .green
+          )
+        }
+
+        if !wishlistAgentReadiness.items.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Current Wishlist readiness signals", systemImage: "checklist")
+              .font(.subheadline.weight(.semibold))
+              .foregroundStyle(wishlistSettingsTone)
+
+            ForEach(wishlistAgentReadiness.items.prefix(4)) { item in
+              HStack(alignment: .top, spacing: 8) {
+                Image(systemName: wishlistReadinessSymbol(for: item.tone))
+                  .foregroundStyle(wishlistReadinessColor(for: item.tone))
+                  .frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                  HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(item.title)
+                      .font(.caption.weight(.semibold))
+                    Badge(item.status, color: wishlistReadinessColor(for: item.tone))
+                  }
+                  Text(item.nextAction)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .padding(8)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .background(wishlistReadinessColor(for: item.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        Text("Local boundary: Wishlist does not run browser extensions, live retailer comparison, currency conversion APIs, postage APIs, trust-score services, account login, checkout, payment, background order watching, or outbound messages. It stores local planning records, handoff context, and audit evidence.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            WishlistView(store: store)
+          } label: {
+            Label("Open Wishlist", systemImage: "star.square.fill")
+          }
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+          NavigationLink {
+            OperationsWorkbenchView(store: store)
+          } label: {
+            Label("Open Workbench", systemImage: "rectangle.stack.badge.person.crop.fill")
+          }
+          NavigationLink {
+            OrdersView(store: store)
+          } label: {
+            Label("Open Orders", systemImage: "shippingbox.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private func wishlistReadinessColor(for tone: String) -> Color {
+    switch tone {
+    case "success": return .green
+    case "warning", "attention": return .orange
+    default: return .secondary
+    }
+  }
+
+  private func wishlistReadinessSymbol(for tone: String) -> String {
+    switch tone {
+    case "success": return "checkmark.circle.fill"
+    case "warning", "attention": return "exclamationmark.triangle.fill"
+    default: return "circle"
+    }
+  }
+
+  var body: some View {
+    @Bindable var store = store
+
+    ScrollView {
+      VStack(alignment: .leading, spacing: 14) {
+        Text("Settings")
+          .font(isCompact ? .title.bold() : .largeTitle.bold())
+
+        settingsReadinessPanel
+        setupCompletionLadderPanel
+        wishlistPlanningSettingsPanel
+
+        SettingsPanel(title: "Find setting", symbol: "magnifyingglass") {
+          VStack(alignment: .leading, spacing: 10) {
+            FilterControlGrid {
+              TextField("Search settings, mailbox, Wishlist, SpaceMail, Gmail, Outlook, Shopify, folders, review, carrier", text: $settingsSearchText)
+                .textFieldStyle(.roundedBorder)
+
+              Button("Clear", systemImage: "xmark.circle") {
+                settingsSearchText = ""
+              }
+              .buttonStyle(.bordered)
+              .disabled(normalizedSettingsSearch.isEmpty)
+
+              Badge("\(visibleSettingsSectionCount) sections", color: visibleSettingsSectionCount == 0 ? .orange : .blue)
+            }
+
+            Text("This only narrows visible local settings sections. It does not enable live integrations or background behavior.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        if visibleSettingsSectionCount == 0 {
+          MVPEmptyState(title: "No settings sections match", detail: "Clear the settings search or try mailbox, Wishlist, SpaceMail, Gmail, Outlook, Shopify, folders, review, carrier, credential, or local-only.", symbol: "magnifyingglass")
+        }
+
+        if showsActiveSetup {
+          SettingsPanel(title: "Active setup now", symbol: "checkmark.seal.fill") {
+          VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+              Image(systemName: hasSpaceMailSetup ? "server.rack" : hasGmailSetup ? "envelope.badge.shield.half.filled" : hasMicrosoft365Setup ? "mail.stack.fill" : "server.rack.fill")
+                .font(.title3)
+                .foregroundStyle(activeSetupTone)
+                .frame(width: 28)
+
+              VStack(alignment: .leading, spacing: 4) {
+                Text(activeSetupTitle)
+                  .font(.headline)
+                Text(activeSetupDetail)
+                  .font(.subheadline)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+
+            MetricStrip(items: [
+              ("Mailbox", mailboxStatus.0, mailboxStatus.1),
+              ("Credential", credentialStatus.0, credentialStatus.1),
+              ("Last fetched", "\(latestManualMailboxFetchedCount)", .blue),
+              ("Imported", "\(latestManualMailboxImportedCount)", latestManualMailboxImportedCount > 0 ? .green : .secondary),
+              ("Filtered", "\(latestManualMailboxFilteredCount)", latestManualMailboxFilteredCount > 0 ? .teal : .secondary)
+            ])
+
+            Text("Current live paths: SpaceMail manual read-only IMAP refresh, Gmail manual read-only API refresh, and Outlook manual read-only Microsoft Graph refresh when sign-in is ready. Shopify, carriers, folders, notifications, scanners, calendars, and background sync remain planning or advanced setup surfaces.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            ActionGroupHeader(title: "Continue setup", symbol: "arrow.right.circle.fill")
+            CompactActionRow {
+              NavigationLink {
+                MailboxView(store: store)
+              } label: {
+                Label("Open Mailbox Monitor", systemImage: "server.rack")
+              }
+              .buttonStyle(.bordered)
+
+              NavigationLink {
+                InboxView(store: store)
+              } label: {
+                Label("Open Inbox", systemImage: "tray.full.fill")
+              }
+              .buttonStyle(.bordered)
+
+              NavigationLink {
+                AuditView(store: store)
+              } label: {
+                Label("Open Audit", systemImage: "list.clipboard.fill")
+              }
+              .buttonStyle(.bordered)
+            }
+          }
+        }
+
+          OperatorSupportSnapshotCard(store: store, title: "Setup support snapshot", detail: "Current mailbox, credential, source trail, and audit readiness.")
+        }
+
+        if showsLocalOnlyStatus {
+          MVPWorkflowGuide(
+            title: "Before connecting live systems",
+            detail: "Most integrations remain local planning surfaces. Active mailbox providers are manual, read-only intake paths when their credential/sign-in setup is ready.",
+            steps: [
+              "Use mailbox providers only through explicit manual refresh actions.",
+              "Enter SpaceMail passwords only in the secure Keychain prompt; use Google sign-in for Gmail and Microsoft sign-in for Outlook. Do not put secrets in setup notes or JSON fields.",
+              "Treat Shopify, carrier, notification, scanner, calendar, and background-sync toggles as planning controls.",
+              "Use Audit to confirm that local actions are being recorded."
+            ],
+            symbol: "gearshape.2.fill"
+          )
+
+          SettingsPanel(title: "Local-only status", symbol: "checklist") {
+          Text("ParcelOps stores operational records in local JSON. SpaceMail uses Keychain for password/app-password values; Gmail uses explicit Google sign-in; Outlook uses explicit Microsoft sign-in. Mailbox refresh remains manual and read-only; the rest of the integration surface remains planning-only.")
+            .foregroundStyle(.secondary)
+
+          LocalDataSafetyCard(store: store, compact: isCompact)
+
+          LocalDataHygieneCard(store: store, compact: isCompact)
+
+          LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            IntegrationStatusRow(title: "Email mailbox", status: mailboxStatus.0, symbol: "envelope.badge.fill", color: mailboxStatus.1)
+            IntegrationStatusRow(title: "Shopify", status: "Not connected", symbol: "cart.badge.plus", color: .orange)
+            IntegrationStatusRow(title: "Carrier APIs", status: "Not connected", symbol: "location.fill.viewfinder", color: .orange)
+            IntegrationStatusRow(title: "Store logins", status: "Placeholder only", symbol: "key.horizontal.fill", color: .orange)
+            IntegrationStatusRow(title: "Credential storage", status: credentialStatus.0, symbol: "lock.shield.fill", color: credentialStatus.1)
+            IntegrationStatusRow(title: "Background sync", status: "Not enabled", symbol: "bell.slash.fill", color: .red)
+          }
+        }
+
+          SettingsReleaseCandidateCard(store: store)
+        }
+
+        if showsMailboxIntake {
+          SettingsPanel(title: "Mailbox intake", symbol: "envelope.open.fill") {
+          Toggle("Plan forwarded mailbox monitoring", isOn: $store.settings.mailboxMonitoringEnabled)
+          Toggle("Plan order creation from recognized emails", isOn: $store.settings.autoCreateOrdersFromEmail)
+          Picker("Match confidence", selection: $store.settings.matchConfidencePolicy) {
+            Text("Strict").tag("Strict")
+            Text("Balanced").tag("Balanced")
+            Text("Permissive").tag("Permissive")
+          }
+          .pickerStyle(.menu)
+        }
+        }
+
+        if showsTrackedMailboxes {
+          SettingsPanel(title: "Tracked mailboxes", symbol: "envelope.badge.fill") {
+          ForEach(store.mailboxes) { mailbox in
+            MailboxConnectionRow(mailbox: mailbox) {
+              store.markTrackedMailboxPlaceholderReviewed(mailbox)
+              settingsFeedbackMessage = "Tracked mailbox placeholder marked reviewed locally."
+            } onRemove: {
+              store.removeTrackedMailboxPlaceholder(mailbox)
+              settingsFeedbackMessage = "Tracked mailbox placeholder removed locally. No mailbox connection was changed."
+            }
+          }
+          Button("Add mailbox placeholder", systemImage: "plus") {
+            store.addTrackedMailboxPlaceholder()
+            settingsFeedbackMessage = "Mailbox placeholder added locally for setup planning."
+          }
+            .buttonStyle(.bordered)
+          if let settingsFeedbackMessage {
+            SettingsActionFeedbackPanel(message: settingsFeedbackMessage)
+          }
+        }
+        }
+
+        if showsShopifyAccounts {
+          SettingsPanel(title: "Shopify accounts", symbol: "cart.badge.plus") {
+          ForEach(store.shopifyConnections) { connection in
+            ShopifyConnectionRow(connection: connection, onReviewed: {
+              store.markShopifyPlaceholderReviewed(connection)
+              settingsFeedbackMessage = "Shopify placeholder marked reviewed locally."
+            }, onRemove: {
+              store.removeShopifyPlaceholder(connection)
+              settingsFeedbackMessage = "Shopify placeholder removed locally. No Shopify API or store login was contacted."
+            })
+          }
+          Button("Add Shopify placeholder", systemImage: "plus") {
+            store.connectShopifyPlaceholder()
+            settingsFeedbackMessage = "Shopify placeholder added locally. No Shopify API or store login was contacted."
+          }
+            .buttonStyle(.bordered)
+          if let settingsFeedbackMessage {
+            SettingsActionFeedbackPanel(message: settingsFeedbackMessage)
+          }
+        }
+        }
+
+        if showsWatchedFolders {
+          SettingsPanel(title: "Watched folders", symbol: "folder.fill.badge.gearshape") {
+          Toggle("Plan saved-folder scanning", isOn: $store.settings.folderWatchingEnabled)
+          Picker("Scan cadence", selection: $store.settings.folderScanCadence) {
+            Text("Every 5 minutes").tag("Every 5 minutes")
+            Text("Every 15 minutes").tag("Every 15 minutes")
+            Text("Hourly").tag("Hourly")
+            Text("Manual only").tag("Manual only")
+          }
+          .pickerStyle(.menu)
+          ForEach(store.watchedFolders) { folder in
+            WatchedFolderRow(folder: folder) {
+              store.markWatchedFolderPlaceholderReviewed(folder)
+              settingsFeedbackMessage = "Watched folder placeholder marked reviewed locally."
+            } onRemove: {
+              store.removeWatchedFolderPlaceholder(folder)
+              settingsFeedbackMessage = "Watched folder placeholder removed locally. No file watcher or background job was changed."
+            }
+          }
+          Button("Add folder placeholder", systemImage: "folder.badge.plus") {
+            store.addWatchedFolderPlaceholder()
+            settingsFeedbackMessage = "Folder placeholder added locally. No file picker, folder scan, or background watcher was started."
+          }
+            .buttonStyle(.bordered)
+          if let settingsFeedbackMessage {
+            SettingsActionFeedbackPanel(message: settingsFeedbackMessage)
+          }
+        }
+        }
+
+        if showsReviewControls {
+          SettingsPanel(title: "Review controls", symbol: "checkmark.shield.fill") {
+          Toggle("Require review for risky email/order matches", isOn: $store.settings.requireReviewForRiskyMatches)
+          Toggle("Plan delivery exception alerts", isOn: $store.settings.notifyOnDeliveryExceptions)
+          Stepper("Exception alert threshold: \(store.settings.exceptionThreshold)", value: $store.settings.exceptionThreshold, in: 1...10)
+        }
+        }
+
+        if showsFuturePlanning {
+          SettingsPanel(title: "Future source planning", symbol: "link.badge.plus") {
+          Toggle("Plan Shopify supplier sync", isOn: $store.settings.shopifySyncEnabled)
+          Toggle("Plan password-vault login sync", isOn: $store.settings.storeLoginSyncEnabled)
+          Toggle("Plan carrier tracking handoff", isOn: $store.settings.carrierTrackingEnabled)
+          Picker("Future carrier tracking mode", selection: $store.settings.carrierTrackingMode) {
+            Text("Parcel handoff placeholder").tag("Export to Parcel")
+            Text("Carrier API placeholder").tag("Free carrier API")
+            Text("Manual local updates").tag("Manual updates")
+          }
+          .pickerStyle(.menu)
+          Button("Save settings", systemImage: "checkmark") {
+            store.saveSettings()
+            settingsFeedbackMessage = "Settings saved locally. Planning toggles do not start integrations, notifications, or background sync."
+          }
+            .buttonStyle(.borderedProminent)
+          if let settingsFeedbackMessage {
+            SettingsActionFeedbackPanel(message: settingsFeedbackMessage)
+          }
+        }
+        }
+      }
+      .padding(isCompact ? 14 : 24)
+    }
+  }
+}
+
+private struct WishlistSettingsBoundaryStep: View {
+  var number: String
+  var title: String
+  var detail: String
+  var symbol: String
+  var color: Color
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 8) {
+        ZStack {
+          Circle()
+            .fill(color.opacity(0.18))
+          Text(number)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(color)
+        }
+        .frame(width: 24, height: 24)
+
+        VStack(alignment: .leading, spacing: 3) {
+          Label(title, systemImage: symbol)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+          Text(detail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct SettingsActionFeedbackPanel: View {
+  var message: String
+
+  var body: some View {
+    Label {
+      Text(message)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "checkmark.circle.fill")
+        .foregroundStyle(.green)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+struct IntegrationStatusRow: View {
+  var title: String
+  var status: String
+  var symbol: String
+  var color: Color
+
+  var body: some View {
+    HStack(spacing: 10) {
+      Image(systemName: symbol)
+        .foregroundStyle(color)
+        .frame(width: 22)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.caption.weight(.semibold))
+        Text(status)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      Spacer()
+    }
+    .padding(10)
+    .background(.quinary)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
