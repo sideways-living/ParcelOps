@@ -297,19 +297,35 @@ struct CustodyChainView: View {
   }
 
   private var gmailCustodyReadinessPanel: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail custody readiness",
-      lead: "Gmail-origin intake should create custody work only after Gmail setup is ready and the imported Inbox order has confirmed possession, source, destination, and owner context.",
-      sourceMetricTitle: "Gmail custody sources",
-      sourceCount: gmailCustodySourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, capture signatures, connect access-control systems, or change custody records automatically."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail custody readiness",
+        lead: "Gmail-origin intake should create custody work only after Gmail setup is ready and the imported Inbox order has confirmed possession, source, destination, and owner context.",
+        sourceMetricTitle: "Gmail custody sources",
+        sourceCount: gmailCustodySourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, capture signatures, connect access-control systems, or change custody records automatically."
+      )
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook custody readiness",
+        lead: "Outlook-origin intake should create custody work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order possession, source, destination, and owner context are clear.",
+        sourceMetricTitle: "Outlook custody sources",
+        sourceCount: microsoft365CustodySourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, capture signatures, connect access-control systems, or change custody records automatically."
+      )
+    }
   }
 
   private var gmailCustodySourceCount: Int {
     custodyProviderRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
+  private var microsoft365CustodySourceCount: Int {
+    custodyProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
       .reduce(0) { total, row in total + row.count }
   }
 

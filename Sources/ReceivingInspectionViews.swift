@@ -307,19 +307,35 @@ struct ReceivingInspectionsView: View {
   }
 
   private var gmailInspectionReadinessPanel: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail receiving inspection readiness",
-      lead: "Gmail-origin intake should create receiving inspection work only after Gmail setup is ready and the imported Inbox order has confirmed item, quantity, and condition context.",
-      sourceMetricTitle: "Gmail inspection sources",
-      sourceCount: gmailInspectionSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, contact suppliers, scan barcodes, or change receiving inspection records automatically."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail receiving inspection readiness",
+        lead: "Gmail-origin intake should create receiving inspection work only after Gmail setup is ready and the imported Inbox order has confirmed item, quantity, and condition context.",
+        sourceMetricTitle: "Gmail inspection sources",
+        sourceCount: gmailInspectionSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, contact suppliers, scan barcodes, or change receiving inspection records automatically."
+      )
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook receiving inspection readiness",
+        lead: "Outlook-origin intake should create receiving inspection work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order item, quantity, and condition context are clear.",
+        sourceMetricTitle: "Outlook inspection sources",
+        sourceCount: microsoft365InspectionSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, contact suppliers, scan barcodes, or change receiving inspection records automatically."
+      )
+    }
   }
 
   private var gmailInspectionSourceCount: Int {
     inspectionProviderRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
+  private var microsoft365InspectionSourceCount: Int {
+    inspectionProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
       .reduce(0) { total, row in total + row.count }
   }
 

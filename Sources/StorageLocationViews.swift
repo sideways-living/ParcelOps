@@ -292,19 +292,35 @@ struct StorageLocationsView: View {
   }
 
   private var gmailStorageReadinessPanel: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail storage readiness",
-      lead: "Gmail-origin intake should influence storage only after Gmail setup is ready and the imported Inbox order has confirmed receipt, location, and handoff context.",
-      sourceMetricTitle: "Gmail storage sources",
-      sourceCount: gmailStorageSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, connect warehouse systems, geocode locations, or change storage records automatically."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail storage readiness",
+        lead: "Gmail-origin intake should influence storage only after Gmail setup is ready and the imported Inbox order has confirmed receipt, location, and handoff context.",
+        sourceMetricTitle: "Gmail storage sources",
+        sourceCount: gmailStorageSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, connect warehouse systems, geocode locations, or change storage records automatically."
+      )
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook storage readiness",
+        lead: "Outlook-origin intake should influence storage only after Microsoft setup, Graph diagnostics, and confirmed Inbox order receipt, location, and handoff context are clear.",
+        sourceMetricTitle: "Outlook storage sources",
+        sourceCount: microsoft365StorageSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, connect warehouse systems, geocode locations, or change storage records automatically."
+      )
+    }
   }
 
   private var gmailStorageSourceCount: Int {
     storageProviderRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
+  private var microsoft365StorageSourceCount: Int {
+    storageProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
       .reduce(0) { total, row in total + row.count }
   }
 

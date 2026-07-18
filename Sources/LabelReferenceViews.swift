@@ -283,19 +283,35 @@ struct LabelReferencesView: View {
   }
 
   private var gmailLabelReadinessPanel: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail label readiness",
-      lead: "Gmail-origin intake should create label reference work only after Gmail setup is ready and the imported Inbox order has confirmed tracking, package, storage, or dispatch context.",
-      sourceMetricTitle: "Gmail label sources",
-      sourceCount: gmailLabelSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, generate labels, print labels, scan barcodes, or change label reference records automatically."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail label readiness",
+        lead: "Gmail-origin intake should create label reference work only after Gmail setup is ready and the imported Inbox order has confirmed tracking, package, storage, or dispatch context.",
+        sourceMetricTitle: "Gmail label sources",
+        sourceCount: gmailLabelSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, generate labels, print labels, scan barcodes, or change label reference records automatically."
+      )
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook label readiness",
+        lead: "Outlook-origin intake should create label reference work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order tracking, package, storage, or dispatch context are clear.",
+        sourceMetricTitle: "Outlook label sources",
+        sourceCount: microsoft365LabelSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, generate labels, print labels, scan barcodes, or change label reference records automatically."
+      )
+    }
   }
 
   private var gmailLabelSourceCount: Int {
     labelProviderRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
+  private var microsoft365LabelSourceCount: Int {
+    labelProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
       .reduce(0) { total, row in total + row.count }
   }
 
