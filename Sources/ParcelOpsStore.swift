@@ -8123,6 +8123,33 @@ final class ParcelOpsStore {
   }
 
   func addImportQueueItemPlaceholder() {
+    if let existingIndex = importQueueItems.firstIndex(where: {
+      $0.sourceType == .manualEntry
+        && $0.rawSummary == "Manual placeholder import staged locally for review."
+        && $0.importStatus == .staged
+        && $0.reviewState == .needsReview
+    }) {
+      let beforeDetail = importQueueItems[existingIndex].auditDetail
+      importQueueItems[existingIndex].capturedDate = Self.auditTimestamp()
+      importQueueItems[existingIndex].detectedMerchant = "Pending merchant"
+      importQueueItems[existingIndex].detectedOrderNumber = "Pending"
+      importQueueItems[existingIndex].detectedTrackingNumber = "Pending"
+      importQueueItems[existingIndex].detectedDestinationAddress = "Pending"
+      importQueueItems[existingIndex].confidenceScore = 45
+      importQueueItems[existingIndex].notes = "Edit detected fields before accepting."
+      persistImportQueueItems()
+      logAudit(
+        action: .edited,
+        entityType: .importQueueItem,
+        entityID: importQueueItems[existingIndex].id.uuidString,
+        entityLabel: importQueueItems[existingIndex].sourceLabel,
+        summary: "Existing import queue placeholder refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(importQueueItems[existingIndex].auditDetail)\nNo duplicate staged manual import placeholder was created."
+      )
+      return
+    }
+
     let item = ImportQueueItem(
       sourceType: .manualEntry,
       sourceLabel: "Manual import \(importQueueItems.count + 1)",
@@ -8540,6 +8567,32 @@ final class ParcelOpsStore {
 
   func addShipmentGroupPlaceholder() {
     let primaryOrder = orders.first
+    if let existingIndex = shipmentGroups.firstIndex(where: {
+      $0.groupName == "New shipment group"
+        && $0.primaryOrderID == primaryOrder?.id
+        && $0.statusSummary == "Manual grouping placeholder"
+        && $0.reviewState == .needsReview
+    }) {
+      let beforeDetail = shipmentGroups[existingIndex].auditDetail
+      shipmentGroups[existingIndex].relatedOrderIDs = primaryOrder.map { [$0.id] } ?? []
+      shipmentGroups[existingIndex].destinationSummary = primaryOrder?.destination ?? "Pending destination"
+      shipmentGroups[existingIndex].recipientCustomerSummary = primaryOrder?.customer ?? "Unassigned"
+      shipmentGroups[existingIndex].carrierSummary = primaryOrder?.carrier ?? "Pending carrier"
+      shipmentGroups[existingIndex].riskLevel = .medium
+      shipmentGroups[existingIndex].lastReviewedDate = "Never"
+      persistShipmentGroups()
+      logAudit(
+        action: .edited,
+        entityType: .shipmentGroup,
+        entityID: shipmentGroups[existingIndex].id.uuidString,
+        entityLabel: shipmentGroups[existingIndex].groupName,
+        summary: "Existing shipment group placeholder refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(shipmentGroups[existingIndex].auditDetail)\nNo duplicate manual shipment group placeholder was created."
+      )
+      return
+    }
+
     let group = ShipmentGroup(
       groupName: "New shipment group",
       primaryOrderID: primaryOrder?.id,
@@ -12826,6 +12879,29 @@ final class ParcelOpsStore {
   }
 
   func addAutomationRulePlaceholder() {
+    if let existingIndex = automationRules.firstIndex(where: {
+      $0.triggerType == .manualReview
+        && $0.conditionSummary == "Define the local condition this rule should watch."
+        && $0.actionSummary == "Define the local action this rule should suggest."
+        && !$0.isEnabled
+        && $0.reviewState == .needsReview
+    }) {
+      let beforeDetail = automationRules[existingIndex].auditDetail
+      automationRules[existingIndex].lastRunDate = "Never"
+      automationRules[existingIndex].runCount = 0
+      persistAutomationRules()
+      logAudit(
+        action: .edited,
+        entityType: .automationRule,
+        entityID: automationRules[existingIndex].id.uuidString,
+        entityLabel: automationRules[existingIndex].name,
+        summary: "Existing automation rule placeholder refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(automationRules[existingIndex].auditDetail)\nNo duplicate disabled local automation placeholder was created."
+      )
+      return
+    }
+
     let rule = AutomationRule(
       name: "New local rule \(automationRules.count + 1)",
       triggerType: .manualReview,
