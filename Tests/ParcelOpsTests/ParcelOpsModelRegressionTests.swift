@@ -541,15 +541,9 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     store.wishlistItems = [item]
 
     let expected =
-      store.wishlistTaskContextItemCount
+      store.wishlistUniqueAttentionItemCount
       + store.wishlistResearchAttentionRequestCount
-      + store.wishlistReadinessBlockedItemCount
-      + store.wishlistHandoffSanityBlockedItemCount
-      + store.wishlistLinkedOrderDispatchGapItemCount
-      + store.wishlistPurchasePacketNeededItemCount
-      + store.wishlistPurchasedNeedsOrderLinkItemCount
       + (store.wishlistBatchBriefNeeded ? 1 : 0)
-      + store.wishlistAgentReadinessIssueCount
 
     XCTAssertEqual(store.wishlistDailyAttentionCount, expected)
     XCTAssertGreaterThan(store.wishlistDailyAttentionCount, 0)
@@ -2733,7 +2727,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(results.first { $0.sampleName == "Marketing offer" }?.decision, "Filtered")
     XCTAssertEqual(results.first { $0.sampleName == "Security notification" }?.decision, "Filtered")
     XCTAssertTrue(results.allSatisfy { $0.decisionStatus.localizedCaseInsensitiveContains("passed") })
-    XCTAssertEqual(updatedConnection.classifierTestSummary, "Gmail classifier suite: 4/4 local expectations passed. No Gmail API call, OAuth flow, token request, mailbox fetch, or Inbox import occurred.")
+    XCTAssertEqual(updatedConnection.classifierTestSummary, "Gmail classifier suite: 4/4 local decision expectations passed. Parser expectations: 1/1 passed. No Gmail API call, OAuth flow, token request, mailbox fetch, or Inbox import occurred.")
     XCTAssertTrue(store.auditEvents.contains { $0.summary == "Gmail classifier test suite ran locally." })
   }
 
@@ -3725,15 +3719,17 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     let store = ParcelOpsStore()
     store.spaceMailIMAPConnections = []
     store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = []
     store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [:]
 
     let summary = store.mailboxProviderComparisonSummary
 
     XCTAssertEqual(summary.title, "Choose a mailbox provider")
     XCTAssertEqual(summary.recommendedProvider, "Add provider")
     XCTAssertEqual(summary.tone, "warning")
-    XCTAssertEqual(summary.providers.count, 2)
-    XCTAssertTrue(summary.actionItems.contains { $0.title == "Choose SpaceMail or Gmail" })
+    XCTAssertEqual(summary.providers.count, 3)
+    XCTAssertTrue(summary.actionItems.contains { $0.title == "Choose a mailbox provider" })
     XCTAssertEqual(summary.metrics.first { $0.title == "Providers" }?.value, "0")
     XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "1")
   }
@@ -3742,11 +3738,14 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     let store = ParcelOpsStore()
     store.spaceMailIMAPConnections = []
     store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = []
     store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [:]
 
     let summary = store.mailboxProviderSetupChecklistSummary
     let spaceMail = summary.providers.first { $0.providerName == "SpaceMail IMAP" }
     let gmail = summary.providers.first { $0.providerName == "Gmail" }
+    let outlook = summary.providers.first { $0.providerName == "Outlook" }
 
     XCTAssertEqual(summary.title, "Provider setup checklist needs review")
     XCTAssertEqual(summary.tone, "warning")
@@ -3757,6 +3756,8 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(spaceMail?.tone, "warning")
     XCTAssertEqual(gmail?.status, "Optional, not configured")
     XCTAssertEqual(gmail?.tone, "neutral")
+    XCTAssertEqual(outlook?.status, "Optional, not configured")
+    XCTAssertEqual(outlook?.tone, "neutral")
   }
 
   func testMailboxProviderSetupChecklistTreatsSpaceMailRefreshAsUsable() {
@@ -3771,11 +3772,14 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
       )
     ]
     store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = []
     store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [:]
 
     let summary = store.mailboxProviderSetupChecklistSummary
     let spaceMail = summary.providers.first { $0.providerName == "SpaceMail IMAP" }
     let gmail = summary.providers.first { $0.providerName == "Gmail" }
+    let outlook = summary.providers.first { $0.providerName == "Outlook" }
 
     XCTAssertEqual(summary.title, "Provider setup checklist is usable")
     XCTAssertEqual(summary.tone, "success")
@@ -3788,12 +3792,15 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(spaceMail?.checks.allSatisfy(\.isComplete) == true)
     XCTAssertEqual(gmail?.status, "Optional, not configured")
     XCTAssertEqual(gmail?.tone, "neutral")
+    XCTAssertEqual(outlook?.status, "Optional, not configured")
+    XCTAssertEqual(outlook?.tone, "neutral")
   }
 
   func testMailboxProviderSetupChecklistDoesNotRequireSpaceMailWhenGmailIsConfigured() {
     let gmailID = UUID()
     let store = ParcelOpsStore()
     store.spaceMailIMAPConnections = []
+    store.microsoft365MailboxConnections = []
     store.gmailMailboxConnections = [
       makeGmailConnection(
         id: gmailID,
@@ -3817,6 +3824,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
         detailText: "Identity sign-in available."
       )
     ]
+    store.microsoft365AuthSessionStates = [:]
 
     let summary = store.mailboxProviderSetupChecklistSummary
     let gmail = summary.providers.first { $0.providerName == "Gmail" }
@@ -3835,6 +3843,31 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(gmail?.checks.count, 5)
   }
 
+  func testMailboxProviderSetupChecklistTreatsMicrosoft365AsOptionalWhenNotConfigured() {
+    let store = ParcelOpsStore()
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 0,
+        filtered: 8,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = []
+    store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [:]
+
+    let summary = store.mailboxProviderSetupChecklistSummary
+    let outlook = summary.providers.first { $0.providerName == "Outlook" }
+
+    XCTAssertEqual(summary.providers.map(\.providerName), ["SpaceMail IMAP", "Gmail", "Outlook"])
+    XCTAssertEqual(outlook?.status, "Optional, not configured")
+    XCTAssertEqual(outlook?.tone, "neutral")
+    XCTAssertTrue(outlook?.checks.allSatisfy { $0.tone == "neutral" || !$0.isComplete } == true)
+  }
+
   func testMailboxProviderComparisonTreatsQuietSpaceMailRefreshAsReady() {
     let store = ParcelOpsStore()
     store.spaceMailIMAPConnections = [
@@ -3847,10 +3880,13 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
       )
     ]
     store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = []
     store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [:]
 
     let summary = store.mailboxProviderComparisonSummary
     let spaceMail = summary.providers.first { $0.providerName == "SpaceMail" }
+    let outlook = summary.providers.first { $0.providerName == "Outlook" }
 
     XCTAssertEqual(summary.title, "Mailbox intake is quiet")
     XCTAssertEqual(summary.recommendedProvider, "SpaceMail")
@@ -3858,14 +3894,58 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(spaceMail?.statusTitle, "SpaceMail filtering is active")
     XCTAssertEqual(spaceMail?.fetchedCount, 10)
     XCTAssertEqual(spaceMail?.blockedCount, 0)
+    XCTAssertEqual(outlook?.statusTitle, "Microsoft 365 optional")
+    XCTAssertEqual(outlook?.tone, "neutral")
     XCTAssertTrue(summary.actionItems.contains { $0.providerName == "SpaceMail" && $0.title == "Monitor SpaceMail refreshes" })
     XCTAssertEqual(summary.metrics.first { $0.title == "Filtered" }?.value, "8")
     XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "0")
   }
 
+  func testMailboxProviderComparisonFlagsMicrosoft365Diagnostics() {
+    let outlookID = UUID()
+    let store = ParcelOpsStore()
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = [
+      makeMicrosoft365Connection(
+        id: outlookID,
+        connectionStatus: "Real Graph: Auth required",
+        lastManualRefreshDate: "Today"
+      )
+    ]
+    store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [
+      outlookID: Microsoft365AuthSessionState(
+        connectionID: outlookID,
+        status: .consentRequired,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Never",
+        keychainStatus: "MSAL cache entitlement ready",
+        tokenStoreStatus: .keychainNotConfigured,
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Consent or Graph diagnostics need review."
+      )
+    ]
+
+    let summary = store.mailboxProviderComparisonSummary
+    let outlook = summary.providers.first { $0.providerName == "Outlook" }
+
+    XCTAssertEqual(summary.title, "Mailbox setup has blockers")
+    XCTAssertEqual(summary.recommendedProvider, "Outlook")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(outlook?.statusTitle, "Microsoft 365 needs review")
+    XCTAssertEqual(outlook?.fetchedCount, 1)
+    XCTAssertEqual(outlook?.blockedCount, 1)
+    XCTAssertTrue(summary.actionItems.contains { $0.providerName == "Outlook" && $0.title == "Review Microsoft 365 diagnostics" })
+    XCTAssertEqual(summary.metrics.first { $0.title == "Fetched" }?.value, "1")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "2")
+  }
+
   func testMailboxProviderComparisonFlagsGmailSetupBlockers() {
     let store = ParcelOpsStore()
     store.spaceMailIMAPConnections = []
+    store.microsoft365MailboxConnections = []
     store.gmailMailboxConnections = [
       makeGmailConnection(
         oauthReadinessStatus: "Needs review",
@@ -3877,6 +3957,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
       )
     ]
     store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [:]
 
     let summary = store.mailboxProviderComparisonSummary
     let gmail = summary.providers.first { $0.providerName == "Gmail" }
@@ -3904,6 +3985,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     )
     let store = ParcelOpsStore()
     store.spaceMailIMAPConnections = []
+    store.microsoft365MailboxConnections = []
     store.gmailMailboxConnections = [connection]
     store.gmailAuthSessionStates = [
       mailboxID: GmailAuthSessionState(
@@ -3917,6 +3999,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
         detailText: "Identity sign-in available."
       )
     ]
+    store.microsoft365AuthSessionStates = [:]
 
     let summary = store.mailboxProviderComparisonSummary
     let gmail = summary.providers.first { $0.providerName == "Gmail" }
@@ -3945,6 +4028,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
         uncertain: 0
       )
     ]
+    store.microsoft365MailboxConnections = []
     store.gmailMailboxConnections = [
       makeGmailConnection(
         id: mailboxID,
@@ -3957,6 +4041,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
       )
     ]
     store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [:]
 
     let summary = store.mailboxProviderComparisonSummary
     let spaceMail = summary.providers.first { $0.providerName == "SpaceMail" }
@@ -3967,7 +4052,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.tone, "warning")
     XCTAssertEqual(spaceMail?.statusTitle, "SpaceMail filtering is active")
     XCTAssertEqual(gmail?.statusTitle, "Gmail setup or sign-in blocked")
-    XCTAssertTrue(summary.decisionRules.contains { $0.title == "Both providers can run side by side" })
+    XCTAssertTrue(summary.decisionRules.contains { $0.title == "Provider paths can run side by side" })
     XCTAssertEqual(summary.metrics.first { $0.title == "Providers" }?.value, "2")
     XCTAssertEqual(summary.metrics.first { $0.title == "Fetched" }?.value, "10")
     XCTAssertEqual(summary.metrics.first { $0.title == "Filtered" }?.value, "8")
@@ -3996,6 +4081,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
         uncertainMessages: [uncertainMessage]
       )
     ]
+    store.microsoft365MailboxConnections = []
     store.gmailMailboxConnections = [
       makeGmailConnection(
         oauthReadinessStatus: "Needs review",
@@ -4007,6 +4093,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
       )
     ]
     store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [:]
     store.mailboxIngestRecords = []
     store.intakeEmails = []
 
@@ -4022,7 +4109,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(summary.actionItems.contains { $0.providerName == "SpaceMail" && $0.title == "Review SpaceMail intake" })
     XCTAssertTrue(summary.actionItems.contains { $0.providerName == "Gmail" && $0.title == "Finish Gmail setup" })
     XCTAssertEqual(summary.metrics.first { $0.title == "Imported" }?.value, "1")
-    XCTAssertEqual(summary.metrics.first { $0.title == "Uncertain" }?.value, "2")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Uncertain" }?.value, "1")
   }
 
   func testMailboxOperationsHandoffFlagsProviderSetupBlockers() {
@@ -4106,7 +4193,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.tone, "attention")
     XCTAssertEqual(summary.metrics.first { $0.title == "Imported" }?.value, "1")
     XCTAssertEqual(summary.metrics.first { $0.title == "Open intake" }?.value, "1")
-    XCTAssertEqual(summary.metrics.first { $0.title == "Uncertain" }?.value, "2")
+    XCTAssertEqual(summary.metrics.first { $0.title == "Uncertain" }?.value, "1")
     XCTAssertTrue(summary.lines.contains { $0.title == "Imported intake ready" })
     XCTAssertTrue(summary.lines.contains { $0.title == "Uncertain mailbox previews" })
     XCTAssertTrue(summary.lines.contains { $0.title == "Inbox triage still open" })
@@ -4142,6 +4229,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     let mailboxID = UUID()
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     store.spaceMailIMAPConnections = []
+    store.microsoft365MailboxConnections = []
     store.gmailMailboxConnections = [
       makeGmailConnection(
         id: mailboxID,
@@ -4165,6 +4253,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
         detailText: "Identity sign-in available."
       )
     ]
+    store.microsoft365AuthSessionStates = [:]
     store.intakeEmails = []
     store.mailboxIngestRecords = []
     store.orders = []
@@ -4263,6 +4352,9 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
       )
     ]
     store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = []
+    store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [:]
     store.intakeEmails = []
     store.mailboxIngestRecords = []
     store.orders = []
@@ -4299,6 +4391,9 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
       )
     ]
     store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = []
+    store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [:]
     store.intakeEmails = []
     store.mailboxIngestRecords = []
     store.orders = []
@@ -4311,9 +4406,9 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(setupGate?.isPassed, true)
     XCTAssertEqual(setupGate?.tone, "success")
     XCTAssertTrue(setupGate?.evidence.contains("0 incomplete required setup checks") == true)
-    XCTAssertTrue(setupGate?.evidence.contains("Optional providers not configured: Gmail") == true)
+    XCTAssertTrue(setupGate?.evidence.contains("Optional providers not configured: Gmail, Outlook") == true)
     XCTAssertEqual(setupGate?.nextAction, "Keep the active provider path current; configure optional providers only when needed.")
-    XCTAssertTrue(gate.reportText.contains("Optional providers not configured: Gmail"))
+    XCTAssertTrue(gate.reportText.contains("Optional providers not configured: Gmail, Outlook"))
   }
 
   func testMailboxProviderReleaseGateRequiresLocalCheckpointTask() {
@@ -5028,8 +5123,8 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
 
     XCTAssertEqual(summary.verdict, "Gmail release blocked")
     XCTAssertEqual(summary.tone, "warning")
-    XCTAssertEqual(summary.completedCount, 0)
-    XCTAssertEqual(summary.totalCount, 7)
+    XCTAssertEqual(summary.completedCount, 1)
+    XCTAssertEqual(summary.totalCount, 8)
     XCTAssertEqual(setupItem?.tone, "warning")
     XCTAssertEqual(signInItem?.tone, "attention")
     XCTAssertEqual(refreshItem?.tone, "neutral")
@@ -6421,6 +6516,31 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
       lastRefreshFilteredNonOrderCount: filtered,
       lastRefreshUncertainCount: uncertain,
       reviewState: .needsReview
+    )
+  }
+
+  private func makeMicrosoft365Connection(
+    id: UUID = UUID(),
+    connectionStatus: String,
+    lastManualRefreshDate: String
+  ) -> Microsoft365MailboxConnection {
+    Microsoft365MailboxConnection(
+      id: id,
+      displayName: "Outlook tracking inbox",
+      tenantDomainHint: "example.test",
+      mailboxAddress: "orders@example.test",
+      monitoredFolderNames: "Inbox",
+      connectionStatus: connectionStatus,
+      lastManualRefreshDate: lastManualRefreshDate,
+      setupNotes: "Local Outlook setup only.",
+      reviewState: .needsReview,
+      tenantIDPlaceholder: "tenant-id",
+      clientIDPlaceholder: "client-id",
+      redirectURIPlaceholder: "msauth.app.bitrig.parcelops://auth",
+      requestedScopesSummary: "User.Read Mail.Read",
+      oauthReadinessStatus: "Ready",
+      consentAdminNotes: "Consent reviewed locally.",
+      oauthImplementationPlanStatus: "Reviewed"
     )
   }
 }
