@@ -23885,6 +23885,17 @@ final class ParcelOpsStore {
 
   func createWishlistPurchaseCostRecord(_ item: WishlistItem) {
     guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    if let existing = suggestedCostRecords(for: item).first {
+      logAudit(
+        action: .evaluated,
+        entityType: .costRecord,
+        entityID: existing.id.uuidString,
+        entityLabel: existing.title,
+        summary: "Existing Wishlist purchase cost placeholder reused locally.",
+        afterDetail: "\(existing.auditDetail)\nWishlist item: \(item.itemName). No duplicate cost record was created. No purchase, payment, reimbursement, accounting, bank, retailer, or mailbox action occurred."
+      )
+      return
+    }
     let selectedOption = selectedWishlistSellerOption(for: item)
     let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? selectedOption?.sellerName ?? item.storefront
     let account = suggestedAccounts(for: item).first
@@ -23930,6 +23941,17 @@ final class ParcelOpsStore {
 
   func createWishlistProcurementRequest(_ item: WishlistItem) {
     guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    if let existing = suggestedProcurementRequests(for: item).first {
+      logAudit(
+        action: .evaluated,
+        entityType: .procurementRequest,
+        entityID: existing.id.uuidString,
+        entityLabel: existing.title,
+        summary: "Existing Wishlist procurement request reused locally.",
+        afterDetail: "\(existing.auditDetail)\nWishlist item: \(item.itemName). No duplicate procurement request was created. No supplier, checkout, purchase, payment, accounting, retailer, or mailbox action occurred."
+      )
+      return
+    }
     let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? selectedWishlistSellerOption(for: item)?.sellerName ?? item.storefront
     let cost = suggestedCostRecords(for: item).first
     let account = suggestedAccounts(for: item).first
@@ -23976,6 +23998,17 @@ final class ParcelOpsStore {
 
   func createWishlistReceivingInspection(_ item: WishlistItem) {
     guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    if let existing = suggestedReceivingInspections(for: item).first {
+      logAudit(
+        action: .evaluated,
+        entityType: .receivingInspection,
+        entityID: existing.id.uuidString,
+        entityLabel: existing.title,
+        summary: "Existing Wishlist receiving inspection reused locally.",
+        afterDetail: "\(existing.auditDetail)\nWishlist item: \(item.itemName). No duplicate receiving inspection was created. No carrier, supplier, warehouse, scanner, OCR, retailer, or mailbox action occurred."
+      )
+      return
+    }
     let procurement = suggestedProcurementRequests(for: item).first
     let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? item.storefront
     let inspection = ReceivingInspectionRecord(
@@ -24022,6 +24055,17 @@ final class ParcelOpsStore {
 
   func createWishlistInventoryReceipt(_ item: WishlistItem) {
     guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    if let existing = suggestedInventoryReceipts(for: item).first {
+      logAudit(
+        action: .evaluated,
+        entityType: .inventoryReceipt,
+        entityID: existing.id.uuidString,
+        entityLabel: existing.title,
+        summary: "Existing Wishlist inventory receipt reused locally.",
+        afterDetail: "\(existing.auditDetail)\nWishlist item: \(item.itemName). No duplicate inventory receipt was created. No warehouse, inventory API, scanner, carrier, supplier, retailer, or mailbox action occurred."
+      )
+      return
+    }
     let inspection = suggestedReceivingInspections(for: item).first
     let procurement = suggestedProcurementRequests(for: item).first
     let seller = item.purchaseDecision?.selectedSellerName ?? item.purchaseHandoff?.sellerName ?? item.storefront
@@ -24068,6 +24112,17 @@ final class ParcelOpsStore {
 
   func createWishlistStorageLocation(_ item: WishlistItem) {
     guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    if let existing = suggestedStorageLocations(for: item).first {
+      logAudit(
+        action: .evaluated,
+        entityType: .storageLocation,
+        entityID: existing.id.uuidString,
+        entityLabel: existing.title,
+        summary: "Existing Wishlist storage location reused locally.",
+        afterDetail: "\(existing.auditDetail)\nWishlist item: \(item.itemName). No duplicate storage location was created. No warehouse, map, access-control, scanner, carrier, supplier, retailer, or mailbox action occurred."
+      )
+      return
+    }
     let receipt = suggestedInventoryReceipts(for: item).first
     let inspection = suggestedReceivingInspections(for: item).first
     let procurement = suggestedProcurementRequests(for: item).first
@@ -24107,6 +24162,17 @@ final class ParcelOpsStore {
 
   func createWishlistCustodyRecord(_ item: WishlistItem) {
     guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    if let existing = suggestedCustodyRecords(for: item).first {
+      logAudit(
+        action: .evaluated,
+        entityType: .custodyRecord,
+        entityID: existing.id.uuidString,
+        entityLabel: existing.title,
+        summary: "Existing Wishlist custody record reused locally.",
+        afterDetail: "\(existing.auditDetail)\nWishlist item: \(item.itemName). No duplicate custody record was created. No signature capture, scanner, access-control, warehouse, carrier, supplier, retailer, or mailbox action occurred."
+      )
+      return
+    }
     let receipt = suggestedInventoryReceipts(for: item).first
     let location = suggestedStorageLocations(for: item).first
     let inspection = suggestedReceivingInspections(for: item).first
@@ -24153,6 +24219,17 @@ final class ParcelOpsStore {
 
   func createWishlistLabelReference(_ item: WishlistItem) {
     guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    if let existing = suggestedLabelReferenceRecords(for: item).first {
+      logAudit(
+        action: .evaluated,
+        entityType: .labelReference,
+        entityID: existing.id.uuidString,
+        entityLabel: existing.title,
+        summary: "Existing Wishlist label reference reused locally.",
+        afterDetail: "\(existing.auditDetail)\nWishlist item: \(item.itemName). No duplicate label reference was created. No barcode scanning, QR generation, label printing, camera, warehouse, carrier, supplier, retailer, or mailbox action occurred."
+      )
+      return
+    }
     let location = suggestedStorageLocations(for: item).first
     let custody = suggestedCustodyRecords(for: item).first
     let receipt = suggestedInventoryReceipts(for: item).first
@@ -24196,6 +24273,17 @@ final class ParcelOpsStore {
 
   func createWishlistScanSession(_ item: WishlistItem) {
     guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    if let existing = suggestedScanSessionRecords(for: item).first {
+      logAudit(
+        action: .evaluated,
+        entityType: .scanSession,
+        entityID: existing.id.uuidString,
+        entityLabel: existing.title,
+        summary: "Existing Wishlist manual verification session reused locally.",
+        afterDetail: "\(existing.auditDetail)\nWishlist item: \(item.itemName). No duplicate scan session was created. No scanner hardware, camera, barcode scan, QR generation, label printing, carrier, warehouse, supplier, retailer, or mailbox action occurred."
+      )
+      return
+    }
     let label = suggestedLabelReferenceRecords(for: item).first
     let location = suggestedStorageLocations(for: item).first
     let custody = suggestedCustodyRecords(for: item).first
@@ -24242,6 +24330,17 @@ final class ParcelOpsStore {
 
   func createWishlistShipmentManifest(_ item: WishlistItem) {
     guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    if let existing = suggestedShipmentManifestRecords(for: item).first {
+      logAudit(
+        action: .evaluated,
+        entityType: .shipmentManifest,
+        entityID: existing.id.uuidString,
+        entityLabel: existing.title,
+        summary: "Existing Wishlist dispatch manifest reused locally.",
+        afterDetail: "\(existing.auditDetail)\nWishlist item: \(item.itemName). No duplicate shipment manifest was created. No carrier booking, label printing, scanner, camera, warehouse, supplier, retailer, mailbox, or background action occurred."
+      )
+      return
+    }
     let scan = suggestedScanSessionRecords(for: item).first
     let label = suggestedLabelReferenceRecords(for: item).first
     let location = suggestedStorageLocations(for: item).first
@@ -24291,6 +24390,17 @@ final class ParcelOpsStore {
 
   func createWishlistDispatchReadinessChecklist(_ item: WishlistItem) {
     guard wishlistItems.contains(where: { $0.id == item.id }) else { return }
+    if let existing = suggestedDispatchReadinessChecklists(for: item).first {
+      logAudit(
+        action: .evaluated,
+        entityType: .dispatchChecklist,
+        entityID: existing.id.uuidString,
+        entityLabel: existing.title,
+        summary: "Existing Wishlist dispatch readiness checklist reused locally.",
+        afterDetail: "\(existing.auditDetail)\nWishlist item: \(item.itemName). No duplicate dispatch readiness checklist was created. No carrier booking, label printing, scanner, camera, warehouse, supplier, retailer, mailbox, or background action occurred."
+      )
+      return
+    }
     let manifest = suggestedShipmentManifestRecords(for: item).first
     let scan = suggestedScanSessionRecords(for: item).first
     let label = suggestedLabelReferenceRecords(for: item).first
