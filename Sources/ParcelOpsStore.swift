@@ -22073,6 +22073,29 @@ final class ParcelOpsStore {
 
   func convertWishlistToOrder(_ item: WishlistItem) {
     let beforeDetail = item.auditDetail
+    if
+      let wishlistIndex = wishlistItems.firstIndex(where: { $0.id == item.id }),
+      let linkedOrderID = wishlistItems[wishlistIndex].purchaseHandoff?.linkedOrderID,
+      let existingOrder = orders.first(where: { $0.id == linkedOrderID })
+    {
+      wishlistItems[wishlistIndex].status = "Linked to order draft"
+      wishlistItems[wishlistIndex].purchaseReadiness = "Existing local order draft linked from Wishlist"
+      wishlistItems[wishlistIndex].purchaseHandoff?.purchaseStatus = "Linked to existing local order draft"
+      wishlistItems[wishlistIndex].purchaseHandoff?.orderWatchStatus = "Linked to local order draft \(existingOrder.orderNumber)."
+      wishlistItems[wishlistIndex].purchaseHandoff?.updatedAt = "Now"
+      persistWishlist()
+      logAudit(
+        action: .evaluated,
+        entityType: .wishlistItem,
+        entityID: item.id.uuidString,
+        entityLabel: item.itemName,
+        summary: "Existing Wishlist-linked order draft reused locally.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(wishlistItems[wishlistIndex].auditDetail)\nExisting order: \(existingOrder.orderNumber) \(existingOrder.id.uuidString). No duplicate order draft was created. No purchase API, payment, supplier, carrier, Shopify, browser automation, checkout, or mailbox action occurred."
+      )
+      return
+    }
+
     let order = TrackedOrder(
       orderNumber: "WISH-\(1000 + orders.count + 1)",
       store: item.storefront,
