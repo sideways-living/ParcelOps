@@ -907,6 +907,24 @@ struct InboxView: View {
       ))
     }
 
+    if !store.microsoft365MailboxConnections.isEmpty {
+      let signedInCount = store.microsoft365MailboxConnections.filter {
+        store.microsoft365AuthSessionState(for: $0).status == .connected
+      }.count
+      let readyCount = store.microsoft365MailboxConnections.filter {
+        store.microsoft365OAuthReadinessSummary(for: $0).isReady
+      }.count
+      rows.append((
+        "Microsoft 365",
+        signedInCount > 0
+          ? "\(signedInCount) Outlook/Microsoft setup signed in; Graph refresh still has to import a row before Orders change."
+          : readyCount > 0
+            ? "\(readyCount) Outlook/Microsoft setup ready for explicit sign-in; no Inbox row has been imported yet."
+            : "Outlook/Microsoft setup exists, but readiness must be completed before sign-in or Graph refresh.",
+        signedInCount > 0 ? .purple : .orange
+      ))
+    }
+
     return rows
   }
 
@@ -942,7 +960,7 @@ struct InboxView: View {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 170 : 220), spacing: 8)], alignment: .leading, spacing: 8) {
             ForEach(missingOrderProviderBreakdown, id: \.provider) { row in
               HStack(alignment: .top, spacing: 8) {
-                Image(systemName: row.provider == "Gmail" ? "envelope.badge.shield.half.filled" : "server.rack")
+                Image(systemName: row.provider == "Gmail" ? "envelope.badge.shield.half.filled" : row.provider == "Microsoft 365" ? "mail.stack.fill" : "server.rack")
                   .foregroundStyle(row.color)
                   .frame(width: 18)
                 VStack(alignment: .leading, spacing: 3) {
@@ -2878,6 +2896,24 @@ struct DispatchView: View {
       } else {
         rows.append(("Gmail", summary.primaryOutcomeStatus, summary.nextAction, "envelope.badge.shield.half.filled", .secondary))
       }
+    }
+
+    if !store.microsoft365MailboxConnections.isEmpty {
+      let signedInCount = store.microsoft365MailboxConnections.filter {
+        store.microsoft365AuthSessionState(for: $0).status == .connected
+      }.count
+      let readyCount = store.microsoft365MailboxConnections.filter {
+        store.microsoft365OAuthReadinessSummary(for: $0).isReady
+      }.count
+      rows.append((
+        "Microsoft 365",
+        signedInCount > 0 ? "Signed in" : readyCount > 0 ? "Sign-in needed" : "Setup needed",
+        signedInCount > 0
+          ? "Outlook/Microsoft Graph can create dispatch work only after manual read-only refresh imports an Inbox row and that row becomes an order."
+          : "Outlook/Microsoft remains an advanced provider path. Complete setup and sign-in before expecting Dispatch context.",
+        "mail.stack.fill",
+        signedInCount > 0 ? .purple : .orange
+      ))
     }
 
     if rows.isEmpty {

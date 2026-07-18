@@ -474,6 +474,24 @@ struct OperationsWorkbenchView: View {
       ))
     }
 
+    if !store.microsoft365MailboxConnections.isEmpty {
+      let signedInCount = store.microsoft365MailboxConnections.filter {
+        store.microsoft365AuthSessionState(for: $0).status == .connected
+      }.count
+      let readyCount = store.microsoft365MailboxConnections.filter {
+        store.microsoft365OAuthReadinessSummary(for: $0).isReady
+      }.count
+      rows.append((
+        "Microsoft 365",
+        signedInCount > 0
+          ? "\(signedInCount) Outlook/Microsoft setup signed in. Workbench only changes after manual Graph refresh imports or refreshes intake rows."
+          : readyCount > 0
+            ? "\(readyCount) Outlook/Microsoft setup ready for explicit sign-in. Keep Workbench clear until an Inbox row exists."
+            : "Outlook/Microsoft setup exists as an advanced path. Finish readiness before relying on it for live intake.",
+        signedInCount > 0 ? .purple : .orange
+      ))
+    }
+
     return rows
   }
 
