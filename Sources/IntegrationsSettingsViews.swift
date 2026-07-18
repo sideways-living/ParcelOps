@@ -97,6 +97,66 @@ struct IntegrationsView: View {
       return summary.missingFields.prefix(3).map { "\(connection.displayName): \($0)" }
     }
   }
+  private var primaryGmailReadinessSummary: GmailOAuthReadinessSummary? {
+    gmailReadinessSummaries.first
+  }
+  private var primaryGmailConnection: GmailMailboxConnection? {
+    store.gmailMailboxConnections.first
+  }
+  private var gmailOverviewCompileRows: [(title: String, value: String, detail: String, color: Color)] {
+    guard let connection = primaryGmailConnection,
+          let readiness = primaryGmailReadinessSummary else {
+      return []
+    }
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let savedClientStatus: String
+    if clientID.isEmpty {
+      savedClientStatus = "Missing"
+    } else if clientID.localizedCaseInsensitiveContains("placeholder") {
+      savedClientStatus = "Placeholder"
+    } else if clientID.hasSuffix(".apps.googleusercontent.com") {
+      savedClientStatus = "Saved"
+    } else {
+      savedClientStatus = "Review format"
+    }
+    let savedScheme = (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let savedSchemeStatus: String
+    if savedScheme.isEmpty {
+      savedSchemeStatus = "Missing"
+    } else if savedScheme.localizedCaseInsensitiveContains("placeholder") {
+      savedSchemeStatus = "Placeholder"
+    } else if savedScheme.hasPrefix("com.googleusercontent.apps.") {
+      savedSchemeStatus = "Saved"
+    } else {
+      savedSchemeStatus = "Review format"
+    }
+    return [
+      (
+        "Saved client ID",
+        savedClientStatus,
+        savedClientStatus == "Saved" ? "Google iOS OAuth client ID is saved locally as a non-secret setup value." : "Open Gmail setup and save the iOS OAuth client ID from Google Cloud.",
+        savedClientStatus == "Saved" ? .green : .orange
+      ),
+      (
+        "Saved callback",
+        savedSchemeStatus,
+        savedSchemeStatus == "Saved" ? "Reversed Google client ID URL scheme is saved locally." : "Open Gmail setup and save the reversed client ID URL scheme.",
+        savedSchemeStatus == "Saved" ? .green : .orange
+      ),
+      (
+        "Compiled client",
+        readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("matches") ? "Matches" : "Blocked",
+        readiness.compiledClientIDStatus,
+        readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("matches") ? .green : .orange
+      ),
+      (
+        "Compiled callback",
+        readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes") ? "Matches" : "Blocked",
+        readiness.compiledCallbackSchemeStatus,
+        readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes") ? .green : .orange
+      )
+    ]
+  }
   private var gmailSetupNextAction: String {
     if !hasGmailSetup {
       return "Add Gmail only when a mailbox is hosted by Gmail or Google Workspace."
@@ -562,6 +622,52 @@ struct IntegrationsView: View {
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
                 }
+
+                if let readiness = primaryGmailReadinessSummary {
+                  VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline) {
+                      Text("Saved vs compiled callback")
+                        .font(.caption.weight(.semibold))
+                      Spacer()
+                      Badge(readiness.isReady ? "Matches" : "Blocked", color: readiness.isReady ? .green : .orange)
+                    }
+                    Text("Expected callback scheme: \(readiness.expectedCallbackScheme)")
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                    CompactMetadataGrid(minimumWidth: 150) {
+                      ForEach(gmailOverviewCompileRows, id: \.title) { row in
+                        VStack(alignment: .leading, spacing: 3) {
+                          Badge("\(row.title): \(row.value)", color: row.color)
+                          Text(row.detail)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(7)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(row.color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+                      }
+                    }
+                  }
+                  .padding(8)
+                  .background(.background.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+                }
+
+                CompactActionRow {
+                  Button("Record Gmail snapshot", systemImage: "camera.metering.center.weighted") {
+                    store.recordGmailReleaseReadinessSnapshot()
+                    setupFeedbackMessage = "Gmail release readiness snapshot recorded in Audit."
+                  }
+                  Button("Create Gmail readiness task", systemImage: "checklist") {
+                    store.createReviewTaskFromGmailReleaseReadinessSnapshot()
+                    setupFeedbackMessage = "Gmail release readiness task created or refreshed."
+                  }
+                  Button("Show Gmail setup", systemImage: "arrow.down.circle.fill") {
+                    focusSetupSection("Gmail", message: "Showing Gmail setup. Confirm saved Google values, then run Check readiness before real sign-in.")
+                  }
+                }
+                .buttonStyle(.bordered)
               }
               .padding(10)
               .background((gmailSetupBlockerCount == 0 && gmailCompiledCallbackBlockerCount == 0 ? Color.green : Color.orange).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
