@@ -2146,6 +2146,44 @@ struct CompactMetadataGrid<Content: View>: View {
   }
 }
 
+struct OrderMailboxSourceTrailPanel: View {
+  var summaries: [OrderMailboxSourceSummary]
+  var title: String = "Mailbox provider trail"
+  var symbol: String = "envelope.badge.shield.half.filled"
+
+  var body: some View {
+    if !summaries.isEmpty {
+      VStack(alignment: .leading, spacing: 7) {
+        Label(title, systemImage: symbol)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.blue)
+        CompactMetadataGrid(minimumWidth: 130) {
+          ForEach(summaries) { summary in
+            Badge(summary.badgeLabel, color: color(for: summary.providerName))
+          }
+        }
+        ForEach(summaries) { summary in
+          Text("\(summary.statusLabel): \(summary.detailText)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .background(Color.blue.opacity(0.08))
+      .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+  }
+
+  private func color(for providerName: String) -> Color {
+    if providerName.localizedCaseInsensitiveContains("Gmail") { return .blue }
+    if providerName.localizedCaseInsensitiveContains("SpaceMail") { return .teal }
+    if providerName.localizedCaseInsensitiveContains("Mock") { return .purple }
+    if providerName.localizedCaseInsensitiveContains("Microsoft") { return .blue }
+    return .secondary
+  }
+}
+
 struct IntakeReadinessStrip: View {
   var email: ForwardedEmailIntake
   var hasLinkedOrder: Bool = false

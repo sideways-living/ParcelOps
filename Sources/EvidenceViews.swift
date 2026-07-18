@@ -414,6 +414,13 @@ struct EvidenceView: View {
     searchParts.append(contentsOf: deliveryInstructions.map(\.instructionSummary))
     searchParts.append(contentsOf: packageContents.map(\.title))
     searchParts.append(contentsOf: packageContents.map(\.itemSummary))
+    if let order {
+      let mailboxSummaries = store.mailboxSourceSummaries(for: order)
+      searchParts.append(contentsOf: mailboxSummaries.map(\.providerName))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.detailText))
+    }
     let searchableText = searchParts.joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
   }
@@ -560,6 +567,11 @@ struct EvidenceAttachmentRow: View {
                 }
               }
             }
+            OrderMailboxSourceTrailPanel(
+              summaries: store.mailboxSourceSummaries(for: linkedOrder),
+              title: "Mailbox provider evidence trail",
+              symbol: "paperclip"
+            )
           }
 
           if !customerProfiles.isEmpty {

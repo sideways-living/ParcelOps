@@ -340,7 +340,7 @@ struct TrackingView: View {
   private func trackingEvent(_ event: CarrierTrackingEvent, matches query: String) -> Bool {
     let order = store.orders.first { $0.id == event.orderID }
     let shipmentGroups = store.suggestedShipmentGroups(for: event)
-    let searchableText = [
+    var searchParts = [
       event.carrier,
       event.trackingNumber,
       event.eventTime,
@@ -360,7 +360,15 @@ struct TrackingView: View {
       shipmentGroups.map(\.groupName).joined(separator: " "),
       shipmentGroups.map(\.destinationSummary).joined(separator: " "),
       shipmentGroups.map(\.recipientCustomerSummary).joined(separator: " ")
-    ].joined(separator: " ")
+    ]
+    if let order {
+      let mailboxSummaries = store.mailboxSourceSummaries(for: order)
+      searchParts.append(contentsOf: mailboxSummaries.map(\.providerName))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.detailText))
+    }
+    let searchableText = searchParts.joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
   }
 
@@ -453,6 +461,11 @@ struct TrackingEventRow: View {
           if let store, let order {
             let linkedEmails = store.linkedIntakeEmails(for: order)
             let wishlistItems = store.activeWishlistItemsLinked(to: order)
+            OrderMailboxSourceTrailPanel(
+              summaries: store.mailboxSourceSummaries(for: order),
+              title: "Mailbox provider tracking trail",
+              symbol: "location.fill.viewfinder"
+            )
             if !linkedEmails.isEmpty {
               VStack(alignment: .leading, spacing: 6) {
                 Label("Inbox tracking source", systemImage: "tray.and.arrow.down.fill")

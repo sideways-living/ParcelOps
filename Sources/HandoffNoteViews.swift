@@ -669,6 +669,13 @@ struct HandoffNotesView: View {
     searchParts.append(contentsOf: deliveryInstructions.map(\.instructionSummary))
     searchParts.append(contentsOf: packageContents.map(\.title))
     searchParts.append(contentsOf: packageContents.map(\.itemSummary))
+    if let order {
+      let mailboxSummaries = store.mailboxSourceSummaries(for: order)
+      searchParts.append(contentsOf: mailboxSummaries.map(\.providerName))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.detailText))
+    }
     let searchableText = searchParts.joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
   }
@@ -762,6 +769,11 @@ struct HandoffNoteRow: View {
       if let store, let linkedOrder {
         let linkedEmails = store.linkedIntakeEmails(for: linkedOrder)
         let wishlistItems = store.activeWishlistItemsLinked(to: linkedOrder)
+        OrderMailboxSourceTrailPanel(
+          summaries: store.mailboxSourceSummaries(for: linkedOrder),
+          title: "Mailbox provider handoff trail",
+          symbol: "arrow.left.arrow.right.square.fill"
+        )
         if !linkedEmails.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Label("Inbox handoff source", systemImage: "tray.and.arrow.down.fill")
