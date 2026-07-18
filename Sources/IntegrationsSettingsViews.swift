@@ -2550,6 +2550,7 @@ struct GmailMailboxConnectionRow: View {
           .font(.caption2)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+        gmailRealActionSafetyCard
         VStack(alignment: .leading, spacing: 6) {
           Text("Primary")
             .font(.caption2.weight(.semibold))
@@ -2560,10 +2561,17 @@ struct GmailMailboxConnectionRow: View {
               isEditing.toggle()
             }
             Button("Mark reviewed", systemImage: "checkmark.circle", action: onReviewed)
-            Button("Test real Google sign-in", systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
+            Button(gmailRealSignInActionLabel, systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
+              .disabled(shouldDisableRealGmailSignIn)
             Button("Check readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
             Button(gmailRealRefreshActionLabel, systemImage: gmailRealRefreshActionSymbol, action: onRealRefresh)
               .disabled(hasMissingCoreGmailSetup)
+          }
+          if shouldDisableRealGmailSignIn {
+            Label(gmailRealSignInDisabledReason, systemImage: "lock.fill")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
           }
           if !canRunRealGmailRefresh {
             Label(gmailRealRefreshGuidanceText, systemImage: hasMissingCoreGmailSetup ? "lock.fill" : "shield.lefthalf.filled")
@@ -2744,6 +2752,126 @@ struct GmailMailboxConnectionRow: View {
     if !readiness.isReady { return "Preflight is available and will stop before Google sign-in, token requests, Gmail API calls, or mailbox access until callback/readiness matches the compiled app." }
     if authState.status != .connected { return "Auth check is available and should stop before Gmail API calls if no signed-in Google account or read-only scope is available." }
     return "Real refresh is available."
+  }
+
+  private var shouldDisableRealGmailSignIn: Bool {
+    hasMissingCoreGmailSetup || !readiness.isReady
+  }
+
+  private var gmailRealSignInActionLabel: String {
+    if hasMissingCoreGmailSetup { return "Setup before sign-in" }
+    if !readiness.isReady { return "Check readiness first" }
+    return "Test real Google sign-in"
+  }
+
+  private var gmailRealSignInDisabledReason: String {
+    if hasMissingCoreGmailSetup {
+      return "Save Gmail address, labels, Google client ID, callback scheme, and read-only scope before real sign-in."
+    }
+    return "Run Check readiness after the app has been rebuilt with matching Google client and callback values."
+  }
+
+  private var gmailRealActionSafetyCard: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: "shield.checkered")
+          .foregroundStyle(gmailRealActionSafetyColor)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(gmailRealActionSafetyTitle)
+            .font(.caption.weight(.semibold))
+          Text(gmailRealActionSafetyDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge(gmailRealActionSafetyBadge, color: gmailRealActionSafetyColor)
+      }
+
+      CompactMetadataGrid(minimumWidth: 150) {
+        ForEach(Array(gmailRealActionGateRows.enumerated()), id: \.offset) { _, row in
+          HStack(alignment: .top, spacing: 6) {
+            Image(systemName: row.isReady ? "checkmark.circle.fill" : row.symbol)
+              .font(.caption)
+              .foregroundStyle(row.isReady ? Color.green : Color.orange)
+              .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(row.title)
+                .font(.caption2.weight(.semibold))
+              Text(row.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(7)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background((row.isReady ? Color.green : Color.orange).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("Mock refresh is still available for local Inbox testing and does not require Google sign-in, tokens, or Gmail API access.")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .background(gmailRealActionSafetyColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailRealActionGateRows: [(title: String, detail: String, isReady: Bool, symbol: String)] {
+    [
+      (
+        title: "Setup fields",
+        detail: hasMissingCoreGmailSetup ? "Save Gmail address, labels, client ID, callback scheme, and Gmail read-only scope." : "Required Gmail setup fields are saved.",
+        isReady: !hasMissingCoreGmailSetup,
+        symbol: "square.and.pencil"
+      ),
+      (
+        title: "Compiled callback",
+        detail: readiness.isReady ? "App configuration matches the saved Google callback values." : "Run Check readiness after rebuilding with the compiled Google values.",
+        isReady: readiness.isReady,
+        symbol: "gear.badge.questionmark"
+      ),
+      (
+        title: "Google sign-in",
+        detail: authState.status == .connected ? "A Google identity session is connected for the read-only refresh path." : "Use real sign-in only after setup and readiness pass.",
+        isReady: authState.status == .connected,
+        symbol: "person.badge.key"
+      ),
+      (
+        title: "Manual refresh",
+        detail: canRunRealGmailRefresh ? "Real Gmail refresh can run manually and read-only." : "Real refresh will stop at the next missing gate.",
+        isReady: canRunRealGmailRefresh,
+        symbol: "envelope.badge.shield.half.filled"
+      )
+    ]
+  }
+
+  private var gmailRealActionSafetyTitle: String {
+    if hasMissingCoreGmailSetup { return "Real Gmail is waiting for setup" }
+    if !readiness.isReady { return "Real Gmail needs a readiness check" }
+    if authState.status != .connected { return "Real Gmail needs sign-in" }
+    return "Real Gmail is ready for manual refresh"
+  }
+
+  private var gmailRealActionSafetyDetail: String {
+    if hasMissingCoreGmailSetup { return "Next safe action: open Edit setup and save the Gmail address, labels, client ID, callback scheme, and read-only scope placeholders." }
+    if !readiness.isReady { return "Next safe action: run Check readiness. It is local and should stop before Google sign-in, tokens, or Gmail API calls if compiled values do not match." }
+    if authState.status != .connected { return "Next safe action: Test real Google sign-in. Mailbox fetching remains separate until sign-in succeeds." }
+    return "Next safe action: Run real Gmail refresh. It is manual, read-only, limited, and keeps mock refresh separate."
+  }
+
+  private var gmailRealActionSafetyBadge: String {
+    if canRunRealGmailRefresh { return "Ready" }
+    if hasMissingCoreGmailSetup { return "Setup" }
+    if !readiness.isReady { return "Preflight" }
+    return "Sign in"
+  }
+
+  private var gmailRealActionSafetyColor: Color {
+    canRunRealGmailRefresh ? .green : .orange
   }
 
   private var gmailSetupSequenceCard: some View {
