@@ -8168,6 +8168,33 @@ struct LinkedOrdersContextPanel: View {
             .background(tone.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
           }
 
+          let mailboxSources = linkedOrders.prefix(3).flatMap { order in
+            store.mailboxSourceSummaries(for: order).map { source in
+              DispatchLinkedOrderMailboxSourceSummary(orderNumber: order.orderNumber, source: source)
+            }
+          }
+
+          if !mailboxSources.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Label("Mailbox provider trail", systemImage: "envelope.badge.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tone)
+              ForEach(mailboxSources.prefix(6)) { item in
+                CompactMetadataGrid(minimumWidth: 140) {
+                  Badge(item.orderNumber, color: mailboxSourceColor(item.source))
+                  Badge(item.source.badgeLabel, color: mailboxSourceColor(item.source))
+                  Badge(item.source.statusLabel, color: mailboxSourceColor(item.source))
+                }
+                Text(item.source.detailText)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+            .padding(8)
+            .background(tone.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+          }
+
           CompactActionRow {
             ForEach(linkedOrders.prefix(3)) { order in
               NavigationLink {
@@ -8225,6 +8252,18 @@ struct LinkedOrdersContextPanel: View {
       return .secondary
     }
   }
+
+  private func mailboxSourceColor(_ summary: OrderMailboxSourceSummary) -> Color {
+    if summary.importedCount > 0 { return .green }
+    if summary.duplicateRefreshedCount > 0 { return .teal }
+    if summary.duplicateCount > 0 { return .orange }
+    switch summary.providerName {
+    case "Gmail": return .blue
+    case "SpaceMail": return .teal
+    case "Microsoft 365": return .purple
+    default: return .secondary
+    }
+  }
 }
 
 private struct DispatchLinkedOrderSourceSummary {
@@ -8234,4 +8273,13 @@ private struct DispatchLinkedOrderSourceSummary {
   var status: String
   var detail: String
   var color: Color
+}
+
+private struct DispatchLinkedOrderMailboxSourceSummary: Identifiable {
+  var orderNumber: String
+  var source: OrderMailboxSourceSummary
+
+  var id: String {
+    "\(orderNumber)-\(source.id)"
+  }
 }

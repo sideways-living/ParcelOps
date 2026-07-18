@@ -3383,6 +3383,9 @@ private struct DispatchInboxOrderRow: View {
   private var linkedIntakeEmails: [ForwardedEmailIntake] {
     store.linkedIntakeEmails(for: order)
   }
+  private var mailboxSourceSummaries: [OrderMailboxSourceSummary] {
+    store.mailboxSourceSummaries(for: order)
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -3413,6 +3416,9 @@ private struct DispatchInboxOrderRow: View {
             Badge(order.status.rawValue, color: rowColor)
             Badge(order.reviewState.rawValue, color: order.reviewState.color)
             Badge(sourceTrailCount > 0 ? "\(sourceTrailCount) source" : "Source trail missing", color: sourceTrailCount > 0 ? .green : .orange)
+            if let mailboxBadge {
+              Badge(mailboxBadge.label, color: mailboxBadge.color)
+            }
             if !linkedWishlistItems.isEmpty {
               Badge("\(linkedWishlistItems.count) Wishlist", color: .pink)
             }
@@ -3446,6 +3452,26 @@ private struct DispatchInboxOrderRow: View {
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
+      }
+
+      if !mailboxSourceSummaries.isEmpty {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("Mailbox provider source", systemImage: "envelope.badge.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(mailboxSourceColor(mailboxSourceSummaries[0]))
+          CompactMetadataGrid(minimumWidth: 130) {
+            ForEach(mailboxSourceSummaries.prefix(3)) { source in
+              Badge(source.badgeLabel, color: mailboxSourceColor(source))
+              Badge(source.statusLabel, color: mailboxSourceColor(source))
+            }
+          }
+          Text(mailboxSourceDetailText)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(8)
+        .background(mailboxSourceColor(mailboxSourceSummaries[0]).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
       }
 
       if !linkedWishlistItems.isEmpty {
@@ -3578,6 +3604,32 @@ private struct DispatchInboxOrderRow: View {
       return "Next: confirm the Wishlist purchase handoff, then decide whether this order needs manifest or readiness setup."
     }
     return "Next: confirm whether this order needs a shipment manifest or dispatch readiness checklist."
+  }
+
+  private var mailboxBadge: (label: String, color: Color)? {
+    guard let first = mailboxSourceSummaries.first else { return nil }
+    if mailboxSourceSummaries.count == 1 {
+      return (first.badgeLabel, mailboxSourceColor(first))
+    }
+    return ("\(mailboxSourceSummaries.count) mailbox sources", mailboxSourceColor(first))
+  }
+
+  private var mailboxSourceDetailText: String {
+    mailboxSourceSummaries.prefix(3)
+      .map { "\($0.providerName) via \($0.detailText)" }
+      .joined(separator: " ")
+  }
+
+  private func mailboxSourceColor(_ summary: OrderMailboxSourceSummary) -> Color {
+    if summary.importedCount > 0 { return .green }
+    if summary.duplicateRefreshedCount > 0 { return .teal }
+    if summary.duplicateCount > 0 { return .orange }
+    switch summary.providerName {
+    case "Gmail": return .blue
+    case "SpaceMail": return .teal
+    case "Microsoft 365": return .purple
+    default: return .secondary
+    }
   }
 
   private func wishlistDispatchSetupGaps(for item: WishlistItem) -> [String] {
@@ -3947,7 +3999,7 @@ private struct DispatchQueueRow: View {
             .foregroundStyle(item.riskLevel.color)
 
           if isInboxHandoff {
-            DispatchQueueInboxOrderContext(order: linkedOrder, isReopened: isReopenedInboxHandoff)
+            DispatchQueueInboxOrderContext(order: linkedOrder, store: store, isReopened: isReopenedInboxHandoff)
           }
         }
       }
@@ -4145,7 +4197,13 @@ private struct DispatchQueueFeedbackPanel: View {
 
 private struct DispatchQueueInboxOrderContext: View {
   var order: TrackedOrder?
+  var store: ParcelOpsStore
   var isReopened: Bool
+
+  private var mailboxSourceSummaries: [OrderMailboxSourceSummary] {
+    guard let order else { return [] }
+    return store.mailboxSourceSummaries(for: order)
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -4159,6 +4217,29 @@ private struct DispatchQueueInboxOrderContext: View {
           Badge(order.status.rawValue, color: order.status.color)
           Badge(order.reviewState.rawValue, color: order.reviewState.color)
           Badge(order.latestStatus, color: isReopened ? .purple : .secondary)
+          if let firstSource = mailboxSourceSummaries.first {
+            Badge(mailboxSourceSummaries.count == 1 ? firstSource.badgeLabel : "\(mailboxSourceSummaries.count) mailbox sources", color: mailboxSourceColor(firstSource))
+          }
+        }
+
+        if !mailboxSourceSummaries.isEmpty {
+          VStack(alignment: .leading, spacing: 5) {
+            Label("Provider source trail", systemImage: "envelope.badge.fill")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(mailboxSourceColor(mailboxSourceSummaries[0]))
+            ForEach(mailboxSourceSummaries.prefix(3)) { source in
+              CompactMetadataGrid(minimumWidth: 130) {
+                Badge(source.badgeLabel, color: mailboxSourceColor(source))
+                Badge(source.statusLabel, color: mailboxSourceColor(source))
+              }
+              Text(source.detailText)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(8)
+          .background(mailboxSourceColor(mailboxSourceSummaries[0]).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
 
         Text(isReopened
@@ -4177,6 +4258,18 @@ private struct DispatchQueueInboxOrderContext: View {
     .padding(10)
     .background((isReopened ? Color.purple : Color.teal).opacity(0.10))
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func mailboxSourceColor(_ summary: OrderMailboxSourceSummary) -> Color {
+    if summary.importedCount > 0 { return .green }
+    if summary.duplicateRefreshedCount > 0 { return .teal }
+    if summary.duplicateCount > 0 { return .orange }
+    switch summary.providerName {
+    case "Gmail": return .blue
+    case "SpaceMail": return .teal
+    case "Microsoft 365": return .purple
+    default: return .secondary
+    }
   }
 }
 
