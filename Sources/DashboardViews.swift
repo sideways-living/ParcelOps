@@ -99,34 +99,48 @@ struct DashboardView: View {
   private var hasGmailManualRefreshEvidence: Bool {
     store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
   }
+  private var hasMicrosoft365Setup: Bool {
+    !store.microsoft365MailboxConnections.isEmpty
+  }
+  private var hasMicrosoft365ConnectedAuth: Bool {
+    store.microsoft365MailboxConnections.contains {
+      store.microsoft365AuthSessionState(for: $0).status == .connected
+    }
+  }
+  private var hasMicrosoft365ReadySetup: Bool {
+    store.microsoft365MailboxConnections.contains {
+      store.microsoft365OAuthReadinessSummary(for: $0).isReady
+    }
+  }
+  private var hasMicrosoft365ManualRefreshEvidence: Bool {
+    store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
   private var hasReadyMailboxProviderPath: Bool {
     (hasSpaceMailSetup && hasSpaceMailCredentialReference && hasSpaceMailManualRefreshEvidence)
       || (hasGmailSetup && hasGmailConnectedAuth && hasGmailManualRefreshEvidence)
+      || (hasMicrosoft365Setup && hasMicrosoft365ConnectedAuth && hasMicrosoft365ManualRefreshEvidence)
   }
   private var dashboardMailboxSetupMetric: (value: String, color: Color) {
-    switch (hasSpaceMailSetup, hasGmailSetup) {
-    case (true, true):
-      return ("2 paths", .teal)
-    case (true, false):
-      return ("IMAP", .green)
-    case (false, true):
-      return ("Gmail", .green)
-    default:
-      return ("Needed", .orange)
-    }
+    let setupCount = [hasSpaceMailSetup, hasGmailSetup, hasMicrosoft365Setup].filter { $0 }.count
+    if setupCount > 1 { return ("\(setupCount) paths", .teal) }
+    if hasSpaceMailSetup { return ("IMAP", .green) }
+    if hasGmailSetup { return ("Gmail", .green) }
+    if hasMicrosoft365Setup { return ("Outlook", .teal) }
+    return ("Needed", .orange)
   }
   private var dashboardMailboxAuthMetric: (value: String, color: Color) {
-    let readyCount = (hasSpaceMailCredentialReference ? 1 : 0) + (hasGmailConnectedAuth ? 1 : 0)
-    let setupCount = (hasSpaceMailSetup ? 1 : 0) + (hasGmailSetup ? 1 : 0)
+    let readyCount = (hasSpaceMailCredentialReference ? 1 : 0) + (hasGmailConnectedAuth ? 1 : 0) + (hasMicrosoft365ConnectedAuth ? 1 : 0)
+    let setupCount = (hasSpaceMailSetup ? 1 : 0) + (hasGmailSetup ? 1 : 0) + (hasMicrosoft365Setup ? 1 : 0)
     if readyCount > 0 && readyCount == setupCount { return ("Ready", .green) }
     if readyCount > 0 { return ("Partial", .orange) }
     if hasSpaceMailSetup { return ("Keychain", .orange) }
     if hasGmailSetup { return ("Sign-in", .orange) }
+    if hasMicrosoft365Setup { return ("MSAL", .orange) }
     return ("Needed", .orange)
   }
   private var dashboardMailboxRefreshMetric: (value: String, color: Color) {
-    let refreshCount = (hasSpaceMailManualRefreshEvidence ? 1 : 0) + (hasGmailManualRefreshEvidence ? 1 : 0)
-    let setupCount = (hasSpaceMailSetup ? 1 : 0) + (hasGmailSetup ? 1 : 0)
+    let refreshCount = (hasSpaceMailManualRefreshEvidence ? 1 : 0) + (hasGmailManualRefreshEvidence ? 1 : 0) + (hasMicrosoft365ManualRefreshEvidence ? 1 : 0)
+    let setupCount = (hasSpaceMailSetup ? 1 : 0) + (hasGmailSetup ? 1 : 0) + (hasMicrosoft365Setup ? 1 : 0)
     if refreshCount > 0 && hasReadyMailboxProviderPath { return ("Seen", .green) }
     if refreshCount > 0 && refreshCount < setupCount { return ("Partial", .orange) }
     if refreshCount > 0 { return ("Review", .orange) }
@@ -142,8 +156,20 @@ struct DashboardView: View {
       $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.importedCount > 0
     }.count
   }
+  private var microsoft365HealthAttentionCount: Int {
+    store.microsoft365MailboxConnections.filter { connection in
+      let status = connection.connectionStatus
+      let authState = store.microsoft365AuthSessionState(for: connection)
+      return connection.reviewState == .needsReview
+        || authState.status == .authFailed
+        || authState.status == .consentRequired
+        || status.localizedCaseInsensitiveContains("auth required")
+        || status.localizedCaseInsensitiveContains("failed")
+        || status.localizedCaseInsensitiveContains("rejected")
+    }.count
+  }
   private var mailboxHealthAttentionCount: Int {
-    spaceMailHealthAttentionCount + gmailHealthAttentionCount
+    spaceMailHealthAttentionCount + gmailHealthAttentionCount + microsoft365HealthAttentionCount
   }
   private var mailboxDiagnosticDrafts: [DraftMessage] {
     store.mailboxProviderDraftMessagesNeedingReview
@@ -303,6 +329,12 @@ struct DashboardView: View {
     default:
       return .secondary
     }
+  }
+  private var latestMicrosoft365Tone: Color {
+    guard hasMicrosoft365Setup else { return .secondary }
+    if hasMicrosoft365ConnectedAuth && hasMicrosoft365ManualRefreshEvidence { return .teal }
+    if hasMicrosoft365ConnectedAuth || hasMicrosoft365ReadySetup { return .orange }
+    return .secondary
   }
   private var latestSpaceMailTitle: String {
     guard let summary = latestSpaceMailSummary else {
@@ -492,10 +524,38 @@ struct DashboardView: View {
       gmailDetail = store.gmailMailboxConnections.isEmpty ? "Add Gmail only for mailboxes hosted by Gmail or Google Workspace; otherwise use the active IMAP/provider path." : "Check Gmail readiness or run the mock/manual provider flow from Mailbox Monitor."
     }
 
-    return [
+    var rows: [(title: String, value: String, detail: String, color: Color)] = [
       ("SpaceMail", spaceMailValue, spaceMailDetail, latestSpaceMailTone),
       ("Gmail", gmailValue, gmailDetail, latestGmailTone)
     ]
+
+    if hasMicrosoft365Setup {
+      let signedInCount = store.microsoft365MailboxConnections.filter {
+        store.microsoft365AuthSessionState(for: $0).status == .connected
+      }.count
+      let readyCount = store.microsoft365MailboxConnections.filter {
+        store.microsoft365OAuthReadinessSummary(for: $0).isReady
+      }.count
+      let refreshedCount = store.microsoft365MailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+      let value: String
+      let detail: String
+      if refreshedCount > 0 {
+        value = "\(refreshedCount) refreshed"
+        detail = "Microsoft 365 / Outlook has read-only Graph refresh evidence. Use Mailbox Monitor or Audit for Graph-specific diagnostics."
+      } else if signedInCount > 0 {
+        value = "\(signedInCount) signed in"
+        detail = "Microsoft 365 sign-in is connected, but no Graph refresh has imported Inbox work yet."
+      } else if readyCount > 0 {
+        value = "\(readyCount) ready"
+        detail = "Microsoft 365 setup is ready for explicit sign-in. Keep it secondary unless this mailbox is Outlook-hosted."
+      } else {
+        value = "Setup"
+        detail = "Microsoft 365 is available as an advanced provider path. Finish OAuth readiness before sign-in or Graph refresh."
+      }
+      rows.append(("Outlook", value, detail, latestMicrosoft365Tone))
+    }
+
+    return rows
   }
   private var problemOrdersCount: Int {
     store.reviewOrders.count + store.orders.filter { $0.status == .exception }.count + store.trackingWarningCount + store.criticalTrackingCount
