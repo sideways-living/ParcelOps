@@ -19984,6 +19984,69 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTaskFromMicrosoft365ReleaseSelfCheck(_ connection: Microsoft365MailboxConnection) {
+    let summary = microsoft365ReleaseSelfCheckSummary(for: connection)
+    let openItems = summary.items.filter { !$0.isComplete }
+    let priority: TaskPriority
+    if summary.tone == "warning" {
+      priority = .high
+    } else if summary.tone == "attention" {
+      priority = .normal
+    } else {
+      priority = .low
+    }
+    let taskSummary = [
+      "Review Outlook release self-check for \(connection.displayName).",
+      summary.verdict,
+      summary.detail,
+      "Next action: \(summary.nextAction)",
+      openItems.isEmpty
+        ? "No incomplete self-check items at task creation time."
+        : "Incomplete items: \(openItems.map { "\($0.title) - \($0.nextAction)" }.joined(separator: "; "))"
+    ].joined(separator: " ")
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == connection.id.uuidString
+        && $0.title.localizedCaseInsensitiveContains("Outlook release self-check")
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = "Follow up \(connection.displayName) Outlook release self-check"
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = priority
+      reviewTasks[existingIndex].dueDate = "Tomorrow"
+      reviewTasks[existingIndex].assignee = "Mailbox team"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing Outlook release self-check review task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from local Outlook release self-check. No duplicate task was created. No Microsoft sign-in, token request, Graph call, Keychain token access, mailbox fetch, external service call, or mailbox mutation occurred."
+      )
+      return
+    }
+    createReviewTask(
+      linkedEntityType: .integration,
+      linkedEntityID: connection.id.uuidString,
+      label: "\(connection.displayName) Outlook release self-check",
+      summary: taskSummary,
+      priority: priority,
+      assignee: "Mailbox team"
+    )
+    logAudit(
+      action: .created,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Review task created from Outlook release self-check.",
+      afterDetail: "\(microsoft365ReleaseSelfCheckAuditDetail(summary))\nNo Microsoft sign-in, token request, Graph call, Keychain token access, mailbox fetch, external service call, or mailbox mutation occurred."
+    )
+  }
+
   func createReviewTaskFromGmailLatestRefresh(_ connection: GmailMailboxConnection) {
     let taskID = "gmail-latest-refresh-\(connection.id.uuidString)"
     let latestHistory = connection.refreshHistory?.first
@@ -28079,6 +28142,13 @@ final class ParcelOpsStore {
         (event.entityID == connection.id.uuidString || event.entityLabel == connection.displayName)
     }
     let hasMailboxAddress = !connection.mailboxAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    let releaseSelfCheckTasks = reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == connection.id.uuidString
+        && $0.title.localizedCaseInsensitiveContains("Outlook release self-check")
+    }
+    let openReleaseSelfCheckTaskCount = releaseSelfCheckTasks.filter { $0.status != .completed }.count
+    let completedReleaseSelfCheckTaskCount = releaseSelfCheckTasks.filter { $0.status == .completed }.count
 
     let items = [
       Microsoft365ReleaseSelfCheckItem(
@@ -28136,6 +28206,14 @@ final class ParcelOpsStore {
         isComplete: hasGraphDiagnostics,
         tone: hasGraphDiagnostics ? "success" : "neutral",
         symbolName: "stethoscope"
+      ),
+      Microsoft365ReleaseSelfCheckItem(
+        title: "Release task assigned",
+        detail: "\(releaseSelfCheckTasks.count) Outlook release self-check task\(releaseSelfCheckTasks.count == 1 ? "" : "s") recorded, \(openReleaseSelfCheckTaskCount) open, \(completedReleaseSelfCheckTaskCount) completed.",
+        nextAction: openReleaseSelfCheckTaskCount > 0 ? "Keep the open Outlook release task current until this mailbox path is accepted for daily use." : "Create an Outlook release self-check task before treating this mailbox path as release-ready.",
+        isComplete: openReleaseSelfCheckTaskCount > 0,
+        tone: openReleaseSelfCheckTaskCount > 0 ? "success" : "attention",
+        symbolName: "checkmark.seal"
       ),
       Microsoft365ReleaseSelfCheckItem(
         title: "Audit evidence",
@@ -28739,6 +28817,13 @@ final class ParcelOpsStore {
       .map { item in "\(item.isComplete ? "Complete" : "Pending"): \(item.title) - \(item.detail) Next: \(item.nextAction)" }
       .joined(separator: "\n")
     return "\(summary.verdict)\n\(summary.detail)\nNext action: \(summary.nextAction)\n\(itemText)\nThis self-check is computed from local setup, auth state, refresh summaries, review queues, and Audit evidence only."
+  }
+
+  private func microsoft365ReleaseSelfCheckAuditDetail(_ summary: Microsoft365ReleaseSelfCheckSummary) -> String {
+    let itemText = summary.items
+      .map { item in "\(item.isComplete ? "Complete" : "Pending"): \(item.title) - \(item.detail) Next: \(item.nextAction)" }
+      .joined(separator: "\n")
+    return "\(summary.verdict)\n\(summary.detail)\nGraph blockers: \(summary.graphBlockerCount)\nNext action: \(summary.nextAction)\n\(itemText)\nThis self-check is computed from local setup, auth state, refresh summaries, review queues, and Audit evidence only."
   }
 
   private func gmailAuthSessionAuditDetail(_ state: GmailAuthSessionState) -> String {

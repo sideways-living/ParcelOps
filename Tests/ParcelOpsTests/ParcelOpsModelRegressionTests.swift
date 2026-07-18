@@ -2933,9 +2933,10 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
 
     XCTAssertEqual(summary.verdict, "Outlook release blocked")
     XCTAssertEqual(summary.tone, "warning")
-    XCTAssertEqual(summary.totalCount, 8)
+    XCTAssertEqual(summary.totalCount, 9)
     XCTAssertTrue(summary.items.contains { $0.title == "OAuth readiness" && !$0.isComplete && $0.tone == "warning" })
     XCTAssertTrue(summary.items.contains { $0.title == "Mail.Read consent" && !$0.isComplete && $0.tone == "warning" })
+    XCTAssertTrue(summary.items.contains { $0.title == "Release task assigned" && !$0.isComplete && $0.tone == "attention" })
     XCTAssertEqual(summary.graphBlockerCount, 0)
   }
 
@@ -3006,6 +3007,77 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(summary.items.contains { $0.title == "Manual Graph refresh" && $0.isComplete })
     XCTAssertTrue(summary.items.contains { $0.title == "Audit evidence" && $0.isComplete })
     XCTAssertTrue(summary.detail.contains("Latest health: Outlook order intake captured"))
+  }
+
+  func testMicrosoft365ReleaseSelfCheckTaskRefreshesExistingOpenTask() throws {
+    let mailboxID = UUID()
+    var connection = makeMicrosoft365Connection(
+      id: mailboxID,
+      connectionStatus: "Not connected",
+      lastManualRefreshDate: "Never"
+    )
+    connection.clientIDPlaceholder = ""
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.microsoft365MailboxConnections = [connection]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createReviewTaskFromMicrosoft365ReleaseSelfCheck(connection)
+    connection.connectionStatus = "Real Graph: Auth required"
+    connection.lastManualRefreshDate = "Today"
+    store.createReviewTaskFromMicrosoft365ReleaseSelfCheck(connection)
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.title.localizedCaseInsensitiveContains("Outlook release self-check")
+    }
+    XCTAssertEqual(tasks.count, 1)
+    XCTAssertEqual(tasks.first?.assignee, "Mailbox team")
+    XCTAssertEqual(tasks.first?.priority, .high)
+    XCTAssertEqual(tasks.first?.reviewState, .needsReview)
+    XCTAssertTrue(tasks.first?.summary.contains("Outlook release blocked") == true)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing Outlook release self-check review task refreshed."
+        && (event.afterDetail?.contains("No duplicate task was created.") ?? false)
+    })
+
+    let refreshedSummary = store.microsoft365ReleaseSelfCheckSummary(for: connection)
+    let releaseTaskItem = refreshedSummary.items.first { $0.title == "Release task assigned" }
+    XCTAssertEqual(releaseTaskItem?.isComplete, true)
+    XCTAssertEqual(releaseTaskItem?.tone, "success")
+  }
+
+  func testMicrosoft365ReleaseSelfCheckTaskCreatesNewTaskAfterCompletedTask() throws {
+    let mailboxID = UUID()
+    let connection = makeMicrosoft365Connection(
+      id: mailboxID,
+      connectionStatus: "Real Graph: Fetch success",
+      lastManualRefreshDate: "Today"
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.microsoft365MailboxConnections = [connection]
+    store.reviewTasks = []
+    store.auditEvents = []
+
+    store.createReviewTaskFromMicrosoft365ReleaseSelfCheck(connection)
+    guard let firstTask = store.reviewTasks.first else {
+      XCTFail("Expected Outlook release self-check task.")
+      return
+    }
+    store.completeReviewTask(firstTask)
+    store.createReviewTaskFromMicrosoft365ReleaseSelfCheck(connection)
+
+    let tasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == mailboxID.uuidString
+        && $0.title.localizedCaseInsensitiveContains("Outlook release self-check")
+    }
+    XCTAssertEqual(tasks.count, 2)
+    XCTAssertEqual(tasks.filter { $0.status == .completed }.count, 1)
+    XCTAssertEqual(tasks.filter { $0.status == .open }.count, 1)
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Review task completed." })
+    XCTAssertTrue(store.auditEvents.contains { $0.summary == "Review task created from Outlook release self-check." })
   }
 
   func testTotalMailboxCountsIncludeMicrosoft365Evidence() {

@@ -6295,6 +6295,24 @@ struct MailboxProviderOperatorReadinessStack: View {
               ForEach(store.microsoft365MailboxConnections.prefix(2)) { connection in
                 Microsoft365ReleaseSelfCheckCard(summary: store.microsoft365ReleaseSelfCheckSummary(for: connection))
               }
+              if let connection = store.microsoft365MailboxConnections.first(where: {
+                store.microsoft365ReleaseSelfCheckSummary(for: $0).tone != "success"
+              }) {
+                CompactActionRow {
+                  Button("Create Outlook release task", systemImage: "checkmark.seal.fill") {
+                    store.createReviewTaskFromMicrosoft365ReleaseSelfCheck(connection)
+                  }
+                  .buttonStyle(.bordered)
+                  if showMailboxLink {
+                    NavigationLink {
+                      MailboxView(store: store)
+                    } label: {
+                      Label("Open Mailbox Monitor", systemImage: "tray.and.arrow.down.fill")
+                    }
+                    .buttonStyle(.bordered)
+                  }
+                }
+              }
             }
           }
           if showHandoffPacket {
