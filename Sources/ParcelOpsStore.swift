@@ -360,6 +360,18 @@ final class ParcelOpsStore {
     let gmailReadinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
     let gmailSignedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
     let gmailSetupBlockers = gmailMailboxConnections.isEmpty ? 0 : gmailReadinessBlockers + (gmailSignedInCount == 0 ? 1 : 0)
+    let microsoftReadyCount = microsoft365MailboxConnections.filter { microsoft365OAuthReadinessSummary(for: $0).isReady }.count
+    let microsoftSignedInCount = microsoft365MailboxConnections.filter { microsoft365AuthSessionState(for: $0).status == .connected }.count
+    let microsoftFetched = microsoft365MailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+    let microsoftProblemCount = microsoft365MailboxConnections.filter { connection in
+      let status = connection.connectionStatus
+      let authStatus = microsoft365AuthSessionState(for: connection).status
+      return authStatus == .authFailed
+        || authStatus == .consentRequired
+        || status.localizedCaseInsensitiveContains("auth required")
+        || status.localizedCaseInsensitiveContains("failed")
+        || status.localizedCaseInsensitiveContains("rejected")
+    }.count
 
     let spaceMailStatusTitle: String
     let spaceMailDetail: String
@@ -423,18 +435,61 @@ final class ParcelOpsStore {
       gmailTone = "neutral"
     }
 
-    let anyProviderConfigured = !spaceMailIMAPConnections.isEmpty || !gmailMailboxConnections.isEmpty
-    let anyProviderBlocked = spaceMailBlocked > 0 || gmailSetupBlockers > 0
+    let microsoftStatusTitle: String
+    let microsoftDetail: String
+    let microsoftNextAction: String
+    let microsoftTone: String
+    if microsoft365MailboxConnections.isEmpty {
+      microsoftStatusTitle = "Microsoft 365 optional"
+      microsoftDetail = "Use Microsoft 365 only when the mailbox is Outlook-hosted."
+      microsoftNextAction = "Leave Microsoft 365 alone unless an Outlook-hosted mailbox is being tested."
+      microsoftTone = "neutral"
+    } else if microsoftProblemCount > 0 {
+      microsoftStatusTitle = "Microsoft 365 needs review"
+      microsoftDetail = "\(microsoftProblemCount) Microsoft 365 setup\(microsoftProblemCount == 1 ? "" : "s") have auth, consent, or Graph-read diagnostics to review."
+      microsoftNextAction = "Open Microsoft 365 setup or Audit before relying on Graph refresh."
+      microsoftTone = "warning"
+    } else if microsoftSignedInCount > 0 && microsoftFetched > 0 {
+      microsoftStatusTitle = "Microsoft 365 has refresh evidence"
+      microsoftDetail = "\(microsoftFetched) Outlook setup\(microsoftFetched == 1 ? "" : "s") have manual Graph refresh evidence."
+      microsoftNextAction = "Review Mailbox Monitor or Audit before using Outlook as the active provider path."
+      microsoftTone = "attention"
+    } else if microsoftSignedInCount > 0 {
+      microsoftStatusTitle = "Microsoft 365 signed in"
+      microsoftDetail = "\(microsoftSignedInCount) Outlook setup\(microsoftSignedInCount == 1 ? "" : "s") are signed in, but Graph refresh has not produced Inbox evidence."
+      microsoftNextAction = "Run explicit read-only Graph refresh only when this is the active Outlook mailbox."
+      microsoftTone = "attention"
+    } else if microsoftReadyCount > 0 {
+      microsoftStatusTitle = "Microsoft 365 ready for sign-in"
+      microsoftDetail = "\(microsoftReadyCount) Outlook setup\(microsoftReadyCount == 1 ? "" : "s") have OAuth readiness values."
+      microsoftNextAction = "Test Microsoft sign-in only for an Outlook-hosted mailbox."
+      microsoftTone = "neutral"
+    } else {
+      microsoftStatusTitle = "Microsoft 365 setup incomplete"
+      microsoftDetail = "Microsoft 365 remains an advanced provider path until tenant, client, redirect, scope, and sign-in readiness are complete."
+      microsoftNextAction = "Finish Microsoft 365 readiness or use SpaceMail/Gmail for the active mailbox."
+      microsoftTone = "neutral"
+    }
+
+    let anyProviderConfigured = !spaceMailIMAPConnections.isEmpty || !gmailMailboxConnections.isEmpty || !microsoft365MailboxConnections.isEmpty
+    let anyProviderBlocked = spaceMailBlocked > 0 || gmailSetupBlockers > 0 || microsoftProblemCount > 0
     let anyOperatorWork = spaceMailImported + gmailImported + spaceMailUncertain + gmailUncertain + spaceMailParserIssues > 0
-    let anyRefreshEvidence = spaceMailFetched + gmailFetched + spaceMailFiltered + gmailFiltered > 0
+    let anyRefreshEvidence = spaceMailFetched + gmailFetched + microsoftFetched + spaceMailFiltered + gmailFiltered > 0
 
     let recommendedProvider: String
-    if !spaceMailIMAPConnections.isEmpty && !gmailMailboxConnections.isEmpty {
-      recommendedProvider = "SpaceMail + Gmail"
+    let configuredProviderNames = [
+      spaceMailIMAPConnections.isEmpty ? nil : "SpaceMail",
+      gmailMailboxConnections.isEmpty ? nil : "Gmail",
+      microsoft365MailboxConnections.isEmpty ? nil : "Outlook"
+    ].compactMap { $0 }
+    if configuredProviderNames.count > 1 {
+      recommendedProvider = configuredProviderNames.joined(separator: " + ")
     } else if !spaceMailIMAPConnections.isEmpty {
       recommendedProvider = "SpaceMail"
     } else if !gmailMailboxConnections.isEmpty {
       recommendedProvider = "Gmail"
+    } else if !microsoft365MailboxConnections.isEmpty {
+      recommendedProvider = "Outlook"
     } else {
       recommendedProvider = "Add provider"
     }
@@ -446,7 +501,7 @@ final class ParcelOpsStore {
     var decisionRules: [MailboxProviderDecisionRule] = [
       MailboxProviderDecisionRule(
         title: "Use the provider that hosts the mailbox",
-        detail: "SpaceMail is for IMAP-hosted mailboxes; Gmail is only for Gmail or Google Workspace mailboxes. Both providers import into the same local Inbox triage flow.",
+        detail: "SpaceMail is for IMAP-hosted mailboxes, Gmail is for Gmail or Google Workspace, and Microsoft 365 is for Outlook-hosted mailboxes. All providers feed the same local Inbox triage flow.",
         tone: "neutral",
         symbol: "mail.stack.fill"
       ),
@@ -464,11 +519,11 @@ final class ParcelOpsStore {
       )
     ]
 
-    if !spaceMailIMAPConnections.isEmpty && !gmailMailboxConnections.isEmpty {
+    if configuredProviderNames.count > 1 {
       decisionRules.insert(
         MailboxProviderDecisionRule(
-          title: "Both providers can run side by side",
-          detail: "Keep SpaceMail and Gmail setup records separate, then compare refresh results here before deciding which mailbox needs operator attention.",
+          title: "Provider paths can run side by side",
+          detail: "Keep each mailbox setup separate, then compare refresh results here before deciding which provider needs operator attention.",
           tone: "attention",
           symbol: "arrow.left.arrow.right.circle.fill"
         ),
@@ -491,6 +546,16 @@ final class ParcelOpsStore {
           detail: "Confirm IMAP host, folder, SSL/TLS, and Keychain credential before relying on real SpaceMail refresh.",
           tone: spaceMailBlocked > 0 ? "warning" : "attention",
           symbol: "server.rack"
+        ),
+        at: 1
+      )
+    } else if !microsoft365MailboxConnections.isEmpty {
+      decisionRules.insert(
+        MailboxProviderDecisionRule(
+          title: "Microsoft 365 is an advanced mailbox path",
+          detail: "Use Outlook/Microsoft Graph only for Outlook-hosted mailboxes, and keep read-only refresh explicit.",
+          tone: microsoftProblemCount > 0 ? "warning" : "attention",
+          symbol: "mail.stack.fill"
         ),
         at: 1
       )
@@ -518,11 +583,11 @@ final class ParcelOpsStore {
       tone = "neutral"
     }
 
-    if spaceMailIMAPConnections.isEmpty && gmailMailboxConnections.isEmpty {
+    if spaceMailIMAPConnections.isEmpty && gmailMailboxConnections.isEmpty && microsoft365MailboxConnections.isEmpty {
       actionItems.append(
         MailboxProviderActionItem(
           providerName: "Mailbox",
-          title: "Choose SpaceMail or Gmail",
+          title: "Choose a mailbox provider",
           detail: "Add the provider that hosts the mailbox you want ParcelOps to read manually.",
           priority: "1",
           tone: "warning",
@@ -627,6 +692,54 @@ final class ParcelOpsStore {
       }
     }
 
+    if !microsoft365MailboxConnections.isEmpty {
+      if microsoftProblemCount > 0 {
+        actionItems.append(
+          MailboxProviderActionItem(
+            providerName: "Outlook",
+            title: "Review Microsoft 365 diagnostics",
+            detail: "Auth, consent, or Graph refresh diagnostics need review before this provider can be trusted.",
+            priority: "1",
+            tone: "warning",
+            symbol: "exclamationmark.triangle.fill"
+          )
+        )
+      } else if microsoftSignedInCount == 0 && microsoftReadyCount == 0 {
+        actionItems.append(
+          MailboxProviderActionItem(
+            providerName: "Outlook",
+            title: "Finish Microsoft 365 readiness",
+            detail: "Complete tenant/client/redirect/scope placeholders before sign-in or Graph refresh.",
+            priority: "2",
+            tone: "neutral",
+            symbol: "checklist"
+          )
+        )
+      } else if microsoftSignedInCount == 0 {
+        actionItems.append(
+          MailboxProviderActionItem(
+            providerName: "Outlook",
+            title: "Test Microsoft sign-in",
+            detail: "Run sign-in only when this mailbox is Outlook-hosted and Graph refresh is needed.",
+            priority: "2",
+            tone: "attention",
+            symbol: "person.badge.key.fill"
+          )
+        )
+      } else {
+        actionItems.append(
+          MailboxProviderActionItem(
+            providerName: "Outlook",
+            title: "Keep Outlook as explicit refresh",
+            detail: "Run Graph refresh manually only when the Outlook mailbox is the active intake source.",
+            priority: "3",
+            tone: "neutral",
+            symbol: "mail.stack.fill"
+          )
+        )
+      }
+    }
+
     return MailboxProviderComparisonSummary(
       title: title,
       detail: detail,
@@ -634,11 +747,11 @@ final class ParcelOpsStore {
       recommendedProvider: recommendedProvider,
       metrics: [
         SpaceMailReleaseSnapshotMetric(title: "Providers", value: "\(mailboxProviderSetupCount)", tone: anyProviderConfigured ? "success" : "warning"),
-        SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(spaceMailFetched + gmailFetched)", tone: anyRefreshEvidence ? "neutral" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(spaceMailFetched + gmailFetched + microsoftFetched)", tone: anyRefreshEvidence ? "neutral" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(spaceMailImported + gmailImported)", tone: (spaceMailImported + gmailImported) > 0 ? "attention" : "neutral"),
         SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(spaceMailFiltered + gmailFiltered)", tone: (spaceMailFiltered + gmailFiltered) > 0 ? "success" : "neutral"),
         SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(spaceMailUncertain + gmailUncertain)", tone: (spaceMailUncertain + gmailUncertain) > 0 ? "attention" : "success"),
-        SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(spaceMailBlocked + gmailSetupBlockers)", tone: (spaceMailBlocked + gmailSetupBlockers) > 0 ? "warning" : "success")
+        SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(spaceMailBlocked + gmailSetupBlockers + microsoftProblemCount)", tone: (spaceMailBlocked + gmailSetupBlockers + microsoftProblemCount) > 0 ? "warning" : "success")
       ],
       decisionRules: Array(decisionRules.prefix(4)),
       providers: [
@@ -665,6 +778,18 @@ final class ParcelOpsStore {
           importedCount: gmailImported,
           blockedCount: gmailSetupBlockers,
           uncertainCount: gmailUncertain
+        ),
+        MailboxProviderComparisonItem(
+          providerName: "Outlook",
+          statusTitle: microsoftStatusTitle,
+          detail: microsoftDetail,
+          nextAction: microsoftNextAction,
+          tone: microsoftTone,
+          symbol: "mail.stack.fill",
+          fetchedCount: microsoftFetched,
+          importedCount: 0,
+          blockedCount: microsoftProblemCount,
+          uncertainCount: 0
         )
       ],
       actionItems: actionItems.sorted { lhs, rhs in
@@ -7272,11 +7397,13 @@ final class ParcelOpsStore {
   }
 
   var hasMailboxCredentialOrAuthReadiness: Bool {
-    hasSpaceMailCredentialReadiness || hasGmailConnectedAuth
+    hasSpaceMailCredentialReadiness || hasGmailConnectedAuth || microsoft365MailboxConnections.contains {
+      microsoft365AuthSessionState(for: $0).status == .connected
+    }
   }
 
   var mailboxProviderSetupCount: Int {
-    spaceMailIMAPConnections.count + gmailMailboxConnections.count
+    spaceMailIMAPConnections.count + gmailMailboxConnections.count + microsoft365MailboxConnections.count
   }
 
   var hasMailboxProviderSetup: Bool {
