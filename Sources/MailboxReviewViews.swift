@@ -2489,6 +2489,64 @@ struct MailboxGmailReadinessPanel: View {
     return blockers.isEmpty ? readiness.detailText : blockers
   }
 
+  private var callbackOverviewRows: [(title: String, value: String, detail: String, color: Color)] {
+    guard let connection = primaryConnection,
+          let readiness = primaryReadiness else {
+      return []
+    }
+
+    let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let savedClientStatus: String
+    if clientID.isEmpty {
+      savedClientStatus = "Missing"
+    } else if clientID.localizedCaseInsensitiveContains("placeholder") {
+      savedClientStatus = "Placeholder"
+    } else if clientID.hasSuffix(".apps.googleusercontent.com") {
+      savedClientStatus = "Saved"
+    } else {
+      savedClientStatus = "Review format"
+    }
+
+    let savedScheme = (connection.redirectURIPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let savedSchemeStatus: String
+    if savedScheme.isEmpty {
+      savedSchemeStatus = "Missing"
+    } else if savedScheme.localizedCaseInsensitiveContains("placeholder") {
+      savedSchemeStatus = "Placeholder"
+    } else if savedScheme.hasPrefix("com.googleusercontent.apps.") {
+      savedSchemeStatus = "Saved"
+    } else {
+      savedSchemeStatus = "Review format"
+    }
+
+    return [
+      (
+        "Saved client",
+        savedClientStatus,
+        savedClientStatus == "Saved" ? "Google iOS OAuth client ID is saved as non-secret setup data." : "Open Gmail setup and save the Google iOS OAuth client ID.",
+        savedClientStatus == "Saved" ? .green : .orange
+      ),
+      (
+        "Saved callback",
+        savedSchemeStatus,
+        savedSchemeStatus == "Saved" ? "Reversed Google client ID URL scheme is saved as non-secret setup data." : "Open Gmail setup and save the reversed Google client ID URL scheme.",
+        savedSchemeStatus == "Saved" ? .green : .orange
+      ),
+      (
+        "Compiled client",
+        readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("matches") ? "Matches" : "Blocked",
+        readiness.compiledClientIDStatus,
+        readiness.compiledClientIDStatus.localizedCaseInsensitiveContains("matches") ? .green : .orange
+      ),
+      (
+        "Compiled callback",
+        readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes") ? "Matches" : "Blocked",
+        readiness.compiledCallbackSchemeStatus,
+        readiness.compiledCallbackSchemeStatus.localizedCaseInsensitiveContains("includes") ? .green : .orange
+      )
+    ]
+  }
+
   private var hasConnectedAuth: Bool {
     primaryAuthState?.status == .connected
   }
@@ -2672,6 +2730,42 @@ struct MailboxGmailReadinessPanel: View {
           ("Uncertain", "\(pendingUncertainCount)", pendingUncertainCount == 0 ? .green : .orange)
         ])
 
+        if let readiness = primaryReadiness {
+          VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+              Label("Gmail callback match", systemImage: "app.badge.checkmark")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(hasCompiledCallbackReadiness ? .green : .orange)
+              Spacer()
+              Badge(readiness.isReady ? "Matches" : "Blocked", color: readiness.isReady ? .green : .orange)
+            }
+            Text("Expected callback scheme: \(readiness.expectedCallbackScheme)")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            CompactMetadataGrid(minimumWidth: 150) {
+              ForEach(callbackOverviewRows, id: \.title) { row in
+                VStack(alignment: .leading, spacing: 3) {
+                  Badge("\(row.title): \(row.value)", color: row.color)
+                  Text(row.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(row.color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+              }
+            }
+            Text("This check is local. It does not start Google sign-in, request tokens, call Gmail APIs, or mutate mailbox messages.")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .background((hasCompiledCallbackReadiness ? Color.green : Color.orange).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
         CompactMetadataGrid(minimumWidth: 190) {
           ForEach(Array(checklistItems.enumerated()), id: \.offset) { index, item in
             GmailReadinessChecklistCard(index: index + 1, item: item)
@@ -2743,6 +2837,12 @@ struct MailboxGmailReadinessPanel: View {
             TasksView(store: store)
           } label: {
             Label("Open Tasks", systemImage: "checklist")
+          }
+          Button("Record Gmail snapshot", systemImage: "camera.metering.center.weighted") {
+            store.recordGmailReleaseReadinessSnapshot()
+          }
+          Button("Create Gmail readiness task", systemImage: "checklist.badge.plus") {
+            store.createReviewTaskFromGmailReleaseReadinessSnapshot()
           }
         }
         .buttonStyle(.bordered)
