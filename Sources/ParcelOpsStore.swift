@@ -821,7 +821,8 @@ final class ParcelOpsStore {
       unresolvedIntakeCount += 1
     }
     let providerBlockers = comparison.providers.reduce(0) { $0 + $1.blockedCount }
-    let latestDates = (spaceMailSummaries.map(\.lastRefreshDate) + gmailSummaries.map(\.lastRefreshDate))
+    let microsoft365RefreshDates = microsoft365MailboxConnections.map(\.lastManualRefreshDate)
+    let latestDates = (spaceMailSummaries.map(\.lastRefreshDate) + gmailSummaries.map(\.lastRefreshDate) + microsoft365RefreshDates)
       .filter { !$0.isEmpty && $0 != "Never" }
     let lastEvidenceText = latestDates.first ?? "No real mailbox refresh evidence yet"
 
@@ -1074,6 +1075,25 @@ final class ParcelOpsStore {
           isComplete: gmailFetched > 0,
           tone: gmailFetched > 0 ? (gmailImported + gmailUncertain > 0 ? "attention" : "success") : "attention",
           symbol: "envelope.badge.shield.half.filled"
+        )
+      )
+    }
+
+    if !microsoft365MailboxConnections.isEmpty {
+      let signedInCount = microsoft365MailboxConnections.filter { microsoft365AuthSessionState(for: $0).status == .connected }.count
+      let microsoftFetched = microsoft365MailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+      let readyCount = microsoft365MailboxConnections.filter { microsoft365OAuthReadinessSummary(for: $0).isReady }.count
+      items.append(
+        MailboxProviderTestQueueItem(
+          providerName: "Outlook",
+          phase: "Refresh",
+          title: microsoftFetched > 0 ? "Outlook refresh evidence exists" : signedInCount > 0 ? "Run Outlook manual refresh" : "Test Microsoft sign-in",
+          detail: microsoftFetched > 0 ? "Outlook has Microsoft Graph refresh evidence available for operator review." : signedInCount > 0 ? "A Microsoft account is connected, but no Graph fetch evidence is recorded yet." : "Microsoft 365 setup exists but needs a connected sign-in before real Graph refresh.",
+          nextAction: microsoftFetched > 0 ? "Review Outlook fetch, duplicate, and auth diagnostics." : signedInCount > 0 ? "Run real Graph refresh when checking an Outlook-hosted mailbox." : "Run Test real Microsoft sign-in before refresh.",
+          evidence: "\(readyCount) ready setup, \(signedInCount) signed in, \(microsoftFetched) refresh run\(microsoftFetched == 1 ? "" : "s").",
+          isComplete: microsoftFetched > 0,
+          tone: microsoftFetched > 0 ? "success" : "attention",
+          symbol: "mail.stack.fill"
         )
       )
     }
@@ -4117,7 +4137,7 @@ final class ParcelOpsStore {
     let intakeQA = mailboxIntakeQualitySummary
     let warningBlockers = blockers.blockers.filter { $0.tone == "warning" }.count
     let reviewBlockers = blockers.blockers.filter { $0.tone == "attention" }.count
-    let hasProviderSetup = !spaceMailIMAPConnections.isEmpty || !gmailMailboxConnections.isEmpty
+    let hasProviderSetup = !spaceMailIMAPConnections.isEmpty || !gmailMailboxConnections.isEmpty || !microsoft365MailboxConnections.isEmpty
     let hasRefreshEvidence = !timeline.entries.isEmpty
     let openInboxCount = reviewIntakeEmails.count
     let uncertainCount = spaceMailIMAPConnections.reduce(0) { $0 + max($1.uncertainMessages.count, $1.lastRefreshUncertainCount) }
@@ -4238,8 +4258,11 @@ final class ParcelOpsStore {
 
     let spaceMail = spaceMailIMAPConnections.first
     let gmail = gmailMailboxConnections.first
+    let microsoft365 = microsoft365MailboxConnections.first
     let gmailReadiness = gmail.map(gmailOAuthReadinessSummary(for:))
     let gmailAuth = gmail.map(gmailAuthSessionState(for:))
+    let microsoft365Readiness = microsoft365.map(microsoft365OAuthReadinessSummary(for:))
+    let microsoft365Auth = microsoft365.map(microsoft365AuthSessionState(for:))
 
     let spaceMailChecks = [
       MailboxProviderSetupChecklistItem(
@@ -4319,6 +4342,44 @@ final class ParcelOpsStore {
       )
     ]
 
+    let microsoft365Checks = [
+      MailboxProviderSetupChecklistItem(
+        title: "Setup record",
+        detail: microsoft365 == nil ? "Add Microsoft 365 only for Outlook-hosted mailboxes." : "\(microsoft365?.displayName ?? "Microsoft 365") is saved locally.",
+        isComplete: microsoft365 != nil,
+        tone: microsoft365 == nil ? "neutral" : "success",
+        symbol: "mail.stack.fill"
+      ),
+      MailboxProviderSetupChecklistItem(
+        title: "OAuth placeholders",
+        detail: microsoft365Readiness?.missingFields.isEmpty == true ? "Microsoft Entra OAuth setup is complete enough for sign-in testing." : (microsoft365Readiness?.missingFields.prefix(3).joined(separator: ", ") ?? "Tenant ID, client ID, redirect URI, scopes, and consent notes are not configured."),
+        isComplete: microsoft365Readiness?.isReady == true,
+        tone: microsoft365Readiness?.isReady == true ? "success" : (microsoft365 == nil ? "neutral" : "warning"),
+        symbol: "person.badge.key.fill"
+      ),
+      MailboxProviderSetupChecklistItem(
+        title: "Auth session",
+        detail: microsoft365Auth == nil ? "No Microsoft 365 auth state yet." : "Status: \(microsoft365Auth?.status.rawValue ?? "Unknown").",
+        isComplete: microsoft365Auth?.status == .connected,
+        tone: microsoft365Auth?.status == .connected ? "success" : (microsoft365 == nil ? "neutral" : "attention"),
+        symbol: "person.crop.circle.badge.checkmark"
+      ),
+      MailboxProviderSetupChecklistItem(
+        title: "Read-only scopes",
+        detail: microsoft365?.requestedScopesSummary ?? "Plan User.Read and Mail.Read before real Outlook refresh.",
+        isComplete: microsoft365?.requestedScopesSummary.localizedCaseInsensitiveContains("Mail.Read") == true,
+        tone: microsoft365?.requestedScopesSummary.localizedCaseInsensitiveContains("Mail.Read") == true ? "success" : (microsoft365 == nil ? "neutral" : "attention"),
+        symbol: "lock.doc.fill"
+      ),
+      MailboxProviderSetupChecklistItem(
+        title: "Manual refresh evidence",
+        detail: microsoft365 == nil ? "No Outlook refresh has run." : "Last refresh: \(microsoft365?.lastManualRefreshDate ?? "Never"). \(microsoft365?.connectionStatus ?? "")",
+        isComplete: microsoft365.map { $0.lastManualRefreshDate != "Never" } ?? false,
+        tone: microsoft365.map { $0.lastManualRefreshDate != "Never" } == true ? "success" : (microsoft365 == nil ? "neutral" : "attention"),
+        symbol: "arrow.clockwise.circle.fill"
+      )
+    ]
+
     func providerTone(for checks: [MailboxProviderSetupChecklistItem], optional: Bool = false) -> String {
       let incompleteRequired = checks.filter { !$0.isComplete && $0.tone != "neutral" }.count
       if optional && checks.allSatisfy({ $0.tone == "neutral" || !$0.isComplete }) {
@@ -4330,9 +4391,10 @@ final class ParcelOpsStore {
       return incompleteRequired == 0 ? "success" : "attention"
     }
 
-    let spaceMailIsOptional = spaceMail == nil && gmail != nil
+    let spaceMailIsOptional = spaceMail == nil && (gmail != nil || microsoft365 != nil)
     let spaceMailTone = providerTone(for: spaceMailChecks, optional: spaceMailIsOptional)
     let gmailTone = providerTone(for: gmailChecks, optional: gmail == nil)
+    let microsoft365Tone = providerTone(for: microsoft365Checks, optional: microsoft365 == nil)
     let providers = [
       MailboxProviderSetupChecklistProvider(
         providerName: "SpaceMail IMAP",
@@ -4351,20 +4413,39 @@ final class ParcelOpsStore {
         tone: gmailTone,
         symbol: "g.circle.fill",
         checks: gmailChecks
+      ),
+      MailboxProviderSetupChecklistProvider(
+        providerName: "Outlook",
+        status: microsoft365 == nil ? "Optional, not configured" : (microsoft365Tone == "success" ? "Ready for Microsoft Graph refresh checks" : "Outlook setup needs attention"),
+        detail: "Use only for Microsoft 365 or Outlook-hosted mailboxes. MSAL manages its token cache; token values are not stored in JSON.",
+        nextAction: microsoft365 == nil ? "Leave Outlook unconfigured unless a Microsoft 365 mailbox is needed." : "Complete Entra/OAuth setup and sign in before real Graph refresh testing.",
+        tone: microsoft365Tone,
+        symbol: "mail.stack.fill",
+        checks: microsoft365Checks
       )
     ]
 
-    let requiredChecks = (spaceMail == nil && gmail != nil ? [] : spaceMailChecks) + (gmail == nil ? [] : gmailChecks)
+    var requiredChecks: [MailboxProviderSetupChecklistItem] = []
+    if !(spaceMail == nil && (gmail != nil || microsoft365 != nil)) {
+      requiredChecks.append(contentsOf: spaceMailChecks)
+    }
+    if gmail != nil {
+      requiredChecks.append(contentsOf: gmailChecks)
+    }
+    if microsoft365 != nil {
+      requiredChecks.append(contentsOf: microsoft365Checks)
+    }
     let completedChecks = requiredChecks.filter(\.isComplete).count
     let totalChecks = requiredChecks.count
     let requiredWarnings = requiredChecks.filter { !$0.isComplete && $0.tone == "warning" }.count
     let refreshEvidence = spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
       || gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
     let summaryTone = requiredWarnings > 0 ? "warning" : (refreshEvidence ? "success" : "attention")
 
     return MailboxProviderSetupChecklistSummary(
       title: summaryTone == "success" ? "Provider setup checklist is usable" : "Provider setup checklist needs review",
-      detail: "Compare SpaceMail and Gmail prerequisites before running manual mailbox refreshes. This checklist reads local setup state only.",
+      detail: "Compare SpaceMail, Gmail, and Outlook prerequisites before running manual mailbox refreshes. This checklist reads local setup state only.",
       tone: summaryTone,
       metrics: [
         SpaceMailReleaseSnapshotMetric(title: "Configured", value: "\(mailboxProviderSetupCount)", tone: hasMailboxProviderSetup ? "success" : "warning"),
