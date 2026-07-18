@@ -26434,15 +26434,8 @@ final class ParcelOpsStore {
       .joined(separator: "\n")
     let packetBlockers = item.operatorPurchaseBlockers
     let orderLink = handoff?.linkedOrderID?.uuidString ?? "No local order linked yet"
-    createDraftMessage(
-      linkedEntityType: .wishlistItem,
-      linkedEntityID: item.id.uuidString,
-      label: item.itemName,
-      recipient: item.owner
-    )
-    if let draftIndex = draftMessages.firstIndex(where: { $0.linkedEntityID == item.id.uuidString && $0.linkedEntityType == .wishlistItem }) {
-      draftMessages[draftIndex].subject = "Wishlist purchase review: \(item.itemName)"
-      draftMessages[draftIndex].body = """
+    let subject = "Wishlist purchase review: \(item.itemName)"
+    let body = """
       Please review this wishlist item before purchase.
 
       Item: \(item.itemName)
@@ -26475,15 +26468,61 @@ final class ParcelOpsStore {
 
       Confirm live price, stock, total landed AUD cost, postage time, seller trust, returns/warranty, delivery address, account access, and payment method outside ParcelOps before buying. ParcelOps has not purchased anything, sent a message, accessed a retailer account, or stored payment details.
       """
+
+    let auditDetail = """
+      \(item.auditDetail)
+      Draft only. No outbound email was sent, no retailer was contacted, no browser automation ran, and no purchase or payment action occurred.
+      """
+
+    if let draftIndex = draftMessages.firstIndex(where: {
+      $0.linkedEntityID == item.id.uuidString
+        && $0.linkedEntityType == .wishlistItem
+        && $0.subject.localizedCaseInsensitiveContains("wishlist purchase review")
+        && $0.status != .sentLocally
+    }) {
+      let beforeDetail = draftMessages[draftIndex].auditDetail
+      draftMessages[draftIndex].recipient = item.owner
+      draftMessages[draftIndex].subject = subject
+      draftMessages[draftIndex].body = body
+      draftMessages[draftIndex].channel = .email
+      draftMessages[draftIndex].reviewState = .needsReview
+      if draftMessages[draftIndex].status == .ready {
+        draftMessages[draftIndex].status = .reopened
+      }
       persistDraftMessages()
+      logAudit(
+        action: .edited,
+        entityType: .draftMessage,
+        entityID: draftMessages[draftIndex].id.uuidString,
+        entityLabel: draftMessages[draftIndex].subject,
+        summary: "Existing Wishlist purchase review draft refreshed locally.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(draftMessages[draftIndex].auditDetail)\n\(auditDetail)\nNo duplicate purchase review draft was created. Purchase packet and research drafts were left unchanged."
+      )
+      return
     }
+
+    let draft = DraftMessage(
+      linkedEntityType: .wishlistItem,
+      linkedEntityID: item.id.uuidString,
+      templateID: nil,
+      recipient: item.owner,
+      subject: subject,
+      body: body,
+      channel: .email,
+      createdDate: Self.auditTimestamp(),
+      status: .draft,
+      reviewState: .needsReview
+    )
+    draftMessages.insert(draft, at: 0)
+    persistDraftMessages()
     logAudit(
       action: .created,
       entityType: .draftMessage,
-      entityID: draftMessages.first(where: { $0.linkedEntityID == item.id.uuidString && $0.linkedEntityType == .wishlistItem })?.id.uuidString ?? item.id.uuidString,
-      entityLabel: item.itemName,
+      entityID: draft.id.uuidString,
+      entityLabel: draft.subject,
       summary: "Wishlist purchase review draft created locally.",
-      afterDetail: "\(item.auditDetail)\nDraft only. No outbound email was sent, no retailer was contacted, no browser automation ran, and no purchase or payment action occurred."
+      afterDetail: auditDetail
     )
   }
 
