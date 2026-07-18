@@ -312,19 +312,35 @@ struct CostsBudgetsView: View {
   }
 
   private var gmailCostReadinessPanel: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail cost readiness",
-      lead: "Gmail-origin intake should create cost, budget, or reimbursement work only after Gmail setup is ready and the imported Inbox order has confirmed charge, vendor, evidence, and owner context.",
-      sourceMetricTitle: "Gmail cost sources",
-      sourceCount: gmailCostSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, process payments, connect accounting systems, or change cost records automatically."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail cost readiness",
+        lead: "Gmail-origin intake should create cost, budget, or reimbursement work only after Gmail setup is ready and the imported Inbox order has confirmed charge, vendor, evidence, and owner context.",
+        sourceMetricTitle: "Gmail cost sources",
+        sourceCount: gmailCostSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, process payments, connect accounting systems, or change cost records automatically."
+      )
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook cost readiness",
+        lead: "Outlook-origin intake should create cost, budget, or reimbursement work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order charge, vendor, evidence, and owner context are clear.",
+        sourceMetricTitle: "Outlook cost sources",
+        sourceCount: microsoft365CostSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, process payments, connect accounting systems, or change cost records automatically."
+      )
+    }
   }
 
   private var gmailCostSourceCount: Int {
     costProviderRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
+  private var microsoft365CostSourceCount: Int {
+    costProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
       .reduce(0) { total, row in total + row.count }
   }
 

@@ -172,19 +172,35 @@ struct PackageContentsView: View {
   }
 
   private var gmailPackageContentReadinessPanel: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail package content readiness",
-      lead: "Gmail-origin intake should create package content work only after Gmail setup is ready and a person confirms the imported Inbox order and item details.",
-      sourceMetricTitle: "Gmail content sources",
-      sourceCount: gmailPackageContentSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, scan barcodes, run OCR, connect inventory, or change package content records automatically."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail package content readiness",
+        lead: "Gmail-origin intake should create package content work only after Gmail setup is ready and a person confirms the imported Inbox order and item details.",
+        sourceMetricTitle: "Gmail content sources",
+        sourceCount: gmailPackageContentSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, scan barcodes, run OCR, connect inventory, or change package content records automatically."
+      )
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook package content readiness",
+        lead: "Outlook-origin intake should create package content work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order/item details are clear.",
+        sourceMetricTitle: "Outlook content sources",
+        sourceCount: microsoft365PackageContentSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, scan barcodes, run OCR, connect inventory, or change package content records automatically."
+      )
+    }
   }
 
   private var gmailPackageContentSourceCount: Int {
     packageContentProviderRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
+  private var microsoft365PackageContentSourceCount: Int {
+    packageContentProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
       .reduce(0) { total, row in total + row.count }
   }
 

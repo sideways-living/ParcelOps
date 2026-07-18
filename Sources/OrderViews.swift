@@ -316,14 +316,24 @@ struct OrdersView: View {
   }
 
   private var gmailOrderReadinessPanel: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail order readiness",
-      lead: "Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence are provider-readiness work. Orders should only change after a confirmed Inbox row or source record is created or linked as an order.",
-      sourceMetricTitle: "Gmail imported",
-      sourceCount: latestGmailSummary?.importedCount ?? 0,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create orders automatically, or mutate mailbox messages."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail order readiness",
+        lead: "Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence are provider-readiness work. Orders should only change after a confirmed Inbox row or source record is created or linked as an order.",
+        sourceMetricTitle: "Gmail imported",
+        sourceCount: latestGmailSummary?.importedCount ?? 0,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create orders automatically, or mutate mailbox messages."
+      )
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook order readiness",
+        lead: "Microsoft setup, sign-in, Graph diagnostics, Inbox handoff, and audit evidence are provider-readiness work. Orders should only change after a confirmed Outlook Inbox row or source record is created or linked as an order.",
+        sourceMetricTitle: "Outlook imported",
+        sourceCount: latestMicrosoft365Summary?.importedCount ?? 0,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, create orders automatically, or mutate mailbox messages."
+      )
+    }
   }
 
   private var header: some View {
