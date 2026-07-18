@@ -2915,6 +2915,99 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertTrue(store.latestActiveMailboxEvidenceText.contains("Outlook latest: 2 fetched, 1 imported"))
   }
 
+  func testMicrosoft365ReleaseSelfCheckBlocksMissingOAuthReadiness() throws {
+    var connection = makeMicrosoft365Connection(
+      connectionStatus: "Not connected",
+      lastManualRefreshDate: "Never"
+    )
+    connection.clientIDPlaceholder = ""
+    connection.requestedScopesSummary = ""
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = [connection]
+    store.microsoft365AuthSessionStates = [:]
+    store.auditEvents = []
+
+    let summary = store.microsoft365ReleaseSelfCheckSummary(for: connection)
+
+    XCTAssertEqual(summary.verdict, "Outlook release blocked")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertEqual(summary.totalCount, 8)
+    XCTAssertTrue(summary.items.contains { $0.title == "OAuth readiness" && !$0.isComplete && $0.tone == "warning" })
+    XCTAssertTrue(summary.items.contains { $0.title == "Mail.Read consent" && !$0.isComplete && $0.tone == "warning" })
+    XCTAssertEqual(summary.graphBlockerCount, 0)
+  }
+
+  func testMicrosoft365ReleaseSelfCheckSurfacesConnectedImportEvidence() throws {
+    let mailboxID = UUID()
+    let connection = makeMicrosoft365Connection(
+      id: mailboxID,
+      connectionStatus: "Real Graph: Fetch success",
+      lastManualRefreshDate: "Today"
+    )
+    let intake = ForwardedEmailIntake(
+      sender: "orders@example.test",
+      subject: "Order OUTLOOK-456 shipped",
+      receivedDate: "Today",
+      rawBodyPreview: "Order OUTLOOK-456 shipped tracking MSFT456",
+      detectedMerchant: "Example Store",
+      detectedOrderNumber: "OUTLOOK-456",
+      detectedTrackingNumber: "MSFT456",
+      detectedDestinationAddress: "Destination needs review",
+      linkedOrderID: nil,
+      reviewState: .needsReview
+    )
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = [connection]
+    store.intakeEmails = [intake]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "outlook-release-import",
+        sourceMailboxID: mailboxID,
+        intakeEmailID: intake.id,
+        capturedDate: "Today",
+        status: .imported,
+        summary: "Imported Outlook message"
+      )
+    ]
+    store.microsoft365AuthSessionStates = [
+      mailboxID: Microsoft365AuthSessionState(
+        connectionID: mailboxID,
+        status: .connected,
+        signedInAccount: "orders@example.test",
+        lastAuthAttemptDate: "Today",
+        lastSuccessfulAuthDate: "Today",
+        keychainStatus: "MSAL token cache managed by MSAL",
+        tokenStoreStatus: .mockTokenReferenceAvailable,
+        tokenStoreDetail: "No token values stored in JSON.",
+        detailText: "Identity sign-in available."
+      )
+    ]
+    store.auditEvents = [
+      AuditEvent(
+        timestamp: "Today",
+        actor: "Local user",
+        action: .evaluated,
+        entityType: .microsoft365MailboxConnection,
+        entityID: mailboxID.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Real Microsoft Graph mailbox fetch completed.",
+        afterDetail: "Imported 1 message."
+      )
+    ]
+
+    let summary = store.microsoft365ReleaseSelfCheckSummary(for: connection)
+
+    XCTAssertEqual(summary.graphBlockerCount, 0)
+    XCTAssertTrue(summary.items.contains { $0.title == "Microsoft sign-in" && $0.isComplete })
+    XCTAssertTrue(summary.items.contains { $0.title == "Manual Graph refresh" && $0.isComplete })
+    XCTAssertTrue(summary.items.contains { $0.title == "Audit evidence" && $0.isComplete })
+    XCTAssertTrue(summary.detail.contains("Latest health: Outlook order intake captured"))
+  }
+
   func testTotalMailboxCountsIncludeMicrosoft365Evidence() {
     let outlookID = UUID()
     let connection = makeMicrosoft365Connection(

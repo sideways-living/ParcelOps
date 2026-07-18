@@ -28057,6 +28057,138 @@ final class ParcelOpsStore {
     )
   }
 
+  func microsoft365ReleaseSelfCheckSummary(for connection: Microsoft365MailboxConnection) -> Microsoft365ReleaseSelfCheckSummary {
+    let readiness = microsoft365OAuthReadinessSummary(for: connection)
+    let implementationPlan = microsoft365OAuthImplementationPlan(for: connection)
+    let authState = microsoft365AuthSessionState(for: connection)
+    let health = microsoft365IntakeHealthSummary(for: connection)
+    let hasSignedIn = authState.status == .connected
+    let hasRefreshOutcome = health.fetchedCount > 0 ||
+      health.importedCount > 0 ||
+      health.duplicateCount > 0 ||
+      health.duplicateRefreshedCount > 0 ||
+      health.blockedCount > 0 ||
+      connection.lastManualRefreshDate != "Never"
+    let hasMailReadScope = connection.requestedScopesSummary.localizedCaseInsensitiveContains("Mail.Read")
+    let hasGraphDiagnostics = health.blockedCount > 0 ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("Graph") ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("auth") ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("token")
+    let hasAuditEvidence = auditEvents.contains { event in
+      event.entityType == .microsoft365MailboxConnection &&
+        (event.entityID == connection.id.uuidString || event.entityLabel == connection.displayName)
+    }
+    let hasMailboxAddress = !connection.mailboxAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+    let items = [
+      Microsoft365ReleaseSelfCheckItem(
+        title: "Provider fit",
+        detail: "Use Outlook/Microsoft 365 only when this mailbox is Microsoft-hosted. SpaceMail remains the IMAP path and Gmail remains the Google-hosted path.",
+        nextAction: "Confirm the mailbox host before relying on Graph refresh.",
+        isComplete: hasMailboxAddress,
+        tone: hasMailboxAddress ? "success" : "attention",
+        symbolName: "server.rack"
+      ),
+      Microsoft365ReleaseSelfCheckItem(
+        title: "OAuth readiness",
+        detail: readiness.detailText,
+        nextAction: readiness.isReady ? "No setup placeholder action needed before sign-in." : "Fill tenant ID, client ID, redirect URI, scopes, and consent notes.",
+        isComplete: readiness.isReady,
+        tone: readiness.isReady ? "success" : "warning",
+        symbolName: "gearshape.2.fill"
+      ),
+      Microsoft365ReleaseSelfCheckItem(
+        title: "Implementation plan",
+        detail: "\(implementationPlan.completedCount)/\(implementationPlan.totalCount) planning checks complete.",
+        nextAction: implementationPlan.completedCount == implementationPlan.totalCount ? "Planning checklist is complete." : "Review the OAuth implementation checklist before relying on this path.",
+        isComplete: implementationPlan.completedCount == implementationPlan.totalCount,
+        tone: implementationPlan.completedCount == implementationPlan.totalCount ? "success" : "attention",
+        symbolName: "checklist.checked"
+      ),
+      Microsoft365ReleaseSelfCheckItem(
+        title: "Microsoft sign-in",
+        detail: hasSignedIn ? "MSAL reports a connected account: \(authState.signedInAccount)." : "No connected Microsoft session is recorded for this setup.",
+        nextAction: hasSignedIn ? "Proceed to manual read-only Graph refresh." : "Run Test real Microsoft sign-in from the setup row.",
+        isComplete: hasSignedIn,
+        tone: hasSignedIn ? "success" : "attention",
+        symbolName: "person.badge.key"
+      ),
+      Microsoft365ReleaseSelfCheckItem(
+        title: "Mail.Read consent",
+        detail: hasMailReadScope ? "Requested scopes include Mail.Read for read-only message fetch." : "Mail.Read is not visible in the scope placeholder.",
+        nextAction: hasMailReadScope ? "Confirm consent if Graph returns an auth challenge." : "Add Mail.Read to the requested scope summary before real Graph refresh.",
+        isComplete: hasMailReadScope,
+        tone: hasMailReadScope ? "success" : "warning",
+        symbolName: "lock.shield.fill"
+      ),
+      Microsoft365ReleaseSelfCheckItem(
+        title: "Manual Graph refresh",
+        detail: hasRefreshOutcome ? health.compactRefreshCountsText : "No real or diagnostic Graph refresh outcome is recorded yet.",
+        nextAction: hasRefreshOutcome ? health.nextAction : "Run real Graph refresh after sign-in, or use mock refresh for workflow testing.",
+        isComplete: hasRefreshOutcome,
+        tone: health.blockedCount > 0 ? "warning" : hasRefreshOutcome ? "success" : "neutral",
+        symbolName: "tray.and.arrow.down"
+      ),
+      Microsoft365ReleaseSelfCheckItem(
+        title: "Diagnostics path",
+        detail: hasGraphDiagnostics ? "Graph/Auth diagnostic evidence exists for this mailbox." : "No Microsoft sign-in or Graph diagnostic evidence is recorded yet.",
+        nextAction: hasGraphDiagnostics ? "Use Audit only when detailed diagnostics are needed." : "Run sign-in or refresh to create safe diagnostics if this provider is active.",
+        isComplete: hasGraphDiagnostics,
+        tone: hasGraphDiagnostics ? "success" : "neutral",
+        symbolName: "stethoscope"
+      ),
+      Microsoft365ReleaseSelfCheckItem(
+        title: "Audit evidence",
+        detail: hasAuditEvidence ? "Audit contains Microsoft setup, sign-in, token, Graph, or review evidence for this mailbox." : "No Microsoft 365 audit evidence is recorded for this setup yet.",
+        nextAction: hasAuditEvidence ? "Use Audit for exact action history." : "Run a readiness check, sign-in test, mock refresh, or real refresh to create audit evidence.",
+        isComplete: hasAuditEvidence,
+        tone: hasAuditEvidence ? "success" : "neutral",
+        symbolName: "list.clipboard.fill"
+      )
+    ]
+
+    let completedCount = items.filter(\.isComplete).count
+    let blockingCount = items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    let attentionCount = items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    let verdict: String
+    let tone: String
+    let nextAction: String
+    if blockingCount > 0 {
+      verdict = "Outlook release blocked"
+      tone = "warning"
+      nextAction = items.first { !$0.isComplete && $0.tone == "warning" }?.nextAction ?? "Fix Outlook setup blockers."
+    } else if attentionCount > 0 {
+      verdict = "Outlook needs operator action"
+      tone = "attention"
+      nextAction = items.first { !$0.isComplete && $0.tone == "attention" }?.nextAction ?? "Complete the next Outlook setup action."
+    } else if health.importedCount > 0 || health.duplicateRefreshedCount > 0 {
+      verdict = "Outlook created review work"
+      tone = "attention"
+      nextAction = health.nextAction
+    } else if completedCount == items.count {
+      verdict = "Outlook path ready"
+      tone = "success"
+      nextAction = "Run manual Graph refresh only when you want to check for new Outlook order updates."
+    } else {
+      verdict = "Outlook path partially ready"
+      tone = "neutral"
+      nextAction = items.first { !$0.isComplete }?.nextAction ?? "Continue Outlook setup testing."
+    }
+
+    return Microsoft365ReleaseSelfCheckSummary(
+      connectionID: connection.id,
+      title: "Outlook release self-check",
+      verdict: verdict,
+      detail: "\(completedCount)/\(items.count) checks complete. Latest health: \(health.verdict).",
+      nextAction: nextAction,
+      tone: tone,
+      completedCount: completedCount,
+      totalCount: items.count,
+      graphBlockerCount: health.blockedCount,
+      items: items
+    )
+  }
+
   func gmailOAuthReadinessSummary(for connection: GmailMailboxConnection) -> GmailOAuthReadinessSummary {
     var missingFields: [String] = []
     let clientID = (connection.oauthClientIDPlaceholder ?? "").trimmingCharacters(in: .whitespacesAndNewlines)

@@ -1802,6 +1802,30 @@ struct GmailReleaseSelfCheckItem: Identifiable, Hashable {
   var symbolName: String
 }
 
+struct Microsoft365ReleaseSelfCheckSummary: Identifiable, Hashable {
+  var id: UUID { connectionID }
+  var connectionID: UUID
+  var title: String
+  var verdict: String
+  var detail: String
+  var nextAction: String
+  var tone: String
+  var completedCount: Int
+  var totalCount: Int
+  var graphBlockerCount: Int
+  var items: [Microsoft365ReleaseSelfCheckItem]
+}
+
+struct Microsoft365ReleaseSelfCheckItem: Identifiable, Hashable {
+  var id: String { title }
+  var title: String
+  var detail: String
+  var nextAction: String
+  var isComplete: Bool
+  var tone: String
+  var symbolName: String
+}
+
 struct GmailAuthSessionState: Identifiable, Hashable {
   var id: UUID { connectionID }
   var connectionID: UUID
