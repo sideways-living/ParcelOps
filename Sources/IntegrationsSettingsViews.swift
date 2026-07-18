@@ -98,6 +98,64 @@ struct IntegrationsView: View {
     }
     return "Run real Gmail refresh manually only after setup readiness and Google sign-in are clear."
   }
+  private var gmailLatestOutcomeTitle: String {
+    guard hasGmailSetup else { return "Gmail is optional" }
+    guard let summary = latestGmailSummary else { return "Gmail has no refresh result yet" }
+    if summary.tone == "warning" { return "Gmail latest result needs setup review" }
+    if summary.importedCount > 0 { return "Gmail imported likely order mail" }
+    if summary.totalUncertainCount > 0 { return "Gmail has uncertain messages to review" }
+    if summary.filteredCount > 0 { return "Gmail filtered non-order mail" }
+    if summary.duplicateRefreshedCount > 0 { return "Gmail refreshed existing Inbox rows" }
+    if summary.duplicateCount > 0 { return "Gmail found no new order mail" }
+    if summary.fetchedCount > 0 { return "Gmail refresh was quiet" }
+    return summary.verdict
+  }
+  private var gmailLatestOutcomeDetail: String {
+    guard hasGmailSetup else {
+      return "Leave Gmail unconfigured unless the mailbox is hosted by Gmail or Google Workspace."
+    }
+    guard let summary = latestGmailSummary else {
+      return "After setup and sign-in, run manual read-only Gmail refresh. Results will be summarized here without exposing tokens or mailbox bodies."
+    }
+    if summary.tone == "warning" {
+      return summary.detail
+    }
+    if summary.importedCount > 0 {
+      return "\(summary.importedCount) Gmail message\(summary.importedCount == 1 ? "" : "s") reached Inbox. Process those rows in Inbox before creating or linking orders."
+    }
+    if summary.totalUncertainCount > 0 {
+      return "\(summary.totalUncertainCount) ambiguous Gmail preview\(summary.totalUncertainCount == 1 ? "" : "s") stayed outside Inbox. Review them in Mailbox Monitor."
+    }
+    if summary.filteredCount > 0 {
+      return "\(summary.filteredCount) Gmail preview\(summary.filteredCount == 1 ? "" : "s") were counted as non-order mail and kept out of Inbox."
+    }
+    if summary.duplicateRefreshedCount > 0 {
+      return "\(summary.duplicateRefreshedCount) duplicate Gmail message\(summary.duplicateRefreshedCount == 1 ? "" : "s") refreshed existing local intake rows rather than creating duplicates."
+    }
+    if summary.duplicateCount > 0 {
+      return "\(summary.duplicateCount) Gmail message\(summary.duplicateCount == 1 ? "" : "s") were already known. Duplicate tracking prevented extra Inbox rows."
+    }
+    if summary.fetchedCount > 0 {
+      return "Gmail fetched messages, but none created imported or uncertain order work."
+    }
+    return summary.detail
+  }
+  private var gmailLatestOutcomeNextAction: String {
+    guard hasGmailSetup else { return "Next: use SpaceMail/IMAP unless you add a Google-hosted mailbox." }
+    guard let summary = latestGmailSummary else { return gmailSetupNextAction }
+    return summary.nextAction
+  }
+  private var gmailLatestOutcomeColor: Color {
+    guard hasGmailSetup else { return .secondary }
+    guard let summary = latestGmailSummary else { return .orange }
+    if summary.tone == "warning" { return .orange }
+    if summary.importedCount > 0 { return .green }
+    if summary.totalUncertainCount > 0 { return .orange }
+    if summary.filteredCount > 0 { return .teal }
+    if summary.duplicateRefreshedCount > 0 { return .green }
+    if summary.fetchedCount > 0 || summary.duplicateCount > 0 { return .teal }
+    return .secondary
+  }
   private var providerChoiceRows: [(title: String, status: String, detail: String, symbol: String, color: Color)] {
     [
       (
@@ -382,6 +440,30 @@ struct IntegrationsView: View {
               ("Imported", "\(store.latestMailboxImportedCount)", (store.latestMailboxImportedCount) > 0 ? .green : .secondary),
               ("Uncertain", "\(store.latestMailboxUncertainCount)", ((store.latestMailboxUncertainCount) > 0) ? .orange : .secondary)
             ])
+
+            if hasGmailSetup {
+              HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "envelope.badge.shield.half.filled")
+                  .foregroundStyle(gmailLatestOutcomeColor)
+                  .frame(width: 22)
+                VStack(alignment: .leading, spacing: 4) {
+                  Text(gmailLatestOutcomeTitle)
+                    .font(.subheadline.weight(.semibold))
+                  Text(gmailLatestOutcomeDetail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                  Text("Next: \(gmailLatestOutcomeNextAction)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(gmailLatestOutcomeColor)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Badge(latestGmailSummary?.primaryOutcomeStatus ?? "No refresh", color: gmailLatestOutcomeColor)
+              }
+              .padding(10)
+              .background(gmailLatestOutcomeColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
 
             VStack(alignment: .leading, spacing: 8) {
               Label("Choose the mailbox provider path", systemImage: "point.3.connected.trianglepath.dotted")
