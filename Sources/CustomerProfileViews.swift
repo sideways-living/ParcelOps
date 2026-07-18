@@ -393,6 +393,11 @@ struct CustomerProfilesView: View {
     parts.append(contentsOf: addresses.flatMap { [$0.label, $0.addressLineSummary, $0.cityRegion, $0.country, $0.preferredCarrier] })
     parts.append(contentsOf: instructions.flatMap { [$0.title, $0.instructionSummary, $0.accessConstraintSummary, $0.carrierNotes] })
     parts.append(contentsOf: packageContents.flatMap { [$0.title, $0.itemSummary, $0.discrepancySummary] })
+    let mailboxSummaries = inboxOrders(for: profile).flatMap { store.mailboxSourceSummaries(for: $0) }
+    parts.append(contentsOf: mailboxSummaries.map(\.providerName))
+    parts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+    parts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+    parts.append(contentsOf: mailboxSummaries.map(\.detailText))
     return parts
   }
 }
@@ -481,6 +486,14 @@ struct CustomerProfileRow: View {
         }
       }
 
+      if let store {
+        OrderMailboxSourceTrailPanel(
+          summaries: mailboxSummaries(using: store),
+          title: "Mailbox provider profile trail",
+          symbol: "person.text.rectangle.fill"
+        )
+      }
+
       if !profileWarnings.isEmpty {
         VStack(alignment: .leading, spacing: 4) {
           Label("Profile follow-up", systemImage: "exclamationmark.triangle.fill")
@@ -562,6 +575,13 @@ struct CustomerProfileRow: View {
     var seen = Set<UUID>()
     return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
       return store.linkedIntakeEmails(for: order)
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func mailboxSummaries(using store: ParcelOpsStore) -> [OrderMailboxSourceSummary] {
+    var seen = Set<String>()
+    return inboxOrders.flatMap { order in
+      store.mailboxSourceSummaries(for: order)
     }.filter { seen.insert($0.id).inserted }
   }
 

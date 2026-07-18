@@ -403,7 +403,8 @@ struct AccountsView: View {
 
   private func accountSearchParts(_ account: AccountCredentialRecord) -> [String] {
     let order = linkedOrder(for: account)
-    return [
+    let mailboxSummaries = order.map { store.mailboxSourceSummaries(for: $0) } ?? []
+    var parts = [
       account.id.uuidString,
       account.accountName,
       account.organisation,
@@ -428,6 +429,11 @@ struct AccountsView: View {
       order?.carrier ?? "",
       order?.destination ?? ""
     ]
+    parts.append(contentsOf: mailboxSummaries.map(\.providerName))
+    parts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+    parts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+    parts.append(contentsOf: mailboxSummaries.map(\.detailText))
+    return parts
   }
 }
 
@@ -584,6 +590,14 @@ struct AccountCredentialRow: View {
         }
       }
 
+      if let store {
+        OrderMailboxSourceTrailPanel(
+          summaries: mailboxSummaries(using: store),
+          title: "Mailbox provider account trail",
+          symbol: "key.horizontal.fill"
+        )
+      }
+
       if !accountWarnings.isEmpty {
         VStack(alignment: .leading, spacing: 4) {
           Label("Account follow-up", systemImage: "exclamationmark.triangle.fill")
@@ -656,6 +670,13 @@ struct AccountCredentialRow: View {
     var seen = Set<UUID>()
     return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
       return store.linkedIntakeEmails(for: order)
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func mailboxSummaries(using store: ParcelOpsStore) -> [OrderMailboxSourceSummary] {
+    var seen = Set<String>()
+    return inboxOrders.flatMap { order in
+      store.mailboxSourceSummaries(for: order)
     }.filter { seen.insert($0.id).inserted }
   }
 

@@ -800,7 +800,8 @@ struct CommunicationView: View {
     let template = draft.templateID.flatMap { templateID in
       store.communicationTemplates.first { $0.id == templateID }
     }
-    return [
+    let mailboxSummaries = order.map { store.mailboxSourceSummaries(for: $0) } ?? []
+    var parts = [
       draft.id.uuidString,
       draft.linkedEntityType.rawValue,
       draft.linkedEntityID,
@@ -821,6 +822,11 @@ struct CommunicationView: View {
       order?.carrier ?? "",
       order?.destination ?? ""
     ]
+    parts.append(contentsOf: mailboxSummaries.map(\.providerName))
+    parts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+    parts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+    parts.append(contentsOf: mailboxSummaries.map(\.detailText))
+    return parts
   }
 }
 
@@ -1043,6 +1049,14 @@ struct DraftMessageRow: View {
             }
           }
 
+          if let store {
+            OrderMailboxSourceTrailPanel(
+              summaries: mailboxSummaries(using: store),
+              title: "Mailbox provider draft trail",
+              symbol: "envelope.open.fill"
+            )
+          }
+
           if !draftWarnings.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
               Label("Draft follow-up", systemImage: "exclamationmark.triangle.fill")
@@ -1143,6 +1157,13 @@ struct DraftMessageRow: View {
     var seen = Set<UUID>()
     return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
       return store.linkedIntakeEmails(for: order)
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func mailboxSummaries(using store: ParcelOpsStore) -> [OrderMailboxSourceSummary] {
+    var seen = Set<String>()
+    return inboxOrders.flatMap { order in
+      store.mailboxSourceSummaries(for: order)
     }.filter { seen.insert($0.id).inserted }
   }
 

@@ -384,7 +384,8 @@ struct ContactsView: View {
 
   private func contactSearchParts(_ contact: ContactDirectoryEntry) -> [String] {
     let order = linkedOrder(for: contact)
-    return [
+    let mailboxSummaries = order.map { store.mailboxSourceSummaries(for: $0) } ?? []
+    var parts = [
       contact.id.uuidString,
       contact.name,
       contact.organisation,
@@ -407,6 +408,11 @@ struct ContactsView: View {
       order?.carrier ?? "",
       order?.destination ?? ""
     ]
+    parts.append(contentsOf: mailboxSummaries.map(\.providerName))
+    parts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+    parts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+    parts.append(contentsOf: mailboxSummaries.map(\.detailText))
+    return parts
   }
 }
 
@@ -550,6 +556,14 @@ struct ContactDirectoryRow: View {
         }
       }
 
+      if let store {
+        OrderMailboxSourceTrailPanel(
+          summaries: mailboxSummaries(using: store),
+          title: "Mailbox provider contact trail",
+          symbol: "person.crop.circle.badge.checkmark"
+        )
+      }
+
       if !contactWarnings.isEmpty {
         VStack(alignment: .leading, spacing: 4) {
           Label("Contact follow-up", systemImage: "exclamationmark.triangle.fill")
@@ -636,6 +650,13 @@ struct ContactDirectoryRow: View {
     var seen = Set<UUID>()
     return inboxOrders.flatMap { order -> [ForwardedEmailIntake] in
       return store.linkedIntakeEmails(for: order)
+    }.filter { seen.insert($0.id).inserted }
+  }
+
+  private func mailboxSummaries(using store: ParcelOpsStore) -> [OrderMailboxSourceSummary] {
+    var seen = Set<String>()
+    return inboxOrders.flatMap { order in
+      store.mailboxSourceSummaries(for: order)
     }.filter { seen.insert($0.id).inserted }
   }
 
