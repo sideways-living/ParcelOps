@@ -458,6 +458,8 @@ struct MailboxView: View {
 
         MailboxGmailReadinessPanel(store: store)
 
+        MailboxMicrosoft365ReadinessPanel(store: store)
+
         MailboxGmailRunbookPanel(store: store)
 
         SpaceMailOperatorGuidanceStack(store: store)
@@ -2098,6 +2100,133 @@ private struct MailboxSpaceMailRunbookPanel: View {
           }
         }
         .buttonStyle(.bordered)
+      }
+    }
+  }
+}
+
+private struct MailboxMicrosoft365ReadinessPanel: View {
+  var store: ParcelOpsStore
+
+  private var primaryConnection: Microsoft365MailboxConnection? {
+    store.microsoft365MailboxConnections.first
+  }
+
+  private var readiness: Microsoft365OAuthReadinessSummary? {
+    primaryConnection.map { store.microsoft365OAuthReadinessSummary(for: $0) }
+  }
+
+  private var authState: Microsoft365AuthSessionState? {
+    primaryConnection.map { store.microsoft365AuthSessionState(for: $0) }
+  }
+
+  private var hasSetup: Bool {
+    primaryConnection != nil
+  }
+
+  private var hasOAuthReadiness: Bool {
+    readiness?.isReady == true
+  }
+
+  private var hasConnectedAuth: Bool {
+    authState?.status == .connected
+  }
+
+  private var hasGraphRefreshEvidence: Bool {
+    store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  private var latestRefreshConnection: Microsoft365MailboxConnection? {
+    store.microsoft365MailboxConnections
+      .filter { $0.lastManualRefreshDate != "Never" }
+      .sorted { $0.lastManualRefreshDate > $1.lastManualRefreshDate }
+      .first
+  }
+
+  private var tone: Color {
+    if !hasSetup || !hasOAuthReadiness || !hasConnectedAuth { return .orange }
+    return hasGraphRefreshEvidence ? .green : .teal
+  }
+
+  private var title: String {
+    if !hasSetup { return "Outlook setup is optional until a Microsoft mailbox is active" }
+    if !hasOAuthReadiness { return "Complete Microsoft 365 OAuth readiness" }
+    if !hasConnectedAuth { return "Test Microsoft sign-in before Graph refresh" }
+    if !hasGraphRefreshEvidence { return "Run manual Outlook Graph refresh when needed" }
+    return "Outlook intake path has refresh evidence"
+  }
+
+  private var detail: String {
+    guard let connection = primaryConnection else {
+      return "Add Microsoft 365 setup only for Outlook-hosted mailboxes. SpaceMail and Gmail remain separate provider paths."
+    }
+    if !hasOAuthReadiness {
+      let missing = readiness?.missingFields.joined(separator: ", ") ?? "tenant, client, redirect, scope, and folder values"
+      return "Saved setup for \(connection.mailboxAddress) still needs: \(missing). No browser sign-in or Graph refresh should be trusted until this is ready."
+    }
+    if !hasConnectedAuth {
+      return "OAuth readiness is present for \(connection.mailboxAddress). Use the explicit real Microsoft sign-in test; token values stay out of JSON and Audit."
+    }
+    if !hasGraphRefreshEvidence {
+      return "Microsoft sign-in is connected. Run real Graph refresh manually only when this Outlook mailbox is the active intake source."
+    }
+    return "Latest Graph evidence: \(latestRefreshConnection?.lastManualRefreshDate ?? "Unknown"). Review Audit for Graph diagnostics if no Inbox rows were imported."
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Outlook / Microsoft 365 readiness", symbol: "mail.stack.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: tone == .green ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            .foregroundStyle(tone)
+            .frame(width: 24)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+              .font(.headline)
+            Text(detail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer()
+          Badge(tone == .green ? "Ready" : hasSetup ? "Action" : "Optional", color: tone)
+        }
+
+        MetricStrip(items: [
+          ("Setup", hasSetup ? "Set" : "Optional", hasSetup ? .green : .secondary),
+          ("OAuth", hasOAuthReadiness ? "Ready" : hasSetup ? "Needed" : "N/A", hasOAuthReadiness ? .green : hasSetup ? .orange : .secondary),
+          ("Sign-in", authState?.status.rawValue ?? "N/A", hasConnectedAuth ? .green : hasSetup ? .orange : .secondary),
+          ("Graph", hasGraphRefreshEvidence ? "Seen" : hasSetup ? "No refresh" : "N/A", hasGraphRefreshEvidence ? .green : hasSetup ? .teal : .secondary),
+          ("Token cache", authState?.tokenStoreStatus.rawValue ?? "N/A", hasConnectedAuth ? .teal : .secondary)
+        ])
+
+        if let connection = primaryConnection {
+          Text("Mailbox: \(connection.mailboxAddress). Folders: \(connection.monitoredFolderNames). Status: \(connection.connectionStatus).")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        CompactActionRow {
+          NavigationLink {
+            IntegrationsView(store: store)
+          } label: {
+            Label("Open Settings", systemImage: "gearshape.2.fill")
+          }
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+
+        Text("This panel only reads existing Microsoft 365 setup, auth state, and manual Graph refresh evidence. It does not start sign-in, request tokens, fetch mailbox messages, mutate mailboxes, or store secrets.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
