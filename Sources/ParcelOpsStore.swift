@@ -22600,12 +22600,48 @@ final class ParcelOpsStore {
     Do not buy anything, enter payment details, log in to retailer accounts, store credentials, mutate mailboxes, book carriers, run background monitoring, or contact sellers from this draft. This is a local research brief only.
     """
 
+    let subject = "Wishlist batch research brief (\(includedRequests.count) item\(includedRequests.count == 1 ? "" : "s"))"
+    let auditDetail = """
+    Included requests: \(includedRequests.count)
+    Ready requests available: \(readyRequests.count)
+    Scope-gap requests included: \(includedRequests.filter { !$0.isAgentBriefReady }.count)
+    Output contract: product URL, seller, listed price/currency, AUD landed total, postage cost/time, seller region, returns/warranty, trust evidence, recommendation, and explicit no-buy blockers.
+    Draft only. No web search, external agent, retailer access, currency lookup, postage quote, seller trust lookup, browser automation, login, checkout, payment, mailbox mutation, or background monitoring occurred.
+    """
+
+    if let existingIndex = draftMessages.firstIndex(where: {
+      $0.linkedEntityType == .wishlistItem
+        && $0.linkedEntityID == "wishlist-research-batch"
+        && $0.status != .sentLocally
+    }) {
+      let beforeDetail = draftMessages[existingIndex].auditDetail
+      draftMessages[existingIndex].recipient = "Wishlist review"
+      draftMessages[existingIndex].subject = subject
+      draftMessages[existingIndex].body = body
+      draftMessages[existingIndex].channel = .email
+      draftMessages[existingIndex].reviewState = .needsReview
+      if draftMessages[existingIndex].status == .ready {
+        draftMessages[existingIndex].status = .reopened
+      }
+      persistDraftMessages()
+      logAudit(
+        action: .edited,
+        entityType: .draftMessage,
+        entityID: draftMessages[existingIndex].id.uuidString,
+        entityLabel: draftMessages[existingIndex].subject,
+        summary: "Existing Wishlist batch research brief draft refreshed locally.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(draftMessages[existingIndex].auditDetail)\n\(auditDetail)\nNo duplicate Wishlist batch draft was created."
+      )
+      return
+    }
+
     let draft = DraftMessage(
       linkedEntityType: .wishlistItem,
       linkedEntityID: "wishlist-research-batch",
       templateID: nil,
       recipient: "Wishlist review",
-      subject: "Wishlist batch research brief (\(includedRequests.count) item\(includedRequests.count == 1 ? "" : "s"))",
+      subject: subject,
       body: body,
       channel: .email,
       createdDate: Self.auditTimestamp(),
@@ -22620,12 +22656,7 @@ final class ParcelOpsStore {
       entityID: draft.id.uuidString,
       entityLabel: draft.subject,
       summary: "Wishlist batch research brief draft created locally.",
-      afterDetail: """
-      Included requests: \(includedRequests.count)
-      Ready requests available: \(readyRequests.count)
-      Scope-gap requests included: \(includedRequests.filter { !$0.isAgentBriefReady }.count)
-      Draft only. No web search, external agent, retailer access, currency lookup, postage quote, seller trust lookup, browser automation, login, checkout, payment, mailbox mutation, or background monitoring occurred.
-      """
+      afterDetail: auditDetail
     )
   }
 
