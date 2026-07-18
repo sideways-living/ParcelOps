@@ -14229,6 +14229,42 @@ final class ParcelOpsStore {
     let selectedTemplate = template ?? communicationTemplates.first { $0.linkedEntityType == linkedEntityType && $0.isEnabled } ?? communicationTemplates.first
     let subject = selectedTemplate?.subjectTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "ParcelOps update for \(label)"
     let body = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "Please review the local ParcelOps record \(label)."
+    if let existingIndex = draftMessages.firstIndex(where: {
+      $0.linkedEntityType == linkedEntityType
+        && $0.linkedEntityID == linkedEntityID
+        && $0.recipient == recipient
+        && $0.status != .sentLocally
+    }) {
+      let beforeDetail = draftMessages[existingIndex].auditDetail
+      draftMessages[existingIndex].templateID = selectedTemplate?.id
+      draftMessages[existingIndex].recipient = recipient
+      draftMessages[existingIndex].subject = subject
+      draftMessages[existingIndex].body = body
+      draftMessages[existingIndex].channel = selectedTemplate?.channel ?? .email
+      draftMessages[existingIndex].reviewState = .needsReview
+      if draftMessages[existingIndex].status == .ready {
+        draftMessages[existingIndex].status = .reopened
+      }
+      persistDraftMessages()
+
+      if let selectedTemplate, let index = communicationTemplates.firstIndex(where: { $0.id == selectedTemplate.id }) {
+        communicationTemplates[index].lastUsedDate = Self.auditTimestamp()
+        communicationTemplates[index].usageCount += 1
+        persistCommunicationTemplates()
+      }
+
+      logAudit(
+        action: .edited,
+        entityType: .draftMessage,
+        entityID: draftMessages[existingIndex].id.uuidString,
+        entityLabel: draftMessages[existingIndex].subject,
+        summary: "Existing draft message refreshed from \(linkedEntityType.rawValue.lowercased()).",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(draftMessages[existingIndex].auditDetail)\nNo duplicate unsent draft was created for \(linkedEntityType.rawValue) \(linkedEntityID). Sent-local history is preserved."
+      )
+      return
+    }
+
     let draft = DraftMessage(
       linkedEntityType: linkedEntityType,
       linkedEntityID: linkedEntityID,
