@@ -325,6 +325,7 @@ struct ShipmentGroupsView: View {
     let linkedOrders = linkedOrders(for: group)
     let importItems = store.importQueueItems(for: group)
     let acceptanceRecords = store.acceptanceRecords(for: group)
+    let mailboxSummaries = linkedOrders.flatMap { store.mailboxSourceSummaries(for: $0) }
     let orderText = linkedOrders.map { order in
       [
         order.store,
@@ -377,7 +378,11 @@ struct ShipmentGroupsView: View {
       group.lastReviewedDate,
       orderText,
       importText,
-      acceptanceText
+      acceptanceText,
+      mailboxSummaries.map(\.providerName).joined(separator: " "),
+      mailboxSummaries.map(\.mailboxLabel).joined(separator: " "),
+      mailboxSummaries.map(\.statusLabel).joined(separator: " "),
+      mailboxSummaries.map(\.detailText).joined(separator: " ")
     ].joined(separator: " ")
     return searchableText.localizedLowercase.contains(query)
   }
@@ -519,6 +524,14 @@ struct ShipmentGroupRow: View {
         shipmentGroupInboxSourceTrail
       }
 
+      if let store {
+        OrderMailboxSourceTrailPanel(
+          summaries: mailboxSummaries(using: store),
+          title: "Mailbox provider shipment trail",
+          symbol: "shippingbox.and.arrow.backward.fill"
+        )
+      }
+
       if isEditing {
         ShipmentGroupEditForm(group: $draft)
       }
@@ -649,6 +662,13 @@ struct ShipmentGroupRow: View {
       return "Inbox or Wishlist source rows are linked, but this group still needs a valid primary order."
     }
     return "Inbox intake rows or Wishlist purchase context explain how this shipment group entered the local workflow. Provider IDs stay in Audit/details."
+  }
+
+  private func mailboxSummaries(using store: ParcelOpsStore) -> [OrderMailboxSourceSummary] {
+    var seen = Set<String>()
+    return linkedOrders.flatMap { order in
+      store.mailboxSourceSummaries(for: order)
+    }.filter { seen.insert($0.id).inserted }
   }
 
   private func sourceColor(for tone: String) -> Color {
