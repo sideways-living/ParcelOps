@@ -473,6 +473,13 @@ struct CustodyChainView: View {
     searchParts.append(contentsOf: scanSessions.flatMap { [$0.title, $0.expectedLabelReferenceValue, $0.capturedValuePlaceholder, $0.assignedOperatorTeam] })
     searchParts.append(contentsOf: shipmentManifests.flatMap { [$0.title, $0.manifestReferencePlaceholder, $0.carrierCourier, $0.destinationSummary] })
     searchParts.append(contentsOf: dispatchChecklists.flatMap { [$0.title, $0.checklistType.rawValue, $0.checklistStatus.rawValue, $0.assignedOwnerTeam] })
+    if let order {
+      let mailboxSummaries = store.mailboxSourceSummaries(for: order)
+      searchParts.append(contentsOf: mailboxSummaries.map(\.providerName))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.mailboxLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.statusLabel))
+      searchParts.append(contentsOf: mailboxSummaries.map(\.detailText))
+    }
     return searchParts.joined(separator: " ").localizedLowercase.contains(query)
   }
 }
@@ -591,6 +598,11 @@ struct CustodyRecordRow: View {
             }
           }
         }
+        OrderMailboxSourceTrailPanel(
+          summaries: store.mailboxSourceSummaries(for: linkedOrder),
+          title: "Mailbox provider custody trail",
+          symbol: "arrow.left.arrow.right.square.fill"
+        )
       }
 
       if let feedbackMessage {
