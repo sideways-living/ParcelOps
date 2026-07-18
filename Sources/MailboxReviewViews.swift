@@ -4953,6 +4953,10 @@ private struct NeedsReviewInboxOrderRow: View {
     }
   }
 
+  private var mailboxSourceSummaries: [OrderMailboxSourceSummary] {
+    store.mailboxSourceSummaries(for: order)
+  }
+
   private var missingTracking: Bool {
     order.trackingNumber == "Pending" || order.trackingNumber.isPlaceholderValidationValue
   }
@@ -5023,11 +5027,29 @@ private struct NeedsReviewInboxOrderRow: View {
     return "Timeline links the order source trail to this order."
   }
 
+  private var mailboxSourceText: String {
+    mailboxSourceSummaries.prefix(2)
+      .map { "\($0.providerName) via \($0.mailboxLabel)" }
+      .joined(separator: "; ")
+  }
+
   private var rowTint: Color {
     if reopenedInboxDispatchCount > 0 { return .purple }
     if missingFieldCount > 0 { return .orange }
     if !warningTrackingEvents.isEmpty { return .red }
     return .teal
+  }
+
+  private func mailboxSourceColor(_ summary: OrderMailboxSourceSummary) -> Color {
+    if summary.importedCount > 0 { return .green }
+    if summary.duplicateRefreshedCount > 0 { return .teal }
+    if summary.duplicateCount > 0 { return .orange }
+    switch summary.providerName {
+    case "Gmail": return .blue
+    case "SpaceMail": return .teal
+    case "Microsoft 365": return .purple
+    default: return .secondary
+    }
   }
 
   var body: some View {
@@ -5073,9 +5095,19 @@ private struct NeedsReviewInboxOrderRow: View {
         if !linkedTasks.isEmpty {
           Label("\(linkedTasks.count) linked task", systemImage: "checklist")
         }
+        ForEach(mailboxSourceSummaries.prefix(2)) { source in
+          Badge(source.badgeLabel, color: mailboxSourceColor(source))
+        }
       }
       .font(.caption)
       .foregroundStyle(.secondary)
+
+      if !mailboxSourceSummaries.isEmpty {
+        Label(mailboxSourceText, systemImage: "envelope.badge.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.teal)
+          .fixedSize(horizontal: false, vertical: true)
+      }
 
       if operationalTimelineSignalCount > 1 {
         Label(timelineDetail, systemImage: "calendar.badge.clock")

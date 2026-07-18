@@ -3770,19 +3770,20 @@ private func dashboardOrderTimelineSignalCount(for order: TrackedOrder, store: P
     + warningTrackingCount
 }
 
-private func dashboardOrderTimelineDetail(for order: TrackedOrder, store: ParcelOpsStore) -> String {
+private func dashboardOrderTimelineDetail(for order: TrackedOrder, store: ParcelOpsStore, mailboxSources: [OrderMailboxSourceSummary] = []) -> String {
   let taskCount = store.tasks(for: .order, linkedEntityID: order.id.uuidString).count
   let manifestCount = store.suggestedShipmentManifestRecords(for: order).count
   let checklistCount = store.suggestedDispatchReadinessChecklists(for: order).count
   let warningTrackingCount = store.trackingEvents(for: order.id).filter { event in
     event.severity == .watch || event.severity == .critical
   }.count
+  let mailboxSourceText = dashboardMailboxSourceText(mailboxSources)
 
   if order.isInboxCreatedLocalOrder && (manifestCount + checklistCount) > 0 {
-    return "Source handoff linked to dispatch setup • \(order.trackingNumber)"
+    return "\(mailboxSourceText ?? "Source handoff") linked to dispatch setup • \(order.trackingNumber)"
   }
   if order.isInboxCreatedLocalOrder {
-    return "Source-created order needs local follow-up • \(order.trackingNumber)"
+    return "\(mailboxSourceText ?? "Source-created order") needs local follow-up • \(order.trackingNumber)"
   }
   if taskCount > 0 {
     return "\(taskCount) linked task signal • \(order.customer)"
@@ -3794,6 +3795,30 @@ private func dashboardOrderTimelineDetail(for order: TrackedOrder, store: Parcel
     return "\(warningTrackingCount) tracking warning signal • \(order.carrier)"
   }
   return "\(order.customer) • \(order.carrier) • \(order.trackingNumber)"
+}
+
+private func dashboardMailboxSourceBadge(_ summaries: [OrderMailboxSourceSummary]) -> (label: String, color: Color)? {
+  guard let summary = summaries.first else { return nil }
+  return (summary.providerName, dashboardMailboxSourceColor(summary))
+}
+
+private func dashboardMailboxSourceText(_ summaries: [OrderMailboxSourceSummary]) -> String? {
+  guard !summaries.isEmpty else { return nil }
+  return summaries.prefix(2)
+    .map { "\($0.providerName) source" }
+    .joined(separator: " + ")
+}
+
+private func dashboardMailboxSourceColor(_ summary: OrderMailboxSourceSummary) -> Color {
+  if summary.importedCount > 0 { return .green }
+  if summary.duplicateRefreshedCount > 0 { return .teal }
+  if summary.duplicateCount > 0 { return .orange }
+  switch summary.providerName {
+  case "Gmail": return .blue
+  case "SpaceMail": return .teal
+  case "Microsoft 365": return .purple
+  default: return .secondary
+  }
 }
 
 private func uniqueDashboardOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
@@ -3864,12 +3889,16 @@ struct CompactInboxCreatedOrderList: View {
       } else {
         ForEach(uniqueOrders) { order in
           let timelineCount = dashboardOrderTimelineSignalCount(for: order, store: store)
+          let mailboxSources = store.mailboxSourceSummaries(for: order)
+          let providerBadge = dashboardMailboxSourceBadge(mailboxSources)
           DashboardOrderCompactLink(order: order, store: store) {
             CompactRow(
               title: "\(order.store) • \(order.orderNumber)",
-              detail: dashboardOrderTimelineDetail(for: order, store: store),
+              detail: dashboardOrderTimelineDetail(for: order, store: store, mailboxSources: mailboxSources),
               badge: timelineCount > 1 ? "\(timelineCount) timeline" : order.reviewState.rawValue,
-              color: timelineCount > 1 ? .purple : order.reviewState.color
+              color: timelineCount > 1 ? .purple : order.reviewState.color,
+              secondaryBadge: providerBadge?.label,
+              secondaryColor: providerBadge?.color ?? .secondary
             )
           }
         }
