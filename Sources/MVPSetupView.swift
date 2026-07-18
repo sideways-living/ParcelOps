@@ -397,6 +397,51 @@ struct MVPMailboxProviderStatusPanel: View {
     manualProviderReadyCount > 0 ? .green : .orange
   }
 
+  private var gmailProviderOutcomeDetail: String {
+    guard hasGmailSetup else {
+      return "Use only for Google-hosted mailboxes. Leave unconfigured when SpaceMail/IMAP is the active provider."
+    }
+    guard let summary = latestGmailSummary else {
+      return hasGmailConnectedAuth
+        ? "Google sign-in is connected. Run manual read-only Gmail refresh to capture fetched/imported/filtered/uncertain evidence."
+        : "Gmail setup exists. Complete readiness checks and explicit Google sign-in before relying on real refresh."
+    }
+    if summary.tone == "warning" {
+      return "\(summary.verdict): \(summary.nextAction)"
+    }
+    if summary.importedCount > 0 {
+      return "\(summary.importedCount) Gmail message\(summary.importedCount == 1 ? "" : "s") reached Inbox. Prove the handoff by creating or linking one order from Inbox."
+    }
+    if summary.totalUncertainCount > 0 {
+      return "\(summary.totalUncertainCount) uncertain Gmail preview\(summary.totalUncertainCount == 1 ? "" : "s") are waiting outside Inbox. Review in Mailbox Monitor before order handoff."
+    }
+    if summary.filteredCount > 0 {
+      return "\(summary.filteredCount) Gmail mixed-mailbox preview\(summary.filteredCount == 1 ? "" : "s") were filtered out of Inbox. This is healthy unless an expected order email was missed."
+    }
+    if summary.duplicateRefreshedCount > 0 {
+      return "\(summary.duplicateRefreshedCount) duplicate Gmail message\(summary.duplicateRefreshedCount == 1 ? "" : "s") refreshed existing local intake rows without creating duplicates."
+    }
+    if summary.duplicateCount > 0 {
+      return "\(summary.duplicateCount) Gmail message\(summary.duplicateCount == 1 ? "" : "s") were already known. No new Inbox work was created."
+    }
+    if summary.fetchedCount > 0 {
+      return "Gmail fetched \(summary.fetchedCount) message\(summary.fetchedCount == 1 ? "" : "s") but created no imported or uncertain order work."
+    }
+    return summary.namedRefreshCountsText
+  }
+
+  private var gmailProviderOutcomeColor: Color {
+    guard hasGmailSetup else { return .secondary }
+    guard let summary = latestGmailSummary else { return hasGmailConnectedAuth ? .teal : .orange }
+    if summary.tone == "warning" { return .orange }
+    if summary.importedCount > 0 { return .green }
+    if summary.totalUncertainCount > 0 { return .orange }
+    if summary.filteredCount > 0 { return .teal }
+    if summary.duplicateRefreshedCount > 0 { return .green }
+    if summary.fetchedCount > 0 || summary.duplicateCount > 0 { return .teal }
+    return .secondary
+  }
+
   var body: some View {
     SettingsPanel(title: "Mailbox provider status", symbol: "tray.full.fill") {
       VStack(alignment: .leading, spacing: 12) {
@@ -434,9 +479,9 @@ struct MVPMailboxProviderStatusPanel: View {
           )
           providerBlock(
             title: "Gmail",
-            detail: latestGmailSummary.map(\.namedRefreshCountsText) ?? "Use for Google-hosted mailboxes. Real refresh is manual and read-only after readiness checks and explicit sign-in; mock refresh remains available.",
+            detail: gmailProviderOutcomeDetail,
             symbol: "envelope.open.fill",
-            color: hasGmailSetup && hasGmailConnectedAuth ? .green : .orange
+            color: gmailProviderOutcomeColor
           )
           providerBlock(
             title: "Microsoft 365",
