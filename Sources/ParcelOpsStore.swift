@@ -28037,6 +28037,33 @@ final class ParcelOpsStore {
   }
 
   private func addReviewTask(_ task: ReviewTask, summary: String) {
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == task.linkedEntityType
+        && $0.linkedEntityID == task.linkedEntityID
+        && $0.title == task.title
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].summary = task.summary
+      reviewTasks[existingIndex].priority = task.priority
+      reviewTasks[existingIndex].dueDate = task.dueDate
+      reviewTasks[existingIndex].assignee = task.assignee
+      reviewTasks[existingIndex].status = task.status
+      reviewTasks[existingIndex].completedDate = task.completedDate
+      reviewTasks[existingIndex].reviewState = task.reviewState
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: summary.replacingOccurrences(of: "created", with: "refreshed").replacingOccurrences(of: "Created", with: "Refreshed"),
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nNo duplicate open task was created for \(task.linkedEntityType.rawValue) \(task.linkedEntityID)."
+      )
+      return
+    }
+
     reviewTasks.insert(task, at: 0)
     persistReviewTasks()
     logAudit(
