@@ -132,6 +132,7 @@ struct TimelineView: View {
         inboxSourceTrailTimelinePanel
         mailboxProviderReleaseTimelinePanel
         gmailTimelineReleaseBoundary
+        microsoft365TimelineReleaseBoundary
         mailboxProviderTimelinePanel
         inboxDispatchTimelinePanel
 
@@ -398,6 +399,23 @@ struct TimelineView: View {
   private var gmailTimelineSourceCount: Int {
     mailboxProviderTimelineRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
+  private var microsoft365TimelineReleaseBoundary: some View {
+    Microsoft365ReleaseBoundaryPanel(
+      store: store,
+      title: "Outlook timeline readiness",
+      lead: "Outlook release checks are provider setup and Graph evidence. Timeline can show Outlook source context, but it should not replace Inbox review, order creation, or dispatch handoff.",
+      sourceMetricTitle: "Outlook timeline sources",
+      sourceCount: microsoft365TimelineSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, mutate mail, create timeline events, or change audit history automatically."
+    )
+  }
+
+  private var microsoft365TimelineSourceCount: Int {
+    mailboxProviderTimelineRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
       .reduce(0) { total, row in total + row.count }
   }
 

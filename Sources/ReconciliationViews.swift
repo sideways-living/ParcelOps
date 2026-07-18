@@ -119,6 +119,7 @@ struct ReconciliationView: View {
         inboxSourceReconciliationPanel
         mailboxProviderReleaseReconciliationPanel
         gmailReconciliationReleaseBoundary
+        microsoft365ReconciliationReleaseBoundary
 
         SettingsPanel(title: "Reconciliation results", symbol: "arrow.triangle.2.circlepath") {
           HStack {
@@ -200,6 +201,23 @@ struct ReconciliationView: View {
   private var gmailReconciliationSourceCount: Int {
     reconciliationProviderRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
+  private var microsoft365ReconciliationReleaseBoundary: some View {
+    Microsoft365ReleaseBoundaryPanel(
+      store: store,
+      title: "Outlook reconciliation readiness",
+      lead: "Outlook self-checks should be complete before Graph-derived source values, order links, tracking values, or acceptance handoffs are treated as reconciled release evidence.",
+      sourceMetricTitle: "Outlook reconciliation sources",
+      sourceCount: microsoft365ReconciliationSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, mutate mail, resolve reconciliation issues, or change order/source links automatically."
+    )
+  }
+
+  private var microsoft365ReconciliationSourceCount: Int {
+    reconciliationProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
       .reduce(0) { total, row in total + row.count }
   }
 

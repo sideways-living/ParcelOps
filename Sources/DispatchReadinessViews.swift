@@ -51,6 +51,7 @@ struct DispatchReadinessView: View {
         filterBar
         inboxReadinessCoverage
         gmailReadinessReleaseBoundary
+        microsoft365ReadinessReleaseBoundary
         if !store.gmailMailboxConnections.isEmpty {
           GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
         }
@@ -267,6 +268,24 @@ struct DispatchReadinessView: View {
     store.intakeLinkedOrders
       .flatMap { store.linkedIntakeEmails(for: $0) }
       .filter { store.intakeSourceSummary(for: $0).label.localizedCaseInsensitiveContains("Gmail") }
+      .count
+  }
+
+  private var microsoft365ReadinessReleaseBoundary: some View {
+    Microsoft365ReleaseBoundaryPanel(
+      store: store,
+      title: "Outlook dispatch readiness",
+      lead: "Outlook release checks are provider setup and Graph evidence work. Dispatch readiness checklists should only be created after Outlook Inbox intake has been confirmed and linked to a concrete order.",
+      sourceMetricTitle: "Outlook readiness sources",
+      sourceCount: microsoft365ReadinessSourceCount,
+      boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, call carrier APIs, book couriers, print labels, scan barcodes, or change dispatch readiness automatically."
+    )
+  }
+
+  private var microsoft365ReadinessSourceCount: Int {
+    store.intakeLinkedOrders
+      .flatMap { store.linkedIntakeEmails(for: $0) }
+      .filter { store.intakeSourceSummary(for: $0).label.localizedCaseInsensitiveContains("Microsoft 365") || store.intakeSourceSummary(for: $0).label.localizedCaseInsensitiveContains("Outlook") }
       .count
   }
 

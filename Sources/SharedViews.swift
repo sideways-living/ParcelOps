@@ -3211,6 +3211,115 @@ struct Microsoft365ReleaseSelfCheckCard: View {
   }
 }
 
+struct Microsoft365ReleaseBoundaryPanel: View {
+  var store: ParcelOpsStore
+  var title: String
+  var lead: String
+  var sourceMetricTitle: String
+  var sourceCount: Int
+  var boundaryDetail: String
+  var showTasksLink: Bool = true
+
+  private var summaries: [Microsoft365ReleaseSelfCheckSummary] {
+    store.microsoft365MailboxConnections.map { store.microsoft365ReleaseSelfCheckSummary(for: $0) }
+  }
+
+  private var blockingCount: Int {
+    summaries.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+
+  private var attentionCount: Int {
+    summaries.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+
+  private var graphBlockerCount: Int {
+    summaries.reduce(0) { $0 + $1.graphBlockerCount }
+  }
+
+  private var firstActionConnection: Microsoft365MailboxConnection? {
+    guard let summary = summaries.first(where: { $0.items.contains { !$0.isComplete } }),
+          let connection = store.microsoft365MailboxConnections.first(where: { $0.id == summary.connectionID })
+    else {
+      return store.microsoft365MailboxConnections.first
+    }
+    return connection
+  }
+
+  private var color: Color {
+    if blockingCount > 0 { return .red }
+    if attentionCount > 0 || graphBlockerCount > 0 { return .orange }
+    return .green
+  }
+
+  var body: some View {
+    if !summaries.isEmpty {
+      SettingsPanel(title: title, symbol: "mail.stack.fill") {
+        VStack(alignment: .leading, spacing: 10) {
+          Label("Outlook provider readiness boundary", systemImage: blockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(color)
+          Text(lead)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          MetricStrip(items: [
+            ("Release blockers", "\(blockingCount)", blockingCount == 0 ? .green : .red),
+            ("Needs attention", "\(attentionCount)", attentionCount == 0 ? .green : .orange),
+            ("Graph blockers", "\(graphBlockerCount)", graphBlockerCount == 0 ? .green : .orange),
+            (sourceMetricTitle, "\(sourceCount)", sourceCount == 0 ? .secondary : .blue),
+            ("Connections", "\(summaries.count)", .purple)
+          ])
+
+          ForEach(summaries.prefix(2)) { summary in
+            Microsoft365ReleaseSelfCheckCard(summary: summary)
+          }
+
+          if blockingCount > 0 || attentionCount > 0 || graphBlockerCount > 0 {
+            CompactActionRow {
+              if let connection = firstActionConnection {
+                Button("Create Outlook release task", systemImage: "checkmark.seal.fill") {
+                  store.createReviewTaskFromMicrosoft365ReleaseSelfCheck(connection)
+                }
+                .buttonStyle(.bordered)
+              }
+              NavigationLink {
+                MailboxView(store: store)
+              } label: {
+                Label("Open Mailbox Monitor", systemImage: "tray.and.arrow.down.fill")
+              }
+              .buttonStyle(.bordered)
+              if showTasksLink {
+                NavigationLink {
+                  TasksView(store: store)
+                } label: {
+                  Label("Open Tasks", systemImage: "checklist")
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+          } else {
+            Label("Outlook release checks do not currently block this local follow-up area.", systemImage: "checkmark.seal.fill")
+              .font(.caption)
+              .foregroundStyle(.green)
+          }
+
+          Text(boundaryDetail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+    }
+  }
+}
+
 struct MailboxReleaseBlockerCard: View {
   var summary: MailboxReleaseBlockerSummary
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass

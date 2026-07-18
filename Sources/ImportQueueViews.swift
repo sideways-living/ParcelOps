@@ -300,6 +300,15 @@ struct ImportQueueView: View {
           boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, stage imports automatically, or mutate mailbox messages."
         )
 
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook staging readiness",
+          lead: "Outlook release checks are provider-readiness work. Import Queue should only receive Outlook work after Graph/manual intake creates an Inbox row and an operator intentionally stages it.",
+          sourceMetricTitle: "Outlook fetched",
+          sourceCount: latestMicrosoft365Summary?.fetchedCount ?? 0,
+          boundaryDetail: "Local-only boundary: this panel does not open Microsoft sign-in, request tokens, fetch Outlook messages, stage imports automatically, or mutate mailbox messages."
+        )
+
         if !store.gmailMailboxConnections.isEmpty {
           GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
         }
