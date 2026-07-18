@@ -17335,6 +17335,38 @@ final class ParcelOpsStore {
   }
 
   func addAccountCredentialRecordPlaceholder() {
+    if let index = accountCredentialRecords.firstIndex(where: {
+      $0.accountName.hasPrefix("New account ")
+        && $0.organisation == "Unassigned organisation"
+        && $0.linkedContactID == nil
+        && $0.linkedEntityType == .supplier
+        && $0.linkedEntityID == "Unlinked"
+        && $0.loginURL == "https://example.com/login"
+        && $0.usernameLabel == "Username held outside ParcelOps"
+        && $0.credentialStorageStatus == .needsSetup
+        && $0.mfaStatus == .unknown
+        && $0.renewalReviewDate == "Next month"
+        && !$0.isEnabled
+        && $0.notes == "Local placeholder only. Do not store passwords, tokens, or API keys here."
+        && $0.reviewState == .needsReview
+    }) {
+      let beforeDetail = accountCredentialRecords[index].auditDetail
+      var account = accountCredentialRecords.remove(at: index)
+      account.lastCheckedDate = "Never"
+      accountCredentialRecords.insert(account, at: 0)
+      persistAccountCredentialRecords()
+      logAudit(
+        action: .edited,
+        entityType: .accountCredentialRecord,
+        entityID: account.id.uuidString,
+        entityLabel: account.accountName,
+        summary: "Existing account credential placeholder reused.",
+        beforeDetail: beforeDetail,
+        afterDetail: account.auditDetail
+      )
+      return
+    }
+
     let account = AccountCredentialRecord(
       accountName: "New account \(accountCredentialRecords.count + 1)",
       organisation: "Unassigned organisation",
@@ -17557,6 +17589,37 @@ final class ParcelOpsStore {
   }
 
   func addVendorProfilePlaceholder() {
+    if let index = vendorProfiles.firstIndex(where: {
+      $0.name.hasPrefix("New vendor profile ")
+        && $0.profileType == .supplier
+        && $0.primaryOrganisation == "Unassigned organisation"
+        && $0.website == "https://example.com"
+        && $0.supportURL == "https://example.com/support"
+        && $0.defaultContactID == nil
+        && $0.defaultAccountID == nil
+        && $0.preferredChannel == .email
+        && $0.serviceLevelNotes == "Define local service expectations and escalation notes."
+        && $0.riskLevel == .medium
+        && !$0.isEnabled
+        && $0.reviewState == .needsReview
+    }) {
+      let beforeDetail = vendorProfiles[index].auditDetail
+      var profile = vendorProfiles.remove(at: index)
+      profile.lastReviewedDate = "Never"
+      vendorProfiles.insert(profile, at: 0)
+      persistVendorProfiles()
+      logAudit(
+        action: .edited,
+        entityType: .vendorProfile,
+        entityID: profile.id.uuidString,
+        entityLabel: profile.name,
+        summary: "Existing vendor profile placeholder reused.",
+        beforeDetail: beforeDetail,
+        afterDetail: profile.auditDetail
+      )
+      return
+    }
+
     let profile = VendorProfile(
       name: "New vendor profile \(vendorProfiles.count + 1)",
       profileType: .supplier,
