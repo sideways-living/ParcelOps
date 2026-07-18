@@ -157,19 +157,35 @@ struct DestinationAddressesView: View {
   }
 
   private var gmailAddressReadinessPanel: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail destination readiness",
-      lead: "Gmail-origin intake should influence destination records only after Gmail setup is ready and a person confirms the imported Inbox order details.",
-      sourceMetricTitle: "Gmail destination sources",
-      sourceCount: gmailAddressSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, validate addresses, geocode, sync contacts, or change destination records automatically."
-    )
+    VStack(alignment: .leading, spacing: 10) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail destination readiness",
+        lead: "Gmail-origin intake should influence destination records only after Gmail setup is ready and a person confirms the imported Inbox order details.",
+        sourceMetricTitle: "Gmail destination sources",
+        sourceCount: gmailAddressSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, validate addresses, geocode, sync contacts, or change destination records automatically."
+      )
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook destination readiness",
+        lead: "Outlook-origin intake should influence destination records only after Microsoft setup, sign-in, Graph diagnostics, and confirmed Inbox order details are clear.",
+        sourceMetricTitle: "Outlook destination sources",
+        sourceCount: microsoft365AddressSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, validate addresses, geocode, sync contacts, or change destination records automatically."
+      )
+    }
   }
 
   private var gmailAddressSourceCount: Int {
     addressProviderRows
       .filter { $0.label.localizedCaseInsensitiveContains("Gmail") }
+      .reduce(0) { total, row in total + row.count }
+  }
+
+  private var microsoft365AddressSourceCount: Int {
+    addressProviderRows
+      .filter { $0.label.localizedCaseInsensitiveContains("Microsoft 365") || $0.label.localizedCaseInsensitiveContains("Outlook") }
       .reduce(0) { total, row in total + row.count }
   }
 
