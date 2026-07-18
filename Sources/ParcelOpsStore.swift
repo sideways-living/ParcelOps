@@ -13822,11 +13822,38 @@ final class ParcelOpsStore {
   }
 
   func addHandoffNotePlaceholder() {
+    let linkedEntityID = orders.first?.id.uuidString ?? "Unlinked"
+    if let existingIndex = handoffNotes.firstIndex(where: {
+      $0.linkedEntityType == .order
+        && $0.linkedEntityID == linkedEntityID
+        && $0.summary == "Describe what the next team or shift needs to know."
+        && $0.status != .completed
+    }) {
+      let beforeDetail = handoffNotes[existingIndex].auditDetail
+      handoffNotes[existingIndex].priority = .normal
+      handoffNotes[existingIndex].assignee = "Operations"
+      handoffNotes[existingIndex].dueDate = "Tomorrow"
+      handoffNotes[existingIndex].status = .open
+      handoffNotes[existingIndex].reviewState = .needsReview
+      handoffNotes[existingIndex].notes = "Add local-only handoff details."
+      persistHandoffNotes()
+      logAudit(
+        action: .edited,
+        entityType: .handoffNote,
+        entityID: handoffNotes[existingIndex].id.uuidString,
+        entityLabel: handoffNotes[existingIndex].title,
+        summary: "Existing handoff note placeholder refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(handoffNotes[existingIndex].auditDetail)\nNo duplicate open handoff placeholder was created for order \(linkedEntityID)."
+      )
+      return
+    }
+
     let note = HandoffNote(
       title: "New handoff note \(handoffNotes.count + 1)",
       summary: "Describe what the next team or shift needs to know.",
       linkedEntityType: .order,
-      linkedEntityID: orders.first?.id.uuidString ?? "Unlinked",
+      linkedEntityID: linkedEntityID,
       priority: .normal,
       assignee: "Operations",
       createdDate: Self.auditTimestamp(),
