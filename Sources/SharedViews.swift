@@ -3117,6 +3117,246 @@ struct GmailReleaseBoundaryPanel: View {
   }
 }
 
+struct Microsoft365ReleaseSelfCheckCard: View {
+  var store: ParcelOpsStore
+  var connection: Microsoft365MailboxConnection
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private struct CheckRow: Identifiable {
+    var id: String { title }
+    var title: String
+    var detail: String
+    var nextAction: String
+    var isComplete: Bool
+    var tone: String
+    var symbolName: String
+  }
+
+  private var readiness: Microsoft365OAuthReadinessSummary {
+    store.microsoft365OAuthReadinessSummary(for: connection)
+  }
+
+  private var implementationPlan: Microsoft365OAuthImplementationPlan {
+    store.microsoft365OAuthImplementationPlan(for: connection)
+  }
+
+  private var authState: Microsoft365AuthSessionState {
+    store.microsoft365AuthSessionState(for: connection)
+  }
+
+  private var health: Microsoft365IntakeHealthSummary {
+    store.microsoft365IntakeHealthSummary(for: connection)
+  }
+
+  private var hasSignedIn: Bool {
+    authState.status == .connected
+  }
+
+  private var hasRefreshOutcome: Bool {
+    health.fetchedCount > 0 ||
+      health.importedCount > 0 ||
+      health.duplicateCount > 0 ||
+      health.duplicateRefreshedCount > 0 ||
+      health.blockedCount > 0 ||
+      connection.lastManualRefreshDate != "Never"
+  }
+
+  private var hasMailReadScope: Bool {
+    connection.requestedScopesSummary.localizedCaseInsensitiveContains("Mail.Read")
+  }
+
+  private var hasGraphDiagnostics: Bool {
+    health.blockedCount > 0 ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("Graph") ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("auth") ||
+      connection.connectionStatus.localizedCaseInsensitiveContains("token")
+  }
+
+  private var hasAuditEvidence: Bool {
+    store.auditEvents.contains { event in
+      event.entityType == .microsoft365MailboxConnection &&
+        (event.entityID == connection.id.uuidString || event.entityLabel == connection.displayName)
+    }
+  }
+
+  private var rows: [CheckRow] {
+    [
+      CheckRow(
+        title: "Provider fit",
+        detail: "Use Outlook/Microsoft 365 only when this mailbox is Microsoft-hosted. SpaceMail remains the IMAP path and Gmail remains the Google-hosted path.",
+        nextAction: "Confirm the mailbox host before relying on Graph refresh.",
+        isComplete: !connection.mailboxAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        tone: connection.mailboxAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "attention" : "success",
+        symbolName: "server.rack"
+      ),
+      CheckRow(
+        title: "OAuth readiness",
+        detail: readiness.detailText,
+        nextAction: readiness.isReady ? "No setup placeholder action needed before sign-in." : "Fill tenant ID, client ID, redirect URI, scopes, and consent notes.",
+        isComplete: readiness.isReady,
+        tone: readiness.isReady ? "success" : "warning",
+        symbolName: "gearshape.2.fill"
+      ),
+      CheckRow(
+        title: "Implementation plan",
+        detail: "\(implementationPlan.completedCount)/\(implementationPlan.totalCount) planning checks complete.",
+        nextAction: implementationPlan.completedCount == implementationPlan.totalCount ? "Planning checklist is complete." : "Review the OAuth implementation checklist before relying on this path.",
+        isComplete: implementationPlan.completedCount == implementationPlan.totalCount,
+        tone: implementationPlan.completedCount == implementationPlan.totalCount ? "success" : "attention",
+        symbolName: "checklist.checked"
+      ),
+      CheckRow(
+        title: "Microsoft sign-in",
+        detail: hasSignedIn ? "MSAL reports a connected account: \(authState.signedInAccount)." : "No connected Microsoft session is recorded for this setup.",
+        nextAction: hasSignedIn ? "Proceed to manual read-only Graph refresh." : "Run Test real Microsoft sign-in from the setup row.",
+        isComplete: hasSignedIn,
+        tone: hasSignedIn ? "success" : "attention",
+        symbolName: "person.badge.key"
+      ),
+      CheckRow(
+        title: "Mail.Read consent",
+        detail: hasMailReadScope ? "Requested scopes include Mail.Read for read-only message fetch." : "Mail.Read is not visible in the scope placeholder.",
+        nextAction: hasMailReadScope ? "Confirm consent if Graph returns an auth challenge." : "Add Mail.Read to the requested scope summary before real Graph refresh.",
+        isComplete: hasMailReadScope,
+        tone: hasMailReadScope ? "success" : "warning",
+        symbolName: "lock.shield.fill"
+      ),
+      CheckRow(
+        title: "Manual Graph refresh",
+        detail: hasRefreshOutcome ? health.compactRefreshCountsText : "No real or diagnostic Graph refresh outcome is recorded yet.",
+        nextAction: hasRefreshOutcome ? health.nextAction : "Run real Graph refresh after sign-in, or use mock refresh for workflow testing.",
+        isComplete: hasRefreshOutcome,
+        tone: health.blockedCount > 0 ? "warning" : hasRefreshOutcome ? "success" : "neutral",
+        symbolName: "tray.and.arrow.down"
+      ),
+      CheckRow(
+        title: "Diagnostics path",
+        detail: hasGraphDiagnostics ? "Graph/Auth diagnostic evidence exists for this mailbox." : "No Microsoft sign-in or Graph diagnostic evidence is recorded yet.",
+        nextAction: hasGraphDiagnostics ? "Use Audit only when detailed diagnostics are needed." : "Run sign-in or refresh to create safe diagnostics if this provider is active.",
+        isComplete: hasGraphDiagnostics,
+        tone: hasGraphDiagnostics ? "success" : "neutral",
+        symbolName: "stethoscope"
+      ),
+      CheckRow(
+        title: "Audit evidence",
+        detail: hasAuditEvidence ? "Audit contains Microsoft setup, sign-in, token, Graph, or review evidence for this mailbox." : "No Microsoft 365 audit evidence is recorded for this setup yet.",
+        nextAction: hasAuditEvidence ? "Use Audit for exact action history." : "Run a readiness check, sign-in test, mock refresh, or real refresh to create audit evidence.",
+        isComplete: hasAuditEvidence,
+        tone: hasAuditEvidence ? "success" : "neutral",
+        symbolName: "list.clipboard.fill"
+      )
+    ]
+  }
+
+  private var completedCount: Int {
+    rows.filter(\.isComplete).count
+  }
+
+  private var blockingCount: Int {
+    rows.filter { !$0.isComplete && $0.tone == "warning" }.count
+  }
+
+  private var attentionCount: Int {
+    rows.filter { !$0.isComplete && $0.tone == "attention" }.count
+  }
+
+  private var verdict: String {
+    if blockingCount > 0 { return "Outlook release blocked" }
+    if attentionCount > 0 { return "Outlook needs operator action" }
+    if health.importedCount > 0 || health.duplicateRefreshedCount > 0 { return "Outlook created review work" }
+    if completedCount == rows.count { return "Outlook path ready" }
+    return "Outlook path partially ready"
+  }
+
+  private var nextAction: String {
+    rows.first { !$0.isComplete && $0.tone == "warning" }?.nextAction
+      ?? rows.first { !$0.isComplete && $0.tone == "attention" }?.nextAction
+      ?? health.nextAction
+  }
+
+  private var color: Color {
+    if blockingCount > 0 { return .red }
+    if attentionCount > 0 || health.blockedCount > 0 { return .orange }
+    if completedCount == rows.count || health.importedCount > 0 || health.duplicateRefreshedCount > 0 { return .green }
+    return .secondary
+  }
+
+  private var visibleRows: [CheckRow] {
+    let blockers = rows.filter { !$0.isComplete }
+    return Array((blockers.isEmpty ? rows : blockers).prefix(horizontalSizeClass == .compact ? 3 : 4))
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: blockingCount > 0 ? "exclamationmark.shield.fill" : "checkmark.seal.fill")
+          .foregroundStyle(color)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(verdict)
+            .font(.headline)
+          Text("\(completedCount)/\(rows.count) checks complete. Latest health: \(health.verdict).")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text(nextAction)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("\(completedCount)/\(rows.count)", color: color)
+      }
+
+      MetricStrip(items: [
+        ("Checks", "\(completedCount)/\(rows.count)", color),
+        ("Blocking", "\(blockingCount)", blockingCount == 0 ? .green : .red),
+        ("Attention", "\(attentionCount)", attentionCount == 0 ? .green : .orange),
+        ("Graph blockers", "\(health.blockedCount)", health.blockedCount == 0 ? .green : .orange)
+      ])
+
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 220), spacing: 8)], alignment: .leading, spacing: 8) {
+        ForEach(visibleRows) { row in
+          VStack(alignment: .leading, spacing: 5) {
+            Label(row.title, systemImage: row.symbolName)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(color(for: row.tone))
+            Text(row.nextAction)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .lineLimit(3)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+          .background(color(for: row.tone).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+
+      Text("This card is computed from local Microsoft setup, MSAL status, OAuth planning, read-only Graph refresh summaries, Inbox handoff, and Audit state. It does not open Microsoft sign-in, fetch Outlook messages, store token values, or mutate mailbox messages.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
+  }
+}
+
 struct MailboxReleaseBlockerCard: View {
   var summary: MailboxReleaseBlockerSummary
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -6193,6 +6433,16 @@ struct MailboxProviderOperatorReadinessStack: View {
               }
             }
           }
+          if !store.microsoft365MailboxConnections.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+              Label("Outlook provider checks", systemImage: "mail.stack.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              ForEach(store.microsoft365MailboxConnections.prefix(2)) { connection in
+                Microsoft365ReleaseSelfCheckCard(store: store, connection: connection)
+              }
+            }
+          }
           if showHandoffPacket {
             MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
           }
@@ -6264,6 +6514,9 @@ struct MailboxProviderOperatorReadinessStack: View {
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
             GmailOperationsRunbook()
             if !store.microsoft365MailboxConnections.isEmpty {
+              ForEach(store.microsoft365MailboxConnections.prefix(2)) { connection in
+                Microsoft365ReleaseSelfCheckCard(store: store, connection: connection)
+              }
               Microsoft365RecoveryCard(summaries: store.microsoft365IntakeHealthSummaries)
               Microsoft365OperationsRunbook()
             }
