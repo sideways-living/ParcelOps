@@ -6,6 +6,7 @@ struct TasksView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var queueSearchText = ""
   @State private var mvpFeedbackMessage: String?
+  @State private var showTasksProviderEvidence = false
 
   private var queueItems: [TaskQueueItem] {
     let tasks = store.activeWishlistReviewTasks.map(TaskQueueItem.task)
@@ -567,8 +568,7 @@ struct TasksView: View {
       VStack(alignment: .leading, spacing: 16) {
         header
         OperatorHandoffBriefCard(store: store, detail: "Summarize open follow-up before handing work to the next operator.")
-        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
-        MailboxProviderAdvancedDiagnosticsDisclosure(store: store, showTasksLink: false)
+        tasksProviderEvidencePanel
         taskNextActionPanel
         taskResolutionLadderPanel
         taskScopePanel
@@ -590,6 +590,32 @@ struct TasksView: View {
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  private var tasksProviderEvidencePanel: some View {
+    SettingsPanel(title: "Mailbox provider evidence", symbol: "point.3.connected.trianglepath.dotted") {
+      DisclosureGroup(isExpanded: $showTasksProviderEvidence) {
+        VStack(alignment: .leading, spacing: 14) {
+          MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
+          MailboxProviderAdvancedDiagnosticsDisclosure(store: store, showTasksLink: false)
+          Text("This evidence explains provider setup, refresh, parser, and release state. Keep it collapsed while clearing owned tasks and handoffs; open it only when a provider task needs source context.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.top, 8)
+      } label: {
+        VStack(alignment: .leading, spacing: 4) {
+          Text(showTasksProviderEvidence ? "Hide provider evidence" : "Show provider evidence")
+            .font(.subheadline.weight(.semibold))
+          Text("Use this for mailbox-provider context. Daily work starts with the next-action panel, assigned follow-ups, and task queue.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .tint(.teal)
+    }
   }
 
   private var header: some View {
