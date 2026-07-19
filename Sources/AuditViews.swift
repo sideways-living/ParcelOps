@@ -790,6 +790,19 @@ struct AuditView: View {
             )
 
             gmailAuditReadinessPanel
+            Microsoft365ReleaseBoundaryPanel(
+              store: store,
+              title: "Outlook audit readiness",
+              lead: "Use this to confirm local audit evidence for Outlook setup, Microsoft sign-in, Graph diagnostics, mixed-mailbox review, Inbox handoff, and release task creation.",
+              sourceMetricTitle: "Audit events",
+              sourceCount: mailboxProviderReleaseGateEvents.count + mailboxEvidenceEvents.filter {
+                $0.entityType == .microsoft365MailboxConnection
+                  || $0.entityLabel.localizedCaseInsensitiveContains("Outlook")
+                  || $0.summary.localizedCaseInsensitiveContains("Microsoft")
+                  || ($0.afterDetail ?? "").localizedCaseInsensitiveContains("Graph")
+              }.count,
+              boundaryDetail: "Local-only boundary: this panel displays Outlook audit readiness only. It does not start Microsoft sign-in, request tokens, fetch Graph messages, store token values, mutate mailbox messages, or create hidden workflow actions."
+            )
           }
           .padding(.top, 8)
         } label: {
