@@ -216,7 +216,7 @@ struct DispatchReadinessView: View {
         }
 
         if sourceOrders.isEmpty {
-          Text("No source-created orders are present yet. Create an order from Inbox or link a Wishlist purchase before checking dispatch readiness.")
+          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or link a Wishlist purchase before checking dispatch readiness.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedChecklists.isEmpty {
@@ -241,7 +241,7 @@ struct DispatchReadinessView: View {
           }
 
           if actionChecklists.isEmpty {
-            Text("Linked readiness checklists look complete, reviewed, and clear for current source-created orders.")
+            Text("Linked readiness checklists look complete, reviewed, and clear for current source-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionChecklists.count > 3 {
@@ -258,7 +258,7 @@ struct DispatchReadinessView: View {
     GmailReleaseBoundaryPanel(
       store: store,
       title: "Gmail dispatch readiness",
-      lead: "Gmail release checks are setup and evidence work. Dispatch readiness checklists should only be created for concrete orders, manifests, labels, scans, custody, or handoff requirements after Inbox intake has been confirmed.",
+      lead: "Gmail release checks are setup and evidence work. Dispatch readiness checklists should only be created for concrete orders, manifests, labels, scans, custody, or handoff requirements after Inbox or Wishlist source context has been confirmed.",
       sourceMetricTitle: "Gmail readiness sources",
       sourceCount: gmailReadinessSourceCount,
       boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, call carrier APIs, book couriers, print labels, scan barcodes, or change dispatch readiness automatically."
@@ -266,7 +266,7 @@ struct DispatchReadinessView: View {
   }
 
   private var gmailReadinessSourceCount: Int {
-    store.intakeLinkedOrders
+    store.operatorSourceOrders
       .flatMap { store.linkedIntakeEmails(for: $0) }
       .filter { store.intakeSourceSummary(for: $0).label.localizedCaseInsensitiveContains("Gmail") }
       .count
@@ -276,7 +276,7 @@ struct DispatchReadinessView: View {
     Microsoft365ReleaseBoundaryPanel(
       store: store,
       title: "Outlook dispatch readiness",
-      lead: "Outlook release checks are provider setup and Graph evidence work. Dispatch readiness checklists should only be created after Outlook Inbox intake has been confirmed and linked to a concrete order.",
+      lead: "Outlook release checks are provider setup and Graph evidence work. Dispatch readiness checklists should only be created after Outlook Inbox or Wishlist source context has been confirmed and linked to a concrete order.",
       sourceMetricTitle: "Outlook readiness sources",
       sourceCount: microsoft365ReadinessSourceCount,
       boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, call carrier APIs, book couriers, print labels, scan barcodes, or change dispatch readiness automatically."
@@ -284,7 +284,7 @@ struct DispatchReadinessView: View {
   }
 
   private var microsoft365ReadinessSourceCount: Int {
-    store.intakeLinkedOrders
+    store.operatorSourceOrders
       .flatMap { store.linkedIntakeEmails(for: $0) }
       .filter { store.intakeSourceSummary(for: $0).label.localizedCaseInsensitiveContains("Microsoft 365") || store.intakeSourceSummary(for: $0).label.localizedCaseInsensitiveContains("Outlook") }
       .count
@@ -643,7 +643,7 @@ struct DispatchReadinessRow: View {
     case .ready:
       return "Checklist is ready. Open linked orders here before completing readiness if tracking, destination, or handoff setup still needs confirmation."
     case .completed:
-      return "Readiness is complete. The linked source-created order can move through dispatch monitoring."
+      return "Readiness is complete. The linked source-created or Wishlist-linked order can move through dispatch monitoring."
     case .blockedNeedsReview:
       return "Resolve the blocked readiness item before progressing dispatch."
     }

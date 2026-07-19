@@ -223,11 +223,11 @@ struct ShipmentManifestsView: View {
         }
 
         if sourceOrders.isEmpty {
-          Text("No source-created orders are present yet. Create or link an order from Inbox or Wishlist before checking manifest readiness.")
+          Text("No source-created or Wishlist-linked orders are present yet. Create or link an order from Inbox or Wishlist before checking manifest readiness.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedManifests.isEmpty {
-          Text("Source-created orders do not have shipment manifests yet. Add or create dispatch setup before outbound handoff.")
+          Text("Source-created and Wishlist-linked orders do not have shipment manifests yet. Add or create dispatch setup before outbound handoff.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -284,14 +284,14 @@ struct ShipmentManifestsView: View {
   }
 
   private var gmailManifestSourceCount: Int {
-    store.intakeLinkedOrders
+    store.operatorSourceOrders
       .flatMap { store.linkedIntakeEmails(for: $0) }
       .filter { store.intakeSourceSummary(for: $0).label.localizedCaseInsensitiveContains("Gmail") }
       .count
   }
 
   private var microsoft365ManifestSourceCount: Int {
-    store.intakeLinkedOrders
+    store.operatorSourceOrders
       .flatMap { store.linkedIntakeEmails(for: $0) }
       .filter {
         let label = store.intakeSourceSummary(for: $0).label
@@ -651,7 +651,7 @@ struct ShipmentManifestRow: View {
     case .dispatched:
       return "Manifest is dispatched. Confirm courier/internal handoff and monitor the linked order from Orders."
     case .handedOff:
-      return "Handoff is complete. The linked source-created order can be monitored from Orders."
+      return "Handoff is complete. The linked source-created or Wishlist-linked order can be monitored from Orders."
     case .blockedNeedsReview:
       return "Resolve the blocked handoff before progressing the linked order."
     }
