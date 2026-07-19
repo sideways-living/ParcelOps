@@ -779,11 +779,19 @@ struct InboxView: View {
             boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create provider handoff notes automatically, or mutate mailbox messages."
           )
           .padding(.top, 8)
+          Microsoft365ReleaseBoundaryPanel(
+            store: store,
+            title: "Outlook provider release checks",
+            lead: "These checks explain whether Microsoft setup, sign-in, Graph diagnostics, mixed-mailbox review, Inbox handoff, and audit evidence are ready before Outlook becomes a daily intake path.",
+            sourceMetricTitle: "Open gates",
+            sourceCount: openGates.count,
+            boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Graph messages, store token values, create provider handoff notes automatically, or mutate mailbox messages."
+          )
         } label: {
           VStack(alignment: .leading, spacing: 4) {
-            Text(showInboxGmailReleaseEvidence ? "Hide Gmail release evidence" : "Show Gmail release evidence")
+            Text(showInboxGmailReleaseEvidence ? "Hide provider release evidence" : "Show provider release evidence")
               .font(.caption.weight(.semibold))
-            Text("Open only when validating Google setup, labels, classifier review, Inbox handoff, and audit evidence.")
+            Text("Open only when validating Gmail or Outlook setup, classifier review, Inbox handoff, and audit evidence.")
               .font(.caption2)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -3425,6 +3433,17 @@ struct DispatchView: View {
     )
   }
 
+  private var microsoft365DispatchReadinessPanel: some View {
+    Microsoft365ReleaseBoundaryPanel(
+      store: store,
+      title: "Outlook dispatch readiness",
+      lead: "Outlook release checks are mailbox-provider readiness. They should create Dispatch work only after Outlook imports a real Inbox row and that row is created or linked as an order.",
+      sourceMetricTitle: "Outlook imported",
+      sourceCount: store.microsoft365MailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount },
+      boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Graph messages, store token values, create dispatch records automatically, or mutate mailbox messages."
+    )
+  }
+
   private var dispatchProviderEvidencePanel: some View {
     SettingsPanel(title: "Dispatch provider evidence", symbol: "doc.text.magnifyingglass") {
       DisclosureGroup(isExpanded: $showDispatchProviderEvidence) {
@@ -3437,13 +3456,16 @@ struct DispatchView: View {
           if !store.gmailMailboxConnections.isEmpty {
             gmailDispatchReadinessPanel
           }
+          if !store.microsoft365MailboxConnections.isEmpty {
+            microsoft365DispatchReadinessPanel
+          }
         }
         .padding(.top, 8)
       } label: {
         VStack(alignment: .leading, spacing: 4) {
           Text(showDispatchProviderEvidence ? "Hide advanced dispatch evidence" : "Show advanced dispatch evidence")
             .font(.subheadline.weight(.semibold))
-          Text("Dispatch operators can use the queue and readiness ladder first. Open this only for mailbox handoff diagnostics or Gmail release evidence.")
+          Text("Dispatch operators can use the queue and readiness ladder first. Open this only for mailbox handoff diagnostics, Gmail release evidence, or Outlook release evidence.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
