@@ -780,9 +780,11 @@ struct AuditView: View {
     SettingsPanel(title: "Mailbox provider release gate", symbol: "checkmark.seal.fill") {
       VStack(alignment: .leading, spacing: 12) {
         MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
-        MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: nil)
-        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store, showAuditLink: false)
-        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
+        MailboxProviderAdvancedDiagnosticsDisclosure(
+          store: store,
+          detail: "Open this when audit review needs provider release gates, handoff evidence, or troubleshooting detail. The activity feed remains the primary audit surface.",
+          showAuditLink: false
+        )
 
         gmailAuditReadinessPanel
 

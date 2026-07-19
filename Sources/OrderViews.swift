@@ -310,7 +310,11 @@ struct OrdersView: View {
 
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
 
-        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+        MailboxProviderAdvancedDiagnosticsDisclosure(
+          store: store,
+          detail: "Open this when order handoff needs provider evidence or troubleshooting. The order queue stays focused on created and linked orders.",
+          showReleaseGate: false
+        )
 
         if !wishlistLinkedOrderItems.isEmpty {
           VStack(alignment: .leading, spacing: 8) {
