@@ -4687,7 +4687,7 @@ struct GmailGoogleCloudSetupGuide: View {
     (
       "1",
       "Create Google OAuth client",
-      "Use Google Cloud Console OAuth client type iOS. Bundle ID must be app.bitrig.parcelops. Do not create or enter a client secret.",
+      "In Google Cloud Console, enable the Gmail API, configure the OAuth consent screen/test users if needed, then create OAuth client type iOS. Bundle ID must be app.bitrig.parcelops.",
       .blue
     ),
     (
@@ -4707,6 +4707,29 @@ struct GmailGoogleCloudSetupGuide: View {
       "Use read-only Gmail access",
       "Use gmail.readonly or gmail.metadata only. Real refresh is implemented as manual, read-only Gmail API access for message metadata, headers, snippets, and previews.",
       .green
+    )
+  ]
+
+  private let googleCloudChecks: [(title: String, detail: String, color: Color)] = [
+    (
+      "Gmail API enabled",
+      "The Google Cloud project must have Gmail API enabled before a real manual refresh can read message metadata.",
+      .blue
+    ),
+    (
+      "Consent screen ready",
+      "External apps usually need test users until verification. Use the same Google account that will sign in to ParcelOps.",
+      .purple
+    ),
+    (
+      "iOS OAuth client",
+      "Use platform type iOS, not Web, Desktop, Android, or Chrome. The bundle ID must exactly match app.bitrig.parcelops.",
+      .teal
+    ),
+    (
+      "No client secret",
+      "ParcelOps only needs the iOS client ID and reversed URL scheme. Do not paste client secrets, passwords, or tokens into the app.",
+      .secondary
     )
   ]
 
@@ -4737,6 +4760,28 @@ struct GmailGoogleCloudSetupGuide: View {
       CompactMetadataGrid(minimumWidth: 185) {
         ForEach(steps, id: \.number) { step in
           GmailGoogleCloudSetupStep(number: step.number, title: step.title, detail: step.detail, color: step.color)
+        }
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Google Cloud checklist", systemImage: "cloud.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+        CompactMetadataGrid(minimumWidth: 185) {
+          ForEach(googleCloudChecks, id: \.title) { item in
+            VStack(alignment: .leading, spacing: 4) {
+              Text(item.title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(item.color)
+              Text(item.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
         }
       }
 
