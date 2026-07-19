@@ -5509,6 +5509,43 @@ struct MailboxProviderSetupChecklistCard: View {
         (metric.title, metric.value, color(for: metric.tone))
       })
 
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: "arrow.triangle.branch")
+            .foregroundStyle(color)
+            .frame(width: 22)
+          VStack(alignment: .leading, spacing: 3) {
+            Text(summary.primaryProviderTitle)
+              .font(.subheadline.weight(.semibold))
+            Text(summary.primaryProviderDetail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        Label(summary.primaryProviderNextAction, systemImage: "arrow.forward.circle.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(color)
+          .fixedSize(horizontal: false, vertical: true)
+
+        if !summary.topBlockers.isEmpty {
+          VStack(alignment: .leading, spacing: 5) {
+            Text("Top setup blockers")
+              .font(.caption.weight(.semibold))
+            ForEach(summary.topBlockers, id: \.self) { blocker in
+              Label(blocker, systemImage: "exclamationmark.circle.fill")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
       LazyVGrid(columns: providerColumns, alignment: .leading, spacing: 10) {
         ForEach(summary.providers) { provider in
           VStack(alignment: .leading, spacing: 10) {

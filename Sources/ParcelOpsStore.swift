@@ -4412,6 +4412,87 @@ final class ParcelOpsStore {
     let spaceMailTone = providerTone(for: spaceMailChecks, optional: spaceMailIsOptional)
     let gmailTone = providerTone(for: gmailChecks, optional: gmail == nil)
     let microsoft365Tone = providerTone(for: microsoft365Checks, optional: microsoft365 == nil)
+
+    struct ProviderDecisionCandidate {
+      var name: String
+      var tone: String
+      var hasSetup: Bool
+      var hasRefresh: Bool
+      var nextAction: String
+      var blockers: [String]
+    }
+
+    func blockerTitles(from checks: [MailboxProviderSetupChecklistItem]) -> [String] {
+      checks
+        .filter { !$0.isComplete && $0.tone != "neutral" }
+        .map(\.title)
+    }
+
+    let providerCandidates = [
+      ProviderDecisionCandidate(
+        name: "SpaceMail IMAP",
+        tone: spaceMailTone,
+        hasSetup: spaceMail != nil,
+        hasRefresh: spaceMail.map { $0.lastManualRefreshDate != "Never" } ?? false,
+        nextAction: spaceMailIsOptional ? "Leave SpaceMail aside unless this mailbox is hosted through IMAP." : (spaceMailTone == "success" ? "Use SpaceMail for the next manual read-only refresh." : "Finish SpaceMail host/folder and Keychain credential setup before relying on refresh."),
+        blockers: blockerTitles(from: spaceMailChecks)
+      ),
+      ProviderDecisionCandidate(
+        name: "Gmail",
+        tone: gmailTone,
+        hasSetup: gmail != nil,
+        hasRefresh: gmail.map { $0.lastManualRefreshDate != "Never" } ?? false,
+        nextAction: gmail == nil ? "Add Gmail only when the mailbox is Gmail-hosted." : (gmailTone == "success" ? "Use Gmail for the next hosted-mailbox readiness test." : "Finish Google OAuth placeholders and sign-in readiness before real Gmail refresh."),
+        blockers: blockerTitles(from: gmailChecks)
+      ),
+      ProviderDecisionCandidate(
+        name: "Outlook",
+        tone: microsoft365Tone,
+        hasSetup: microsoft365 != nil,
+        hasRefresh: microsoft365.map { $0.lastManualRefreshDate != "Never" } ?? false,
+        nextAction: microsoft365 == nil ? "Add Outlook only when the mailbox is Microsoft-hosted." : (microsoft365Tone == "success" ? "Use Outlook for the next Microsoft Graph readiness test." : "Finish Entra/OAuth setup and sign-in before real Graph refresh."),
+        blockers: blockerTitles(from: microsoft365Checks)
+      )
+    ]
+
+    let configuredCandidates = providerCandidates.filter(\.hasSetup)
+    let usableCandidates = configuredCandidates.filter { $0.tone == "success" }
+    let refreshedCandidates = configuredCandidates.filter(\.hasRefresh)
+    let primaryProviderTitle: String
+    let primaryProviderDetail: String
+    let primaryProviderNextAction: String
+    let topBlockers: [String]
+    if let refreshedUsable = usableCandidates.first(where: { $0.hasRefresh }) {
+      primaryProviderTitle = "\(refreshedUsable.name) is the current proven path"
+      primaryProviderDetail = "It has setup, credential/sign-in, and manual refresh evidence. Keep other providers as optional unless a mailbox changes host."
+      primaryProviderNextAction = refreshedUsable.nextAction
+      topBlockers = configuredCandidates
+        .filter { $0.name != refreshedUsable.name }
+        .flatMap { candidate in candidate.blockers.prefix(2).map { "\(candidate.name): \($0)" } }
+    } else if let usable = usableCandidates.first {
+      primaryProviderTitle = "\(usable.name) is the closest ready path"
+      primaryProviderDetail = "Setup looks complete, but run a manual read-only refresh to collect current intake evidence."
+      primaryProviderNextAction = usable.nextAction
+      topBlockers = configuredCandidates
+        .filter { $0.name != usable.name }
+        .flatMap { candidate in candidate.blockers.prefix(2).map { "\(candidate.name): \($0)" } }
+    } else if let refreshed = refreshedCandidates.first {
+      primaryProviderTitle = "\(refreshed.name) has refresh evidence but still needs review"
+      primaryProviderDetail = "A refresh has run, but setup checks still show blockers. Treat the latest results as diagnostic until the blockers are cleared."
+      primaryProviderNextAction = refreshed.nextAction
+      topBlockers = refreshed.blockers.prefix(4).map { "\(refreshed.name): \($0)" }
+    } else if let configured = configuredCandidates.first {
+      primaryProviderTitle = "\(configured.name) is configured but not proven"
+      primaryProviderDetail = "Complete the listed setup checks, then run one explicit manual read-only refresh before treating it as the active intake path."
+      primaryProviderNextAction = configured.nextAction
+      topBlockers = configured.blockers.prefix(4).map { "\(configured.name): \($0)" }
+    } else {
+      primaryProviderTitle = "No mailbox provider is ready yet"
+      primaryProviderDetail = "Add one provider setup record first. For the current project, SpaceMail IMAP is the practical path when using the caught@droctopus.net mailbox."
+      primaryProviderNextAction = "Set up SpaceMail IMAP, save/check the Keychain credential, then run one manual read-only refresh."
+      topBlockers = ["No provider setup record", "No credential or sign-in evidence", "No manual refresh evidence"]
+    }
+
     let providers = [
       MailboxProviderSetupChecklistProvider(
         providerName: "SpaceMail IMAP",
@@ -4464,6 +4545,10 @@ final class ParcelOpsStore {
       title: summaryTone == "success" ? "Provider setup checklist is usable" : "Provider setup checklist needs review",
       detail: "Compare SpaceMail, Gmail, and Outlook prerequisites before running manual mailbox refreshes. This checklist reads local setup state only.",
       tone: summaryTone,
+      primaryProviderTitle: primaryProviderTitle,
+      primaryProviderDetail: primaryProviderDetail,
+      primaryProviderNextAction: primaryProviderNextAction,
+      topBlockers: Array(topBlockers.prefix(5)),
       metrics: [
         SpaceMailReleaseSnapshotMetric(title: "Configured", value: "\(mailboxProviderSetupCount)", tone: hasMailboxProviderSetup ? "success" : "warning"),
         SpaceMailReleaseSnapshotMetric(title: "Checks", value: "\(completedChecks)/\(totalChecks)", tone: completedChecks == totalChecks ? "success" : "attention"),

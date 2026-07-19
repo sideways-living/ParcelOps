@@ -2506,6 +2506,10 @@ struct MailboxProviderSetupChecklistSummary: Hashable {
   var title: String
   var detail: String
   var tone: String
+  var primaryProviderTitle: String
+  var primaryProviderDetail: String
+  var primaryProviderNextAction: String
+  var topBlockers: [String]
   var metrics: [SpaceMailReleaseSnapshotMetric]
   var providers: [MailboxProviderSetupChecklistProvider]
 }
