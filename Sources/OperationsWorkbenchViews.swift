@@ -2865,10 +2865,23 @@ private struct WishlistWorkbenchFollowUpRow: View {
     item.purchaseHandoff
   }
 
+  private var linkedOrder: TrackedOrder? {
+    handoff?.linkedOrderID.flatMap { orderID in
+      store.orders.first { $0.id == orderID }
+    }
+  }
+
+  private var linkedOrderNeedsTrackingReview: Bool {
+    guard let linkedOrder else { return false }
+    return linkedOrder.trackingNumber.isPlaceholderValidationValue
+      || linkedOrder.trackingNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
   private var tone: Color {
     if item.operatorPurchaseBlockers.isEmpty { return .green }
     if item.status.localizedCaseInsensitiveContains("blocked") { return .red }
     if item.status.localizedCaseInsensitiveContains("confirmation") { return .orange }
+    if linkedOrderNeedsTrackingReview { return .orange }
     if handoff != nil { return .purple }
     return .teal
   }
@@ -2962,6 +2975,9 @@ private struct WishlistWorkbenchFollowUpRow: View {
     if !handoffSanityGaps.isEmpty {
       return "Resolve handoff sanity gaps: \(handoffSanityGaps.prefix(3).joined(separator: ", "))."
     }
+    if linkedOrderNeedsTrackingReview {
+      return "Confirm tracking on linked order \(linkedOrder?.orderNumber ?? "") before dispatch handoff."
+    }
     if !linkedOrderDispatchGaps.isEmpty {
       return "Stage dispatch setup for the linked order: \(linkedOrderDispatchGaps.prefix(2).joined(separator: ", "))."
     }
@@ -3009,6 +3025,12 @@ private struct WishlistWorkbenchFollowUpRow: View {
           Text("Handoff: \(handoff.sellerName) • \(handoff.purchaseStatus) • \(handoff.orderWatchStatus)")
             .font(.caption2)
             .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if let linkedOrder {
+          Text("Linked order: \(linkedOrder.orderNumber) • \(linkedOrder.status.rawValue) • \(linkedOrderNeedsTrackingReview ? "tracking needs review" : linkedOrder.trackingNumber)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(linkedOrderNeedsTrackingReview ? .orange : .green)
             .fixedSize(horizontal: false, vertical: true)
         }
         if !sellerEvidenceGaps.isEmpty {
