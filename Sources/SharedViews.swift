@@ -6021,6 +6021,75 @@ struct MailboxOperationsHandoffCard: View {
   }
 }
 
+struct MailboxProviderChoiceGuideCard: View {
+  private let providerRows: [(title: String, useWhen: String, setup: String, boundary: String, symbol: String, color: Color)] = [
+    (
+      "SpaceMail / IMAP",
+      "Use for SpaceMail and other ordinary IMAP-hosted mailboxes.",
+      "Confirm host, port, SSL/TLS, folder, mixed-mailbox mode, and Keychain password/app-password.",
+      "Manual read-only IMAP refresh only. No mailbox mutation or background sync.",
+      "server.rack",
+      .green
+    ),
+    (
+      "Gmail / Google Workspace",
+      "Use only when the mailbox is hosted by Gmail or Google Workspace.",
+      "Create Google Cloud iOS OAuth client, set bundle ID app.bitrig.parcelops, enable Gmail API, sign in, then run manual refresh.",
+      "Manual read-only Gmail API refresh only. No token values in JSON and no mailbox mutation.",
+      "envelope.badge.shield.half.filled",
+      .teal
+    ),
+    (
+      "Outlook / Microsoft 365",
+      "Use only when the mailbox is hosted by Microsoft 365 or Outlook.",
+      "Configure Entra app registration, redirect URI, read-only Graph scopes, Microsoft sign-in, then run manual Graph refresh.",
+      "Manual read-only Graph refresh only. No background sync and no mailbox mutation.",
+      "mail.stack.fill",
+      .blue
+    )
+  ]
+
+  var body: some View {
+    SettingsPanel(title: "Choose the mailbox provider", symbol: "point.3.connected.trianglepath.dotted") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Pick the provider that actually hosts the mailbox. Custom domains can be misleading: a domain email address might still be hosted by SpaceMail/IMAP, Gmail/Google Workspace, or Microsoft 365.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactMetadataGrid(minimumWidth: 230) {
+          ForEach(providerRows, id: \.title) { row in
+            VStack(alignment: .leading, spacing: 7) {
+              Label(row.title, systemImage: row.symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(row.color)
+              Text(row.useWhen)
+                .font(.caption2.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+              Text(row.setup)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+              Text(row.boundary)
+                .font(.caption2)
+                .foregroundStyle(row.color)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+
+        Text("All three providers feed the same local Inbox triage path. Use mock refresh for workflow testing; use real refresh only when the provider setup, credential/sign-in, and read-only scope are ready.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+}
+
 struct SpaceMailOperatorGuidanceStack: View {
   var store: ParcelOpsStore
   var showTestRun: Bool = true
