@@ -5,6 +5,8 @@ struct DashboardView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var dashboardSearchText = ""
   @State private var feedbackMessage: String?
+  @State private var showDashboardProviderEvidence = false
+  @State private var showDashboardGmailEvidence = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var normalizedDashboardSearch: String {
@@ -1101,11 +1103,7 @@ struct DashboardView: View {
         OperatorSupportSnapshotCard(store: store, detail: "Current support snapshot for the daily operator workflow.")
         OperatorTestSessionChecklistCard(store: store, detail: "Run this checklist when validating the current operator flow.")
         OperatorHandoffBriefCard(store: store, detail: "Current handoff notes for the next operator or test session.")
-        MailboxProviderAdvancedDiagnosticsDisclosure(
-          store: store,
-          detail: "Open this when validating provider release evidence. Keep it collapsed for normal daily start-screen use."
-        )
-        mailboxDiagnosticDraftPanel
+        dashboardProviderEvidencePanel
         OperatorMVPReadinessCard(store: store)
         LocalDataHygieneSummaryCard(
           store: store,
@@ -1938,14 +1936,30 @@ struct DashboardView: View {
           if let blocker = store.gmailReleaseBlockerSummary.blockers.first(where: { $0.tone == "warning" || $0.tone == "attention" }) {
             MailboxTopReleaseBlockerCallout(blocker: blocker)
           }
-          GmailReleaseBoundaryPanel(
-            store: store,
-            title: "Gmail dashboard readiness",
-            lead: "Use this as dashboard evidence that Google setup, sign-in, labels, classifier review, Inbox handoff, and audit events are ready before Gmail becomes a daily intake path.",
-            sourceMetricTitle: "Gmail Inbox signals",
-            sourceCount: (latestGmailSummary?.importedCount ?? 0) + pendingGmailUncertainReviewCount + pendingGmailFilteredReviewCount,
-            boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create Dashboard work automatically, or mutate mailbox messages."
-          )
+          DisclosureGroup(isExpanded: $showDashboardGmailEvidence) {
+            GmailReleaseBoundaryPanel(
+              store: store,
+              title: "Gmail dashboard readiness",
+              lead: "Use this as Dashboard evidence that Google setup, sign-in, labels, classifier review, Inbox handoff, and audit events are ready before Gmail becomes a daily intake path.",
+              sourceMetricTitle: "Gmail Inbox signals",
+              sourceCount: (latestGmailSummary?.importedCount ?? 0) + pendingGmailUncertainReviewCount + pendingGmailFilteredReviewCount,
+              boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create Dashboard work automatically, or mutate mailbox messages."
+            )
+            .padding(.top, 8)
+          } label: {
+            VStack(alignment: .leading, spacing: 4) {
+              Text(showDashboardGmailEvidence ? "Hide Gmail release evidence" : "Show Gmail release evidence")
+                .font(.caption.weight(.semibold))
+              Text("Open only when validating Google setup, OAuth readiness, label choices, and classifier release evidence.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .tint(.teal)
+          .padding(8)
+          .background(.background, in: RoundedRectangle(cornerRadius: 8))
+          .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
           CompactMetadataGrid(minimumWidth: 145) {
             Badge("Label: \(dashboardGmailPrimaryLabel)", color: dashboardGmailLabelColor)
             Badge(dashboardGmailLabelStatus, color: dashboardGmailLabelColor)
@@ -2170,6 +2184,31 @@ struct DashboardView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
       }
+    }
+  }
+
+  private var dashboardProviderEvidencePanel: some View {
+    SettingsPanel(title: "Mailbox provider evidence", symbol: "point.3.connected.trianglepath.dotted") {
+      DisclosureGroup(isExpanded: $showDashboardProviderEvidence) {
+        VStack(alignment: .leading, spacing: 14) {
+          MailboxProviderAdvancedDiagnosticsDisclosure(
+            store: store,
+            detail: "Use this when validating provider release evidence. Keep it collapsed for normal daily start-screen use."
+          )
+          mailboxDiagnosticDraftPanel
+        }
+        .padding(.top, 8)
+      } label: {
+        VStack(alignment: .leading, spacing: 4) {
+          Text(showDashboardProviderEvidence ? "Hide advanced provider evidence" : "Show advanced provider evidence")
+            .font(.subheadline.weight(.semibold))
+          Text("Daily operators can use the provider counts above. Open this only for release gates, diagnostics, or draft handoff evidence.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .tint(.teal)
     }
   }
 
