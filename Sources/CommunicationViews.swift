@@ -402,7 +402,14 @@ struct CommunicationView: View {
           )
 
           if !store.gmailMailboxConnections.isEmpty {
-            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+            MailboxProviderPostRefreshDisclosure(
+              title: "Gmail draft follow-up",
+              detail: "Open this when Gmail refresh results affect draft-message follow-up. Draft rows remain the primary work here.",
+              symbol: "envelope.badge.shield.half.filled",
+              tone: .pink
+            ) {
+              GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+            }
           }
 
           if !openGmailDrafts.isEmpty {

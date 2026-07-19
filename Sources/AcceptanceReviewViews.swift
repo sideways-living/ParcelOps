@@ -240,7 +240,14 @@ struct AcceptanceReviewView: View {
         )
 
         if !store.gmailMailboxConnections.isEmpty {
-          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          MailboxProviderPostRefreshDisclosure(
+            title: "Gmail acceptance follow-up",
+            detail: "Open this when Gmail refresh results affect acceptance review. Candidate rows remain the primary work here.",
+            symbol: "envelope.badge.shield.half.filled",
+            tone: .pink
+          ) {
+            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          }
         }
 
         if store.acceptanceCandidates.isEmpty {

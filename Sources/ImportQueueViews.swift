@@ -310,7 +310,14 @@ struct ImportQueueView: View {
         )
 
         if !store.gmailMailboxConnections.isEmpty {
-          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          MailboxProviderPostRefreshDisclosure(
+            title: "Gmail staging follow-up",
+            detail: "Open this when Gmail refresh results affect staging. Import rows remain the primary work here.",
+            symbol: "envelope.badge.shield.half.filled",
+            tone: .pink
+          ) {
+            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          }
         }
 
         if store.importQueueItems.isEmpty {

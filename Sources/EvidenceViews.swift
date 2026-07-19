@@ -311,7 +311,14 @@ struct EvidenceView: View {
           )
 
           if !store.gmailMailboxConnections.isEmpty {
-            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+            MailboxProviderPostRefreshDisclosure(
+              title: "Gmail evidence follow-up",
+              detail: "Open this when Gmail refresh results affect evidence review. Evidence rows remain the primary work here.",
+              symbol: "envelope.badge.shield.half.filled",
+              tone: .pink
+            ) {
+              GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+            }
           }
 
           if gmailSourceTrailEmails.isEmpty && outlookSourceTrailEmails.isEmpty {

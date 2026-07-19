@@ -719,20 +719,27 @@ struct MailboxView: View {
             )
 
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
-            SpaceMailShiftHandoffCard(
-              summary: store.spaceMailShiftHandoffSummary,
-              onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
-            )
-            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
-            GmailShiftHandoffCard(
-              summary: store.gmailShiftHandoffSummary,
-              onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
-              onCreateTask: { store.createGmailShiftReviewTask() },
-              onCreateDraft: { store.createGmailShiftDraftMessage() }
-            )
-            SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
-            MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
-            MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
+            MailboxProviderPostRefreshDisclosure(
+              title: "Provider refresh follow-up",
+              detail: "Open this for handoff notes, Gmail/SpaceMail follow-up, and release evidence. The summary above is enough for normal mailbox review.",
+              symbol: "tray.and.arrow.down.fill",
+              tone: latestMailboxUncertainCount == 0 && latestMailboxFilteredCount == 0 ? .teal : .orange
+            ) {
+              SpaceMailShiftHandoffCard(
+                summary: store.spaceMailShiftHandoffSummary,
+                onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
+              )
+              GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+              GmailShiftHandoffCard(
+                summary: store.gmailShiftHandoffSummary,
+                onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
+                onCreateTask: { store.createGmailShiftReviewTask() },
+                onCreateDraft: { store.createGmailShiftDraftMessage() }
+              )
+              SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
+              MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
+              MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
+            }
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
 
             Text("Provider rows summarize the latest active mailbox outcomes, trend history, handoff status, and refresh status so operators do not need to open Audit for the basic refresh decision. Filtered mixed-mailbox messages stay out of Inbox unless explicitly promoted or imported.")
@@ -4002,9 +4009,11 @@ struct NeedsReviewView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-              MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
-              MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
-              MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
+              MailboxProviderAdvancedDiagnosticsDisclosure(
+                store: store,
+                detail: "Open this when Needs Review requires provider release gates, handoff evidence, or troubleshooting detail.",
+                showMailboxLink: true
+              )
               GmailReleaseBoundaryPanel(
                 store: store,
                 title: "Gmail Needs Review boundary",
