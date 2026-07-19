@@ -902,6 +902,7 @@ struct WishlistView: View {
   @State private var selectedSource: WishlistSource?
   @State private var selectedStatus: String?
   @State private var selectedWorkflowFocus: WishlistWorkflowFocus = .all
+  @State private var showDetailedWishlistWorkflow = false
   @State private var editingCaptureCandidate: WishlistCaptureCandidate?
   @State private var showManualWishlistItemForm = false
   @State private var showPastedLinkCaptureForm = false
@@ -1735,6 +1736,116 @@ struct WishlistView: View {
     }
   }
 
+  private var wishlistDetailedWorkflowDisclosure: some View {
+    SettingsPanel(title: "Detailed Wishlist workflow", symbol: "rectangle.stack.badge.plus") {
+      DisclosureGroup(isExpanded: $showDetailedWishlistWorkflow) {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Detailed capture, comparison, seller trust, landed cost, purchase handoff, order-watch, agent-brief, and operations panels are kept here. Open this when you need deeper review; keep it closed for daily item triage.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          wishlistPurchaseTriagePanel
+          wishlistPurchaseTimelinePanel
+          wishlistPurchaseReadinessChecklistPanel
+          wishlistComparisonReadinessLadderPanel
+          wishlistOperatorControlCentrePanel
+          wishlistExceptionQueuePanel
+          wishlistOperationsNextStepsPanel
+          wishlistSellerDecisionSnapshotPanel
+          wishlistComparisonBriefShortcutPanel
+          wishlistWorkflowFocusPanel
+          wishlistOperatorQueuePanel
+          wishlistLocalActivityPanel
+          wishlistDataQualityPanel
+          wishlistReadinessPanel
+          wishlistPipelineBoardPanel
+          wishlistPurchaseBlockerQueuePanel
+          wishlistCaptureContractPanel
+          wishlistCaptureSourceReadinessPanel
+          wishlistBrowserExtensionPayloadPanel
+          wishlistCaptureCandidatesPanel
+          wishlistCapturedOptionCleanupPanel
+          wishlistComparisonPlanningPanel
+          wishlistAgentReadinessVerdictPanel
+          wishlistSellerOptionReviewPanel
+          wishlistSellerSafetyRubricPanel
+          wishlistSellerTrustDiligencePanel
+          wishlistSellerTrustChecklistPanel
+          wishlistSellerTrustEvidenceLedgerPanel
+          wishlistComparisonMatrixPanel
+          wishlistLandedCostReviewPanel
+          wishlistPriceWatchSnapshotPanel
+          wishlistPriceWatchDecisionBoardPanel
+          wishlistPriceWatchRulesPanel
+          wishlistPurchaseRecommendationPanel
+          wishlistPurchaseDecisionRiskGatePanel
+          wishlistPurchaseShortlistPanel
+          wishlistPurchaseDecisionRunwayPanel
+          wishlistPurchasePacketPanel
+          wishlistPurchaseDecisionQueuePanel
+          wishlistPurchaseReadinessBlockerSummaryPanel
+          wishlistExternalPurchaseSafetyGatePanel
+          wishlistPurchaseDecisionSummaryPanel
+          wishlistManualPurchaseHandoffReadinessPanel
+          wishlistPurchaseEvidenceDossierPanel
+          wishlistPurchaseDecisionEvidencePackPanel
+          wishlistPurchaseApprovalPanel
+          wishlistPurchaseLinkPanel
+          wishlistPrePurchaseOperatorChecklistPanel
+          wishlistPurchaseReleaseChecklistPanel
+          wishlistManualPurchaseDayPlanPanel
+          wishlistPurchaseHandoffPackPanel
+          wishlistPurchaseHandoffSanityPanel
+          wishlistPurchaseAccountReadinessPanel
+          wishlistPurchaseAccountLedgerPanel
+          wishlistPurchaseWatchCommandCentrePanel
+          wishlistOrderConfirmationHandoffPanel
+          wishlistPostPurchaseMonitorPanel
+          wishlistOrderWatchRecordsPanel
+          wishlistOrderConfirmationMatchingPanel
+          wishlistPostPurchaseOrderWatchPanel
+          wishlistPurchaseOperationsHandoffPanel
+          wishlistLinkedOrderOperationsChecklistPanel
+          wishlistLinkedOrderFollowUpDashboardPanel
+          wishlistOperationsClosureReadinessPanel
+          wishlistOrderConfirmationMatchPacketPanel
+          wishlistAgentResearchRunwayPanel
+          wishlistAgentHandoffPacketPanel
+          wishlistAgentOutputContractPanel
+          wishlistAgentBriefQualityPanel
+          wishlistAgentBatchBriefPanel
+          wishlistResearchResultIntakePanel
+          wishlistSellerQuoteIntakePanel
+          wishlistResearchPasteBackChecklistPanel
+          wishlistResearchPasteBackFieldMapPanel
+          wishlistResearchResultQualityPanel
+          wishlistSellerComparisonDecisionRunwayPanel
+          wishlistResearchRequestsPanel
+          gmailWishlistFocusPanel
+        }
+        .padding(.top, 8)
+      } label: {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: showDetailedWishlistWorkflow ? "chevron.down.circle.fill" : "chevron.right.circle.fill")
+            .foregroundStyle(.purple)
+            .frame(width: 22)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(showDetailedWishlistWorkflow ? "Hide detailed planning panels" : "Open detailed planning panels")
+              .font(.subheadline.weight(.semibold))
+            Text("Core capture, comparison, purchase-state, filters, and item rows stay visible without opening this section.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(showDetailedWishlistWorkflow ? "Open" : "Collapsed", color: showDetailedWishlistWorkflow ? .purple : .secondary)
+        }
+        .contentShape(Rectangle())
+      }
+    }
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
@@ -1763,84 +1874,7 @@ struct WishlistView: View {
         wishlistCaptureRunwayPanel
         wishlistComparisonRunwayPanel
         wishlistPurchaseStatePanel
-        wishlistPurchaseTriagePanel
-        wishlistPurchaseTimelinePanel
-        wishlistPurchaseReadinessChecklistPanel
-        wishlistComparisonReadinessLadderPanel
-        wishlistOperatorControlCentrePanel
-        wishlistExceptionQueuePanel
-        wishlistOperationsNextStepsPanel
-        wishlistSellerDecisionSnapshotPanel
-        wishlistComparisonBriefShortcutPanel
-        wishlistWorkflowFocusPanel
-        wishlistOperatorQueuePanel
-        wishlistLocalActivityPanel
-        wishlistDataQualityPanel
-        wishlistReadinessPanel
-        wishlistPipelineBoardPanel
-        wishlistPurchaseBlockerQueuePanel
-        wishlistCaptureContractPanel
-        wishlistCaptureSourceReadinessPanel
-        wishlistBrowserExtensionPayloadPanel
-        wishlistCaptureCandidatesPanel
-        wishlistCapturedOptionCleanupPanel
-        wishlistComparisonPlanningPanel
-        wishlistAgentReadinessVerdictPanel
-        wishlistSellerOptionReviewPanel
-        wishlistSellerSafetyRubricPanel
-        wishlistSellerTrustDiligencePanel
-        wishlistSellerTrustChecklistPanel
-        wishlistSellerTrustEvidenceLedgerPanel
-        wishlistComparisonMatrixPanel
-        wishlistLandedCostReviewPanel
-        wishlistPriceWatchSnapshotPanel
-        wishlistPriceWatchDecisionBoardPanel
-        wishlistPriceWatchRulesPanel
-        wishlistPurchaseRecommendationPanel
-        wishlistPurchaseDecisionRiskGatePanel
-        wishlistPurchaseShortlistPanel
-        wishlistPurchaseDecisionRunwayPanel
-        wishlistPurchasePacketPanel
-        wishlistPurchaseDecisionQueuePanel
-        wishlistPurchaseReadinessBlockerSummaryPanel
-        wishlistExternalPurchaseSafetyGatePanel
-        wishlistPurchaseDecisionSummaryPanel
-        wishlistManualPurchaseHandoffReadinessPanel
-        wishlistPurchaseEvidenceDossierPanel
-        wishlistPurchaseDecisionEvidencePackPanel
-        wishlistPurchaseApprovalPanel
-        wishlistPurchaseLinkPanel
-        wishlistPrePurchaseOperatorChecklistPanel
-        wishlistPurchaseReleaseChecklistPanel
-        wishlistManualPurchaseDayPlanPanel
-        wishlistPurchaseHandoffPackPanel
-        wishlistPurchaseHandoffSanityPanel
-        wishlistPurchaseAccountReadinessPanel
-        wishlistPurchaseAccountLedgerPanel
-        wishlistPurchaseWatchCommandCentrePanel
-        wishlistOrderConfirmationHandoffPanel
-        wishlistPostPurchaseMonitorPanel
-        wishlistOrderWatchRecordsPanel
-        wishlistOrderConfirmationMatchingPanel
-        wishlistPostPurchaseOrderWatchPanel
-        wishlistPurchaseOperationsHandoffPanel
-        wishlistLinkedOrderOperationsChecklistPanel
-        wishlistLinkedOrderFollowUpDashboardPanel
-        wishlistOperationsClosureReadinessPanel
-        wishlistOrderConfirmationMatchPacketPanel
-        wishlistAgentResearchRunwayPanel
-        wishlistAgentHandoffPacketPanel
-        wishlistAgentOutputContractPanel
-        wishlistAgentBriefQualityPanel
-        wishlistAgentBatchBriefPanel
-        wishlistResearchResultIntakePanel
-        wishlistSellerQuoteIntakePanel
-        wishlistResearchPasteBackChecklistPanel
-        wishlistResearchPasteBackFieldMapPanel
-        wishlistResearchResultQualityPanel
-        wishlistSellerComparisonDecisionRunwayPanel
-        wishlistResearchRequestsPanel
-        gmailWishlistFocusPanel
+        wishlistDetailedWorkflowDisclosure
         filterBar
 
         SettingsPanel(title: "Capture channels", symbol: "square.and.arrow.down.fill") {
