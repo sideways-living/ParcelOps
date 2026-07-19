@@ -372,8 +372,11 @@ private struct SearchReadinessPanel: View {
             Text("Mailbox provider release context")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.secondary)
-            MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
-            MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+            MailboxProviderAdvancedDiagnosticsDisclosure(
+              store: store,
+              detail: "Open this when Search recovery needs provider release gates or handoff evidence. Search results remain the primary work here.",
+              showTroubleshooting: false
+            )
 
             GmailReleaseBoundaryPanel(
               store: store,
@@ -385,7 +388,14 @@ private struct SearchReadinessPanel: View {
             )
 
             if !store.gmailMailboxConnections.isEmpty {
-              GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+              MailboxProviderPostRefreshDisclosure(
+                title: "Gmail search follow-up",
+                detail: "Open this when Gmail refresh evidence explains missing search results. Search stays focused on local records.",
+                symbol: "envelope.badge.shield.half.filled",
+                tone: .pink
+              ) {
+                GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+              }
             }
           }
         }

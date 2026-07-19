@@ -180,8 +180,11 @@ struct ReconciliationView: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
-          MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
-          MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+          MailboxProviderAdvancedDiagnosticsDisclosure(
+            store: store,
+            detail: "Open this when reconciliation needs provider release gates or handoff evidence. Reconciliation rows remain the primary work here.",
+            showTroubleshooting: false
+          )
         }
       }
     }
