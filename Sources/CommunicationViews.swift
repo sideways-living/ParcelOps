@@ -478,14 +478,15 @@ struct CommunicationView: View {
     let linkedDrafts = draftsLinkedToInboxOrders
     let actionDrafts = linkedDrafts.filter { $0.status != .sentLocally || $0.reviewState != .accepted }
 
-    return SettingsPanel(title: "Inbox draft readiness", symbol: "envelope.open.fill") {
+    return SettingsPanel(title: "Inbox and Wishlist draft readiness", symbol: "envelope.open.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether source-created orders have local draft follow-up. ParcelOps still does not send email; ready drafts must be sent outside the app.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local draft follow-up. ParcelOps still does not send email; ready drafts must be sent outside the app.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedDrafts.count) linked drafts", color: .teal)
           Badge("\(actionDrafts.count) need action", color: actionDrafts.isEmpty ? .green : .orange)
           Badge("\(readyDrafts.count) ready", color: readyDrafts.isEmpty ? .green : .blue)
@@ -524,15 +525,15 @@ struct CommunicationView: View {
         }
 
         if sourceOrders.isEmpty {
-          Text("No source-created orders are present yet. Create or link an order from Inbox or Wishlist before checking draft coverage.")
+          Text("No source-created or Wishlist-linked orders are present yet. Create or link an order from Inbox or Wishlist before checking draft coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedDrafts.isEmpty {
-          Text("No drafts currently link to source-created orders. Create a draft only when a customer, supplier, carrier, or team follow-up is needed.")
+          Text("No drafts currently link to source-created or Wishlist-linked orders. Create a draft only when a customer, supplier, carrier, or team follow-up is needed.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if actionDrafts.isEmpty {
-          Text("Linked drafts for source-created orders are reviewed and marked sent locally.")
+          Text("Linked drafts for source-created and Wishlist-linked orders are reviewed and marked sent locally.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
