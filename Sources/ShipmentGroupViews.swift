@@ -242,7 +242,7 @@ struct ShipmentGroupsView: View {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
 
-    for order in store.intakeLinkedOrders {
+    for order in store.operatorSourceOrders {
       for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
