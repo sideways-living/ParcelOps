@@ -37,6 +37,10 @@ struct MailboxView: View {
     store.latestGmailIntakeHealthSummary
   }
 
+  private var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary? {
+    store.latestMicrosoft365IntakeHealthSummary
+  }
+
   private func gmailDomain(for emailAddress: String) -> String {
     let parts = emailAddress
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -86,7 +90,9 @@ struct MailboxView: View {
     let hasGmailRefresh = latestGmailSummary.map {
       $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0
     } ?? false
-    let hasMicrosoft365Refresh = store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    let hasMicrosoft365Refresh = latestMicrosoft365Summary.map {
+      $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.totalFilteredCount > 0 || $0.totalUncertainCount > 0 || $0.blockedCount > 0
+    } ?? store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
 
     if latestMailboxImportedCount > 0 {
       return (
@@ -171,12 +177,26 @@ struct MailboxView: View {
       ),
       (
         "Outlook / Microsoft 365",
-        store.microsoft365MailboxConnections.isEmpty ? "Advanced option" : microsoft365Connected ? "Signed in" : microsoft365Ready ? "Sign-in needed" : "Setup needed",
-        microsoft365ProviderNextActionDetail(connected: microsoft365Connected, setupReady: microsoft365Ready),
+        store.microsoft365MailboxConnections.isEmpty ? "Advanced option" : latestMicrosoft365Summary?.primaryOutcomeStatus ?? (microsoft365Connected ? "Signed in" : microsoft365Ready ? "Sign-in needed" : "Setup needed"),
+        latestMicrosoft365Summary.map { "\($0.namedRefreshCountsText)" }
+          ?? microsoft365ProviderNextActionDetail(connected: microsoft365Connected, setupReady: microsoft365Ready),
         "mail.stack.fill",
-        store.microsoft365MailboxConnections.isEmpty ? .secondary : microsoft365Connected ? .blue : .orange
+        store.microsoft365MailboxConnections.isEmpty ? .secondary : latestMicrosoft365Summary.map { colorForMailboxTone($0.tone) } ?? (microsoft365Connected ? .blue : .orange)
       )
     ]
+  }
+
+  private func colorForMailboxTone(_ tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
   }
 
   private func gmailProviderNextActionDetail(gmailSignedIn: Bool, gmailSetupReady: Bool) -> String {
@@ -740,6 +760,7 @@ struct MailboxView: View {
             MailboxProviderRefreshSummaryGrid(
               spaceMailSummary: latestSpaceMailSummary,
               gmailSummary: latestGmailSummary,
+              microsoft365Summary: latestMicrosoft365Summary,
               microsoft365Connections: store.microsoft365MailboxConnections
             )
 
@@ -1570,9 +1591,27 @@ private struct MailboxMissedOrderInvestigationPanel: View {
 private struct MailboxProviderRefreshSummaryGrid: View {
   var spaceMailSummary: SpaceMailIntakeHealthSummary?
   var gmailSummary: GmailIntakeHealthSummary?
+  var microsoft365Summary: Microsoft365IntakeHealthSummary?
   var microsoft365Connections: [Microsoft365MailboxConnection] = []
 
-  private var microsoft365Summary: ProviderSummary? {
+  private var microsoft365ProviderSummary: ProviderSummary? {
+    if let microsoft365Summary {
+      return ProviderSummary(
+        name: microsoft365Summary.displayName,
+        verdict: microsoft365Summary.verdict,
+        detail: microsoft365Summary.detail,
+        nextAction: microsoft365Summary.nextAction,
+        tone: microsoft365Summary.tone,
+        fetched: microsoft365Summary.fetchedCount,
+        imported: microsoft365Summary.importedCount,
+        duplicate: microsoft365Summary.duplicateCount,
+        duplicateRefreshed: microsoft365Summary.duplicateRefreshedCount,
+        duplicateNoChange: microsoft365Summary.duplicateNoChangeCount,
+        filtered: microsoft365Summary.totalFilteredCount,
+        uncertain: microsoft365Summary.totalUncertainCount,
+        lastRefresh: microsoft365Summary.lastRefreshDate
+      )
+    }
     guard let connection = microsoft365Connections
       .sorted(by: { $0.lastManualRefreshDate > $1.lastManualRefreshDate })
       .first else {
@@ -1649,7 +1688,7 @@ private struct MailboxProviderRefreshSummaryGrid: View {
       providerCard(
         title: "Outlook / Microsoft 365",
         symbol: "mail.stack.fill",
-        summary: microsoft365Summary,
+        summary: microsoft365ProviderSummary,
         emptyDetail: "Use Outlook / Microsoft 365 setup only for Microsoft-hosted mailboxes. Real Graph refresh remains explicit, manual, and read-only."
       )
     }
