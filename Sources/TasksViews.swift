@@ -552,8 +552,26 @@ struct TasksView: View {
     }.count
   }
 
+  private var openMailboxProviderGateTaskCount: Int {
+    queueItems.filter { item in
+      item.linkedEntityID == "mailbox-provider-release-gate" && item.status != .completed
+    }.count
+  }
+
+  private var openOutlookReleaseSnapshotTaskCount: Int {
+    queueItems.filter { item in
+      item.isOutlookFollowUp
+        && item.title.localizedCaseInsensitiveContains("release self-check")
+        && item.status != .completed
+    }.count
+  }
+
   private var openProviderReleaseTaskCount: Int {
-    openReleaseSnapshotTaskCount + openGmailReleaseSnapshotTaskCount + openMailboxReleaseSnapshotTaskCount
+    openReleaseSnapshotTaskCount
+      + openGmailReleaseSnapshotTaskCount
+      + openMailboxReleaseSnapshotTaskCount
+      + openMailboxProviderGateTaskCount
+      + openOutlookReleaseSnapshotTaskCount
   }
 
   private func linkedOrder(for draft: DraftMessage) -> TrackedOrder? {
@@ -1567,7 +1585,7 @@ struct TasksView: View {
             Text(openProviderReleaseTaskCount > 0 ? "Provider release tasks are active" : "Create release snapshot tasks when QA starts")
               .font(.headline)
             Text(openProviderReleaseTaskCount > 0
-              ? "SpaceMail, Gmail, and combined mailbox release snapshots can each have an owned task. Refresh them when setup, provider, or test evidence changes."
+              ? "SpaceMail, Gmail, Outlook, combined mailbox release snapshots, and the provider gate can each have owned tasks. Refresh them when setup, provider, or test evidence changes."
               : "Use this to turn current provider release snapshots into owned work before a hands-on test session.")
               .font(.subheadline)
               .foregroundStyle(.secondary)
@@ -1581,7 +1599,9 @@ struct TasksView: View {
         MetricStrip(items: [
           ("SpaceMail task", "\(openReleaseSnapshotTaskCount)", openReleaseSnapshotTaskCount > 0 ? .green : .orange),
           ("Gmail task", "\(openGmailReleaseSnapshotTaskCount)", openGmailReleaseSnapshotTaskCount > 0 ? .green : (store.gmailMailboxConnections.isEmpty ? .secondary : .orange)),
+          ("Outlook task", "\(openOutlookReleaseSnapshotTaskCount)", openOutlookReleaseSnapshotTaskCount > 0 ? .green : (store.microsoft365MailboxConnections.isEmpty ? .secondary : .orange)),
           ("Mailbox task", "\(openMailboxReleaseSnapshotTaskCount)", openMailboxReleaseSnapshotTaskCount > 0 ? .green : .orange),
+          ("Gate task", "\(openMailboxProviderGateTaskCount)", openMailboxProviderGateTaskCount > 0 ? .green : .orange),
           ("Open release tasks", "\(openProviderReleaseTaskCount)", openProviderReleaseTaskCount > 0 ? .green : .orange)
         ])
 
@@ -1591,6 +1611,7 @@ struct TasksView: View {
 
         MetricStrip(items: [
           ("Gmail", gmailReleaseSnapshot.tone.capitalized, taskMetricColor(for: gmailReleaseSnapshot.tone)),
+          ("Outlook", store.microsoft365MailboxConnections.isEmpty ? "Optional" : "\(store.microsoft365MailboxConnections.map { store.microsoft365ReleaseSelfCheckSummary(for: $0) }.filter { $0.tone != "success" }.count) open", store.microsoft365MailboxConnections.isEmpty ? .secondary : (store.microsoft365MailboxConnections.contains { store.microsoft365ReleaseSelfCheckSummary(for: $0).tone == "warning" } ? .orange : .teal)),
           ("Combined", mailboxReleaseSnapshot.tone.capitalized, taskMetricColor(for: mailboxReleaseSnapshot.tone))
         ])
 
