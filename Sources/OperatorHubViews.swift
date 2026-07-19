@@ -9,6 +9,8 @@ struct InboxView: View {
   @State private var triageSourceFilter: InboxTriageSourceFilter = .all
   @State private var triageQualityFilter: InboxTriageQualityFilter = .all
   @State private var providerReleaseGateFeedbackMessage: String?
+  @State private var showInboxProviderEvidence = false
+  @State private var showInboxGmailReleaseEvidence = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
 
@@ -364,11 +366,7 @@ struct InboxView: View {
         MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store, showInboxLink: false)
         mailboxProviderNextStepPanel
         mailboxProviderReleaseGatePanel
-        MailboxProviderAdvancedDiagnosticsDisclosure(
-          store: store,
-          detail: "Open this when the Inbox provider handoff or troubleshooting detail is needed. The primary Inbox queue stays focused on messages that need action.",
-          showReleaseGate: false
-        )
+        inboxProviderEvidencePanel
         SpaceMailPrimaryStatusStrip(store: store)
         SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
@@ -763,14 +761,30 @@ struct InboxView: View {
           (metric.title, metric.value, mailboxProviderReleaseGateColor(for: metric.tone))
         })
 
-        GmailReleaseBoundaryPanel(
-          store: store,
-          title: "Gmail provider release checks",
-          lead: "These checks explain whether Google setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence are ready before Gmail becomes a daily intake path.",
-          sourceMetricTitle: "Open gates",
-          sourceCount: openGates.count,
-          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create provider handoff notes automatically, or mutate mailbox messages."
-        )
+        DisclosureGroup(isExpanded: $showInboxGmailReleaseEvidence) {
+          GmailReleaseBoundaryPanel(
+            store: store,
+            title: "Gmail provider release checks",
+            lead: "These checks explain whether Google setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence are ready before Gmail becomes a daily intake path.",
+            sourceMetricTitle: "Open gates",
+            sourceCount: openGates.count,
+            boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create provider handoff notes automatically, or mutate mailbox messages."
+          )
+          .padding(.top, 8)
+        } label: {
+          VStack(alignment: .leading, spacing: 4) {
+            Text(showInboxGmailReleaseEvidence ? "Hide Gmail release evidence" : "Show Gmail release evidence")
+              .font(.caption.weight(.semibold))
+            Text("Open only when validating Google setup, labels, classifier review, Inbox handoff, and audit evidence.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        .tint(.teal)
+        .padding(8)
+        .background(.background, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
 
         if openGates.isEmpty {
           Label("Provider setup, refresh evidence, Inbox handoff, diagnostics, blockers, and release plan checks currently pass from local evidence.", systemImage: "checkmark.circle.fill")
@@ -866,6 +880,29 @@ struct InboxView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
       }
+    }
+  }
+
+  private var inboxProviderEvidencePanel: some View {
+    SettingsPanel(title: "Inbox provider evidence", symbol: "doc.text.magnifyingglass") {
+      DisclosureGroup(isExpanded: $showInboxProviderEvidence) {
+        MailboxProviderAdvancedDiagnosticsDisclosure(
+          store: store,
+          detail: "Open this when the Inbox provider handoff or troubleshooting detail is needed. The primary Inbox queue stays focused on messages that need action.",
+          showReleaseGate: false
+        )
+        .padding(.top, 8)
+      } label: {
+        VStack(alignment: .leading, spacing: 4) {
+          Text(showInboxProviderEvidence ? "Hide advanced Inbox evidence" : "Show advanced Inbox evidence")
+            .font(.subheadline.weight(.semibold))
+          Text("Daily triage can use the counts and release gate above. Open this only for provider diagnostics, handoff evidence, or troubleshooting.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .tint(.teal)
     }
   }
 
@@ -2839,6 +2876,7 @@ struct DispatchView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var dispatchSearchText = ""
+  @State private var showDispatchProviderEvidence = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var dispatchItems: [DispatchQueueItem] {
@@ -3113,11 +3151,7 @@ struct DispatchView: View {
         header
         dispatchSummaryPanel
         MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
-        MailboxProviderAdvancedDiagnosticsDisclosure(
-          store: store,
-          detail: "Open this when dispatch needs mailbox handoff evidence or troubleshooting detail. The dispatch queue stays focused on outbound work.",
-          showReleaseGate: false
-        )
+        dispatchProviderEvidencePanel
         dispatchReadinessLadderPanel
         inboxDispatchSetupPanel
         dispatchQueuePanel
@@ -3338,8 +3372,6 @@ struct DispatchView: View {
           }
         }
 
-        gmailDispatchReadinessPanel
-
         CompactActionRow {
           NavigationLink {
             ShipmentManifestsView(store: store)
@@ -3383,6 +3415,34 @@ struct DispatchView: View {
       sourceCount: latestGmailSummary?.importedCount ?? 0,
       boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create dispatch records automatically, or mutate mailbox messages."
     )
+  }
+
+  private var dispatchProviderEvidencePanel: some View {
+    SettingsPanel(title: "Dispatch provider evidence", symbol: "doc.text.magnifyingglass") {
+      DisclosureGroup(isExpanded: $showDispatchProviderEvidence) {
+        VStack(alignment: .leading, spacing: 14) {
+          MailboxProviderAdvancedDiagnosticsDisclosure(
+            store: store,
+            detail: "Open this when dispatch needs mailbox handoff evidence or troubleshooting detail. The dispatch queue stays focused on outbound work.",
+            showReleaseGate: false
+          )
+          if !store.gmailMailboxConnections.isEmpty {
+            gmailDispatchReadinessPanel
+          }
+        }
+        .padding(.top, 8)
+      } label: {
+        VStack(alignment: .leading, spacing: 4) {
+          Text(showDispatchProviderEvidence ? "Hide advanced dispatch evidence" : "Show advanced dispatch evidence")
+            .font(.subheadline.weight(.semibold))
+          Text("Dispatch operators can use the queue and readiness ladder first. Open this only for mailbox handoff diagnostics or Gmail release evidence.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .tint(.teal)
+    }
   }
 
   private var dispatchQueuePanel: some View {
