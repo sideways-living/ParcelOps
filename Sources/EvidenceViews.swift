@@ -45,14 +45,14 @@ struct EvidenceView: View {
   }
 
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    store.inboxCreatedOrdersMissingSourceTrail()
+    store.operatorSourceOrdersMissingSourceTrail(includeWishlist: true)
   }
 
   private var evidenceProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
 
-    for order in store.inboxCreatedOrders {
+    for order in store.operatorSourceOrders {
       for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
@@ -107,7 +107,7 @@ struct EvidenceView: View {
   }
 
   private var gmailSourceTrailOrders: [TrackedOrder] {
-    store.inboxCreatedOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       store.linkedIntakeEmails(for: order).contains { email in
         store.intakeSourceSummary(for: email).tone == "gmail"
       }
@@ -125,7 +125,7 @@ struct EvidenceView: View {
   }
 
   private var outlookSourceTrailOrders: [TrackedOrder] {
-    store.inboxCreatedOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       store.linkedIntakeEmails(for: order).contains { email in
         store.intakeSourceSummary(for: email).tone == "microsoft"
       }
