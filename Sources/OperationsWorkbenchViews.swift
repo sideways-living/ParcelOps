@@ -838,6 +838,7 @@ struct OperationsWorkbenchView: View {
             )
           }
           GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
+          Microsoft365RefreshTrendCard(summary: store.microsoft365RefreshTrendSummary)
           MailboxProviderPostRefreshDisclosure(
             title: "Gmail refresh follow-up",
             detail: "Open this when Gmail refresh results need Workbench follow-up. Keep it collapsed while working operational exceptions.",

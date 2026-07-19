@@ -788,6 +788,7 @@ struct MailboxView: View {
               MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
             }
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
+            Microsoft365RefreshTrendCard(summary: store.microsoft365RefreshTrendSummary)
 
             Text("Provider rows summarize the latest active mailbox outcomes, trend history, handoff status, and refresh status so operators do not need to open Audit for the basic refresh decision. Filtered mixed-mailbox messages stay out of Inbox unless explicitly promoted or imported.")
               .font(.caption)

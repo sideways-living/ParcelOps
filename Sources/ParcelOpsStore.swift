@@ -3757,6 +3757,138 @@ final class ParcelOpsStore {
     )
   }
 
+  var microsoft365RefreshTrendSummary: Microsoft365RefreshTrendSummary {
+    let outlookEvents = auditEvents.filter { event in
+      event.entityType == .microsoft365MailboxConnection
+        && (
+          event.summary.localizedCaseInsensitiveContains("Microsoft")
+            || event.summary.localizedCaseInsensitiveContains("Graph")
+            || event.summary.localizedCaseInsensitiveContains("Outlook")
+            || event.afterDetail?.localizedCaseInsensitiveContains("Microsoft") == true
+            || event.afterDetail?.localizedCaseInsensitiveContains("Graph") == true
+        )
+    }
+    let recentEvents = Array(outlookEvents.prefix(8))
+    let summaries = microsoft365IntakeHealthSummaries
+    let fetchedCount = summaries.reduce(0) { $0 + $1.fetchedCount }
+    let importedCount = summaries.reduce(0) { $0 + $1.importedCount }
+    let duplicateCount = summaries.reduce(0) { $0 + $1.duplicateCount }
+    let duplicateRefreshedCount = summaries.reduce(0) { $0 + $1.duplicateRefreshedCount }
+    let filteredCount = summaries.reduce(0) { $0 + $1.totalFilteredCount }
+    let uncertainCount = summaries.reduce(0) { $0 + $1.totalUncertainCount }
+    let blockedCount = summaries.reduce(0) { $0 + $1.blockedCount }
+    let readinessBlockers = microsoft365MailboxConnections.filter { !microsoft365OAuthReadinessSummary(for: $0).isReady }.count
+    let connectedCount = microsoft365MailboxConnections.filter { microsoft365AuthSessionState(for: $0).status == .connected }.count
+    let actionableCount = importedCount + uncertainCount + blockedCount
+
+    let title: String
+    let detail: String
+    let tone: String
+    if microsoft365MailboxConnections.isEmpty {
+      title = "No Outlook refresh trend yet"
+      detail = "Add Outlook / Microsoft 365 only for mailboxes hosted by Microsoft."
+      tone = "neutral"
+    } else if blockedCount > 0 {
+      title = "Outlook refresh trend has Graph diagnostics"
+      detail = "\(blockedCount) Microsoft 365 setup\(blockedCount == 1 ? "" : "s") have auth, consent, token, or Graph-read diagnostics to review."
+      tone = "warning"
+    } else if readinessBlockers > 0 {
+      title = "Outlook refresh trend blocked by setup"
+      detail = "\(readinessBlockers) Microsoft 365 setup\(readinessBlockers == 1 ? "" : "s") need OAuth readiness values before sign-in or refresh should be relied on."
+      tone = "warning"
+    } else if connectedCount == 0 && fetchedCount == 0 {
+      title = "Outlook refresh trend waiting for sign-in"
+      detail = "Microsoft 365 setup is present, but no connected sign-in or Graph refresh evidence is available."
+      tone = "attention"
+    } else if actionableCount > 0 {
+      title = "Outlook refresh trend has actionable evidence"
+      detail = "\(importedCount) imported, \(uncertainCount) uncertain, and \(blockedCount) diagnostic item\(blockedCount == 1 ? "" : "s") need review."
+      tone = blockedCount > 0 ? "warning" : "attention"
+    } else if filteredCount > 0 && importedCount == 0 {
+      title = "Outlook filter trend is stable"
+      detail = "Latest Microsoft 365 activity mostly filtered mixed-mailbox non-order messages out of Inbox."
+      tone = "success"
+    } else if duplicateCount > 0 || duplicateRefreshedCount > 0 {
+      title = "Outlook refresh trend found existing mail"
+      detail = "\(duplicateCount) duplicate and \(duplicateRefreshedCount) refreshed duplicate result\(duplicateRefreshedCount == 1 ? "" : "s") reused existing Inbox records."
+      tone = "neutral"
+    } else {
+      title = "Outlook refresh trend is quiet"
+      detail = "Recent Microsoft 365 activity has no current Inbox intake or uncertain review work."
+      tone = "neutral"
+    }
+
+    let connectionEntries = microsoft365MailboxConnections.map { connection in
+      let health = microsoft365IntakeHealthSummary(for: connection)
+      let entryTone: String
+      if health.blockedCount > 0 || health.tone == "warning" {
+        entryTone = "warning"
+      } else if health.importedCount > 0 || health.totalUncertainCount > 0 {
+        entryTone = "attention"
+      } else if health.totalFilteredCount > 0 || health.duplicateCount > 0 || health.duplicateRefreshedCount > 0 {
+        entryTone = "success"
+      } else {
+        entryTone = health.tone
+      }
+
+      return Microsoft365RefreshTrendEntry(
+        id: connection.id,
+        timestamp: connection.lastManualRefreshDate,
+        displayName: connection.displayName,
+        status: connection.connectionStatus,
+        detail: "\(health.fetchedCount) fetched, \(health.importedCount) imported, \(health.duplicateCount) duplicates, \(health.duplicateRefreshedCount) refreshed, \(health.totalFilteredCount) filtered, \(health.totalUncertainCount) uncertain, \(health.blockedCount) blocker. \(health.nextAction)",
+        tone: entryTone
+      )
+    }
+
+    let eventEntries = recentEvents.prefix(6).map { event in
+      let afterDetail = event.afterDetail ?? ""
+      let eventTone: String
+      if event.summary.localizedCaseInsensitiveContains("failed")
+        || event.summary.localizedCaseInsensitiveContains("blocked")
+        || afterDetail.localizedCaseInsensitiveContains("Auth required")
+        || afterDetail.localizedCaseInsensitiveContains("HTTP 401")
+        || afterDetail.localizedCaseInsensitiveContains("API rejected") {
+        eventTone = "warning"
+      } else if afterDetail.localizedCaseInsensitiveContains("Imported: 0")
+        && afterDetail.localizedCaseInsensitiveContains("Filtered") {
+        eventTone = "success"
+      } else if afterDetail.localizedCaseInsensitiveContains("Imported:")
+        || afterDetail.localizedCaseInsensitiveContains("Uncertain:") {
+        eventTone = "attention"
+      } else {
+        eventTone = "neutral"
+      }
+
+      return Microsoft365RefreshTrendEntry(
+        id: event.id,
+        timestamp: event.timestamp,
+        displayName: event.entityLabel,
+        status: event.action.rawValue,
+        detail: event.summary,
+        tone: eventTone
+      )
+    }
+    let entries = Array((connectionEntries + eventEntries).prefix(8))
+
+    return Microsoft365RefreshTrendSummary(
+      title: title,
+      detail: detail,
+      tone: tone,
+      metrics: [
+        SpaceMailReleaseSnapshotMetric(title: "Events", value: "\(recentEvents.count)", tone: recentEvents.isEmpty ? "attention" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Setups", value: "\(microsoft365MailboxConnections.count)", tone: microsoft365MailboxConnections.isEmpty ? "neutral" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Connected", value: "\(connectedCount)", tone: connectedCount > 0 ? "success" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(blockedCount + readinessBlockers)", tone: blockedCount + readinessBlockers == 0 ? "success" : "warning"),
+        SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(fetchedCount)", tone: fetchedCount > 0 ? "neutral" : "attention"),
+        SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(importedCount)", tone: importedCount > 0 ? "attention" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(filteredCount)", tone: filteredCount > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(uncertainCount)", tone: uncertainCount > 0 ? "attention" : "success")
+      ],
+      entries: entries
+    )
+  }
+
   var spaceMailReleaseSnapshot: SpaceMailReleaseSnapshot {
     let readiness = spaceMailMVPReadinessSummary
     let qa = spaceMailQACheckSummary

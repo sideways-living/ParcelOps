@@ -2338,6 +2338,23 @@ struct GmailRefreshTrendEntry: Identifiable, Hashable {
   var tone: String
 }
 
+struct Microsoft365RefreshTrendSummary: Hashable {
+  var title: String
+  var detail: String
+  var tone: String
+  var metrics: [SpaceMailReleaseSnapshotMetric]
+  var entries: [Microsoft365RefreshTrendEntry]
+}
+
+struct Microsoft365RefreshTrendEntry: Identifiable, Hashable {
+  var id: UUID
+  var timestamp: String
+  var displayName: String
+  var status: String
+  var detail: String
+  var tone: String
+}
+
 struct GmailLabelReadinessSummary: Hashable {
   var status: String
   var primaryLabel: String

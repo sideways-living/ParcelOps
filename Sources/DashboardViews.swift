@@ -2519,6 +2519,7 @@ struct DashboardView: View {
               MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
             }
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
+            Microsoft365RefreshTrendCard(summary: store.microsoft365RefreshTrendSummary)
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
             CompactMailboxHealthList(
               spaceMailSummaries: store.spaceMailIntakeHealthSummaries,

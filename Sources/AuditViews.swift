@@ -610,6 +610,8 @@ struct AuditView: View {
 
         SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
         SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+        GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
+        Microsoft365RefreshTrendCard(summary: store.microsoft365RefreshTrendSummary)
         spaceMailAuditOutcomePanel
 
         inboxSourceTrailAuditPanel
