@@ -93,10 +93,13 @@ struct OperationsWorkbenchView: View {
 
   private var inboxCreatedOrders: [TrackedOrder] {
     Array(
-      store.orders
+      store.operatorSourceOrders
         .filter { order in
-          order.isInboxCreatedLocalOrder
-            && (needsPreDispatchVerification(order) || order.reviewState != .accepted || needsDispatchSetup(order) || needsInboxDispatchReadiness(order) || hasReopenedInboxDispatchHandoff(order))
+          needsPreDispatchVerification(order)
+            || order.reviewState != .accepted
+            || needsDispatchSetup(order)
+            || needsInboxDispatchReadiness(order)
+            || hasReopenedInboxDispatchHandoff(order)
         }
         .sorted { first, second in
           let firstPriority = inboxOrderFollowUpPriority(first)
@@ -463,7 +466,7 @@ struct OperationsWorkbenchView: View {
     if mailboxWarningCount > 0 { return "Mailbox diagnostics need review" }
     if mailboxImportedCount > 0 { return "Mailbox intake created Inbox work" }
     if mailboxUncertainCount > 0 { return "Mailbox has uncertain order mail" }
-    if !inboxCreatedOrders.isEmpty { return "Source-created orders need follow-up" }
+    if !inboxCreatedOrders.isEmpty { return "Source orders need follow-up" }
     if mailboxFilteredOnlyOutcome { return "Mixed mailbox filtering kept Workbench clean" }
     if mailboxDuplicateCount > 0 { return "Mailbox refresh found existing messages" }
     if mailboxFetchedCount > 0 { return "Latest refresh created no Workbench work" }
@@ -481,7 +484,7 @@ struct OperationsWorkbenchView: View {
       return "\(mailboxUncertainCount) ambiguous mailbox preview\(mailboxUncertainCount == 1 ? "" : "s") is waiting outside Inbox. Import genuine order mail from Mailbox Monitor or dismiss it locally."
     }
     if !inboxCreatedOrders.isEmpty {
-      return "\(inboxCreatedOrders.count) source-created order\(inboxCreatedOrders.count == 1 ? "" : "s") already \(inboxCreatedOrders.count == 1 ? "exists" : "exist"). Confirm source trail, order detail, and dispatch setup before treating them as exceptions."
+      return "\(inboxCreatedOrders.count) source-created or Wishlist-linked order\(inboxCreatedOrders.count == 1 ? "" : "s") already \(inboxCreatedOrders.count == 1 ? "exists" : "exist"). Confirm source trail, order detail, and dispatch setup before treating them as exceptions."
     }
     if mailboxFilteredOnlyOutcome {
       return "\(mailboxFilteredCount) mixed-mailbox message\(mailboxFilteredCount == 1 ? "" : "s") were filtered out of Inbox. There is no Workbench exception until order mail is imported, promoted, or created."
@@ -693,7 +696,7 @@ struct OperationsWorkbenchView: View {
     if reopenedInboxDispatchHandoffCount > 0 { return "Review reopened dispatch handoffs" }
     if !partialInboxOrderBlockers.isEmpty { return "Verify partial source orders" }
     if !inboxDispatchReadinessOrders.isEmpty { return "Finish source dispatch readiness" }
-    if !inboxCreatedOrders.isEmpty { return "Confirm source-created orders" }
+    if !inboxCreatedOrders.isEmpty { return "Confirm source orders" }
     if !draftFollowUpItems.isEmpty { return "Send or review draft follow-up" }
     if !setupPlaceholderReviewItems.isEmpty { return "Review setup placeholders" }
     if defaultQueueItems.filter({ $0.reviewState == .needsReview }).count > 0 { return "Review open exceptions" }
@@ -714,13 +717,13 @@ struct OperationsWorkbenchView: View {
       return "\(reopenedInboxDispatchHandoffCount) source dispatch handoff record\(reopenedInboxDispatchHandoffCount == 1 ? " was" : "s were") reopened. Open the linked order and Dispatch context before closing \(reopenedInboxDispatchHandoffCount == 1 ? "it" : "them") again."
     }
     if !partialInboxOrderBlockers.isEmpty {
-      return "\(partialInboxOrderBlockers.count) source-created order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "has" : "have") missing details or an open verification task. Open the order before dispatch setup."
+      return "\(partialInboxOrderBlockers.count) source-created or Wishlist-linked order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "has" : "have") missing details or an open verification task. Open the order before dispatch setup."
     }
     if !inboxDispatchReadinessOrders.isEmpty {
-      return "\(inboxDispatchReadinessOrders.count) source-created order\(inboxDispatchReadinessOrders.count == 1 ? "" : "s") \(inboxDispatchReadinessOrders.count == 1 ? "has" : "have") local dispatch setup but still \(inboxDispatchReadinessOrders.count == 1 ? "needs" : "need") readiness, label, scan, custody, or handoff confirmation."
+      return "\(inboxDispatchReadinessOrders.count) source-created or Wishlist-linked order\(inboxDispatchReadinessOrders.count == 1 ? "" : "s") \(inboxDispatchReadinessOrders.count == 1 ? "has" : "have") local dispatch setup but still \(inboxDispatchReadinessOrders.count == 1 ? "needs" : "need") readiness, label, scan, custody, or handoff confirmation."
     }
     if !inboxCreatedOrders.isEmpty {
-      return "\(inboxCreatedOrders.count) source-created order\(inboxCreatedOrders.count == 1 ? "" : "s") \(inboxCreatedOrders.count == 1 ? "needs" : "need") operational confirmation or dispatch setup before \(inboxCreatedOrders.count == 1 ? "it disappears" : "they disappear") from daily follow-up."
+      return "\(inboxCreatedOrders.count) source-created or Wishlist-linked order\(inboxCreatedOrders.count == 1 ? "" : "s") \(inboxCreatedOrders.count == 1 ? "needs" : "need") operational confirmation or dispatch setup before \(inboxCreatedOrders.count == 1 ? "it disappears" : "they disappear") from daily follow-up."
     }
     if !draftFollowUpItems.isEmpty {
       return "\(draftFollowUpItems.count) draft\(draftFollowUpItems.count == 1 ? "" : "s") \(draftFollowUpItems.count == 1 ? "needs" : "need") review, sending, or reopening before the related work can be closed."
@@ -2078,10 +2081,10 @@ struct OperationsWorkbenchView: View {
   @ViewBuilder
   private var inboxCreatedOrderFollowUp: some View {
     if !inboxCreatedOrders.isEmpty {
-      SettingsPanel(title: partialInboxOrderBlockers.isEmpty ? "Source-created order follow-up" : "Source-created order verification", symbol: partialInboxOrderBlockers.isEmpty ? "tray.and.arrow.down.fill" : "exclamationmark.triangle.fill") {
+      SettingsPanel(title: partialInboxOrderBlockers.isEmpty ? "Source order follow-up" : "Source order verification", symbol: partialInboxOrderBlockers.isEmpty ? "tray.and.arrow.down.fill" : "exclamationmark.triangle.fill") {
         Text(partialInboxOrderBlockers.isEmpty
           ? "Orders created from Inbox, Import Queue, Acceptance Review, or Wishlist source context stay here until someone confirms the operational details and dispatch setup."
-          : "Partial source-created orders stay here until missing order, tracking, or destination details are confirmed. Do this before dispatch setup.")
+          : "Partial source-created or Wishlist-linked orders stay here until missing order, tracking, or destination details are confirmed. Do this before dispatch setup.")
           .font(.callout)
           .foregroundStyle(.secondary)
         ForEach(inboxCreatedOrders) { order in
@@ -2092,7 +2095,7 @@ struct OperationsWorkbenchView: View {
             hasReopenedInboxDispatchHandoff: hasReopenedInboxDispatchHandoff(order),
             needsPreDispatchVerification: needsPreDispatchVerification(order),
             partialTaskCount: partialInboxTaskCount(for: order),
-            sourceTrailCount: store.sourceTrailCount(for: order),
+            sourceTrailCount: store.sourceTrailCount(for: order, includeWishlist: true),
             mailboxSourceSummaries: store.mailboxSourceSummaries(for: order),
             store: store
           )
@@ -2357,7 +2360,7 @@ struct OperationsWorkbenchView: View {
   private func inboxOrderFollowUpPriority(_ order: TrackedOrder) -> Int {
     if order.status == .exception { return 120 }
     if needsPreDispatchVerification(order) { return 115 }
-    if store.sourceTrailCount(for: order) == 0 { return 112 }
+    if store.sourceTrailCount(for: order, includeWishlist: true) == 0 { return 112 }
     if order.reviewState != .accepted { return 110 }
     if needsDispatchSetup(order) { return 100 }
     if order.status == .inTransit { return 80 }

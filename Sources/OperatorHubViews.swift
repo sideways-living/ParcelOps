@@ -3074,9 +3074,9 @@ struct DispatchView: View {
   private var dispatchSummaryTitle: String {
     if blockedDispatchCount > 0 { return "Dispatch has blockers" }
     if reopenedInboxDispatchHandoffCount > 0 { return "Reopened Inbox handoffs need review" }
-    if partialInboxDispatchBlockerCount > 0 { return "Verify Inbox orders before dispatch" }
+    if partialInboxDispatchBlockerCount > 0 { return "Verify source orders before dispatch" }
     if readyDispatchCount > 0 { return "Dispatch has work ready to move" }
-    if !inboxDispatchSetupOrders.isEmpty { return "Inbox orders need dispatch setup" }
+    if !inboxDispatchSetupOrders.isEmpty { return "Source orders need dispatch setup" }
     if !dispatchItems.isEmpty { return "Dispatch queue needs review" }
     return "Dispatch flow is clear"
   }
@@ -4412,7 +4412,7 @@ private struct DispatchQueueInboxOrderContext: View {
 
         Text(isReopened
           ? "Open the order to inspect the order source trail and complete or block the reopened handoff."
-          : "This dispatch row is linked to a source-created order. Use Open order when source context matters.")
+          : "This dispatch row is linked to a source-created or Wishlist-linked order. Use Open order when source context matters.")
           .font(.caption2)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)

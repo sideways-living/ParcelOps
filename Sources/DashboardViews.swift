@@ -611,22 +611,20 @@ struct DashboardView: View {
     store.operatorSourceOrdersMissingSourceTrail(includeWishlist: true)
   }
   private var partialInboxOrderBlockers: [TrackedOrder] {
-    store.inboxCreatedOrders.filter { order in
+    store.operatorSourceOrders.filter { order in
       hasPartialInboxOrderTask(order) || order.missingInboxOrderFieldCount > 0
     }
   }
   private var inboxDispatchGapOrders: [TrackedOrder] {
-    store.orders.filter { order in
-      order.isInboxCreatedLocalOrder
-        && [.shipped, .inTransit, .exception].contains(order.status)
+    store.operatorSourceOrders.filter { order in
+      [.shipped, .inTransit, .exception].contains(order.status)
         && store.suggestedShipmentManifestRecords(for: order).isEmpty
         && store.suggestedDispatchReadinessChecklists(for: order).isEmpty
     }
   }
   private var inboxDispatchSetupPendingOrders: [TrackedOrder] {
-    store.orders.filter { order in
-      order.isInboxCreatedLocalOrder
-        && !hasPartialInboxOrderTask(order)
+    store.operatorSourceOrders.filter { order in
+      !hasPartialInboxOrderTask(order)
         && order.missingInboxOrderFieldCount == 0
         && !inboxDispatchHandoffCompleted(order)
         && (
@@ -862,7 +860,7 @@ struct DashboardView: View {
     if hasMicrosoft365Setup && !hasMicrosoft365ConnectedAuth && !hasSpaceMailSetup && !hasGmailSetup { return "Connect Outlook sign-in" }
     if !hasReadyMailboxProviderPath { return "Run one manual mailbox refresh" }
     if incomingAttentionCount > 0 { return "Start in Inbox" }
-    if !partialInboxOrderBlockers.isEmpty { return "Verify source-created orders" }
+    if !partialInboxOrderBlockers.isEmpty { return "Verify source orders" }
     if problemOrdersCount > 0 { return "Start with Orders" }
     if highPriorityOperatorWorkbenchItems.count > 0 { return "Start in Workbench" }
     if reopenedInboxDispatchHandoffCount > 0 { return "Review reopened dispatch handoffs" }
@@ -893,10 +891,10 @@ struct DashboardView: View {
       return "\(incomingAttentionCount) incoming item\(incomingAttentionCount == 1 ? "" : "s") \(incomingAttentionCount == 1 ? "needs" : "need") triage from mailbox intake, provider review, import queue, or acceptance review."
     }
     if !partialInboxOrderBlockers.isEmpty {
-      return "\(partialInboxOrderBlockers.count) source-created order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "has" : "have") missing details or an open verification task. Confirm those before dispatch setup."
+      return "\(partialInboxOrderBlockers.count) source-created or Wishlist-linked order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "has" : "have") missing details or an open verification task. Confirm those before dispatch setup."
     }
     if problemOrdersCount > 0 {
-      return "\(problemOrdersCount) order signal\(problemOrdersCount == 1 ? "" : "s") \(problemOrdersCount == 1 ? "needs" : "need") attention from review state, exceptions, tracking warnings, or source-created order handoff."
+      return "\(problemOrdersCount) order signal\(problemOrdersCount == 1 ? "" : "s") \(problemOrdersCount == 1 ? "needs" : "need") attention from review state, exceptions, tracking warnings, or source-order handoff."
     }
     if highPriorityOperatorWorkbenchItems.count > 0 {
       return "\(highPriorityOperatorWorkbenchItems.count) high-priority exception, validation, reconciliation, or operational workbench item\(highPriorityOperatorWorkbenchItems.count == 1 ? " is" : "s are") open."
@@ -968,7 +966,7 @@ struct DashboardView: View {
       ),
       (
         "Orders",
-        "Verify source-created orders, source trails, tracking warnings, exceptions, and missing dispatch context.",
+        "Verify source orders, source trails, tracking warnings, exceptions, and missing dispatch context.",
         orderBlockers,
         "Orders",
         "shippingbox.fill",
@@ -1034,7 +1032,7 @@ struct DashboardView: View {
     if !hasReadyMailboxProviderPath { return "Core workflow is built; live mailbox proof still needs a clean pass" }
     if weakInboxParseCount > 0 || blockedInboxSourceCount > 0 { return "Usable MVP path exists; parser and intake cleanup remain" }
     if readyInboxLinkCount > 0 { return "Ready to prove Inbox-to-Order handoff" }
-    if !partialInboxOrderBlockers.isEmpty { return "Verify orders created from Inbox before dispatch" }
+    if !partialInboxOrderBlockers.isEmpty { return "Verify sourced orders before dispatch" }
     if wishlistDashboardSignalCount > 0 { return "Wishlist workflow is active and needs review" }
     return "MVP is ready for focused hands-on testing"
   }
@@ -1050,7 +1048,7 @@ struct DashboardView: View {
       return "\(readyInboxLinkCount) intake row\(readyInboxLinkCount == 1 ? "" : "s") look ready to create or link to an order. Use that as the next end-to-end test."
     }
     if !partialInboxOrderBlockers.isEmpty {
-      return "\(partialInboxOrderBlockers.count) source-created order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "needs" : "need") source, customer, destination, or task cleanup before dispatch readiness should be trusted."
+      return "\(partialInboxOrderBlockers.count) source-created or Wishlist-linked order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "needs" : "need") source, customer, destination, or task cleanup before dispatch readiness should be trusted."
     }
     if wishlistDashboardSignalCount > 0 {
       if wishlistLinkedOrderTrackingReviewCount > 0 {
@@ -1067,7 +1065,7 @@ struct DashboardView: View {
     if !hasReadyMailboxProviderPath { return "Run one explicit read-only mailbox refresh and inspect the result summary." }
     if weakInboxParseCount > 0 || blockedInboxSourceCount > 0 { return "Fix or reprocess weak Inbox rows before creating new orders." }
     if readyInboxLinkCount > 0 { return "Create or link one clean Inbox row to an order, then confirm it appears in Orders." }
-    if !partialInboxOrderBlockers.isEmpty { return "Open Orders and clear the source-created order handoff gaps." }
+    if !partialInboxOrderBlockers.isEmpty { return "Open Orders and clear the source-order handoff gaps." }
     if !wishlistDailyAttentionClear { return wishlistDashboardNextAction }
     return "Run a full hands-on QA pass from Dashboard through Audit, then note only real friction."
   }
@@ -2363,7 +2361,7 @@ struct DashboardView: View {
             OperatorDashboardCard(
               title: "Dispatch",
               count: dispatchAttentionCount,
-              detail: "Blocked manifests, reopened handoffs, undispatched batches, incomplete checklists, and source-created orders that need verification or dispatch setup.",
+              detail: "Blocked manifests, reopened handoffs, undispatched batches, incomplete checklists, and source-created or Wishlist-linked orders that need verification or dispatch setup.",
               nextAction: reopenedInboxDispatchHandoffCount > 0 ? "Review reopened handoffs" : partialInboxOrderBlockers.isEmpty ? (inboxDispatchGapOrders.isEmpty ? (dispatchAttentionCount == 0 ? "Dispatch queue is steady" : "Prepare outbound work") : "Add dispatch setup") : "Verify order details first",
               symbol: "shippingbox.and.arrow.backward.fill",
               tint: reopenedInboxDispatchHandoffCount > 0 ? .purple : partialInboxOrderBlockers.isEmpty ? (dispatchAttentionCount == 0 ? .green : .blue) : .orange
@@ -2667,7 +2665,7 @@ private struct DashboardReleaseReadinessSnapshot: View {
       return "Run a focused hands-on pass, verify persistence after restart, and capture any confusing labels or screens before adding more integrations."
     }
     if readyCount >= 4 {
-      return "The app is usable for supervised testing. Work down active cleanup, prove one clean source-created order, and keep integrations manual."
+      return "The app is usable for supervised testing. Work down active cleanup, prove one clean source-order handoff, and keep integrations manual."
     }
     return "Use Mailbox Monitor, Inbox, Orders, Dispatch, Tasks, and Audit to prove one complete local flow before expanding scope."
   }
