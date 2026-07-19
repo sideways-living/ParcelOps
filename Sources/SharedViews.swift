@@ -5815,6 +5815,10 @@ struct MailboxProviderQuickStatusCard: View {
     Array(summary.providers.prefix(isCompact ? 2 : 3))
   }
 
+  private var hiddenProviderCount: Int {
+    max(0, summary.providers.count - visibleProviders.count)
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       if isCompact {
@@ -5856,12 +5860,25 @@ struct MailboxProviderQuickStatusCard: View {
                   .font(.caption2)
                   .foregroundStyle(.secondary)
                   .fixedSize(horizontal: false, vertical: true)
+                CompactMetadataGrid(minimumWidth: isCompact ? 92 : 105) {
+                  Badge("\(provider.fetchedCount) fetched", color: provider.fetchedCount > 0 ? .blue : .secondary)
+                  Badge("\(provider.importedCount) imported", color: provider.importedCount > 0 ? .green : .secondary)
+                  Badge("\(provider.uncertainCount) uncertain", color: provider.uncertainCount > 0 ? .orange : .secondary)
+                  Badge("\(provider.blockedCount) blockers", color: provider.blockedCount > 0 ? .red : .green)
+                }
               }
             }
             .padding(9)
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .background(color(for: provider.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           }
+        }
+
+        if hiddenProviderCount > 0 {
+          Text("\(hiddenProviderCount) additional provider\(hiddenProviderCount == 1 ? "" : "s") hidden in this compact summary. Open Mailbox Monitor for the full provider setup and refresh detail.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
       }
 
