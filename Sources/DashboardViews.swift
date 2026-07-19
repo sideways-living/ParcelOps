@@ -2438,21 +2438,28 @@ struct DashboardView: View {
               ("Acceptance", "\(store.acceptanceRecordsNeedingReview.count)", .teal)
             ])
             SpaceMailPrimaryStatusStrip(store: store, showTitle: false)
-            CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
-            SpaceMailShiftHandoffCard(
-              summary: store.spaceMailShiftHandoffSummary,
-              onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
-            )
-            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
-            GmailShiftHandoffCard(
-              summary: store.gmailShiftHandoffSummary,
-              onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
-              onCreateTask: { store.createGmailShiftReviewTask() },
-              onCreateDraft: { store.createGmailShiftDraftMessage() }
-            )
-            SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
-            MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
-            MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
+            MailboxProviderPostRefreshDisclosure(
+              title: "Mailbox intake evidence",
+              detail: "Open this for provider follow-up, release evidence, and handoff detail. The Dashboard keeps counts and recent intake visible first.",
+              symbol: "tray.full.fill",
+              tone: mailboxHealthAttentionCount == 0 ? .teal : .orange
+            ) {
+              CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
+              SpaceMailShiftHandoffCard(
+                summary: store.spaceMailShiftHandoffSummary,
+                onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
+              )
+              GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+              GmailShiftHandoffCard(
+                summary: store.gmailShiftHandoffSummary,
+                onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
+                onCreateTask: { store.createGmailShiftReviewTask() },
+                onCreateDraft: { store.createGmailShiftDraftMessage() }
+              )
+              SpaceMailReleaseSnapshotCard(snapshot: store.mailboxReleaseReadinessSnapshot, store: store, usesMailboxReleaseTask: true)
+              MailboxReleaseBlockerCard(summary: store.mailboxReleaseBlockerSummary)
+              MailboxOperatorDecisionCard(summary: store.mailboxOperatorDecisionSummary)
+            }
             GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
             CompactMailboxHealthList(
