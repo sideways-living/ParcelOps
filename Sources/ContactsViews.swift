@@ -197,8 +197,7 @@ struct ContactsView: View {
   }
 
   private var inboxContactCoverage: some View {
-    let inboxOrders = store.intakeLinkedOrders
-    let wishlistOrders = store.wishlistLinkedOrders
+    let sourceOrders = store.operatorSourceOrders
     let linkedContacts = contactsLinkedToInboxOrders
     let actionContacts = linkedContacts.filter { !$0.isEnabled || $0.reviewState != .accepted || $0.email.isPlaceholderValidationValue }
     let missingCount = inboxOrdersMissingContact.count
@@ -249,7 +248,7 @@ struct ContactsView: View {
           }
         }
 
-        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+        if sourceOrders.isEmpty {
           Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking contact coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -285,7 +284,7 @@ struct ContactsView: View {
   private var contactProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in store.intakeLinkedOrders {
+    for order in store.operatorSourceOrders {
       for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1

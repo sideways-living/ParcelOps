@@ -206,8 +206,7 @@ struct AccountsView: View {
   }
 
   private var inboxAccountCoverage: some View {
-    let inboxOrders = store.intakeLinkedOrders
-    let wishlistOrders = store.wishlistLinkedOrders
+    let sourceOrders = store.operatorSourceOrders
     let linkedAccounts = accountsLinkedToInboxOrders
     let actionAccounts = linkedAccounts.filter { account in
       !account.isEnabled
@@ -265,7 +264,7 @@ struct AccountsView: View {
           }
         }
 
-        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+        if sourceOrders.isEmpty {
           Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking account placeholder coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -301,7 +300,7 @@ struct AccountsView: View {
   private var accountProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in store.intakeLinkedOrders {
+    for order in store.operatorSourceOrders {
       for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
