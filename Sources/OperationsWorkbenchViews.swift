@@ -19,6 +19,7 @@ struct OperationsWorkbenchView: View {
   @State private var selectedReviewState: ReviewState?
   @State private var selectedSource: WorkbenchSource?
   @State private var workbenchSearchText = ""
+  @State private var showWorkbenchProviderEvidence = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var assignees: [String] {
@@ -786,46 +787,9 @@ struct OperationsWorkbenchView: View {
           detailWhenBusy: "Clear urgent, blocked, needs-review, and Inbox-created order work before opening advanced record queues."
         )
         releaseCandidateBlockersPanel
-        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
-        MailboxProviderAdvancedDiagnosticsDisclosure(store: store)
         operatorSummary
         resolutionLadderPanel
-        SpaceMailPrimaryStatusStrip(store: store)
-        SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
-        SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
-        MailboxProviderPostRefreshDisclosure(
-          title: "SpaceMail refresh follow-up",
-          detail: "Open this when SpaceMail refresh results need Workbench follow-up. The exception queue remains the primary work here.",
-          symbol: "server.rack",
-          tone: .teal,
-          statusLabel: "SpaceMail"
-        ) {
-          SpaceMailPostRefreshActionCard(plan: spaceMailPostRefreshPlan)
-          SpaceMailShiftHandoffCard(
-            summary: store.spaceMailShiftHandoffSummary,
-            onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
-          )
-        }
-        GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
-        MailboxProviderPostRefreshDisclosure(
-          title: "Gmail refresh follow-up",
-          detail: "Open this when Gmail refresh results need Workbench follow-up. Keep it collapsed while working operational exceptions.",
-          symbol: "envelope.badge.shield.half.filled",
-          tone: .pink,
-          statusLabel: "Gmail"
-        ) {
-          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
-          GmailShiftHandoffCard(
-            summary: store.gmailShiftHandoffSummary,
-            onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
-            onCreateTask: { store.createGmailShiftReviewTask() },
-            onCreateDraft: { store.createGmailShiftDraftMessage() }
-          )
-        }
-        Text("Mailbox refresh trends are context for triage across active providers. Imported and uncertain messages can create work; filtered mixed-mailbox messages remain out of Workbench unless promoted from Mailbox Monitor.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
+        workbenchProviderEvidencePanel
         mailboxWorkbenchBoundary
         gmailWorkbenchBoundary
         microsoft365WorkbenchBoundary
@@ -841,6 +805,64 @@ struct OperationsWorkbenchView: View {
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  private var workbenchProviderEvidencePanel: some View {
+    SettingsPanel(title: "Mailbox provider evidence", symbol: "point.3.connected.trianglepath.dotted") {
+      DisclosureGroup(isExpanded: $showWorkbenchProviderEvidence) {
+        VStack(alignment: .leading, spacing: 14) {
+          MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
+          MailboxProviderAdvancedDiagnosticsDisclosure(store: store)
+          SpaceMailPrimaryStatusStrip(store: store)
+          SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
+          SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+          MailboxProviderPostRefreshDisclosure(
+            title: "SpaceMail refresh follow-up",
+            detail: "Open this when SpaceMail refresh results need Workbench follow-up. The exception queue remains the primary work here.",
+            symbol: "server.rack",
+            tone: .teal,
+            statusLabel: "SpaceMail"
+          ) {
+            SpaceMailPostRefreshActionCard(plan: spaceMailPostRefreshPlan)
+            SpaceMailShiftHandoffCard(
+              summary: store.spaceMailShiftHandoffSummary,
+              onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
+            )
+          }
+          GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
+          MailboxProviderPostRefreshDisclosure(
+            title: "Gmail refresh follow-up",
+            detail: "Open this when Gmail refresh results need Workbench follow-up. Keep it collapsed while working operational exceptions.",
+            symbol: "envelope.badge.shield.half.filled",
+            tone: .pink,
+            statusLabel: "Gmail"
+          ) {
+            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+            GmailShiftHandoffCard(
+              summary: store.gmailShiftHandoffSummary,
+              onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
+              onCreateTask: { store.createGmailShiftReviewTask() },
+              onCreateDraft: { store.createGmailShiftDraftMessage() }
+            )
+          }
+          Text("Mailbox refresh trends are context for triage across active providers. Imported and uncertain messages can create work; filtered mixed-mailbox messages remain out of Workbench unless promoted from Mailbox Monitor.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.top, 8)
+      } label: {
+        VStack(alignment: .leading, spacing: 4) {
+          Text(showWorkbenchProviderEvidence ? "Hide provider evidence" : "Show provider evidence")
+            .font(.subheadline.weight(.semibold))
+          Text("Use this only when mailbox setup, parser quality, or refresh evidence explains an exception. Daily triage should start with the workload summary and queue sections.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .tint(.teal)
+    }
   }
 
   private var header: some View {
