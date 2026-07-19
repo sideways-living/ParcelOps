@@ -775,8 +775,17 @@ struct DashboardView: View {
   private var wishlistDailyAttentionCount: Int {
     store.wishlistDailyAttentionCount
   }
+  private var wishlistLinkedOrderTrackingReviewCount: Int {
+    store.wishlistLinkedOrders.filter { order in
+      order.trackingNumber.isPlaceholderValidationValue
+        || order.trackingNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }.count
+  }
+  private var wishlistDashboardSignalCount: Int {
+    wishlistDailyAttentionCount + wishlistLinkedOrderTrackingReviewCount
+  }
   private var wishlistDailyAttentionClear: Bool {
-    wishlistDailyAttentionCount == 0
+    wishlistDashboardSignalCount == 0
   }
   private var wishlistAgentReadinessTint: Color {
     switch wishlistAgentReadiness.tone {
@@ -791,13 +800,25 @@ struct DashboardView: View {
     }
   }
   private var wishlistDashboardNextAction: String {
-    store.wishlistDashboardNextAction
+    if wishlistLinkedOrderTrackingReviewCount > 0 {
+      return "Confirm Wishlist linked order tracking"
+    }
+    return store.wishlistDashboardNextAction
   }
   private var wishlistDashboardAttentionInsight: String? {
-    store.wishlistDashboardAttentionInsight
+    if wishlistLinkedOrderTrackingReviewCount > 0 {
+      return "\(wishlistLinkedOrderTrackingReviewCount) Wishlist-linked order\(wishlistLinkedOrderTrackingReviewCount == 1 ? "" : "s") need tracking confirmed before dispatch handoff."
+    }
+    return store.wishlistDashboardAttentionInsight
+  }
+  private var wishlistDashboardCardDetail: String {
+    if wishlistLinkedOrderTrackingReviewCount > 0 {
+      return "\(wishlistLinkedOrderTrackingReviewCount) linked Wishlist order\(wishlistLinkedOrderTrackingReviewCount == 1 ? "" : "s") need tracking review. Dispatch setup count: \(store.wishlistLinkedOrderDispatchGapItemCount). Purchase/order-watch signals: \(store.wishlistDashboardCardDetail)"
+    }
+    return store.wishlistDashboardCardDetail
   }
   private var attentionNowCount: Int {
-    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount + wishlistDailyAttentionCount
+    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount + wishlistDashboardSignalCount
   }
   private var advancedBacklogCount: Int {
     max(store.reviewQueueCount - attentionNowCount, 0)
@@ -971,8 +992,8 @@ struct DashboardView: View {
       ),
       (
         "Wishlist",
-        "Review purchase ideas, seller comparison, readiness checks, manual handoff, and order-confirmation follow-up.",
-        wishlistDailyAttentionCount + wishlistReleaseReadyItemCount,
+        "Review purchase ideas, seller comparison, readiness checks, manual handoff, order confirmation, and linked-order tracking.",
+        wishlistDashboardSignalCount + wishlistReleaseReadyItemCount,
         "Wishlist",
         "star.square.fill",
         wishlistDailyAttentionClear ? (wishlistReleaseReadyItemCount == 0 ? .green : .teal) : .purple
@@ -1005,7 +1026,7 @@ struct DashboardView: View {
   private var appReadinessTone: Color {
     if !hasReadyMailboxProviderPath { return .orange }
     if weakInboxParseCount > 0 || blockedInboxSourceCount > 0 { return .orange }
-    if readyInboxLinkCount > 0 || !partialInboxOrderBlockers.isEmpty || wishlistDailyAttentionCount > 0 { return .teal }
+    if readyInboxLinkCount > 0 || !partialInboxOrderBlockers.isEmpty || wishlistDashboardSignalCount > 0 { return .teal }
     return .green
   }
 
@@ -1014,7 +1035,7 @@ struct DashboardView: View {
     if weakInboxParseCount > 0 || blockedInboxSourceCount > 0 { return "Usable MVP path exists; parser and intake cleanup remain" }
     if readyInboxLinkCount > 0 { return "Ready to prove Inbox-to-Order handoff" }
     if !partialInboxOrderBlockers.isEmpty { return "Verify orders created from Inbox before dispatch" }
-    if wishlistDailyAttentionCount > 0 { return "Wishlist workflow is active and needs review" }
+    if wishlistDashboardSignalCount > 0 { return "Wishlist workflow is active and needs review" }
     return "MVP is ready for focused hands-on testing"
   }
 
@@ -1031,7 +1052,10 @@ struct DashboardView: View {
     if !partialInboxOrderBlockers.isEmpty {
       return "\(partialInboxOrderBlockers.count) source-created order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "needs" : "need") source, customer, destination, or task cleanup before dispatch readiness should be trusted."
     }
-    if wishlistDailyAttentionCount > 0 {
+    if wishlistDashboardSignalCount > 0 {
+      if wishlistLinkedOrderTrackingReviewCount > 0 {
+        return "\(wishlistLinkedOrderTrackingReviewCount) Wishlist-linked order\(wishlistLinkedOrderTrackingReviewCount == 1 ? "" : "s") need tracking confirmation before dispatch handoff. Other Wishlist signals: \(wishlistDailyAttentionCount)."
+      }
       return "\(wishlistDailyAttentionCount) Wishlist signal\(wishlistDailyAttentionCount == 1 ? "" : "s") need purchase readiness, seller comparison, or order-watch follow-up."
     }
     return "The next useful work is not more plumbing. Run the app, refresh mail, create or link one order, complete the follow-up trail, restart, and confirm persistence plus Audit history."
@@ -1610,7 +1634,7 @@ struct DashboardView: View {
           ("Refresh", dashboardMailboxRefreshMetric.value, dashboardMailboxRefreshMetric.color),
           ("Ready intake", "\(readyInboxLinkCount)", readyInboxLinkCount == 0 ? .secondary : .teal),
           ("Order gaps", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
-          ("Wishlist", "\(wishlistDailyAttentionCount)", wishlistDailyAttentionClear ? .green : .purple)
+          ("Wishlist", "\(wishlistDashboardSignalCount)", wishlistDailyAttentionClear ? .green : .purple)
         ])
 
         VStack(alignment: .leading, spacing: 4) {
@@ -1686,7 +1710,7 @@ struct DashboardView: View {
           ("Workbench", "\(store.highPriorityWorkbenchItems.count)", store.highPriorityWorkbenchItems.isEmpty ? .green : .purple),
           ("Dispatch", "\(dispatchAttentionCount)", dispatchAttentionCount == 0 ? .green : .blue),
           ("Reopened", "\(reopenedInboxDispatchHandoffCount)", reopenedInboxDispatchHandoffCount == 0 ? .green : .purple),
-          ("Wishlist", "\(wishlistDailyAttentionCount)", wishlistDailyAttentionClear ? .green : .purple),
+          ("Wishlist", "\(wishlistDashboardSignalCount)", wishlistDailyAttentionClear ? .green : .purple),
           ("Tasks", "\(taskAttentionCount)", taskAttentionCount == 0 ? .green : .orange)
         ])
 
@@ -2364,8 +2388,8 @@ struct DashboardView: View {
           if dashboardMatches("wishlist", "purchase", "seller", "shopping", "handoff", "ready to buy", "batch", "research brief", "agent") {
             OperatorDashboardCard(
               title: "Wishlist",
-              count: wishlistDailyAttentionCount + wishlistReleaseReadyItemCount,
-              detail: store.wishlistDashboardCardDetail,
+              count: wishlistDashboardSignalCount + wishlistReleaseReadyItemCount,
+              detail: wishlistDashboardCardDetail,
               nextAction: wishlistAgentReadiness.tone == "warning" ? "Open Wishlist readiness verdict" : wishlistDashboardNextAction,
               symbol: "star.square.fill",
               tint: wishlistDailyAttentionClear ? wishlistAgentReadinessTint : .purple
