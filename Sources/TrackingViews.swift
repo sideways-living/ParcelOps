@@ -225,6 +225,31 @@ struct TrackingView: View {
           }
         }
 
+        if !inboxOrdersMissingTracking.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Orders missing local tracking events")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            Text("These source-created or Wishlist-linked orders have no local carrier event yet. Add a manual tracking note when the order needs local follow-up.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(inboxOrdersMissingTracking.prefix(4)) { order in
+              TrackingMissingOrderRow(order: order, store: store)
+            }
+
+            if inboxOrdersMissingTracking.count > 4 {
+              Text("\(inboxOrdersMissingTracking.count - 4) more source-linked order\(inboxOrdersMissingTracking.count - 4 == 1 ? "" : "s") have no local tracking event.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+          }
+          .padding(10)
+          .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          .overlay(RoundedRectangle(cornerRadius: 8).stroke(.orange.opacity(0.22)))
+        }
+
         if inboxOrders.isEmpty {
           Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or link a Wishlist purchase before checking tracking coverage.")
             .font(.caption)
@@ -397,6 +422,82 @@ struct TrackingView: View {
     case "microsoft", "mailbox": return .blue
     default: return .secondary
     }
+  }
+}
+
+private struct TrackingMissingOrderRow: View {
+  var order: TrackedOrder
+  var store: ParcelOpsStore
+
+  private var wishlistItems: [WishlistItem] {
+    store.activeWishlistItemsLinked(to: order)
+  }
+
+  private var sourceCount: Int {
+    store.sourceTrailCount(for: order, includeWishlist: true)
+  }
+
+  private var hasPlaceholderTracking: Bool {
+    order.trackingNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || order.trackingNumber.isPlaceholderValidationValue
+      || order.trackingNumber.localizedCaseInsensitiveContains("pending")
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: wishlistItems.isEmpty ? "tray.and.arrow.down.fill" : "star.square.fill")
+        .foregroundStyle(hasPlaceholderTracking ? .orange : .pink)
+        .frame(width: 22)
+
+      VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .top, spacing: 8) {
+          VStack(alignment: .leading, spacing: 2) {
+            Text("\(order.store) • \(order.orderNumber)")
+              .font(.caption.weight(.semibold))
+            Text("\(order.carrier) • \(order.trackingNumber)")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+          }
+          Spacer(minLength: 8)
+          Badge(hasPlaceholderTracking ? "Tracking review" : "No event", color: hasPlaceholderTracking ? .orange : .pink)
+        }
+
+        CompactMetadataGrid {
+          Badge(order.status.rawValue, color: order.status.color)
+          Badge(order.reviewState.rawValue, color: order.reviewState.color)
+          Badge(sourceCount > 0 ? "\(sourceCount) source" : "Source trail missing", color: sourceCount > 0 ? .green : .orange)
+          if !wishlistItems.isEmpty {
+            Badge("\(wishlistItems.count) Wishlist", color: .pink)
+          }
+        }
+
+        Text(hasPlaceholderTracking
+          ? "Confirm the order tracking number before adding carrier follow-up."
+          : "No local carrier event exists yet. Add a manual tracking note if this order needs monitoring.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            OrderDetailView(order: order, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.right.circle.fill")
+          }
+
+          Button("Add tracking note", systemImage: "plus.circle") {
+            store.addPlaceholderTrackingEvent(to: order)
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(9)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background, in: RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
 }
 
