@@ -24439,6 +24439,7 @@ final class ParcelOpsStore {
     let options = checkedItem.comparisonOptions ?? []
     let preferredOption = selectedWishlistSellerOption(for: checkedItem)
     var checks: [WishlistPurchaseCheck] = []
+    let preferredEvidenceGaps = preferredOption?.operatorSellerEvidenceGaps ?? []
 
     checks.append(wishlistCheck(
       title: "Item and source",
@@ -24464,6 +24465,17 @@ final class ParcelOpsStore {
       let hasHighRisk = (preferredOption.riskLevel ?? "").localizedCaseInsensitiveContains("high")
         || preferredOption.trustRating.localizedCaseInsensitiveContains("unknown")
         || preferredOption.trustRating.localizedCaseInsensitiveContains("review")
+        || preferredOption.trustRating.localizedCaseInsensitiveContains("low")
+        || preferredOption.trustNotes.localizedCaseInsensitiveContains("scam")
+        || preferredOption.trustNotes.localizedCaseInsensitiveContains("complaint")
+      checks.append(wishlistCheck(
+        title: "Direct product link",
+        passed: !preferredOption.productURL.isPlaceholderValidationValue
+          && preferredOption.productURL.localizedCaseInsensitiveContains("http")
+          && !preferredOption.productURL.localizedCaseInsensitiveContains("example.com"),
+        failDetail: "Confirm a direct product URL for \(preferredOption.sellerName), not a placeholder or generic storefront, before purchase review.",
+        passDetail: "Direct product link is recorded for \(preferredOption.sellerName)."
+      ))
       checks.append(wishlistCheck(
         title: "Seller trust",
         passed: !hasHighRisk && score >= 55,
@@ -24472,27 +24484,55 @@ final class ParcelOpsStore {
       ))
       checks.append(wishlistCheck(
         title: "Postage and delivery",
-        passed: !preferredOption.postageCost.localizedCaseInsensitiveContains("pending")
-          && !preferredOption.postageTime.localizedCaseInsensitiveContains("pending"),
+        passed: !preferredEvidenceGaps.contains("postage cost")
+          && !preferredEvidenceGaps.contains("postage time")
+          && !preferredOption.postageCost.localizedCaseInsensitiveContains("pending")
+          && !preferredOption.postageCost.localizedCaseInsensitiveContains("needs review")
+          && !preferredOption.postageTime.localizedCaseInsensitiveContains("pending")
+          && !preferredOption.postageTime.localizedCaseInsensitiveContains("needs review"),
         failDetail: "Postage cost and delivery time must be confirmed before purchase.",
         passDetail: "Postage \(preferredOption.postageCost), delivery \(preferredOption.postageTime)."
       ))
       checks.append(wishlistCheck(
         title: "AUD landed cost",
-        passed: preferredOption.estimatedAUDTotal.localizedCaseInsensitiveContains("aud")
-          && !preferredOption.estimatedAUDTotal.localizedCaseInsensitiveContains("pending"),
+        passed: !preferredEvidenceGaps.contains("AUD total")
+          && preferredOption.estimatedAUDTotal.localizedCaseInsensitiveContains("aud")
+          && !preferredOption.estimatedAUDTotal.localizedCaseInsensitiveContains("pending")
+          && !preferredOption.estimatedAUDTotal.localizedCaseInsensitiveContains("needs review"),
         failDetail: "Confirm total landed AUD cost including item price, currency conversion, postage, and likely fees.",
         passDetail: "AUD total is recorded as \(preferredOption.estimatedAUDTotal)."
       ))
+      checks.append(wishlistCheck(
+        title: "Returns and warranty",
+        passed: !preferredEvidenceGaps.contains("returns/warranty"),
+        failDetail: "Record returns and warranty evidence for \(preferredOption.sellerName) before purchase review.",
+        passDetail: "Returns or warranty evidence is recorded for \(preferredOption.sellerName)."
+      ))
+      let saferAlternative = options.first { option in
+        option.id != preferredOption.id
+          && option.operatorSellerEvidenceGaps.isEmpty
+          && option.operatorSellerMatrixScore > preferredOption.operatorSellerMatrixScore
+      }
+      checks.append(wishlistCheck(
+        title: "Seller choice rationale",
+        passed: saferAlternative == nil,
+        failDetail: "A stronger local seller option may exist: \(saferAlternative?.sellerName ?? "review alternatives"). Confirm why \(preferredOption.sellerName) is preferred before purchase.",
+        passDetail: "No stronger complete-evidence seller option is currently ranked above \(preferredOption.sellerName)."
+      ))
     } else {
+      checks.append(WishlistPurchaseCheck(title: "Direct product link", status: "Blocked", detail: "Select or score a seller before checking the product URL.", severity: "High"))
       checks.append(WishlistPurchaseCheck(title: "Seller trust", status: "Blocked", detail: "Select or score a seller before assessing trust.", severity: "High"))
       checks.append(WishlistPurchaseCheck(title: "Postage and delivery", status: "Blocked", detail: "Select or score a seller before checking postage and delivery time.", severity: "High"))
       checks.append(WishlistPurchaseCheck(title: "AUD landed cost", status: "Blocked", detail: "Select or score a seller before checking landed cost.", severity: "High"))
+      checks.append(WishlistPurchaseCheck(title: "Returns and warranty", status: "Blocked", detail: "Select or score a seller before checking returns and warranty.", severity: "High"))
+      checks.append(WishlistPurchaseCheck(title: "Seller choice rationale", status: "Blocked", detail: "Select or score a seller before documenting why that seller is preferred.", severity: "High"))
     }
 
     checks.append(wishlistCheck(
       title: "Owner and account",
-      passed: !checkedItem.owner.isPlaceholderValidationValue,
+      passed: !checkedItem.owner.isPlaceholderValidationValue
+        && !checkedItem.owner.localizedCaseInsensitiveContains("needs review")
+        && !checkedItem.owner.localizedCaseInsensitiveContains("to confirm"),
       failDetail: "Confirm who owns the purchase and which account should be used before buying.",
       passDetail: "Owner is \(checkedItem.owner). Account choice still requires manual confirmation outside ParcelOps."
     ))
@@ -24506,6 +24546,11 @@ final class ParcelOpsStore {
         ? "\(warningCount) checks need review before purchase"
         : "Ready for purchase review"
     wishlistItems[index].status = blockerCount > 0 ? "Purchase blocked" : "Ready to purchase"
+    wishlistItems[index].comparisonNotes = [
+      wishlistItems[index].comparisonNotes,
+      preferredOption.map { "Readiness checked against \($0.sellerName). Evidence gaps: \(preferredEvidenceGaps.isEmpty ? "none" : preferredEvidenceGaps.joined(separator: ", "))." },
+      "Ready means local operator review only; ParcelOps still does not open retailer pages, log in, check out, buy, pay, or monitor the external order."
+    ].compactMap { $0 }.joined(separator: " ")
     persistWishlist()
     logAudit(
       action: .evaluated,
@@ -24514,7 +24559,7 @@ final class ParcelOpsStore {
       entityLabel: wishlistItems[index].itemName,
       summary: "Wishlist purchase readiness checked locally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistItems[index].auditDetail)\nReadiness result: \(blockerCount) blocker\(blockerCount == 1 ? "" : "s"), \(warningCount) warning\(warningCount == 1 ? "" : "s"). No live retailer, currency, postage, seller trust, account, checkout, purchase, payment, browser automation, or mailbox action occurred."
+      afterDetail: "\(wishlistItems[index].auditDetail)\nReadiness result: \(blockerCount) blocker\(blockerCount == 1 ? "" : "s"), \(warningCount) warning\(warningCount == 1 ? "" : "s"). Checks: \(checks.map { "\($0.title)=\($0.status)" }.joined(separator: "; ")). No live retailer, currency, postage, seller trust, account, checkout, purchase, payment, browser automation, or mailbox action occurred."
     )
   }
 
@@ -24576,27 +24621,45 @@ final class ParcelOpsStore {
     let current = wishlistItems[index]
     let options = current.comparisonOptions ?? []
     let selectedOption = selectedWishlistSellerOption(for: current)
+    let existingChecks = current.purchaseChecks ?? []
+    let openChecks = existingChecks.filter { $0.status != "Passed" }
+    let selectedGaps = selectedOption?.operatorSellerEvidenceGaps ?? []
     let rejectedOptions = options
       .filter { $0.id != selectedOption?.id }
-      .map { "\($0.sellerName): \($0.estimatedAUDTotal), trust \($0.trustRating)" }
+      .map { "\($0.sellerName): \($0.estimatedAUDTotal), trust \($0.trustRating), score \($0.localScore ?? $0.operatorSellerMatrixScore), gaps \($0.operatorSellerEvidenceGaps.isEmpty ? "none" : $0.operatorSellerEvidenceGaps.joined(separator: ", "))" }
       .joined(separator: " | ")
+    let decisionStatus: String
+    if selectedOption == nil {
+      decisionStatus = "Blocked pending seller option"
+    } else if !openChecks.isEmpty || !selectedGaps.isEmpty {
+      decisionStatus = "Draft decision with unresolved checks"
+    } else {
+      decisionStatus = "Draft decision"
+    }
     wishlistItems[index].purchaseDecision = WishlistPurchaseDecision(
       selectedOptionID: selectedOption?.id,
       selectedSellerName: selectedOption?.sellerName ?? current.storefront,
-      decisionStatus: selectedOption == nil ? "Blocked pending seller option" : "Draft decision",
+      decisionStatus: decisionStatus,
       totalAUDSummary: selectedOption?.estimatedAUDTotal ?? "No seller option selected",
       postageSummary: selectedOption.map { "\($0.postageCost), \($0.postageTime)" } ?? "No postage option selected",
-      trustSummary: selectedOption.map { "\($0.trustRating): \($0.trustNotes)" } ?? "Seller trust not assessed",
+      trustSummary: selectedOption.map { "\($0.trustRating): \($0.trustNotes). Risk \(($0.riskLevel ?? $0.operatorSellerMatrixRisk)); score \($0.localScore ?? $0.operatorSellerMatrixScore)." } ?? "Seller trust not assessed",
       rejectedOptionsSummary: rejectedOptions.isEmpty ? "No rejected seller options recorded." : rejectedOptions,
       decisionNotes: selectedOption == nil
         ? "Add, edit, and score seller options before deciding where to buy."
-        : "Draft only. Confirm live price, stock, AUD total, postage, returns, warranty, seller trust, account, and payment readiness outside ParcelOps before buying.",
+        : [
+          "Draft only.",
+          selectedGaps.isEmpty ? "Selected seller evidence gaps: none recorded locally." : "Selected seller evidence gaps: \(selectedGaps.joined(separator: ", ")).",
+          openChecks.isEmpty ? "Readiness checks have no open local failures." : "Open readiness checks: \(openChecks.map { "\($0.title)=\($0.status)" }.joined(separator: "; ")).",
+          "Confirm live price, stock, AUD total, postage, returns, warranty, seller trust, account, and payment readiness outside ParcelOps before buying."
+        ].joined(separator: " "),
       decidedBy: current.owner,
       decidedDate: "Now",
       reviewState: .needsReview
     )
-    wishlistItems[index].status = selectedOption == nil ? "Purchase decision blocked" : "Purchase decision drafted"
-    wishlistItems[index].purchaseReadiness = selectedOption == nil ? "Seller option required before decision" : "Decision needs review before purchase"
+    wishlistItems[index].status = selectedOption == nil || !selectedGaps.isEmpty || !openChecks.isEmpty ? "Purchase decision needs review" : "Purchase decision drafted"
+    wishlistItems[index].purchaseReadiness = selectedOption == nil
+      ? "Seller option required before decision"
+      : (!selectedGaps.isEmpty || !openChecks.isEmpty ? "Decision has unresolved evidence before purchase" : "Decision needs review before purchase")
     persistWishlist()
     logAudit(
       action: .created,
@@ -24605,7 +24668,7 @@ final class ParcelOpsStore {
       entityLabel: wishlistItems[index].itemName,
       summary: "Wishlist purchase decision drafted locally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistItems[index].auditDetail)\nPurchase decision is a local review record only. No retailer page was opened, no account was accessed, no checkout or payment occurred, and no external seller verification ran."
+      afterDetail: "\(wishlistItems[index].auditDetail)\nDecision status: \(decisionStatus). Selected gaps: \(selectedGaps.isEmpty ? "none" : selectedGaps.joined(separator: ", ")). Open readiness checks: \(openChecks.isEmpty ? "none" : openChecks.map { "\($0.title)=\($0.status)" }.joined(separator: "; ")). Purchase decision is a local review record only. No retailer page was opened, no account was accessed, no checkout or payment occurred, and no external seller verification ran."
     )
   }
 
