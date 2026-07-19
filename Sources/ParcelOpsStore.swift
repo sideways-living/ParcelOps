@@ -832,11 +832,13 @@ final class ParcelOpsStore {
       + microsoftSummaries.reduce(0) { $0 + $1.importedCount }
     let filteredCount = spaceMailSummaries.reduce(0) { $0 + $1.filteredCount }
       + gmailSummaries.reduce(0) { $0 + $1.filteredCount }
+      + microsoftSummaries.reduce(0) { $0 + $1.totalFilteredCount }
     let duplicateCount = spaceMailSummaries.reduce(0) { $0 + $1.duplicateCount }
       + gmailSummaries.reduce(0) { $0 + $1.duplicateCount }
       + microsoftSummaries.reduce(0) { $0 + $1.duplicateCount }
     let uncertainCount = spaceMailSummaries.reduce(0) { $0 + $1.totalUncertainCount }
       + gmailSummaries.reduce(0) { $0 + $1.totalUncertainCount }
+      + microsoftSummaries.reduce(0) { $0 + $1.totalUncertainCount }
     let parserIssueCount = intakeParserDiagnostics.count
     let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
     var unresolvedIntakeCount = 0
@@ -982,6 +984,11 @@ final class ParcelOpsStore {
     let gmailFetched = gmailHealth.reduce(0) { $0 + $1.fetchedCount }
     let gmailImported = gmailHealth.reduce(0) { $0 + $1.importedCount }
     let gmailUncertain = gmailHealth.reduce(0) { $0 + $1.totalUncertainCount }
+    let microsoftHealth = microsoft365IntakeHealthSummaries
+    let microsoftFetched = microsoftHealth.reduce(0) { $0 + $1.fetchedCount }
+    let microsoftImported = microsoftHealth.reduce(0) { $0 + $1.importedCount }
+    let microsoftUncertain = microsoftHealth.reduce(0) { $0 + $1.totalUncertainCount }
+    let microsoftFiltered = microsoftHealth.reduce(0) { $0 + $1.totalFilteredCount }
     let parserIssueCount = intakeParserDiagnostics.count
     let openInboxCount = reviewIntakeEmails.count
     let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
@@ -1034,7 +1041,7 @@ final class ParcelOpsStore {
           title: provider.statusTitle,
           detail: provider.detail,
           nextAction: provider.nextAction,
-          evidence: "\(provider.fetchedCount) fetched, \(provider.importedCount) imported, \(provider.uncertainCount) uncertain, \(provider.blockedCount) blocker\(provider.blockedCount == 1 ? "" : "s").",
+          evidence: "\(provider.fetchedCount) fetched, \(provider.importedCount) imported, \(provider.filteredCount) filtered, \(provider.uncertainCount) uncertain, \(provider.blockedCount) blocker\(provider.blockedCount == 1 ? "" : "s").",
           isComplete: provider.tone == "success" || provider.tone == "neutral",
           tone: provider.tone,
           symbol: provider.symbol
@@ -1103,7 +1110,6 @@ final class ParcelOpsStore {
 
     if !microsoft365MailboxConnections.isEmpty {
       let signedInCount = microsoft365MailboxConnections.filter { microsoft365AuthSessionState(for: $0).status == .connected }.count
-      let microsoftFetched = microsoft365MailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
       let readyCount = microsoft365MailboxConnections.filter { microsoft365OAuthReadinessSummary(for: $0).isReady }.count
       items.append(
         MailboxProviderTestQueueItem(
@@ -1111,10 +1117,10 @@ final class ParcelOpsStore {
           phase: "Refresh",
           title: microsoftFetched > 0 ? "Outlook refresh evidence exists" : signedInCount > 0 ? "Run Outlook manual refresh" : "Test Microsoft sign-in",
           detail: microsoftFetched > 0 ? "Outlook has Microsoft Graph refresh evidence available for operator review." : signedInCount > 0 ? "A Microsoft account is connected, but no Graph fetch evidence is recorded yet." : "Outlook / Microsoft 365 setup exists but needs a connected sign-in before real Graph refresh.",
-          nextAction: microsoftFetched > 0 ? "Review Outlook fetch, duplicate, and auth diagnostics." : signedInCount > 0 ? "Run real Graph refresh when checking a Microsoft-hosted mailbox." : "Run Test real Microsoft sign-in before refresh.",
-          evidence: "\(readyCount) ready setup, \(signedInCount) signed in, \(microsoftFetched) refresh run\(microsoftFetched == 1 ? "" : "s").",
+          nextAction: microsoftImported + microsoftUncertain > 0 ? "Review Outlook imported and uncertain rows in Mailbox Monitor or Inbox." : microsoftFetched > 0 ? "Review Outlook filtered, duplicate, and auth diagnostics." : signedInCount > 0 ? "Run real Graph refresh when checking a Microsoft-hosted mailbox." : "Run Test real Microsoft sign-in before refresh.",
+          evidence: "\(readyCount) ready setup, \(signedInCount) signed in, \(microsoftFetched) fetched, \(microsoftImported) imported, \(microsoftFiltered) filtered, \(microsoftUncertain) uncertain.",
           isComplete: microsoftFetched > 0,
-          tone: microsoftFetched > 0 ? "success" : "attention",
+          tone: microsoftImported + microsoftUncertain > 0 ? "attention" : microsoftFetched > 0 ? "success" : "attention",
           symbol: "mail.stack.fill"
         )
       )
@@ -1213,7 +1219,7 @@ final class ParcelOpsStore {
     let openCount = sortedItems.filter { !$0.isComplete }.count
     let warningCount = sortedItems.filter { $0.tone == "warning" && !$0.isComplete }.count
     let attentionCount = sortedItems.filter { $0.tone == "attention" && !$0.isComplete }.count
-    let evidenceCount = spaceMailFetched + gmailFetched + linkedOrderCount + inboxCreatedOrderCount
+    let evidenceCount = spaceMailFetched + gmailFetched + microsoftFetched + linkedOrderCount + inboxCreatedOrderCount
 
     let title: String
     let detail: String
