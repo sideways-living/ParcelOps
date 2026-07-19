@@ -886,7 +886,7 @@ struct TasksView: View {
     if overdueActionCount > 0 { return "Start with overdue follow-up" }
     if blockedActionCount > 0 { return "Clear blocked work first" }
     if urgentActionCount > 0 { return "Handle high-priority work" }
-    if inboxOrderActionCount > 0 { return "Finish source-created order handoffs" }
+    if inboxOrderActionCount > 0 { return "Finish Inbox-created order handoffs" }
     if wishlistTaskActionCount > 0 { return "Work Wishlist purchase follow-up" }
     if reviewActionCount > 0 { return "Review open task context" }
     if draftActionCount > 0 { return "Review draft messages" }
@@ -905,7 +905,7 @@ struct TasksView: View {
       return "\(urgentActionCount) high-priority item\(urgentActionCount == 1 ? "" : "s") \(urgentActionCount == 1 ? "needs" : "need") attention before routine handoffs."
     }
     if inboxOrderActionCount > 0 {
-      return "\(inboxOrderActionCount) task\(inboxOrderActionCount == 1 ? " is" : "s are") linked to a source-created order. Open the order, confirm dispatch context, then complete the follow-up."
+      return "\(inboxOrderActionCount) task\(inboxOrderActionCount == 1 ? " is" : "s are") linked to an Inbox-created order. Open the order, confirm dispatch context, then complete the follow-up."
     }
     if wishlistTaskActionCount > 0 {
       return "\(wishlistTaskActionCount) Wishlist purchase follow-up item needs task attention: purchase packets, drafts, handoff prep, or order confirmation matching."
@@ -2436,7 +2436,7 @@ private struct TaskQueueItem: Identifiable {
     switch source {
     case .task(let task):
       if task.isReopenedInboxDispatchHandoff { return "Reopened dispatch handoff" }
-      if task.isPartialInboxOrderFollowUp { return "Verify source-created order" }
+      if task.isPartialInboxOrderFollowUp { return "Verify Inbox-created order" }
       if isGmailFollowUp { return "Gmail follow-up" }
       if isOutlookFollowUp { return "Outlook follow-up" }
       if isMailboxProviderFollowUp { return "Mailbox provider follow-up" }
@@ -2467,7 +2467,7 @@ private struct TaskQueueItem: Identifiable {
         return "Open the linked order and dispatch records before completing this task. The handoff was reopened after dispatch setup had started."
       }
       if task.isPartialInboxOrderFollowUp {
-        return "Confirm the missing order, tracking, or destination details on the linked source-created order before completing this task."
+        return "Confirm the missing order, tracking, or destination details on the linked Inbox-created order before completing this task."
       }
       if isGmailFollowUp {
         return "Use Gmail setup, sign-in, refresh, classifier, or release self-check context in Mailbox Monitor before completing this task."
@@ -3259,7 +3259,7 @@ private struct ReopenedDispatchHandoffTaskCallout: View {
         .font(.caption.weight(.semibold))
         .foregroundStyle(.purple)
 
-      Text("This task was created because a source-created order handoff was reopened after dispatch setup had already been prepared. Check the order, linked manifest, and dispatch readiness before closing it again.")
+      Text("This task was created because an Inbox-created order handoff was reopened after dispatch setup had already been prepared. Check the order, linked manifest, and dispatch readiness before closing it again.")
         .font(.caption)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)

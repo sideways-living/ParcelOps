@@ -429,7 +429,7 @@ struct OrdersView: View {
   private var orderNextActionTitle: String {
     if exceptionOrderCount > 0 { return "Start with exception orders" }
     if blockedDispatchOrderCount > 0 { return "Clear blocked dispatch setup" }
-    if inboxCreatedOrderItems.count > 0 { return "Confirm source-created orders" }
+    if inboxCreatedOrderItems.count > 0 { return "Confirm Inbox-created orders" }
     if urgentTaskOrderCount > 0 { return "Resolve linked order tasks" }
     if reviewOrderCount > 0 { return "Review order details" }
     if trackingWarningOrderCount > 0 { return "Check tracking warnings" }
@@ -901,7 +901,7 @@ private struct OrdersInboxHandoffEmptyState: View {
     if duplicateCount > 0 { return "No new mailbox order handoff" }
     if filteredCount > 0 { return "No order mail reached Orders" }
     if fetchedCount > 0 { return "Mailbox refresh found no order handoff" }
-    return "No source-created orders yet"
+    return "No Inbox-created orders yet"
   }
 
   private var detail: String {
@@ -2146,7 +2146,7 @@ struct OrderDetailView: View {
           )
           checklistLine(
             title: tasks.isEmpty ? "Create follow-up ownership" : "Follow-up task exists",
-            detail: tasks.isEmpty ? "Create a task when someone needs to verify this source-created order." : tasks.prefix(2).map(\.title).joined(separator: "; "),
+            detail: tasks.isEmpty ? "Create a task when someone needs to verify this Inbox-created order." : tasks.prefix(2).map(\.title).joined(separator: "; "),
             symbol: "checklist",
             color: tasks.isEmpty ? .orange : .purple
           )
