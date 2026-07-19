@@ -606,7 +606,8 @@ struct MailboxView: View {
               releaseSelfCheck: store.gmailReleaseSelfCheckSummary(for: connection),
               labelReadiness: store.gmailLabelReadinessSummary(for: connection),
               authState: store.gmailAuthSessionState(for: connection),
-              activeRefreshTask: store.activeGmailLatestRefreshTask(for: connection)
+              activeRefreshTask: store.activeGmailLatestRefreshTask(for: connection),
+              postRefreshActionPlan: store.gmailPostRefreshActionPlan
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {

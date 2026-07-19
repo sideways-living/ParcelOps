@@ -922,7 +922,8 @@ struct IntegrationsView: View {
               releaseSelfCheck: store.gmailReleaseSelfCheckSummary(for: connection),
               labelReadiness: store.gmailLabelReadinessSummary(for: connection),
               authState: store.gmailAuthSessionState(for: connection),
-              activeRefreshTask: store.activeGmailLatestRefreshTask(for: connection)
+              activeRefreshTask: store.activeGmailLatestRefreshTask(for: connection),
+              postRefreshActionPlan: store.gmailPostRefreshActionPlan
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {
@@ -1625,6 +1626,7 @@ struct GmailMailboxConnectionRow: View {
   var labelReadiness: GmailLabelReadinessSummary
   var authState: GmailAuthSessionState
   var activeRefreshTask: ReviewTask?
+  var postRefreshActionPlan: GmailPostRefreshActionPlan
   var onSave: (GmailMailboxConnection) -> Void
   var onReviewed: () -> Void
   var onMarkHostVerified: () -> Void
@@ -1686,6 +1688,7 @@ struct GmailMailboxConnectionRow: View {
     labelReadiness: GmailLabelReadinessSummary,
     authState: GmailAuthSessionState,
     activeRefreshTask: ReviewTask?,
+    postRefreshActionPlan: GmailPostRefreshActionPlan,
     onSave: @escaping (GmailMailboxConnection) -> Void,
     onReviewed: @escaping () -> Void,
     onMarkHostVerified: @escaping () -> Void,
@@ -1736,6 +1739,7 @@ struct GmailMailboxConnectionRow: View {
     self.labelReadiness = labelReadiness
     self.authState = authState
     self.activeRefreshTask = activeRefreshTask
+    self.postRefreshActionPlan = postRefreshActionPlan
     self.onSave = onSave
     self.onReviewed = onReviewed
     self.onMarkHostVerified = onMarkHostVerified
@@ -1872,6 +1876,8 @@ struct GmailMailboxConnectionRow: View {
       .background(gmailSetupBlockerColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
       gmailOperatorNextStepCard
+
+      GmailPostRefreshActionCard(plan: postRefreshActionPlan)
 
       gmailReviewQueueCard
 
