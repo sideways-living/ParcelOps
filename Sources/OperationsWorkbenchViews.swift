@@ -793,19 +793,33 @@ struct OperationsWorkbenchView: View {
         SpaceMailPrimaryStatusStrip(store: store)
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
         SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
-        SpaceMailPostRefreshActionCard(plan: spaceMailPostRefreshPlan)
-        SpaceMailShiftHandoffCard(
-          summary: store.spaceMailShiftHandoffSummary,
-          onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
-        )
+        MailboxProviderPostRefreshDisclosure(
+          title: "SpaceMail refresh follow-up",
+          detail: "Open this when SpaceMail refresh results need Workbench follow-up. The exception queue remains the primary work here.",
+          symbol: "server.rack",
+          tone: .teal
+        ) {
+          SpaceMailPostRefreshActionCard(plan: spaceMailPostRefreshPlan)
+          SpaceMailShiftHandoffCard(
+            summary: store.spaceMailShiftHandoffSummary,
+            onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
+          )
+        }
         GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
-        GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
-        GmailShiftHandoffCard(
-          summary: store.gmailShiftHandoffSummary,
-          onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
-          onCreateTask: { store.createGmailShiftReviewTask() },
-          onCreateDraft: { store.createGmailShiftDraftMessage() }
-        )
+        MailboxProviderPostRefreshDisclosure(
+          title: "Gmail refresh follow-up",
+          detail: "Open this when Gmail refresh results need Workbench follow-up. Keep it collapsed while working operational exceptions.",
+          symbol: "envelope.badge.shield.half.filled",
+          tone: .pink
+        ) {
+          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          GmailShiftHandoffCard(
+            summary: store.gmailShiftHandoffSummary,
+            onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
+            onCreateTask: { store.createGmailShiftReviewTask() },
+            onCreateDraft: { store.createGmailShiftDraftMessage() }
+          )
+        }
         Text("Mailbox refresh trends are context for triage across active providers. Imported and uncertain messages can create work; filtered mixed-mailbox messages remain out of Workbench unless promoted from Mailbox Monitor.")
           .font(.caption)
           .foregroundStyle(.secondary)

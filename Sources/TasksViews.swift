@@ -1347,13 +1347,20 @@ struct TasksView: View {
           }
         }
 
-        GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
-        GmailShiftHandoffCard(
-          summary: store.gmailShiftHandoffSummary,
-          onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
-          onCreateTask: { store.createGmailShiftReviewTask() },
-          onCreateDraft: { store.createGmailShiftDraftMessage() }
-        )
+        MailboxProviderPostRefreshDisclosure(
+          title: "Gmail task follow-up",
+          detail: "Open this when Gmail refresh results need assigned follow-up. The task queue remains focused on owned work.",
+          symbol: "envelope.badge.shield.half.filled",
+          tone: .pink
+        ) {
+          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          GmailShiftHandoffCard(
+            summary: store.gmailShiftHandoffSummary,
+            onCreateHandoffNote: { store.createGmailShiftHandoffNote() },
+            onCreateTask: { store.createGmailShiftReviewTask() },
+            onCreateDraft: { store.createGmailShiftDraftMessage() }
+          )
+        }
 
         gmailTaskReadinessPanel
 
@@ -1660,11 +1667,18 @@ struct TasksView: View {
           ("Task links", "\(mailboxLinkedTaskCount)", mailboxLinkedTaskCount == 0 ? .secondary : .purple)
         ])
 
-        SpaceMailPostRefreshActionCard(plan: spaceMailPostRefreshPlan)
-        SpaceMailShiftHandoffCard(
-          summary: store.spaceMailShiftHandoffSummary,
-          onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
-        )
+        MailboxProviderPostRefreshDisclosure(
+          title: "SpaceMail task follow-up",
+          detail: "Open this when SpaceMail refresh results need assigned follow-up. Keep it collapsed when clearing the main task queue.",
+          symbol: "server.rack",
+          tone: .teal
+        ) {
+          SpaceMailPostRefreshActionCard(plan: spaceMailPostRefreshPlan)
+          SpaceMailShiftHandoffCard(
+            summary: store.spaceMailShiftHandoffSummary,
+            onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
+          )
+        }
 
         Text("Create a task only when a person must own the follow-up. Imported order mail starts in Inbox, uncertain mail starts in Mailbox Monitor, and filtered mixed-mailbox examples stay out of Tasks unless manually promoted or converted into follow-up.")
           .font(.caption.weight(.semibold))
@@ -1937,10 +1951,17 @@ struct TasksView: View {
             ("Tasks", "\(spaceMailAssignedFollowUpItems.filter { if case .task = $0.source { return true }; return false }.count)", .orange)
           ])
 
-          SpaceMailShiftHandoffCard(
-            summary: store.spaceMailShiftHandoffSummary,
-            onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
-          )
+          MailboxProviderPostRefreshDisclosure(
+            title: "SpaceMail handoff detail",
+            detail: "Open this when the assigned SpaceMail follow-up needs a shift handoff draft. The assigned list below remains the primary task surface.",
+            symbol: "person.2.wave.2.fill",
+            tone: .teal
+          ) {
+            SpaceMailShiftHandoffCard(
+              summary: store.spaceMailShiftHandoffSummary,
+              onCreateDraft: { store.createSpaceMailShiftDraftMessage() }
+            )
+          }
 
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
             ForEach(spaceMailAssignedFollowUpItems.prefix(4)) { item in
