@@ -369,6 +369,8 @@ final class ParcelOpsStore {
     let microsoftSignedInCount = microsoft365MailboxConnections.filter { microsoft365AuthSessionState(for: $0).status == .connected }.count
     let microsoftFetched = microsoftSummaries.reduce(0) { $0 + $1.fetchedCount }
     let microsoftImported = microsoftSummaries.reduce(0) { $0 + $1.importedCount }
+    let microsoftFiltered = microsoftSummaries.reduce(0) { $0 + $1.totalFilteredCount }
+    let microsoftUncertain = microsoftSummaries.reduce(0) { $0 + $1.totalUncertainCount }
     let microsoftDuplicate = microsoftSummaries.reduce(0) { $0 + $1.duplicateCount }
     let microsoftProblemCount = microsoftSummaries.reduce(0) { $0 + $1.blockedCount }
 
@@ -448,14 +450,14 @@ final class ParcelOpsStore {
       microsoftDetail = "\(microsoftProblemCount) Outlook / Microsoft 365 setup\(microsoftProblemCount == 1 ? "" : "s") have auth, consent, or Graph-read diagnostics to review."
       microsoftNextAction = "Open Outlook / Microsoft 365 setup or Audit before relying on Graph refresh."
       microsoftTone = "warning"
-    } else if microsoftImported > 0 {
+    } else if microsoftImported > 0 || microsoftUncertain > 0 {
       microsoftStatusTitle = "Outlook / Microsoft 365 has operator work"
-      microsoftDetail = "\(microsoftImported) Outlook-origin message\(microsoftImported == 1 ? "" : "s") were imported through provider-neutral intake."
-      microsoftNextAction = "Review Outlook-origin Inbox rows and create or link orders where appropriate."
+      microsoftDetail = "\(microsoftImported) Outlook-origin imported message\(microsoftImported == 1 ? "" : "s") and \(microsoftUncertain) uncertain preview\(microsoftUncertain == 1 ? "" : "s") need local review."
+      microsoftNextAction = "Review Outlook-origin Inbox rows and uncertain Microsoft 365 previews before creating or linking orders."
       microsoftTone = "attention"
-    } else if microsoftSignedInCount > 0 && microsoftFetched > 0 {
+    } else if microsoftFiltered > 0 || (microsoftSignedInCount > 0 && microsoftFetched > 0) {
       microsoftStatusTitle = "Outlook / Microsoft 365 has refresh evidence"
-      microsoftDetail = "\(microsoftFetched) Outlook fetch signal\(microsoftFetched == 1 ? "" : "s") and \(microsoftDuplicate) duplicate-safe result\(microsoftDuplicate == 1 ? "" : "s") are available for review."
+      microsoftDetail = "\(microsoftFetched) Outlook fetch signal\(microsoftFetched == 1 ? "" : "s"), \(microsoftFiltered) filtered example\(microsoftFiltered == 1 ? "" : "s"), and \(microsoftDuplicate) duplicate-safe result\(microsoftDuplicate == 1 ? "" : "s") are available for review."
       microsoftNextAction = "Review Mailbox Monitor or Audit before using Outlook as the active provider path."
       microsoftTone = "attention"
     } else if microsoftSignedInCount > 0 {
@@ -477,8 +479,8 @@ final class ParcelOpsStore {
 
     let anyProviderConfigured = !spaceMailIMAPConnections.isEmpty || !gmailMailboxConnections.isEmpty || !microsoft365MailboxConnections.isEmpty
     let anyProviderBlocked = spaceMailBlocked > 0 || gmailSetupBlockers > 0 || microsoftProblemCount > 0
-    let anyOperatorWork = spaceMailImported + gmailImported + microsoftImported + spaceMailUncertain + gmailUncertain + spaceMailParserIssues > 0
-    let anyRefreshEvidence = spaceMailFetched + gmailFetched + microsoftFetched + spaceMailFiltered + gmailFiltered > 0
+    let anyOperatorWork = spaceMailImported + gmailImported + microsoftImported + spaceMailUncertain + gmailUncertain + microsoftUncertain + spaceMailParserIssues > 0
+    let anyRefreshEvidence = spaceMailFetched + gmailFetched + microsoftFetched + spaceMailFiltered + gmailFiltered + microsoftFiltered > 0
 
     let recommendedProvider: String
     let configuredProviderNames = [
@@ -512,7 +514,7 @@ final class ParcelOpsStore {
       MailboxProviderDecisionRule(
         title: "Keep mixed mailboxes filtered",
         detail: "Mixed mailbox mode should filter ordinary personal, newsletter, security, and marketing mail before it reaches Inbox. Import or task only genuine order messages.",
-        tone: (spaceMailFiltered + gmailFiltered) > 0 ? "success" : "neutral",
+        tone: (spaceMailFiltered + gmailFiltered + microsoftFiltered) > 0 ? "success" : "neutral",
         symbol: "line.3.horizontal.decrease.circle"
       ),
       MailboxProviderDecisionRule(
@@ -708,6 +710,17 @@ final class ParcelOpsStore {
             symbol: "exclamationmark.triangle.fill"
           )
         )
+      } else if microsoftImported > 0 || microsoftUncertain > 0 {
+        actionItems.append(
+          MailboxProviderActionItem(
+            providerName: "Outlook",
+            title: "Review Outlook intake",
+            detail: "Confirm Outlook-origin Inbox rows and uncertain Microsoft 365 previews before creating orders.",
+            priority: "1",
+            tone: "attention",
+            symbol: "tray.full.fill"
+          )
+        )
       } else if microsoftSignedInCount == 0 && microsoftReadyCount == 0 {
         actionItems.append(
           MailboxProviderActionItem(
@@ -753,8 +766,8 @@ final class ParcelOpsStore {
         SpaceMailReleaseSnapshotMetric(title: "Providers", value: "\(mailboxProviderSetupCount)", tone: anyProviderConfigured ? "success" : "warning"),
         SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(spaceMailFetched + gmailFetched + microsoftFetched)", tone: anyRefreshEvidence ? "neutral" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Imported", value: "\(spaceMailImported + gmailImported + microsoftImported)", tone: (spaceMailImported + gmailImported + microsoftImported) > 0 ? "attention" : "neutral"),
-        SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(spaceMailFiltered + gmailFiltered)", tone: (spaceMailFiltered + gmailFiltered) > 0 ? "success" : "neutral"),
-        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(spaceMailUncertain + gmailUncertain)", tone: (spaceMailUncertain + gmailUncertain) > 0 ? "attention" : "success"),
+        SpaceMailReleaseSnapshotMetric(title: "Filtered", value: "\(spaceMailFiltered + gmailFiltered + microsoftFiltered)", tone: (spaceMailFiltered + gmailFiltered + microsoftFiltered) > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Uncertain", value: "\(spaceMailUncertain + gmailUncertain + microsoftUncertain)", tone: (spaceMailUncertain + gmailUncertain + microsoftUncertain) > 0 ? "attention" : "success"),
         SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(spaceMailBlocked + gmailSetupBlockers + microsoftProblemCount)", tone: (spaceMailBlocked + gmailSetupBlockers + microsoftProblemCount) > 0 ? "warning" : "success")
       ],
       decisionRules: Array(decisionRules.prefix(4)),
@@ -768,6 +781,7 @@ final class ParcelOpsStore {
           symbol: "server.rack",
           fetchedCount: spaceMailFetched,
           importedCount: spaceMailImported,
+          filteredCount: spaceMailFiltered,
           blockedCount: spaceMailBlocked,
           uncertainCount: spaceMailUncertain
         ),
@@ -780,6 +794,7 @@ final class ParcelOpsStore {
           symbol: "envelope.badge.shield.half.filled",
           fetchedCount: gmailFetched,
           importedCount: gmailImported,
+          filteredCount: gmailFiltered,
           blockedCount: gmailSetupBlockers,
           uncertainCount: gmailUncertain
         ),
@@ -792,8 +807,9 @@ final class ParcelOpsStore {
           symbol: "mail.stack.fill",
           fetchedCount: microsoftFetched,
           importedCount: microsoftImported,
+          filteredCount: microsoftFiltered,
           blockedCount: microsoftProblemCount,
-          uncertainCount: 0
+          uncertainCount: microsoftUncertain
         )
       ],
       actionItems: actionItems.sorted { lhs, rhs in

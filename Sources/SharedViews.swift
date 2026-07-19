@@ -5827,6 +5827,10 @@ struct MailboxProviderQuickStatusCard: View {
     summary.providers.reduce(0) { $0 + $1.importedCount }
   }
 
+  private var totalFilteredCount: Int {
+    summary.providers.reduce(0) { $0 + $1.filteredCount }
+  }
+
   private var totalUncertainCount: Int {
     summary.providers.reduce(0) { $0 + $1.uncertainCount }
   }
@@ -5874,6 +5878,7 @@ struct MailboxProviderQuickStatusCard: View {
         ("Providers", "\(configuredProviderCount)", configuredProviderCount > 0 ? .green : .orange),
         ("Fetched", "\(totalFetchedCount)", totalFetchedCount > 0 ? .blue : .secondary),
         ("Imported", "\(totalImportedCount)", totalImportedCount > 0 ? .green : .secondary),
+        ("Filtered", "\(totalFilteredCount)", totalFilteredCount > 0 ? .teal : .secondary),
         ("Uncertain", "\(totalUncertainCount)", totalUncertainCount > 0 ? .orange : .green),
         ("Blockers", "\(totalBlockerCount)", totalBlockerCount > 0 ? .red : .green)
       ])
@@ -5899,6 +5904,7 @@ struct MailboxProviderQuickStatusCard: View {
                 CompactMetadataGrid(minimumWidth: isCompact ? 92 : 105) {
                   Badge("\(provider.fetchedCount) fetched", color: provider.fetchedCount > 0 ? .blue : .secondary)
                   Badge("\(provider.importedCount) imported", color: provider.importedCount > 0 ? .green : .secondary)
+                  Badge("\(provider.filteredCount) filtered", color: provider.filteredCount > 0 ? .teal : .secondary)
                   Badge("\(provider.uncertainCount) uncertain", color: provider.uncertainCount > 0 ? .orange : .secondary)
                   Badge("\(provider.blockedCount) blockers", color: provider.blockedCount > 0 ? .red : .green)
                 }
@@ -6090,6 +6096,7 @@ struct MailboxProviderComparisonCard: View {
             MetricStrip(items: [
               ("Fetched", "\(provider.fetchedCount)", provider.fetchedCount > 0 ? .blue : .secondary),
               ("Imported", "\(provider.importedCount)", provider.importedCount > 0 ? .green : .secondary),
+              ("Filtered", "\(provider.filteredCount)", provider.filteredCount > 0 ? .teal : .secondary),
               ("Uncertain", "\(provider.uncertainCount)", provider.uncertainCount > 0 ? .orange : .secondary),
               ("Blockers", "\(provider.blockedCount)", provider.blockedCount > 0 ? .red : .green)
             ])

@@ -2377,6 +2377,7 @@ struct MailboxProviderComparisonItem: Identifiable, Hashable {
   var symbol: String
   var fetchedCount: Int
   var importedCount: Int
+  var filteredCount: Int
   var blockedCount: Int
   var uncertainCount: Int
 }
