@@ -173,12 +173,20 @@ struct InboxView: View {
     store.pendingGmailUncertainReviewCount
   }
 
+  private var uncertainMicrosoft365Count: Int {
+    store.pendingMicrosoft365UncertainReviewCount
+  }
+
   private var filteredSpaceMailCount: Int {
     store.pendingSpaceMailFilteredReviewCount
   }
 
   private var filteredGmailCount: Int {
     store.gmailFilteredMailboxSignalCount
+  }
+
+  private var filteredMicrosoft365Count: Int {
+    store.microsoft365FilteredMailboxSignalCount
   }
 
   private var latestMailboxFetchedCount: Int {
@@ -266,8 +274,8 @@ struct InboxView: View {
       || (latestSpaceMailSummary?.duplicateCount ?? 0) > 0
       || (latestGmailSummary?.duplicateCount ?? 0) > 0
       || hasMicrosoft365RefreshEvidence
-      || uncertainSpaceMailCount + uncertainGmailCount > 0
-      || filteredSpaceMailCount + filteredGmailCount > 0
+      || uncertainSpaceMailCount + uncertainGmailCount + uncertainMicrosoft365Count > 0
+      || filteredSpaceMailCount + filteredGmailCount + filteredMicrosoft365Count > 0
       || !triageItems.isEmpty
 
     return [
@@ -297,7 +305,7 @@ struct InboxView: View {
       ),
       (
         "Review",
-        hasMailboxDecisionEvidence ? "\(triageItems.count) triage, \(uncertainSpaceMailCount + uncertainGmailCount) uncertain, \(filteredSpaceMailCount + pendingFilteredGmailReviewCount) filtered review rows." : "Review imported, uncertain, and filtered decisions after refresh.",
+        hasMailboxDecisionEvidence ? "\(triageItems.count) triage, \(uncertainSpaceMailCount + uncertainGmailCount + uncertainMicrosoft365Count) uncertain, \(filteredSpaceMailCount + pendingFilteredGmailReviewCount + store.pendingMicrosoft365FilteredReviewCount) filtered review rows." : "Review imported, uncertain, and filtered decisions after refresh.",
         "tray.full.fill",
         hasMailboxDecisionEvidence ? .teal : .orange,
         hasMailboxDecisionEvidence
@@ -656,7 +664,7 @@ struct InboxView: View {
           ("Triage rows", "\(triageItems.count)", triageItems.isEmpty ? .green : .teal),
           ("Parser checks", "\(parserIssueCount)", parserIssueCount == 0 ? .green : .orange),
           ("Acceptance", "\(readyAcceptanceCount)", readyAcceptanceCount == 0 ? .green : .blue),
-          ("Uncertain", "\(uncertainSpaceMailCount + uncertainGmailCount)", uncertainSpaceMailCount + uncertainGmailCount == 0 ? .green : .orange),
+          ("Uncertain", "\(uncertainSpaceMailCount + uncertainGmailCount + uncertainMicrosoft365Count)", uncertainSpaceMailCount + uncertainGmailCount + uncertainMicrosoft365Count == 0 ? .green : .orange),
           ("Blocked", "\(blockedIncomingCount)", blockedIncomingCount == 0 ? .green : .red)
         ])
 

@@ -333,6 +333,14 @@ struct OperationsWorkbenchView: View {
     store.microsoft365IntakeHealthSummaries.reduce(0) { $0 + $1.blockedCount }
   }
 
+  private var microsoft365UncertainCount: Int {
+    store.pendingMicrosoft365UncertainReviewCount
+  }
+
+  private var microsoft365FilteredReviewCount: Int {
+    store.pendingMicrosoft365FilteredReviewCount
+  }
+
   private var activeMicrosoft365ReleaseTasks: [ReviewTask] {
     store.reviewTasks.filter { task in
       task.linkedEntityType == .integration
@@ -370,7 +378,7 @@ struct OperationsWorkbenchView: View {
   }
 
   private var microsoft365MailboxCountsText: String {
-    "\(store.totalMicrosoft365FetchedCount) fetched, \(store.totalMicrosoft365ImportedCount) imported, \(store.totalMicrosoft365DuplicateCount) duplicate, \(store.totalMicrosoft365DuplicateRefreshedCount) refreshed, \(store.totalMicrosoft365BlockedCount) blocker."
+    "\(store.totalMicrosoft365FetchedCount) fetched, \(store.totalMicrosoft365ImportedCount) imported, \(store.totalMicrosoft365DuplicateCount) duplicate, \(store.totalMicrosoft365DuplicateRefreshedCount) refreshed, \(store.totalMicrosoft365FilteredCount) filtered, \(store.totalMicrosoft365UncertainCount) uncertain, \(store.totalMicrosoft365BlockedCount) blocker."
   }
 
   private var mailboxWarningCount: Int {
@@ -1606,6 +1614,8 @@ struct OperationsWorkbenchView: View {
           ("Needs action", "\(microsoft365ReleaseAttentionCount)", microsoft365ReleaseAttentionCount == 0 ? .green : .orange),
           ("Graph blockers", "\(microsoft365GraphBlockerCount)", microsoft365GraphBlockerCount == 0 ? .green : .orange),
           ("Imported", "\(microsoft365ImportedCount)", microsoft365ImportedCount == 0 ? .secondary : .green),
+          ("Uncertain", "\(microsoft365UncertainCount)", microsoft365UncertainCount == 0 ? .green : .orange),
+          ("Filtered", "\(microsoft365FilteredReviewCount)", microsoft365FilteredReviewCount == 0 ? .secondary : .teal),
           ("Open tasks", "\(activeMicrosoft365ReleaseTasks.count)", activeMicrosoft365ReleaseTasks.isEmpty ? .green : .purple)
         ])
 
@@ -1687,7 +1697,9 @@ struct OperationsWorkbenchView: View {
   private var microsoft365WorkbenchTone: Color {
     if microsoft365ReleaseBlockingCount > 0 { return .red }
     if microsoft365ReleaseAttentionCount > 0 || microsoft365GraphBlockerCount > 0 || microsoft365BlockedCount > 0 { return .orange }
+    if microsoft365UncertainCount > 0 { return .orange }
     if microsoft365ImportedCount > 0 { return .teal }
+    if microsoft365FilteredReviewCount > 0 { return .teal }
     if !store.microsoft365MailboxConnections.isEmpty { return .purple }
     return .secondary
   }
@@ -1697,7 +1709,9 @@ struct OperationsWorkbenchView: View {
     if microsoft365ReleaseBlockingCount > 0 { return "Outlook release checks have blockers" }
     if microsoft365GraphBlockerCount > 0 || microsoft365BlockedCount > 0 { return "Outlook Graph diagnostics need review" }
     if microsoft365ReleaseAttentionCount > 0 { return "Outlook release checks need action" }
+    if microsoft365UncertainCount > 0 { return "Outlook uncertain review is waiting" }
     if microsoft365ImportedCount > 0 { return "Outlook created Inbox work" }
+    if microsoft365FilteredReviewCount > 0 { return "Outlook filtered examples are available" }
     return "Outlook release path has no Workbench exception"
   }
 
@@ -1714,8 +1728,14 @@ struct OperationsWorkbenchView: View {
     if microsoft365ReleaseAttentionCount > 0 {
       return "\(microsoft365ReleaseAttentionCount) Outlook release check\(microsoft365ReleaseAttentionCount == 1 ? "" : "s") need operator action, usually sign-in, implementation plan review, release task ownership, or Audit evidence."
     }
+    if microsoft365UncertainCount > 0 {
+      return "\(microsoft365UncertainCount) ambiguous Outlook preview\(microsoft365UncertainCount == 1 ? "" : "s") are waiting outside Inbox. Import genuine order mail or dismiss non-order mail in Mailbox Monitor."
+    }
     if microsoft365ImportedCount > 0 {
       return "\(microsoft365ImportedCount) Outlook message\(microsoft365ImportedCount == 1 ? "" : "s") reached Inbox. Review or create/link the order there before expecting Workbench exceptions."
+    }
+    if microsoft365FilteredReviewCount > 0 {
+      return "\(microsoft365FilteredReviewCount) filtered Outlook preview\(microsoft365FilteredReviewCount == 1 ? "" : "s") can be inspected when an expected order email is missing. This is classifier review, not an operational exception."
     }
     return "Outlook setup exists, but current local evidence did not create imported or blocked order work."
   }

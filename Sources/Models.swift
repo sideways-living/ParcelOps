@@ -2142,21 +2142,31 @@ struct Microsoft365IntakeHealthSummary: Identifiable, Hashable {
   var uncertainCount: Int
   var blockedCount: Int
   var linkedIntakeCount: Int
+  var pendingFilteredReviewCount: Int
+  var pendingUncertainReviewCount: Int
   var lastRefreshDate: String
   var lastRefreshSummary: String
+
+  var totalUncertainCount: Int {
+    max(pendingUncertainReviewCount, uncertainCount)
+  }
+
+  var totalFilteredCount: Int {
+    max(pendingFilteredReviewCount, filteredCount)
+  }
 
   var primaryOutcomeStatus: String {
     if blockedCount > 0 { return "\(blockedCount) blocker" }
     if importedCount > 0 { return "\(importedCount) imported" }
     if duplicateRefreshedCount > 0 { return "\(duplicateRefreshedCount) refreshed" }
     if duplicateCount > 0 { return "\(duplicateCount) duplicate" }
-    if uncertainCount > 0 { return "\(uncertainCount) uncertain" }
-    if filteredCount > 0 { return "\(filteredCount) filtered" }
+    if totalUncertainCount > 0 { return "\(totalUncertainCount) uncertain" }
+    if totalFilteredCount > 0 { return "\(totalFilteredCount) filtered" }
     return "\(fetchedCount) fetched"
   }
 
   var compactRefreshCountsText: String {
-    "\(fetchedCount) fetched, \(importedCount) imported, \(duplicateCount) duplicate, \(duplicateRefreshedCount) refreshed, \(filteredCount) filtered, \(uncertainCount) uncertain, \(blockedCount) blocker"
+    "\(fetchedCount) fetched, \(importedCount) imported, \(duplicateCount) duplicate, \(duplicateRefreshedCount) refreshed, \(totalFilteredCount) filtered, \(totalUncertainCount) uncertain, \(blockedCount) blocker"
   }
 
   var namedRefreshCountsText: String {
@@ -2168,8 +2178,8 @@ struct Microsoft365IntakeHealthSummary: Identifiable, Hashable {
     if importedCount > 0 { return "Latest Outlook refresh imported order mail" }
     if duplicateRefreshedCount > 0 { return "Latest Outlook refresh updated existing Inbox rows" }
     if duplicateCount > 0 { return "Latest Outlook refresh found duplicates" }
-    if uncertainCount > 0 { return "Latest Outlook refresh found uncertain mail" }
-    if filteredCount > 0 { return "Latest Outlook refresh filtered non-order mail" }
+    if totalUncertainCount > 0 { return "Latest Outlook refresh found uncertain mail" }
+    if totalFilteredCount > 0 { return "Latest Outlook refresh filtered non-order mail" }
     return verdict
   }
 }

@@ -276,6 +276,12 @@ struct DashboardView: View {
   private var microsoft365GraphBlockerCount: Int {
     microsoft365ReleaseSelfChecks.reduce(0) { $0 + $1.graphBlockerCount }
   }
+  private var pendingMicrosoft365UncertainReviewCount: Int {
+    store.pendingMicrosoft365UncertainReviewCount
+  }
+  private var pendingMicrosoft365FilteredReviewCount: Int {
+    store.pendingMicrosoft365FilteredReviewCount
+  }
   private var pendingGmailUncertainReviewCount: Int {
     store.pendingGmailUncertainReviewCount
   }
@@ -348,6 +354,8 @@ struct DashboardView: View {
     guard hasMicrosoft365Setup else { return .secondary }
     if microsoft365ReleaseWarningCount > 0 { return .red }
     if microsoft365ReleaseAttentionCount > 0 || microsoft365GraphBlockerCount > 0 { return .orange }
+    if pendingMicrosoft365UncertainReviewCount > 0 { return .orange }
+    if pendingMicrosoft365FilteredReviewCount > 0 { return .teal }
     if hasMicrosoft365ConnectedAuth && hasMicrosoft365ManualRefreshEvidence { return .teal }
     if hasMicrosoft365ConnectedAuth || hasMicrosoft365ReadySetup { return .orange }
     return .secondary
@@ -356,6 +364,8 @@ struct DashboardView: View {
     if microsoft365ReleaseWarningCount > 0 { return "Outlook release blockers need attention" }
     if microsoft365GraphBlockerCount > 0 { return "Outlook Graph diagnostics need review" }
     if microsoft365ReleaseAttentionCount > 0 { return "Outlook setup needs operator action" }
+    if pendingMicrosoft365UncertainReviewCount > 0 { return "Outlook has uncertain previews" }
+    if pendingMicrosoft365FilteredReviewCount > 0 { return "Outlook filtered non-order mail" }
     if hasMicrosoft365ConnectedAuth && hasMicrosoft365ManualRefreshEvidence { return "Outlook manual intake evidence exists" }
     if hasMicrosoft365ConnectedAuth { return "Outlook sign-in is connected" }
     if hasMicrosoft365ReadySetup { return "Outlook setup is ready for sign-in" }
@@ -370,6 +380,12 @@ struct DashboardView: View {
     }
     if microsoft365ReleaseAttentionCount > 0 {
       return "\(microsoft365ReleaseAttentionCount) Outlook release check\(microsoft365ReleaseAttentionCount == 1 ? "" : "s") need sign-in, release-task ownership, refresh evidence, or audit review."
+    }
+    if pendingMicrosoft365UncertainReviewCount > 0 {
+      return "\(pendingMicrosoft365UncertainReviewCount) uncertain Outlook preview\(pendingMicrosoft365UncertainReviewCount == 1 ? "" : "s") stayed out of Inbox. Import genuine order mail or dismiss it in Mailbox Monitor."
+    }
+    if pendingMicrosoft365FilteredReviewCount > 0 {
+      return "\(pendingMicrosoft365FilteredReviewCount) filtered Outlook preview\(pendingMicrosoft365FilteredReviewCount == 1 ? "" : "s") stayed out of Inbox. Spot-check only if expected order mail is missing."
     }
     if hasMicrosoft365ConnectedAuth && hasMicrosoft365ManualRefreshEvidence {
       return "Microsoft sign-in and manual Graph refresh evidence exist. Review Inbox only when Outlook has imported order mail."
@@ -2047,7 +2063,9 @@ struct DashboardView: View {
               ("Graph blockers", "\(microsoft365GraphBlockerCount)", microsoft365GraphBlockerCount > 0 ? .orange : .green),
               ("Setups", "\(store.microsoft365MailboxConnections.count)", .purple),
               ("Signed in", "\(store.microsoft365MailboxConnections.filter { store.microsoft365AuthSessionState(for: $0).status == .connected }.count)", hasMicrosoft365ConnectedAuth ? .green : .orange),
-              ("Manual refresh", "\(store.microsoft365MailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count)", hasMicrosoft365ManualRefreshEvidence ? .teal : .secondary)
+              ("Manual refresh", "\(store.microsoft365MailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count)", hasMicrosoft365ManualRefreshEvidence ? .teal : .secondary),
+              ("Uncertain", "\(pendingMicrosoft365UncertainReviewCount)", pendingMicrosoft365UncertainReviewCount > 0 ? .orange : .secondary),
+              ("Filtered", "\(pendingMicrosoft365FilteredReviewCount)", pendingMicrosoft365FilteredReviewCount > 0 ? .teal : .secondary)
             ])
 
             if let summary = microsoft365ReleaseSelfChecks.first {

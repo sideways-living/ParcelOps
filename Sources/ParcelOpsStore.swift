@@ -5336,8 +5336,10 @@ final class ParcelOpsStore {
     let status = connection.connectionStatus
     let hasManualRefreshEvidence = connection.lastManualRefreshDate != "Never"
     let fetchedCount = max(connection.lastRefreshFetchedCount, ingestRecords.count, hasManualRefreshEvidence ? 1 : 0)
-    let filteredCount = connection.lastRefreshFilteredNonOrderCount
-    let uncertainCount = connection.lastRefreshUncertainCount
+    let pendingFilteredReviewCount = connection.filteredMessages.count
+    let pendingUncertainReviewCount = connection.uncertainMessages.count
+    let filteredCount = max(connection.lastRefreshFilteredNonOrderCount, pendingFilteredReviewCount)
+    let uncertainCount = max(connection.lastRefreshUncertainCount, pendingUncertainReviewCount)
     let hasProblem = authState.status == .authFailed
       || authState.status == .consentRequired
       || authState.status == .tokenExpired
@@ -5420,6 +5422,8 @@ final class ParcelOpsStore {
       uncertainCount: uncertainCount,
       blockedCount: blockedCount,
       linkedIntakeCount: linkedIntakeCount,
+      pendingFilteredReviewCount: pendingFilteredReviewCount,
+      pendingUncertainReviewCount: pendingUncertainReviewCount,
       lastRefreshDate: connection.lastManualRefreshDate,
       lastRefreshSummary: connection.lastRefreshSummary
     )
@@ -7641,12 +7645,15 @@ final class ParcelOpsStore {
   }
 
   var latestMailboxFilteredCount: Int {
-    (latestSpaceMailIntakeHealthSummary?.filteredCount ?? 0) + (latestGmailIntakeHealthSummary?.filteredCount ?? 0)
+    (latestSpaceMailIntakeHealthSummary?.filteredCount ?? 0)
+      + (latestGmailIntakeHealthSummary?.filteredCount ?? 0)
+      + (latestMicrosoft365IntakeHealthSummary?.totalFilteredCount ?? 0)
   }
 
   var latestMailboxUncertainCount: Int {
     (latestSpaceMailIntakeHealthSummary?.totalUncertainCount ?? 0)
       + (latestGmailIntakeHealthSummary?.totalUncertainCount ?? 0)
+      + (latestMicrosoft365IntakeHealthSummary?.totalUncertainCount ?? 0)
   }
 
   var latestMailboxCompactRefreshText: String {
@@ -7767,8 +7774,20 @@ final class ParcelOpsStore {
     gmailMailboxConnections.reduce(0) { $0 + ($1.filteredMessages?.count ?? 0) }
   }
 
+  var pendingMicrosoft365UncertainReviewCount: Int {
+    microsoft365MailboxConnections.reduce(0) { $0 + $1.uncertainMessages.count }
+  }
+
+  var pendingMicrosoft365FilteredReviewCount: Int {
+    microsoft365MailboxConnections.reduce(0) { $0 + $1.filteredMessages.count }
+  }
+
   var gmailFilteredMailboxSignalCount: Int {
     gmailMailboxConnections.reduce(0) { $0 + max($1.filteredMessages?.count ?? 0, $1.lastRefreshFilteredNonOrderCount) }
+  }
+
+  var microsoft365FilteredMailboxSignalCount: Int {
+    microsoft365MailboxConnections.reduce(0) { $0 + max($1.filteredMessages.count, $1.lastRefreshFilteredNonOrderCount) }
   }
 
   var pendingGmailUncertainMessageCount: Int {
@@ -7776,11 +7795,11 @@ final class ParcelOpsStore {
   }
 
   var pendingMailboxUncertainReviewCount: Int {
-    pendingSpaceMailUncertainReviewCount + pendingGmailUncertainReviewCount
+    pendingSpaceMailUncertainReviewCount + pendingGmailUncertainReviewCount + pendingMicrosoft365UncertainReviewCount
   }
 
   var pendingMailboxFilteredReviewCount: Int {
-    pendingSpaceMailFilteredReviewCount + pendingGmailFilteredReviewCount
+    pendingSpaceMailFilteredReviewCount + pendingGmailFilteredReviewCount + pendingMicrosoft365FilteredReviewCount
   }
 
   var pendingMailboxReviewCount: Int {
@@ -7891,6 +7910,14 @@ final class ParcelOpsStore {
     microsoft365IntakeHealthSummaries.reduce(0) { $0 + $1.blockedCount }
   }
 
+  var totalMicrosoft365FilteredCount: Int {
+    microsoft365IntakeHealthSummaries.reduce(0) { $0 + $1.totalFilteredCount }
+  }
+
+  var totalMicrosoft365UncertainCount: Int {
+    microsoft365IntakeHealthSummaries.reduce(0) { $0 + $1.totalUncertainCount }
+  }
+
   var totalMailboxFetchedCount: Int {
     totalSpaceMailFetchedCount + totalGmailFetchedCount + totalMicrosoft365FetchedCount
   }
@@ -7912,11 +7939,11 @@ final class ParcelOpsStore {
   }
 
   var totalMailboxFilteredSignalCount: Int {
-    totalSpaceMailFilteredCount + totalGmailFilteredSignalCount
+    totalSpaceMailFilteredCount + totalGmailFilteredSignalCount + totalMicrosoft365FilteredCount
   }
 
   var totalMailboxUncertainSignalCount: Int {
-    totalSpaceMailUncertainCount + totalGmailUncertainSignalCount
+    totalSpaceMailUncertainCount + totalGmailUncertainSignalCount + totalMicrosoft365UncertainCount
   }
 
   var gmailClassifierHintCount: Int {
