@@ -6,6 +6,7 @@ struct AuditView: View {
   @State private var selectedAction: AuditAction?
   @State private var selectedEntityType: AuditEntityType?
   @State private var showTechnicalDiagnostics = false
+  @State private var showAuditProviderEvidence = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var normalizedAuditSearch: String {
@@ -779,14 +780,29 @@ struct AuditView: View {
   private var mailboxProviderReleaseGateAuditPanel: some View {
     SettingsPanel(title: "Mailbox provider release gate", symbol: "checkmark.seal.fill") {
       VStack(alignment: .leading, spacing: 12) {
-        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
-        MailboxProviderAdvancedDiagnosticsDisclosure(
-          store: store,
-          detail: "Open this when audit review needs provider release gates, handoff evidence, or troubleshooting detail. The activity feed remains the primary audit surface.",
-          showAuditLink: false
-        )
+        DisclosureGroup(isExpanded: $showAuditProviderEvidence) {
+          VStack(alignment: .leading, spacing: 14) {
+            MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
+            MailboxProviderAdvancedDiagnosticsDisclosure(
+              store: store,
+              detail: "Open this when audit review needs provider release gates, handoff evidence, or troubleshooting detail. The activity feed remains the primary audit surface.",
+              showAuditLink: false
+            )
 
-        gmailAuditReadinessPanel
+            gmailAuditReadinessPanel
+          }
+          .padding(.top, 8)
+        } label: {
+          VStack(alignment: .leading, spacing: 4) {
+            Text(showAuditProviderEvidence ? "Hide provider evidence" : "Show provider evidence")
+              .font(.subheadline.weight(.semibold))
+            Text("Use this when auditing mailbox setup, refresh, parser, and release readiness. The event feed and recent release-gate trail below remain the main audit workflow.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        .tint(.teal)
 
         CompactActionRow {
           Button("Create gate task", systemImage: "checklist") {
