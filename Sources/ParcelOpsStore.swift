@@ -23333,7 +23333,17 @@ final class ParcelOpsStore {
         var score = 0
         if !seller.isEmpty && searchable.contains(seller) { score += 4 }
         if !itemName.isEmpty && searchable.contains(itemName) { score += 4 }
-        if expectedSignals.contains(where: { searchable.contains($0) }) { score += 3 }
+        let matchedSignals = expectedSignals.filter { searchable.contains($0) }
+        if !matchedSignals.isEmpty { score += min(6, matchedSignals.count * 2) }
+        if !order.trackingNumber.isPlaceholderValidationValue
+          && handoff?.expectedOrderSignals.localizedCaseInsensitiveContains(order.trackingNumber) == true {
+          score += 4
+        }
+        if order.latestStatus.localizedCaseInsensitiveContains("confirmation")
+          || order.latestStatus.localizedCaseInsensitiveContains("purchased")
+          || order.latestStatus.localizedCaseInsensitiveContains("wishlist") {
+          score += 2
+        }
         if order.source == .manual && order.orderNumber.localizedCaseInsensitiveContains("WISH") { score += 2 }
         if order.reviewState == .needsReview { score += 1 }
         return (order, score)
@@ -25768,30 +25778,44 @@ final class ParcelOpsStore {
 
   private func wishlistExpectedOrderConfirmationSignals(for item: WishlistItem) -> String {
     let preferredOption = selectedWishlistSellerOption(for: item)
+    let selectedPurchaseLink = wishlistPurchaseLinkRecords(for: item).first { $0.selectedForPurchase } ?? wishlistPurchaseLinkRecords(for: item).first
     let seller = item.purchaseHandoff?.sellerName
       ?? item.purchaseDecision?.selectedSellerName
+      ?? selectedPurchaseLink?.sellerName
       ?? preferredOption?.sellerName
       ?? item.storefront
-    let productHost = preferredOption?.productURL
-      .replacingOccurrences(of: "https://", with: "")
-      .replacingOccurrences(of: "http://", with: "")
-      .split(separator: "/")
-      .first
-      .map(String.init)
+    let productURL = selectedPurchaseLink?.productURL ?? preferredOption?.productURL ?? item.storefrontURL
+    let productHost = URL(string: productURL)?.host
+      ?? productURL
+        .replacingOccurrences(of: "https://", with: "")
+        .replacingOccurrences(of: "http://", with: "")
+        .split(separator: "/")
+        .first
+        .map(String.init)
+    let cleanHost = productHost?
+      .replacingOccurrences(of: "www.", with: "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
     let rawSignals = [
       seller,
       item.itemName,
       item.storefront,
       item.purchaseDecision?.selectedSellerName,
+      selectedPurchaseLink?.sellerName,
       preferredOption?.sellerName,
-      productHost,
+      cleanHost,
+      selectedPurchaseLink?.accountContext,
+      selectedPurchaseLink?.estimatedAUDTotal,
+      preferredOption?.estimatedAUDTotal,
+      item.purchaseDecision?.totalAUDSummary,
       "order confirmation",
       "order number",
+      "order received",
       "receipt",
       "invoice",
       "dispatch",
       "shipped",
-      "tracking"
+      "tracking",
+      "your order"
     ]
       .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty && !$0.isPlaceholderValidationValue }
@@ -25820,9 +25844,26 @@ final class ParcelOpsStore {
         updatedAt: "Now"
       )
     let matchingOrder = orders.first { order in
-      order.store.localizedCaseInsensitiveContains(handoff.sellerName)
-        || handoff.sellerName.localizedCaseInsensitiveContains(order.store)
-        || order.latestStatus.localizedCaseInsensitiveContains(wishlistItems[index].itemName)
+      let refreshedItem = wishlistItems[index]
+      let searchableOrder = [
+        order.orderNumber,
+        order.store,
+        order.customer,
+        order.trackingNumber,
+        order.destination,
+        order.latestStatus,
+        order.timeline.map(\.detail).joined(separator: " "),
+        order.contactHistory.map(\.evidence).joined(separator: " ")
+      ].joined(separator: " ").localizedLowercase
+      let signals = wishlistExpectedOrderConfirmationSignals(for: refreshedItem)
+        .components(separatedBy: CharacterSet(charactersIn: "|,"))
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase }
+        .filter { $0.count >= 4 }
+      let seller = handoff.sellerName.localizedLowercase
+      let itemName = refreshedItem.itemName.localizedLowercase
+      return (!seller.isEmpty && searchableOrder.contains(seller))
+        || (!itemName.isEmpty && searchableOrder.contains(itemName))
+        || signals.contains { searchableOrder.contains($0) }
     }
     handoff.purchaseStatus = matchingOrder == nil
       ? "Order confirmation seen; link order manually"
@@ -25843,7 +25884,7 @@ final class ParcelOpsStore {
       entityLabel: wishlistItems[index].itemName,
       summary: matchingOrder == nil ? "Wishlist order confirmation marked seen locally." : "Wishlist order confirmation linked locally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistItems[index].auditDetail)\nLinked order: \(matchingOrder?.orderNumber ?? "none"). No mailbox was fetched, no retailer account was accessed, and no external monitoring ran."
+      afterDetail: "\(wishlistItems[index].auditDetail)\nLinked order: \(matchingOrder?.orderNumber ?? "none"). Expected signals: \(handoff.expectedOrderSignals). No mailbox was fetched, no retailer account was accessed, and no external monitoring ran."
     )
   }
 
@@ -26025,6 +26066,11 @@ final class ParcelOpsStore {
 
   func wishlistOrderConfirmationMatchDetail(item: WishlistItem, email: ForwardedEmailIntake) -> (score: Int, confidence: String, reasons: [String]) {
     let handoff = item.purchaseHandoff
+    let selectedOption = selectedWishlistSellerOption(for: item)
+    let productURL = selectedOption?.productURL ?? item.storefrontURL
+    let productHost = URL(string: productURL)?.host?
+      .replacingOccurrences(of: "www.", with: "")
+      .localizedLowercase
     let searchable = [
       email.sender,
       email.subject,
@@ -26037,32 +26083,44 @@ final class ParcelOpsStore {
       .localizedLowercase
     let itemName = item.itemName.localizedLowercase
     let seller = (handoff?.sellerName ?? item.storefront).localizedLowercase
-    let signals = (handoff?.expectedOrderSignals ?? "")
+    let signals = (handoff?.expectedOrderSignals ?? wishlistExpectedOrderConfirmationSignals(for: item))
       .components(separatedBy: CharacterSet(charactersIn: "|,"))
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase }
       .filter { $0.count >= 4 && !$0.isPlaceholderValidationValue }
+    let itemWords = itemName
+      .components(separatedBy: CharacterSet.alphanumerics.inverted)
+      .filter { $0.count >= 4 }
 
     var score = 0
     var reasons: [String] = []
     if !seller.isEmpty && searchable.contains(seller) {
-      score += 3
+      score += 4
       reasons.append("seller")
     }
     if !itemName.isEmpty && searchable.contains(itemName) {
-      score += 3
+      score += 5
       reasons.append("item name")
+    }
+    let matchedItemWords = itemWords.filter { searchable.contains($0) }
+    if !matchedItemWords.isEmpty {
+      score += min(4, matchedItemWords.count)
+      reasons.append("item word")
     }
     let matchedSignals = signals.filter { searchable.contains($0) }
     if !matchedSignals.isEmpty {
-      score += 2
+      score += min(6, matchedSignals.count * 2)
       reasons.append("expected signal")
     }
-    if !email.detectedOrderNumber.isPlaceholderValidationValue {
+    if let productHost, searchable.contains(productHost) {
       score += 3
+      reasons.append("product host")
+    }
+    if !email.detectedOrderNumber.isPlaceholderValidationValue {
+      score += 4
       reasons.append("order number")
     }
     if !email.detectedTrackingNumber.isPlaceholderValidationValue {
-      score += 3
+      score += 4
       reasons.append("tracking number")
     }
     if searchable.contains("order") {
@@ -26082,15 +26140,15 @@ final class ParcelOpsStore {
       reasons.append("receipt wording")
     }
     if email.linkedOrderID != nil {
-      score += 2
+      score += 3
       reasons.append("linked order")
     }
     if email.reviewState == .reviewed {
       score += 1
       reasons.append("reviewed intake")
     }
-    if searchable.contains("newsletter") || searchable.contains("unsubscribe") || searchable.contains("promotion") {
-      score -= 3
+    if searchable.contains("newsletter") || searchable.contains("unsubscribe") || searchable.contains("promotion") || searchable.contains("sale ends") {
+      score -= 5
       reasons.append("marketing signal")
     }
     let confidence: String
@@ -27168,21 +27226,25 @@ final class ParcelOpsStore {
     let handoff = item.purchaseHandoff
     let selectedLink = wishlistPurchaseLinkRecords(for: item).first { $0.selectedForPurchase } ?? wishlistPurchaseLinkRecords(for: item).first
     let sellerName = handoff?.sellerName ?? selectedLink?.sellerName ?? item.purchaseDecision?.selectedSellerName ?? item.storefront
+    let expectedSignals = wishlistExpectedOrderConfirmationSignals(for: item)
+    let purchasedExternally = handoff?.purchaseStatus.localizedCaseInsensitiveContains("purchased") == true
     return WishlistOrderWatchRecord(
       wishlistItemID: item.id,
       linkedOrderID: handoff?.linkedOrderID,
       itemName: item.itemName,
       sellerName: sellerName,
       accountLabel: handoff?.accountLabel ?? selectedLink?.accountContext ?? "\(item.owner) account to confirm",
-      expectedOrderSignals: handoff?.expectedOrderSignals ?? "\(sellerName), \(item.itemName), order confirmation, dispatch, tracking",
+      expectedOrderSignals: expectedSignals,
       expectedMailboxOrSource: "Inbox triage after manual mailbox refresh",
-      watchStatus: handoff?.linkedOrderID == nil ? "Awaiting external purchase" : "Linked to local order",
+      watchStatus: handoff?.linkedOrderID == nil
+        ? (purchasedExternally ? "Awaiting order confirmation" : "Awaiting external purchase")
+        : "Linked to local order",
       matchedOrderSummary: handoff?.linkedOrderID.flatMap { id in orders.first { $0.id == id }?.orderNumber } ?? "No linked order yet",
-      nextCheckSummary: "After a human buys externally, refresh the relevant mailbox and link the captured confirmation order.",
+      nextCheckSummary: "After a human buys externally, refresh the relevant mailbox and link a captured confirmation that matches seller, item, host, order, receipt, invoice, dispatch, or tracking signals.",
       createdDate: Self.auditTimestamp(),
       lastCheckedDate: "Not checked",
       reviewState: .needsReview,
-      notes: "Local watch rule only. No background polling, retailer monitoring, mailbox mutation, order placement, or purchase automation occurs."
+      notes: "Local watch rule only. Expected signals: \(expectedSignals). No background polling, retailer monitoring, mailbox mutation, order placement, or purchase automation occurs."
     )
   }
 
