@@ -5627,6 +5627,7 @@ struct MailboxProviderQuickStatusCard: View {
   var store: ParcelOpsStore?
   var showMailboxLink = true
   var showInboxLink = true
+  var showSetupLink = true
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var color: Color {
@@ -5740,7 +5741,7 @@ struct MailboxProviderQuickStatusCard: View {
           }
       }
 
-      if let store, showMailboxLink || showInboxLink {
+      if let store, showMailboxLink || showInboxLink || showSetupLink {
         CompactActionRow {
           if showMailboxLink {
             NavigationLink {
@@ -5754,6 +5755,13 @@ struct MailboxProviderQuickStatusCard: View {
               InboxView(store: store)
             } label: {
               Label("Inbox", systemImage: "tray.full.fill")
+            }
+          }
+          if showSetupLink {
+            NavigationLink {
+              IntegrationsView(store: store)
+            } label: {
+              Label("Provider setup", systemImage: "gearshape.2.fill")
             }
           }
         }
