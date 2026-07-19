@@ -440,8 +440,8 @@ final class ParcelOpsStore {
     let microsoftTone: String
     if microsoft365MailboxConnections.isEmpty {
       microsoftStatusTitle = "Microsoft 365 optional"
-      microsoftDetail = "Use Microsoft 365 only when the mailbox is Outlook-hosted."
-      microsoftNextAction = "Leave Microsoft 365 alone unless an Outlook-hosted mailbox is being tested."
+      microsoftDetail = "Use Outlook / Microsoft 365 only when the mailbox is Microsoft-hosted."
+      microsoftNextAction = "Leave Outlook / Microsoft 365 alone unless a Microsoft-hosted mailbox is being tested."
       microsoftTone = "neutral"
     } else if microsoftProblemCount > 0 {
       microsoftStatusTitle = "Microsoft 365 needs review"
@@ -466,7 +466,7 @@ final class ParcelOpsStore {
     } else if microsoftReadyCount > 0 {
       microsoftStatusTitle = "Microsoft 365 ready for sign-in"
       microsoftDetail = "\(microsoftReadyCount) Outlook setup\(microsoftReadyCount == 1 ? "" : "s") have OAuth readiness values."
-      microsoftNextAction = "Test Microsoft sign-in only for an Outlook-hosted mailbox."
+      microsoftNextAction = "Test Microsoft sign-in only for a Microsoft-hosted mailbox."
       microsoftTone = "neutral"
     } else {
       microsoftStatusTitle = "Outlook / Microsoft 365 setup incomplete"
@@ -505,7 +505,7 @@ final class ParcelOpsStore {
     var decisionRules: [MailboxProviderDecisionRule] = [
       MailboxProviderDecisionRule(
         title: "Use the provider that hosts the mailbox",
-        detail: "SpaceMail is for IMAP-hosted mailboxes, Gmail is for Gmail or Google Workspace, and Microsoft 365 is for Outlook-hosted mailboxes. All providers feed the same local Inbox triage flow.",
+        detail: "SpaceMail is for IMAP-hosted mailboxes, Gmail is for Gmail or Google Workspace, and Outlook / Microsoft 365 is for Microsoft-hosted mailboxes. All providers feed the same local Inbox triage flow.",
         tone: "neutral",
         symbol: "mail.stack.fill"
       ),
@@ -557,7 +557,7 @@ final class ParcelOpsStore {
       decisionRules.insert(
         MailboxProviderDecisionRule(
           title: "Microsoft 365 is an advanced mailbox path",
-          detail: "Use Outlook/Microsoft Graph only for Outlook-hosted mailboxes, and keep read-only refresh explicit.",
+          detail: "Use Outlook / Microsoft Graph only for Microsoft-hosted mailboxes, and keep read-only refresh explicit.",
           tone: microsoftProblemCount > 0 ? "warning" : "attention",
           symbol: "mail.stack.fill"
         ),
@@ -724,7 +724,7 @@ final class ParcelOpsStore {
           MailboxProviderActionItem(
             providerName: "Outlook",
             title: "Test Microsoft sign-in",
-            detail: "Run sign-in only when this mailbox is Outlook-hosted and Graph refresh is needed.",
+            detail: "Run sign-in only when this mailbox is Microsoft-hosted and Graph refresh is needed.",
             priority: "2",
             tone: "attention",
             symbol: "person.badge.key.fill"
@@ -1095,7 +1095,7 @@ final class ParcelOpsStore {
           phase: "Refresh",
           title: microsoftFetched > 0 ? "Outlook refresh evidence exists" : signedInCount > 0 ? "Run Outlook manual refresh" : "Test Microsoft sign-in",
           detail: microsoftFetched > 0 ? "Outlook has Microsoft Graph refresh evidence available for operator review." : signedInCount > 0 ? "A Microsoft account is connected, but no Graph fetch evidence is recorded yet." : "Outlook / Microsoft 365 setup exists but needs a connected sign-in before real Graph refresh.",
-          nextAction: microsoftFetched > 0 ? "Review Outlook fetch, duplicate, and auth diagnostics." : signedInCount > 0 ? "Run real Graph refresh when checking an Outlook-hosted mailbox." : "Run Test real Microsoft sign-in before refresh.",
+          nextAction: microsoftFetched > 0 ? "Review Outlook fetch, duplicate, and auth diagnostics." : signedInCount > 0 ? "Run real Graph refresh when checking a Microsoft-hosted mailbox." : "Run Test real Microsoft sign-in before refresh.",
           evidence: "\(readyCount) ready setup, \(signedInCount) signed in, \(microsoftFetched) refresh run\(microsoftFetched == 1 ? "" : "s").",
           isComplete: microsoftFetched > 0,
           tone: microsoftFetched > 0 ? "success" : "attention",
@@ -4362,7 +4362,7 @@ final class ParcelOpsStore {
     let microsoft365Checks = [
       MailboxProviderSetupChecklistItem(
         title: "Setup record",
-        detail: microsoft365 == nil ? "Add Microsoft 365 only for Outlook-hosted mailboxes." : "\(microsoft365?.displayName ?? "Microsoft 365") is saved locally.",
+        detail: microsoft365 == nil ? "Add Outlook / Microsoft 365 only for Microsoft-hosted mailboxes." : "\(microsoft365?.displayName ?? "Microsoft 365") is saved locally.",
         isComplete: microsoft365 != nil,
         tone: microsoft365 == nil ? "neutral" : "success",
         symbol: "mail.stack.fill"
@@ -4515,7 +4515,7 @@ final class ParcelOpsStore {
       MailboxProviderSetupChecklistProvider(
         providerName: "Outlook",
         status: microsoft365 == nil ? "Optional, not configured" : (microsoft365Tone == "success" ? "Ready for Microsoft Graph refresh checks" : "Outlook setup needs attention"),
-        detail: "Use only for Microsoft 365 or Outlook-hosted mailboxes. MSAL manages its token cache; token values are not stored in JSON.",
+        detail: "Use only for Outlook / Microsoft 365 mailboxes hosted by Microsoft. MSAL manages its token cache; token values are not stored in JSON.",
         nextAction: microsoft365 == nil ? "Leave Outlook unconfigured unless a Microsoft 365 mailbox is needed." : "Complete Entra/OAuth setup and sign in before real Graph refresh testing.",
         tone: microsoft365Tone,
         symbol: "mail.stack.fill",
@@ -5363,7 +5363,7 @@ final class ParcelOpsStore {
     } else if authState.status != .connected && fetchedCount == 0 {
       verdict = "Outlook sign-in needed"
       detail = "Outlook / Microsoft 365 setup has readiness values, but no signed-in account or refresh evidence is available."
-      nextAction = "Run Test real Microsoft sign-in only when this mailbox is Outlook-hosted."
+      nextAction = "Run Test real Microsoft sign-in only when this mailbox is Microsoft-hosted."
       tone = "attention"
     } else if importedCount > 0 {
       verdict = "Outlook order intake captured"
@@ -5388,7 +5388,7 @@ final class ParcelOpsStore {
     } else {
       verdict = "Ready for Outlook refresh"
       detail = "Outlook / Microsoft 365 setup exists, but no refresh evidence is active yet."
-      nextAction = "Run explicit read-only Graph refresh only for an Outlook-hosted mailbox."
+      nextAction = "Run explicit read-only Graph refresh only for a Microsoft-hosted mailbox."
       tone = "neutral"
     }
 

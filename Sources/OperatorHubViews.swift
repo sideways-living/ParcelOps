@@ -1812,7 +1812,7 @@ private struct InboxOutlookHealthRow: View {
     if summary.fetchedCount > 0 {
       return "The latest Outlook pass produced no actionable Inbox intake."
     }
-    return "Run Microsoft sign-in and manual Graph refresh only for Outlook-hosted mailboxes."
+    return "Run Microsoft sign-in and manual Graph refresh only for Microsoft-hosted mailboxes."
   }
 
   private var nextActionSymbol: String {

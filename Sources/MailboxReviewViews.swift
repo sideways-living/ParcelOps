@@ -771,7 +771,7 @@ struct MailboxView: View {
         )
 
         SettingsPanel(title: "Outlook / Microsoft 365 setup", symbol: "mail.stack.fill") {
-          Text("Use Microsoft 365 when the active mailbox is Outlook-hosted. Real sign-in and manual Graph refresh remain explicit, read-only, and separate from SpaceMail and Gmail.")
+          Text("Use Outlook / Microsoft 365 when the active mailbox is Microsoft-hosted. Real sign-in and manual Graph refresh remain explicit, read-only, and separate from SpaceMail and Gmail.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
@@ -1538,7 +1538,7 @@ private struct MailboxProviderRefreshSummaryGrid: View {
     return ProviderSummary(
       name: connection.displayName,
       verdict: hasRefresh ? "Manual Graph refresh evidence" : "Setup exists",
-      detail: connection.connectionStatus.isEmpty ? "Outlook / Microsoft 365 setup is present for an Outlook-hosted mailbox." : connection.connectionStatus,
+      detail: connection.connectionStatus.isEmpty ? "Outlook / Microsoft 365 setup is present for a Microsoft-hosted mailbox." : connection.connectionStatus,
       nextAction: hasRefresh
         ? "Review Audit if Graph auth, consent, or mailbox diagnostics need follow-up."
         : "Complete readiness and explicit Microsoft sign-in before manual Graph refresh.",
@@ -1606,7 +1606,7 @@ private struct MailboxProviderRefreshSummaryGrid: View {
         title: "Outlook / Microsoft 365",
         symbol: "mail.stack.fill",
         summary: microsoft365Summary,
-        emptyDetail: "Use Outlook / Microsoft 365 setup only for Outlook-hosted mailboxes. Real Graph refresh remains explicit, manual, and read-only."
+        emptyDetail: "Use Outlook / Microsoft 365 setup only for Microsoft-hosted mailboxes. Real Graph refresh remains explicit, manual, and read-only."
       )
     }
   }
@@ -2158,7 +2158,7 @@ private struct MailboxMicrosoft365ReadinessPanel: View {
 
   private var detail: String {
     guard let connection = primaryConnection else {
-      return "Add Outlook / Microsoft 365 setup only for Outlook-hosted mailboxes. SpaceMail and Gmail remain separate provider paths."
+      return "Add Outlook / Microsoft 365 setup only for Microsoft-hosted mailboxes. SpaceMail and Gmail remain separate provider paths."
     }
     if !hasOAuthReadiness {
       let missing = readiness?.missingFields.joined(separator: ", ") ?? "tenant, client, redirect, scope, and folder values"

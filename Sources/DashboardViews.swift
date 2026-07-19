@@ -373,10 +373,10 @@ struct DashboardView: View {
       return "Microsoft sign-in and manual Graph refresh evidence exist. Review Inbox only when Outlook has imported order mail."
     }
     if hasMicrosoft365ConnectedAuth {
-      return "Microsoft sign-in is connected. Run real Graph refresh manually only when the active mailbox is Outlook-hosted."
+      return "Microsoft sign-in is connected. Run real Graph refresh manually only when the active mailbox is Microsoft-hosted."
     }
     if hasMicrosoft365ReadySetup {
-      return "OAuth readiness appears complete. Use explicit Microsoft sign-in only when testing an Outlook-hosted mailbox."
+      return "OAuth readiness appears complete. Use explicit Microsoft sign-in only when testing a Microsoft-hosted mailbox."
     }
     return "Finish tenant, client ID, redirect URI, scope, consent, and release self-check items before using Outlook intake."
   }
@@ -591,10 +591,10 @@ struct DashboardView: View {
         detail = "Outlook / Microsoft 365 sign-in is connected, but no Graph refresh has imported Inbox work yet."
       } else if readyCount > 0 {
         value = "\(readyCount) ready"
-        detail = "Outlook / Microsoft 365 setup is ready for explicit sign-in. Keep it secondary unless this mailbox is Outlook-hosted."
+        detail = "Outlook / Microsoft 365 setup is ready for explicit sign-in. Keep it secondary unless this mailbox is Microsoft-hosted."
       } else {
         value = "Setup"
-        detail = "Outlook / Microsoft 365 is available for Outlook-hosted mailboxes. Finish OAuth readiness before sign-in or Graph refresh."
+        detail = "Outlook / Microsoft 365 is available for Microsoft-hosted mailboxes. Finish OAuth readiness before sign-in or Graph refresh."
       }
       rows.append(("Outlook", value, detail, latestMicrosoft365Tone))
     }

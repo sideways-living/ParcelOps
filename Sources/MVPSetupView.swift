@@ -397,7 +397,7 @@ struct MVPMailboxProviderStatusPanel: View {
     if hasSpaceMailSetup && !hasSpaceMailCredential {
       return "SpaceMail setup exists, but real refresh needs a Keychain password or app-password reference."
     }
-    return "Start with SpaceMail if the mailbox is IMAP-based, Gmail if the mailbox is Google-hosted, or Microsoft 365 if the mailbox is Outlook-hosted."
+    return "Start with SpaceMail if the mailbox is IMAP-based, Gmail if the mailbox is Google-hosted, or Outlook / Microsoft 365 if the mailbox is Microsoft-hosted."
   }
 
   private var statusTone: Color {
@@ -492,7 +492,7 @@ struct MVPMailboxProviderStatusPanel: View {
           )
           providerBlock(
             title: "Microsoft 365",
-            detail: "Use for Outlook-hosted mailboxes. Real sign-in and Graph refresh are explicit, manual, read-only, and separate from SpaceMail and Gmail.",
+            detail: "Use for Microsoft-hosted mailboxes. Real sign-in and Graph refresh are explicit, manual, read-only, and separate from SpaceMail and Gmail.",
             symbol: "building.2.crop.circle",
             color: .teal
           )
