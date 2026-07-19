@@ -978,13 +978,13 @@ final class ParcelOpsStore {
     let decision = mailboxOperatorDecisionSummary
     let spaceMailHealth = spaceMailIntakeHealthSummaries
     let gmailHealth = gmailIntakeHealthSummaries
+    let microsoftHealth = microsoft365IntakeHealthSummaries
     let spaceMailFetched = spaceMailHealth.reduce(0) { $0 + $1.fetchedCount }
     let spaceMailImported = spaceMailHealth.reduce(0) { $0 + $1.importedCount }
     let spaceMailUncertain = spaceMailHealth.reduce(0) { $0 + $1.totalUncertainCount }
     let gmailFetched = gmailHealth.reduce(0) { $0 + $1.fetchedCount }
     let gmailImported = gmailHealth.reduce(0) { $0 + $1.importedCount }
     let gmailUncertain = gmailHealth.reduce(0) { $0 + $1.totalUncertainCount }
-    let microsoftHealth = microsoft365IntakeHealthSummaries
     let microsoftFetched = microsoftHealth.reduce(0) { $0 + $1.fetchedCount }
     let microsoftImported = microsoftHealth.reduce(0) { $0 + $1.importedCount }
     let microsoftUncertain = microsoftHealth.reduce(0) { $0 + $1.totalUncertainCount }
@@ -1117,10 +1117,10 @@ final class ParcelOpsStore {
           phase: "Refresh",
           title: microsoftFetched > 0 ? "Outlook refresh evidence exists" : signedInCount > 0 ? "Run Outlook manual refresh" : "Test Microsoft sign-in",
           detail: microsoftFetched > 0 ? "Outlook has Microsoft Graph refresh evidence available for operator review." : signedInCount > 0 ? "A Microsoft account is connected, but no Graph fetch evidence is recorded yet." : "Outlook / Microsoft 365 setup exists but needs a connected sign-in before real Graph refresh.",
-          nextAction: microsoftImported + microsoftUncertain > 0 ? "Review Outlook imported and uncertain rows in Mailbox Monitor or Inbox." : microsoftFetched > 0 ? "Review Outlook filtered, duplicate, and auth diagnostics." : signedInCount > 0 ? "Run real Graph refresh when checking a Microsoft-hosted mailbox." : "Run Test real Microsoft sign-in before refresh.",
+          nextAction: (microsoftImported + microsoftUncertain) > 0 ? "Review Outlook imported and uncertain rows in Mailbox Monitor or Inbox." : microsoftFetched > 0 ? "Review Outlook filtered, duplicate, and auth diagnostics." : signedInCount > 0 ? "Run real Graph refresh when checking a Microsoft-hosted mailbox." : "Run Test real Microsoft sign-in before refresh.",
           evidence: "\(readyCount) ready setup, \(signedInCount) signed in, \(microsoftFetched) fetched, \(microsoftImported) imported, \(microsoftFiltered) filtered, \(microsoftUncertain) uncertain.",
           isComplete: microsoftFetched > 0,
-          tone: microsoftImported + microsoftUncertain > 0 ? "attention" : microsoftFetched > 0 ? "success" : "attention",
+          tone: (microsoftImported + microsoftUncertain) > 0 ? "attention" : microsoftFetched > 0 ? "success" : "attention",
           symbol: "mail.stack.fill"
         )
       )
@@ -1446,6 +1446,7 @@ final class ParcelOpsStore {
     let blockers = mailboxReleaseBlockerSummary
     let spaceMailHealth = spaceMailIntakeHealthSummaries
     let gmailHealth = gmailIntakeHealthSummaries
+    let microsoftHealth = microsoft365IntakeHealthSummaries
     let spaceMailFetched = spaceMailHealth.reduce(0) { $0 + $1.fetchedCount }
     let spaceMailImported = spaceMailHealth.reduce(0) { $0 + $1.importedCount }
     let spaceMailFiltered = spaceMailHealth.reduce(0) { $0 + $1.filteredCount }
@@ -1455,8 +1456,15 @@ final class ParcelOpsStore {
     let gmailImported = gmailHealth.reduce(0) { $0 + $1.importedCount }
     let gmailFiltered = gmailHealth.reduce(0) { $0 + $1.filteredCount }
     let gmailUncertain = gmailHealth.reduce(0) { $0 + $1.totalUncertainCount }
+    let microsoftFetched = microsoftHealth.reduce(0) { $0 + $1.fetchedCount }
+    let microsoftImported = microsoftHealth.reduce(0) { $0 + $1.importedCount }
+    let microsoftFiltered = microsoftHealth.reduce(0) { $0 + $1.totalFilteredCount }
+    let microsoftUncertain = microsoftHealth.reduce(0) { $0 + $1.totalUncertainCount }
+    let microsoftBlocked = microsoftHealth.reduce(0) { $0 + $1.blockedCount }
     let gmailReadinessBlockers = gmailMailboxConnections.filter { !gmailOAuthReadinessSummary(for: $0).isReady }.count
     let gmailSignedInCount = gmailMailboxConnections.filter { gmailAuthSessionState(for: $0).status == .connected }.count
+    let microsoftReadinessBlockers = microsoft365MailboxConnections.filter { !microsoft365OAuthReadinessSummary(for: $0).isReady }.count
+    let microsoftSignedInCount = microsoft365MailboxConnections.filter { microsoft365AuthSessionState(for: $0).status == .connected }.count
     let gmailCustomDomainNeedsVerification = gmailMailboxConnections.filter {
       let providerFit = gmailProviderFit(for: $0)
       return providerFit.isCustomDomain && !providerFit.hasGoogleEvidence
@@ -1465,13 +1473,13 @@ final class ParcelOpsStore {
     let inboxOrderCount = inboxCreatedOrders.count
     var issues: [MailboxProviderTroubleshootingIssue] = []
 
-    if spaceMailIMAPConnections.isEmpty && gmailMailboxConnections.isEmpty {
+    if spaceMailIMAPConnections.isEmpty && gmailMailboxConnections.isEmpty && microsoft365MailboxConnections.isEmpty {
       issues.append(
         MailboxProviderTroubleshootingIssue(
           providerName: "Mailbox",
           title: "No provider setup exists",
           symptom: "Mailbox intake cannot fetch real messages.",
-          likelyCause: "Neither SpaceMail nor Gmail has a local provider configuration.",
+          likelyCause: "No SpaceMail, Gmail, or Outlook local provider configuration exists.",
           nextAction: "Add the provider that hosts the mailbox, then complete credential or OAuth setup.",
           evidence: "Provider comparison recommends: \(comparison.recommendedProvider).",
           tone: "warning",
@@ -1684,7 +1692,92 @@ final class ParcelOpsStore {
       }
     }
 
-    if reviewIntakeEmails.isEmpty && linkedOrderCount + inboxOrderCount == 0 && spaceMailImported + gmailImported > 0 {
+    if !microsoft365MailboxConnections.isEmpty {
+      if microsoftReadinessBlockers > 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "Outlook",
+            title: "Microsoft 365 readiness incomplete",
+            symptom: "Real Outlook sign-in or Graph refresh may not run.",
+            likelyCause: "Tenant, client ID, redirect URI, scopes, consent notes, or setup checklist items need review.",
+            nextAction: "Open Outlook / Microsoft 365 setup, fill non-secret readiness values, then test Microsoft sign-in only for Microsoft-hosted mailboxes.",
+            evidence: "\(microsoftReadinessBlockers) Outlook readiness blocker\(microsoftReadinessBlockers == 1 ? "" : "s").",
+            tone: "warning",
+            symbol: "person.badge.key.fill"
+          )
+        )
+      } else if microsoftSignedInCount == 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "Outlook",
+            title: "Microsoft sign-in not connected",
+            symptom: "Real Graph refresh cannot acquire a usable read-only token.",
+            likelyCause: "No connected Microsoft account is recorded in local auth session state.",
+            nextAction: "Run Test real Microsoft sign-in before manual Graph refresh.",
+            evidence: "\(microsoft365MailboxConnections.count) Outlook setup\(microsoft365MailboxConnections.count == 1 ? "" : "s"), 0 connected.",
+            tone: "attention",
+            symbol: "person.crop.circle.badge.questionmark"
+          )
+        )
+      } else if microsoftFetched == 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "Outlook",
+            title: "No Outlook refresh evidence",
+            symptom: "Microsoft sign-in exists but no message fetch result is recorded.",
+            likelyCause: "Manual Graph refresh has not been run after sign-in.",
+            nextAction: "Run real Graph refresh only when checking a Microsoft-hosted mailbox.",
+            evidence: "\(microsoftSignedInCount) signed in, 0 fetched.",
+            tone: "attention",
+            symbol: "arrow.clockwise.circle"
+          )
+        )
+      }
+      if microsoftBlocked > 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "Outlook",
+            title: "Graph diagnostics need review",
+            symptom: "Microsoft Graph refresh reported blocked/auth/consent diagnostics.",
+            likelyCause: "Microsoft Graph consent, token scope, tenant, folder, or API response needs review.",
+            nextAction: "Open Audit or Mailbox Monitor and review the safe Graph diagnostic detail before relying on Outlook intake.",
+            evidence: "\(microsoftBlocked) Outlook blocker\(microsoftBlocked == 1 ? "" : "s"), \(microsoftFetched) fetched, \(microsoftFiltered) filtered.",
+            tone: "warning",
+            symbol: "exclamationmark.triangle.fill"
+          )
+        )
+      }
+      if microsoftFetched > 0 && microsoftImported == 0 && microsoftFiltered > 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "Outlook",
+            title: "Outlook refresh found only filtered mail",
+            symptom: "Outlook fetched messages but none reached Inbox.",
+            likelyCause: "Mixed-mailbox filtering is treating recent Outlook messages as non-order mail.",
+            nextAction: "Check Outlook filtered examples and classifier reason labels.",
+            evidence: "\(microsoftFetched) fetched, \(microsoftFiltered) filtered, \(microsoftUncertain) uncertain.",
+            tone: "neutral",
+            symbol: "line.3.horizontal.decrease.circle"
+          )
+        )
+      }
+      if (microsoftImported + microsoftUncertain) > 0 {
+        issues.append(
+          MailboxProviderTroubleshootingIssue(
+            providerName: "Outlook",
+            title: "Outlook intake needs review",
+            symptom: "Outlook has imported or uncertain mailbox work.",
+            likelyCause: "Recent Microsoft Graph refresh produced order-related or ambiguous messages.",
+            nextAction: "Review Outlook-origin Inbox rows and uncertain previews before creating orders.",
+            evidence: "\(microsoftImported) imported, \(microsoftUncertain) uncertain.",
+            tone: "attention",
+            symbol: "tray.full.fill"
+          )
+        )
+      }
+    }
+
+    if reviewIntakeEmails.isEmpty && linkedOrderCount + inboxOrderCount == 0 && spaceMailImported + gmailImported + microsoftImported > 0 {
       issues.append(
         MailboxProviderTroubleshootingIssue(
           providerName: "Orders",
@@ -1692,7 +1785,7 @@ final class ParcelOpsStore {
           symptom: "Imported messages have not produced linked or Inbox-created orders.",
           likelyCause: "Inbox triage has not confirmed and linked/created order records yet.",
           nextAction: "Open Inbox or Mailbox Monitor and use Create order or Link order on confirmed intake.",
-          evidence: "\(spaceMailImported + gmailImported) imported, \(linkedOrderCount + inboxOrderCount) order handoff records.",
+          evidence: "\(spaceMailImported + gmailImported + microsoftImported) imported, \(linkedOrderCount + inboxOrderCount) order handoff records.",
           tone: "attention",
           symbol: "shippingbox.fill"
         )
@@ -1775,6 +1868,7 @@ final class ParcelOpsStore {
         SpaceMailReleaseSnapshotMetric(title: "Review", value: "\(attentionCount)", tone: attentionCount == 0 ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "SpaceMail", value: "\(spaceMailFetched)", tone: spaceMailFetched > 0 ? "success" : "neutral"),
         SpaceMailReleaseSnapshotMetric(title: "Gmail", value: "\(gmailFetched)", tone: gmailFetched > 0 ? "success" : "neutral"),
+        SpaceMailReleaseSnapshotMetric(title: "Outlook", value: "\(microsoftFetched)", tone: microsoftFetched > 0 ? "success" : "neutral"),
         SpaceMailReleaseSnapshotMetric(title: "Parser", value: "\(spaceMailParserIssues)", tone: spaceMailParserIssues == 0 ? "success" : "attention"),
         SpaceMailReleaseSnapshotMetric(title: "Orders", value: "\(linkedOrderCount + inboxOrderCount)", tone: linkedOrderCount + inboxOrderCount > 0 ? "success" : "attention")
       ],
