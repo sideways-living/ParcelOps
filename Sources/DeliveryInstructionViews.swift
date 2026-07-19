@@ -181,23 +181,28 @@ struct DeliveryInstructionsView: View {
   }
 
   private var gmailInstructionReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      GmailReleaseBoundaryPanel(
-        store: store,
-        title: "Gmail delivery instruction readiness",
-        lead: "Gmail-origin intake should create or update delivery instructions only after Gmail setup is ready and the Inbox order has confirmed destination, carrier, and delivery context.",
-        sourceMetricTitle: "Gmail instruction sources",
-        sourceCount: gmailInstructionSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, validate addresses, contact carriers, or change delivery instructions automatically."
-      )
-      Microsoft365ReleaseBoundaryPanel(
-        store: store,
-        title: "Outlook delivery instruction readiness",
-        lead: "Outlook-origin intake should create or update delivery instructions only after Microsoft setup, Graph diagnostics, and confirmed Inbox order context are clear.",
-        sourceMetricTitle: "Outlook instruction sources",
-        sourceCount: microsoft365InstructionSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, validate addresses, contact carriers, or change delivery instructions automatically."
-      )
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox delivery evidence",
+      detail: "Open provider release evidence only when delivery instructions depend on Gmail or Outlook source trails."
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail delivery instruction readiness",
+          lead: "Gmail-origin intake should create or update delivery instructions only after Gmail setup is ready and the Inbox order has confirmed destination, carrier, and delivery context.",
+          sourceMetricTitle: "Gmail instruction sources",
+          sourceCount: gmailInstructionSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, validate addresses, contact carriers, or change delivery instructions automatically."
+        )
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook delivery instruction readiness",
+          lead: "Outlook-origin intake should create or update delivery instructions only after Microsoft setup, Graph diagnostics, and confirmed Inbox order context are clear.",
+          sourceMetricTitle: "Outlook instruction sources",
+          sourceCount: microsoft365InstructionSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, validate addresses, contact carriers, or change delivery instructions automatically."
+        )
+      }
     }
   }
 

@@ -172,23 +172,28 @@ struct CustomerProfilesView: View {
 
   @ViewBuilder
   private var gmailProfileReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      GmailReleaseBoundaryPanel(
-        store: store,
-        title: "Gmail customer profile readiness",
-        lead: "Gmail-origin intake should update customer, recipient, team, and destination context only after Gmail setup is ready and a person confirms the imported Inbox order.",
-        sourceMetricTitle: "Gmail profile sources",
-        sourceCount: gmailProfileSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, sync contacts, or change customer profiles automatically."
-      )
-      Microsoft365ReleaseBoundaryPanel(
-        store: store,
-        title: "Outlook customer profile readiness",
-        lead: "Outlook-origin intake should update customer, recipient, team, and destination context only after Microsoft setup, Graph diagnostics, and confirmed Inbox order details are clear.",
-        sourceMetricTitle: "Outlook profile sources",
-        sourceCount: microsoft365ProfileSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, sync contacts, or change customer profiles automatically."
-      )
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox profile evidence",
+      detail: "Open provider release evidence only when profile coverage depends on Gmail or Outlook source trails."
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail customer profile readiness",
+          lead: "Gmail-origin intake should update customer, recipient, team, and destination context only after Gmail setup is ready and a person confirms the imported Inbox order.",
+          sourceMetricTitle: "Gmail profile sources",
+          sourceCount: gmailProfileSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, sync contacts, or change customer profiles automatically."
+        )
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook customer profile readiness",
+          lead: "Outlook-origin intake should update customer, recipient, team, and destination context only after Microsoft setup, Graph diagnostics, and confirmed Inbox order details are clear.",
+          sourceMetricTitle: "Outlook profile sources",
+          sourceCount: microsoft365ProfileSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, sync contacts, or change customer profiles automatically."
+        )
+      }
     }
   }
 

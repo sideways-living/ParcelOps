@@ -282,23 +282,28 @@ struct LabelReferencesView: View {
   }
 
   private var gmailLabelReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      GmailReleaseBoundaryPanel(
-        store: store,
-        title: "Gmail label readiness",
-        lead: "Gmail-origin intake should create label reference work only after Gmail setup is ready and the imported Inbox order has confirmed tracking, package, storage, or dispatch context.",
-        sourceMetricTitle: "Gmail label sources",
-        sourceCount: gmailLabelSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, generate labels, print labels, scan barcodes, or change label reference records automatically."
-      )
-      Microsoft365ReleaseBoundaryPanel(
-        store: store,
-        title: "Outlook label readiness",
-        lead: "Outlook-origin intake should create label reference work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order tracking, package, storage, or dispatch context are clear.",
-        sourceMetricTitle: "Outlook label sources",
-        sourceCount: microsoft365LabelSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, generate labels, print labels, scan barcodes, or change label reference records automatically."
-      )
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox label evidence",
+      detail: "Open provider release evidence only when label readiness depends on Gmail or Outlook source trails."
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail label readiness",
+          lead: "Gmail-origin intake should create label reference work only after Gmail setup is ready and the imported Inbox order has confirmed tracking, package, storage, or dispatch context.",
+          sourceMetricTitle: "Gmail label sources",
+          sourceCount: gmailLabelSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, generate labels, print labels, scan barcodes, or change label reference records automatically."
+        )
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook label readiness",
+          lead: "Outlook-origin intake should create label reference work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order tracking, package, storage, or dispatch context are clear.",
+          sourceMetricTitle: "Outlook label sources",
+          sourceCount: microsoft365LabelSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, generate labels, print labels, scan barcodes, or change label reference records automatically."
+        )
+      }
     }
   }
 

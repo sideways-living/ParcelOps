@@ -107,23 +107,28 @@ struct ContactsView: View {
 
   @ViewBuilder
   private var gmailContactReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      GmailReleaseBoundaryPanel(
-        store: store,
-        title: "Gmail contact readiness",
-        lead: "Gmail-origin intake can create customer, supplier, carrier, or internal follow-up contacts after a confirmed Inbox order. Use this before treating Gmail contact coverage as routine.",
-        sourceMetricTitle: "Gmail contacts",
-        sourceCount: gmailContactSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create contacts automatically, or mutate mailbox messages."
-      )
-      Microsoft365ReleaseBoundaryPanel(
-        store: store,
-        title: "Outlook contact readiness",
-        lead: "Outlook-origin intake can create customer, supplier, carrier, or internal follow-up contacts only after Microsoft setup and confirmed Inbox order context are clear.",
-        sourceMetricTitle: "Outlook contacts",
-        sourceCount: microsoft365ContactSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, create contacts automatically, or mutate mailbox messages."
-      )
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox contact evidence",
+      detail: "Open provider release evidence only when contact follow-up depends on Gmail or Outlook source trails."
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail contact readiness",
+          lead: "Gmail-origin intake can create customer, supplier, carrier, or internal follow-up contacts after a confirmed Inbox order. Use this before treating Gmail contact coverage as routine.",
+          sourceMetricTitle: "Gmail contacts",
+          sourceCount: gmailContactSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create contacts automatically, or mutate mailbox messages."
+        )
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook contact readiness",
+          lead: "Outlook-origin intake can create customer, supplier, carrier, or internal follow-up contacts only after Microsoft setup and confirmed Inbox order context are clear.",
+          sourceMetricTitle: "Outlook contacts",
+          sourceCount: microsoft365ContactSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, create contacts automatically, or mutate mailbox messages."
+        )
+      }
     }
   }
 

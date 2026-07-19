@@ -172,23 +172,28 @@ struct PackageContentsView: View {
   }
 
   private var gmailPackageContentReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      GmailReleaseBoundaryPanel(
-        store: store,
-        title: "Gmail package content readiness",
-        lead: "Gmail-origin intake should create package content work only after Gmail setup is ready and a person confirms the imported Inbox order and item details.",
-        sourceMetricTitle: "Gmail content sources",
-        sourceCount: gmailPackageContentSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, scan barcodes, run OCR, connect inventory, or change package content records automatically."
-      )
-      Microsoft365ReleaseBoundaryPanel(
-        store: store,
-        title: "Outlook package content readiness",
-        lead: "Outlook-origin intake should create package content work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order/item details are clear.",
-        sourceMetricTitle: "Outlook content sources",
-        sourceCount: microsoft365PackageContentSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, scan barcodes, run OCR, connect inventory, or change package content records automatically."
-      )
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox content evidence",
+      detail: "Open provider release evidence only when package content readiness depends on Gmail or Outlook source trails."
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail package content readiness",
+          lead: "Gmail-origin intake should create package content work only after Gmail setup is ready and a person confirms the imported Inbox order and item details.",
+          sourceMetricTitle: "Gmail content sources",
+          sourceCount: gmailPackageContentSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, scan barcodes, run OCR, connect inventory, or change package content records automatically."
+        )
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook package content readiness",
+          lead: "Outlook-origin intake should create package content work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order/item details are clear.",
+          sourceMetricTitle: "Outlook content sources",
+          sourceCount: microsoft365PackageContentSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, scan barcodes, run OCR, connect inventory, or change package content records automatically."
+        )
+      }
     }
   }
 

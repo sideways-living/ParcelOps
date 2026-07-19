@@ -280,23 +280,28 @@ struct ScanSessionsView: View {
   }
 
   private var gmailScanReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      GmailReleaseBoundaryPanel(
-        store: store,
-        title: "Gmail scan readiness",
-        lead: "Gmail-origin intake should create scan verification work only after Gmail setup is ready and the imported Inbox order has confirmed label, tracking, custody, or dispatch context.",
-        sourceMetricTitle: "Gmail scan sources",
-        sourceCount: gmailScanSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, access camera/scanner hardware, generate QR codes, or change scan session records automatically."
-      )
-      Microsoft365ReleaseBoundaryPanel(
-        store: store,
-        title: "Outlook scan readiness",
-        lead: "Outlook-origin intake should create scan verification work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order label, tracking, custody, or dispatch context are clear.",
-        sourceMetricTitle: "Outlook scan sources",
-        sourceCount: microsoft365ScanSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, access camera/scanner hardware, generate QR codes, or change scan session records automatically."
-      )
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox scan evidence",
+      detail: "Open provider release evidence only when scan readiness depends on Gmail or Outlook source trails."
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail scan readiness",
+          lead: "Gmail-origin intake should create scan verification work only after Gmail setup is ready and the imported Inbox order has confirmed label, tracking, custody, or dispatch context.",
+          sourceMetricTitle: "Gmail scan sources",
+          sourceCount: gmailScanSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, access camera/scanner hardware, generate QR codes, or change scan session records automatically."
+        )
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook scan readiness",
+          lead: "Outlook-origin intake should create scan verification work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order label, tracking, custody, or dispatch context are clear.",
+          sourceMetricTitle: "Outlook scan sources",
+          sourceCount: microsoft365ScanSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, access camera/scanner hardware, generate QR codes, or change scan session records automatically."
+        )
+      }
     }
   }
 

@@ -157,23 +157,28 @@ struct DestinationAddressesView: View {
   }
 
   private var gmailAddressReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      GmailReleaseBoundaryPanel(
-        store: store,
-        title: "Gmail destination readiness",
-        lead: "Gmail-origin intake should influence destination records only after Gmail setup is ready and a person confirms the imported Inbox order details.",
-        sourceMetricTitle: "Gmail destination sources",
-        sourceCount: gmailAddressSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, validate addresses, geocode, sync contacts, or change destination records automatically."
-      )
-      Microsoft365ReleaseBoundaryPanel(
-        store: store,
-        title: "Outlook destination readiness",
-        lead: "Outlook-origin intake should influence destination records only after Microsoft setup, sign-in, Graph diagnostics, and confirmed Inbox order details are clear.",
-        sourceMetricTitle: "Outlook destination sources",
-        sourceCount: microsoft365AddressSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, validate addresses, geocode, sync contacts, or change destination records automatically."
-      )
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox destination evidence",
+      detail: "Open provider release evidence only when destination readiness depends on Gmail or Outlook source trails."
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail destination readiness",
+          lead: "Gmail-origin intake should influence destination records only after Gmail setup is ready and a person confirms the imported Inbox order details.",
+          sourceMetricTitle: "Gmail destination sources",
+          sourceCount: gmailAddressSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, validate addresses, geocode, sync contacts, or change destination records automatically."
+        )
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook destination readiness",
+          lead: "Outlook-origin intake should influence destination records only after Microsoft setup, sign-in, Graph diagnostics, and confirmed Inbox order details are clear.",
+          sourceMetricTitle: "Outlook destination sources",
+          sourceCount: microsoft365AddressSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, validate addresses, geocode, sync contacts, or change destination records automatically."
+        )
+      }
     }
   }
 

@@ -3007,6 +3007,42 @@ struct GmailReleaseSelfCheckSummaryCard: View {
   }
 }
 
+struct CollapsedProviderEvidencePanel<Content: View>: View {
+  var title: String
+  var detail: String
+  var symbol: String = "doc.text.magnifyingglass"
+  var statusLabel: String = "Evidence"
+  var tone: Color = .teal
+  @ViewBuilder var content: () -> Content
+  @State private var isExpanded = false
+
+  var body: some View {
+    SettingsPanel(title: title, symbol: symbol) {
+      DisclosureGroup(isExpanded: $isExpanded) {
+        content()
+          .padding(.top, 8)
+      } label: {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: isExpanded ? "chevron.down.circle.fill" : "chevron.right.circle.fill")
+            .foregroundStyle(tone)
+            .frame(width: 22)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(isExpanded ? "Hide provider evidence" : "Show provider evidence")
+              .font(.subheadline.weight(.semibold))
+            Text(detail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 8)
+          Badge(statusLabel, color: tone)
+        }
+      }
+      .tint(tone)
+    }
+  }
+}
+
 struct GmailReleaseBoundaryPanel: View {
   var store: ParcelOpsStore
   var title: String

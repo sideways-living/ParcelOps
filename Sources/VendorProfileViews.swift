@@ -162,23 +162,28 @@ struct VendorProfilesView: View {
 
   @ViewBuilder
   private var gmailVendorReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      GmailReleaseBoundaryPanel(
-        store: store,
-        title: "Gmail vendor readiness",
-        lead: "Gmail-origin intake should affect vendor, carrier, store, or supplier profiles only after Gmail can fetch read-only messages and a person confirms the Inbox order context.",
-        sourceMetricTitle: "Gmail vendor sources",
-        sourceCount: gmailVendorSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, contact vendors, or change vendor profiles automatically."
-      )
-      Microsoft365ReleaseBoundaryPanel(
-        store: store,
-        title: "Outlook vendor readiness",
-        lead: "Outlook-origin intake should affect vendor, carrier, store, or supplier profiles only after Microsoft setup, Graph diagnostics, and confirmed Inbox order context are clear.",
-        sourceMetricTitle: "Outlook vendor sources",
-        sourceCount: microsoft365VendorSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, contact vendors, or change vendor profiles automatically."
-      )
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox vendor evidence",
+      detail: "Open provider release evidence only when vendor profile readiness depends on Gmail or Outlook source trails."
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail vendor readiness",
+          lead: "Gmail-origin intake should affect vendor, carrier, store, or supplier profiles only after Gmail can fetch read-only messages and a person confirms the Inbox order context.",
+          sourceMetricTitle: "Gmail vendor sources",
+          sourceCount: gmailVendorSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, contact vendors, or change vendor profiles automatically."
+        )
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook vendor readiness",
+          lead: "Outlook-origin intake should affect vendor, carrier, store, or supplier profiles only after Microsoft setup, Graph diagnostics, and confirmed Inbox order context are clear.",
+          sourceMetricTitle: "Outlook vendor sources",
+          sourceCount: microsoft365VendorSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, contact vendors, or change vendor profiles automatically."
+        )
+      }
     }
   }
 
