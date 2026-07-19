@@ -5327,15 +5327,17 @@ final class ParcelOpsStore {
     let duplicateRefreshCounts = duplicateRefreshCounts(for: ingestRecords)
     let linkedIntakeIDs = Set(ingestRecords.compactMap(\.intakeEmailID))
     let linkedIntakeCount = intakeEmails.filter { linkedIntakeIDs.contains($0.id) }.count
-    let importedCount = ingestRecords.filter { $0.status == .imported }.count
-    let duplicateCount = ingestRecords.filter {
+    let importedCount = max(connection.lastRefreshImportedCount, ingestRecords.filter { $0.status == .imported }.count)
+    let duplicateCount = max(connection.lastRefreshDuplicateCount, ingestRecords.filter {
       $0.status == .duplicateSkipped || $0.status == .duplicateRefreshed || $0.status == .duplicateNoChange
-    }.count
+    }.count)
     let readiness = microsoft365OAuthReadinessSummary(for: connection)
     let authState = microsoft365AuthSessionState(for: connection)
     let status = connection.connectionStatus
     let hasManualRefreshEvidence = connection.lastManualRefreshDate != "Never"
-    let fetchedCount = max(ingestRecords.count, hasManualRefreshEvidence ? 1 : 0)
+    let fetchedCount = max(connection.lastRefreshFetchedCount, ingestRecords.count, hasManualRefreshEvidence ? 1 : 0)
+    let filteredCount = connection.lastRefreshFilteredNonOrderCount
+    let uncertainCount = connection.lastRefreshUncertainCount
     let hasProblem = authState.status == .authFailed
       || authState.status == .consentRequired
       || authState.status == .tokenExpired
@@ -5375,6 +5377,16 @@ final class ParcelOpsStore {
       detail = "Duplicate-safe Outlook refresh updated existing Inbox rows without creating duplicates."
       nextAction = "Review refreshed Outlook-origin Inbox rows if any fields changed."
       tone = "neutral"
+    } else if uncertainCount > 0 {
+      verdict = "Outlook uncertain mail needs review"
+      detail = "Some mixed Microsoft 365 messages looked order-related but were not strong enough for automatic Inbox import."
+      nextAction = "Review the latest Microsoft 365 refresh examples in Mailbox Monitor or Audit before changing filter mode."
+      tone = "attention"
+    } else if filteredCount > 0 && importedCount == 0 && duplicateCount == 0 {
+      verdict = "Outlook mixed filter working"
+      detail = "The mixed mailbox filter kept fetched non-order Microsoft 365 messages out of Inbox."
+      nextAction = "No action needed unless filtered examples look order-related."
+      tone = "success"
     } else if duplicateCount > 0 {
       verdict = "No new Outlook order mail"
       detail = "Microsoft 365 refresh evidence found messages already captured by ParcelOps."
@@ -5404,10 +5416,12 @@ final class ParcelOpsStore {
       duplicateCount: duplicateCount,
       duplicateRefreshedCount: duplicateRefreshCounts.updated,
       duplicateNoChangeCount: duplicateRefreshCounts.noChange,
+      filteredCount: filteredCount,
+      uncertainCount: uncertainCount,
       blockedCount: blockedCount,
       linkedIntakeCount: linkedIntakeCount,
       lastRefreshDate: connection.lastManualRefreshDate,
-      lastRefreshSummary: connection.connectionStatus
+      lastRefreshSummary: connection.lastRefreshSummary
     )
   }
 
@@ -11295,12 +11309,27 @@ final class ParcelOpsStore {
 
     let fetchResult = await microsoftGraphMailboxClient.fetchMessages(for: connection, accessToken: nil)
     let fetchedMessages = mapGraphMessages(fetchResult.messages, sourceMailboxID: mailbox.id)
-    let result = importFetchedMailboxMessages(fetchedMessages)
-    let refreshStatus = microsoftGraphRefreshStatus(fetchResult: fetchResult, ingestResult: result)
+    let filterResult = filteredMicrosoft365Messages(fetchedMessages, for: connection)
+    let result = importFetchedMailboxMessages(filterResult.importMessages)
+    let refreshStatus = microsoftGraphRefreshStatus(
+      fetchResult: fetchResult,
+      ingestResult: result,
+      filteredCount: filterResult.filteredCount,
+      uncertainCount: filterResult.uncertainCount
+    )
 
     updateMicrosoft365MailboxConnection(connection) { draft in
       draft.lastManualRefreshDate = Self.auditTimestamp()
       draft.connectionStatus = "Mock Graph: \(refreshStatus.rawValue)"
+      draft.lastRefreshFetchedCount = fetchResult.messages.count
+      draft.lastRefreshImportedCount = result.imported
+      draft.lastRefreshDuplicateCount = result.duplicates
+      draft.lastRefreshFilteredNonOrderCount = filterResult.filteredCount
+      draft.lastRefreshUncertainCount = filterResult.uncertainCount
+      draft.lastRefreshFilteredExamples = filterResult.filteredExamples
+      draft.lastRefreshUncertainExamples = filterResult.uncertainExamples
+      draft.lastRefreshReasonBreakdown = Array(filterResult.reasonBreakdown.prefix(12))
+      draft.lastRefreshSummary = "Mock Graph refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. \(filterResult.detail)"
     }
 
     if fetchResult.status == .noMessages {
@@ -11331,7 +11360,7 @@ final class ParcelOpsStore {
       entityID: connection.id.uuidString,
       entityLabel: connection.displayName,
       summary: "Mock Microsoft Graph mailbox fetch completed locally.",
-      afterDetail: "Status: Mock Graph: \(refreshStatus.rawValue)\nMock result: \(fetchResult.status.rawValue)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that provider message ID for this mailbox.\n\(fetchResult.detail)\nNo OAuth, token, Microsoft Graph network call, or real mailbox connection was used."
+      afterDetail: "Status: Mock Graph: \(refreshStatus.rawValue)\nMock result: \(fetchResult.status.rawValue)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredCount)\nUncertain: \(filterResult.uncertainCount)\nDuplicate skips mean ParcelOps already captured that provider message ID for this mailbox.\nFilter detail: \(filterResult.detail)\nFiltered examples: \(filterResult.filteredExamples.joined(separator: "; "))\nUncertain examples: \(filterResult.uncertainExamples.joined(separator: "; "))\nReason breakdown: \(filterResult.reasonBreakdown.isEmpty ? "none" : filterResult.reasonBreakdown.prefix(6).map { "\($0.decision) \($0.count)x \($0.reason)" }.joined(separator: "; "))\n\(fetchResult.detail)\nNo OAuth, token, Microsoft Graph network call, real mailbox connection, full message body, or mailbox mutation was used."
     )
   }
 
@@ -11373,12 +11402,27 @@ final class ParcelOpsStore {
     let fetchResult = await realMicrosoftGraphMailboxClient.fetchMessages(for: connection, accessToken: accessToken)
     let fetchedMessages = mapGraphMessages(fetchResult.messages, sourceMailboxID: mailbox.id)
     await MainActor.run {
-      let result = importFetchedMailboxMessages(fetchedMessages)
-      let refreshStatus = microsoftGraphRefreshStatus(fetchResult: fetchResult, ingestResult: result)
+      let filterResult = filteredMicrosoft365Messages(fetchedMessages, for: connection)
+      let result = importFetchedMailboxMessages(filterResult.importMessages)
+      let refreshStatus = microsoftGraphRefreshStatus(
+        fetchResult: fetchResult,
+        ingestResult: result,
+        filteredCount: filterResult.filteredCount,
+        uncertainCount: filterResult.uncertainCount
+      )
 
       updateMicrosoft365MailboxConnection(connection) { draft in
         draft.lastManualRefreshDate = Self.auditTimestamp()
         draft.connectionStatus = "Real Graph: \(refreshStatus.rawValue)"
+        draft.lastRefreshFetchedCount = fetchResult.messages.count
+        draft.lastRefreshImportedCount = result.imported
+        draft.lastRefreshDuplicateCount = result.duplicates
+        draft.lastRefreshFilteredNonOrderCount = filterResult.filteredCount
+        draft.lastRefreshUncertainCount = filterResult.uncertainCount
+        draft.lastRefreshFilteredExamples = filterResult.filteredExamples
+        draft.lastRefreshUncertainExamples = filterResult.uncertainExamples
+        draft.lastRefreshReasonBreakdown = Array(filterResult.reasonBreakdown.prefix(12))
+        draft.lastRefreshSummary = "Real Graph refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. \(filterResult.detail)"
       }
 
       if fetchResult.status == .noMessages {
@@ -11399,7 +11443,7 @@ final class ParcelOpsStore {
           entityID: connection.id.uuidString,
           entityLabel: connection.displayName,
           summary: "Real Microsoft Graph fetch stopped before import.",
-          afterDetail: "Status: Real Graph: \(fetchResult.status.rawValue)\n\(realGraphDiagnosticHint(for: fetchResult.status))\n\(fetchResult.detail)\n\(tokenResult.tokenDiagnosticsDetail)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that Graph message ID for this mailbox.\nNo mailbox items were deleted, moved, marked read, sent, or modified."
+          afterDetail: "Status: Real Graph: \(fetchResult.status.rawValue)\n\(realGraphDiagnosticHint(for: fetchResult.status))\n\(fetchResult.detail)\n\(tokenResult.tokenDiagnosticsDetail)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredCount)\nUncertain: \(filterResult.uncertainCount)\nDuplicate skips mean ParcelOps already captured that Graph message ID for this mailbox.\nNo mailbox items were deleted, moved, marked read, sent, or modified."
         )
       }
 
@@ -11409,7 +11453,7 @@ final class ParcelOpsStore {
         entityID: connection.id.uuidString,
         entityLabel: connection.displayName,
         summary: "Real Microsoft Graph mailbox fetch completed.",
-        afterDetail: "Status: Real Graph: \(refreshStatus.rawValue)\nGraph result: \(fetchResult.status.rawValue)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nDuplicate skips mean ParcelOps already captured that Graph message ID for this mailbox.\n\(realGraphDiagnosticHint(for: fetchResult.status))\n\(fetchResult.detail)\n\(tokenResult.tokenDiagnosticsDetail)\nNo token value was stored or logged. No mailbox items were deleted, moved, marked read, sent, or modified."
+        afterDetail: "Status: Real Graph: \(refreshStatus.rawValue)\nGraph result: \(fetchResult.status.rawValue)\nMailbox: \(connection.mailboxAddress)\nFolders: \(connection.monitoredFolderNames)\nMailbox mode: \(connection.mailboxMode.rawValue)\nFetched messages: \(fetchResult.messages.count)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nFiltered non-order: \(filterResult.filteredCount)\nUncertain: \(filterResult.uncertainCount)\nDuplicate skips mean ParcelOps already captured that Graph message ID for this mailbox.\nFilter detail: \(filterResult.detail)\nFiltered examples: \(filterResult.filteredExamples.joined(separator: "; "))\nUncertain examples: \(filterResult.uncertainExamples.joined(separator: "; "))\nReason breakdown: \(filterResult.reasonBreakdown.isEmpty ? "none" : filterResult.reasonBreakdown.prefix(6).map { "\($0.decision) \($0.count)x \($0.reason)" }.joined(separator: "; "))\n\(realGraphDiagnosticHint(for: fetchResult.status))\n\(fetchResult.detail)\n\(tokenResult.tokenDiagnosticsDetail)\nNo token value was stored or logged. No full message body was logged. No mailbox items were deleted, moved, marked read, sent, or modified."
       )
     }
   }
@@ -11782,6 +11826,129 @@ final class ParcelOpsStore {
       reasonBreakdown,
       detailLines.joined(separator: "\n")
     )
+  }
+
+  private func filteredMicrosoft365Messages(
+    _ messages: [FetchedMailboxMessage],
+    for connection: Microsoft365MailboxConnection
+  ) -> (importMessages: [FetchedMailboxMessage], filteredCount: Int, uncertainCount: Int, filteredExamples: [String], uncertainExamples: [String], reasonBreakdown: [SpaceMailClassifierReasonCount], detail: String) {
+    guard connection.mailboxMode == .mixedFiltered else {
+      return (
+        messages,
+        0,
+        0,
+        [],
+        [],
+        [],
+        "Outlook mailbox mode is dedicated order mailbox, so all fetched messages were passed to intake duplicate/import handling."
+      )
+    }
+
+    var importMessages: [FetchedMailboxMessage] = []
+    var filteredExamples: [String] = []
+    var uncertainExamples: [String] = []
+    var importedExamples: [String] = []
+    var reasonCounts: [String: Int] = [:]
+
+    for message in messages {
+      let relevance = classifyMicrosoft365MessageRelevance(message)
+      if relevance.decision == "Imported" {
+        importMessages.append(message)
+        importedExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
+      } else if relevance.decision == "Uncertain" {
+        uncertainExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
+      } else {
+        filteredExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
+      }
+      reasonCounts["\(relevance.decision)|\(relevance.reason)", default: 0] += 1
+    }
+
+    let reasonBreakdown = spaceMailReasonBreakdown(from: reasonCounts)
+    var detailLines = [
+      "Mixed Outlook filtering is enabled. Only likely order/order update messages were passed into primary Inbox intake.",
+      "Filtered Outlook messages are counted locally and not imported into ForwardedEmailIntake.",
+      "Uncertain Outlook messages are counted and summarized for Audit, but are not added to primary Inbox triage in this first mixed-mailbox pass."
+    ]
+    if !importedExamples.isEmpty {
+      detailLines.append("Imported examples: \(importedExamples.prefix(3).joined(separator: "; ")).")
+    }
+    if !filteredExamples.isEmpty {
+      detailLines.append("Filtered examples: \(filteredExamples.prefix(3).joined(separator: "; ")).")
+    }
+    if !uncertainExamples.isEmpty {
+      detailLines.append("Uncertain examples: \(uncertainExamples.prefix(3).joined(separator: "; ")).")
+    }
+    if !reasonBreakdown.isEmpty {
+      detailLines.append("Classifier reasons: \(reasonBreakdown.prefix(6).map { "\($0.decision) \($0.count)x \($0.reason)" }.joined(separator: "; ")).")
+    }
+
+    return (
+      importMessages,
+      filteredExamples.count,
+      uncertainExamples.count,
+      Array(filteredExamples.prefix(5)),
+      Array(uncertainExamples.prefix(5)),
+      reasonBreakdown,
+      detailLines.joined(separator: "\n")
+    )
+  }
+
+  private func classifyMicrosoft365MessageRelevance(_ message: FetchedMailboxMessage) -> (decision: String, reason: String, score: Int, orderNumber: String, trackingNumber: String) {
+    let combined = "\(message.subject) \(message.plainTextBodyPreview)".lowercased()
+    let orderNumber = detectedOrderNumber(in: combined)
+    let trackingNumber = detectedTrackingNumber(in: combined, excluding: orderNumber)
+    let hasOrderID = !orderNumber.localizedCaseInsensitiveContains("needs review")
+    let hasTrackingID = !trackingNumber.localizedCaseInsensitiveContains("needs review")
+    let hasStrongSignal = [
+      "order",
+      "tracking",
+      "shipped",
+      "shipment",
+      "dispatch",
+      "dispatched",
+      "delivered",
+      "delivery update",
+      "delivery question",
+      "relates to an order",
+      "refund",
+      "return",
+      "parcel",
+      "package"
+    ].contains { combined.contains($0) }
+    let hasMarketingOrAccountSignal = [
+      "newsletter",
+      "unsubscribe",
+      "promotion",
+      "offer",
+      "final days",
+      "sale",
+      "security notification",
+      "sign-in",
+      "password",
+      "verification code",
+      "calendar",
+      "webinar",
+      "social"
+    ].contains { combined.contains($0) }
+    let score =
+      (hasStrongSignal ? 2 : 0)
+      + (hasOrderID ? 2 : 0)
+      + (hasTrackingID ? 2 : 0)
+      - (hasMarketingOrAccountSignal ? 3 : 0)
+
+    if hasStrongSignal && (hasOrderID || hasTrackingID) && !hasMarketingOrAccountSignal {
+      return ("Imported", "strong order signal", score, orderNumber, trackingNumber)
+    }
+    if hasStrongSignal && !hasMarketingOrAccountSignal {
+      return ("Uncertain", "order-ish, missing order/tracking id", score, orderNumber, trackingNumber)
+    }
+    if hasMarketingOrAccountSignal {
+      return ("Filtered", "marketing/account signal", score, orderNumber, trackingNumber)
+    }
+    if !hasOrderID && !hasTrackingID {
+      return ("Filtered", "missing order/tracking id", score, orderNumber, trackingNumber)
+    }
+    return ("Filtered", "weak order signal", score, orderNumber, trackingNumber)
   }
 
   private func classifyGmailMessageRelevance(_ message: FetchedMailboxMessage, for connection: GmailMailboxConnection) -> (decision: String, reason: String, score: Int, orderNumber: String, trackingNumber: String) {
@@ -12248,7 +12415,9 @@ final class ParcelOpsStore {
 
   private func microsoftGraphRefreshStatus(
     fetchResult: MicrosoftGraphMailboxFetchResult,
-    ingestResult: (imported: Int, duplicates: Int)
+    ingestResult: (imported: Int, duplicates: Int),
+    filteredCount: Int = 0,
+    uncertainCount: Int = 0
   ) -> MicrosoftGraphMailboxFetchStatus {
     if fetchResult.status != .success {
       return fetchResult.status
@@ -12259,6 +12428,9 @@ final class ParcelOpsStore {
     if ingestResult.duplicates > 0 {
       return .duplicateSkipped
     }
+    if filteredCount > 0 || uncertainCount > 0 {
+      return .filteredNonOrder
+    }
     return .noMessages
   }
 
@@ -12268,6 +12440,8 @@ final class ParcelOpsStore {
       return "Real Graph read succeeded with read-only message preview fields."
     case .duplicateSkipped:
       return "Refresh succeeded, but every fetched message was already in the local intake history."
+    case .filteredNonOrder:
+      return "Graph read succeeded, but mixed-mailbox filtering kept non-order or uncertain messages out of primary Inbox intake."
     case .noMessages:
       return "Graph returned an empty page for the configured folder."
     case .authRequired:

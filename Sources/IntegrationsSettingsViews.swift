@@ -1322,7 +1322,7 @@ struct Microsoft365MailboxConnectionRow: View {
         }
       }
 
-      Text("Mock Graph refresh remains available for local checks. Real Graph refresh is manual, read-only, and imports only message previews after Microsoft sign-in and Mail.Read consent.")
+      Text("Mock Graph refresh remains available for local checks. Real Graph refresh is manual, read-only, and imports only message previews after Microsoft sign-in and Mail.Read consent. Mixed mailbox mode filters likely non-order messages before Inbox import.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
@@ -1435,12 +1435,50 @@ struct Microsoft365MailboxConnectionRow: View {
       Label("Mailbox refresh status", systemImage: refreshStatusIcon)
         .font(.caption.weight(.semibold))
         .foregroundStyle(refreshStatusColor)
+      CompactMetadataGrid(minimumWidth: 112) {
+        Badge(connection.mailboxMode.rawValue, color: connection.mailboxMode == .mixedFiltered ? .teal : .secondary)
+        Badge("\(connection.lastRefreshFetchedCount) fetched", color: .blue)
+        Badge("\(connection.lastRefreshImportedCount) imported", color: connection.lastRefreshImportedCount > 0 ? .green : .secondary)
+        Badge("\(connection.lastRefreshDuplicateCount) duplicates", color: connection.lastRefreshDuplicateCount > 0 ? .orange : .secondary)
+        Badge("\(connection.lastRefreshFilteredNonOrderCount) filtered", color: connection.lastRefreshFilteredNonOrderCount > 0 ? .teal : .secondary)
+        Badge("\(connection.lastRefreshUncertainCount) uncertain", color: connection.lastRefreshUncertainCount > 0 ? .orange : .secondary)
+      }
       Text(refreshStatusSummary)
         .font(.caption2)
         .foregroundStyle(.secondary)
       Text(refreshStatusDetail)
         .font(.caption2)
         .foregroundStyle(.secondary)
+      if !connection.lastRefreshFilteredExamples.isEmpty || !connection.lastRefreshUncertainExamples.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          if !connection.lastRefreshFilteredExamples.isEmpty {
+            Text("Filtered examples: \(connection.lastRefreshFilteredExamples.prefix(3).joined(separator: "; "))")
+          }
+          if !connection.lastRefreshUncertainExamples.isEmpty {
+            Text("Uncertain examples: \(connection.lastRefreshUncertainExamples.prefix(3).joined(separator: "; "))")
+          }
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+      }
+      if !connection.lastRefreshReasonBreakdown.isEmpty {
+        VStack(alignment: .leading, spacing: 5) {
+          Text("Latest classifier reasons")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+          ForEach(Array(connection.lastRefreshReasonBreakdown.prefix(5))) { item in
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+              Badge(item.decision, color: microsoft365ClassifierReasonColor(item.decision))
+              Text("\(item.count)x \(item.reason)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+        .padding(8)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
     }
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1454,6 +1492,9 @@ struct Microsoft365MailboxConnectionRow: View {
     }
     if status.localizedCaseInsensitiveContains("Real Graph: Duplicate skipped") {
       return "Real Graph refresh completed and only found messages ParcelOps had already captured."
+    }
+    if status.localizedCaseInsensitiveContains("Filtered non-order") {
+      return "Graph refresh completed and mixed-mailbox filtering kept non-order or uncertain messages out of Inbox."
     }
     if status.localizedCaseInsensitiveContains("Mock Graph") {
       return "Last refresh used the local Mock Graph path, not Microsoft Graph."
@@ -1474,13 +1515,15 @@ struct Microsoft365MailboxConnectionRow: View {
   }
 
   private var refreshStatusDetail: String {
-    "Last refresh: \(connection.lastManualRefreshDate). Current status: \(connection.connectionStatus). Mock refresh and real Graph refresh are separate actions."
+    let countText = "\(connection.lastRefreshFetchedCount) fetched, \(connection.lastRefreshImportedCount) imported, \(connection.lastRefreshDuplicateCount) duplicates, \(connection.lastRefreshFilteredNonOrderCount) filtered, \(connection.lastRefreshUncertainCount) uncertain"
+    return "Last refresh: \(connection.lastManualRefreshDate). \(countText). Current status: \(connection.connectionStatus). Mock refresh and real Graph refresh are separate actions."
   }
 
   private var refreshStatusIcon: String {
     let status = connection.connectionStatus
     if status.localizedCaseInsensitiveContains("Success") { return "checkmark.seal.fill" }
     if status.localizedCaseInsensitiveContains("Duplicate skipped") { return "doc.on.doc.fill" }
+    if status.localizedCaseInsensitiveContains("Filtered non-order") { return "line.3.horizontal.decrease.circle.fill" }
     if status.localizedCaseInsensitiveContains("Consent required") || status.localizedCaseInsensitiveContains("Folder not found") || status.localizedCaseInsensitiveContains("Auth required") {
       return "exclamationmark.triangle.fill"
     }
@@ -1492,6 +1535,7 @@ struct Microsoft365MailboxConnectionRow: View {
     let status = connection.connectionStatus
     if status.localizedCaseInsensitiveContains("Success") { return .green }
     if status.localizedCaseInsensitiveContains("Duplicate skipped") { return .blue }
+    if status.localizedCaseInsensitiveContains("Filtered non-order") { return .teal }
     if status.localizedCaseInsensitiveContains("Consent required") || status.localizedCaseInsensitiveContains("Folder not found") || status.localizedCaseInsensitiveContains("Auth required") {
       return .orange
     }
@@ -1507,6 +1551,19 @@ struct Microsoft365MailboxConnectionRow: View {
 
   private var realGraphActionHintColor: Color {
     authState.status == .connected ? .secondary : .orange
+  }
+
+  private func microsoft365ClassifierReasonColor(_ decision: String) -> Color {
+    switch decision {
+    case "Imported":
+      return .green
+    case "Uncertain":
+      return .orange
+    case "Filtered":
+      return .teal
+    default:
+      return .secondary
+    }
   }
 }
 
@@ -6869,6 +6926,14 @@ struct Microsoft365MailboxConnectionEditor: View {
           TextField("Tenant/domain hint", text: $draft.tenantDomainHint)
           TextField("Mailbox address", text: $draft.mailboxAddress)
           TextField("Monitored folders", text: $draft.monitoredFolderNames)
+          Picker("Mailbox mode", selection: $draft.mailboxMode) {
+            ForEach(SpaceMailMailboxMode.allCases) { mode in
+              Text(mode.rawValue).tag(mode)
+            }
+          }
+          Text("Use mixed mailbox mode when this Microsoft-hosted mailbox receives normal personal, marketing, or notification mail. Only likely order/update messages pass into Inbox.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         Section("2. Local status and notes") {
           TextField("Connection status", text: $draft.connectionStatus)

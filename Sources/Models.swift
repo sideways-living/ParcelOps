@@ -717,6 +717,7 @@ struct MicrosoftGraphMailboxFetchResult: Hashable {
 enum MicrosoftGraphMailboxFetchStatus: String, CaseIterable, Identifiable, Hashable {
   case success = "Fetch success"
   case duplicateSkipped = "Duplicate skipped"
+  case filteredNonOrder = "Filtered non-order"
   case noMessages = "No messages"
   case notConnected = "Not connected"
   case simulatedAuthPlaceholder = "Simulated auth placeholder"
@@ -1650,6 +1651,16 @@ struct Microsoft365MailboxConnection: Identifiable, Hashable, Codable {
   var oauthReadinessStatus: String = "Not reviewed"
   var consentAdminNotes: String = "Local planning only. No OAuth flow runs and no tokens are requested."
   var oauthImplementationPlanStatus: String = "Not reviewed"
+  var mailboxMode: SpaceMailMailboxMode = .mixedFiltered
+  var lastRefreshFetchedCount: Int = 0
+  var lastRefreshImportedCount: Int = 0
+  var lastRefreshDuplicateCount: Int = 0
+  var lastRefreshFilteredNonOrderCount: Int = 0
+  var lastRefreshUncertainCount: Int = 0
+  var lastRefreshSummary: String = "No Microsoft 365 Graph refresh has run yet."
+  var lastRefreshFilteredExamples: [String] = []
+  var lastRefreshUncertainExamples: [String] = []
+  var lastRefreshReasonBreakdown: [SpaceMailClassifierReasonCount] = []
 
   init(
     id: UUID = UUID(),
@@ -1667,7 +1678,17 @@ struct Microsoft365MailboxConnection: Identifiable, Hashable, Codable {
     requestedScopesSummary: String = "Mail.Read, User.Read",
     oauthReadinessStatus: String = "Not reviewed",
     consentAdminNotes: String = "Local planning only. No OAuth flow runs and no tokens are requested.",
-    oauthImplementationPlanStatus: String = "Not reviewed"
+    oauthImplementationPlanStatus: String = "Not reviewed",
+    mailboxMode: SpaceMailMailboxMode = .mixedFiltered,
+    lastRefreshFetchedCount: Int = 0,
+    lastRefreshImportedCount: Int = 0,
+    lastRefreshDuplicateCount: Int = 0,
+    lastRefreshFilteredNonOrderCount: Int = 0,
+    lastRefreshUncertainCount: Int = 0,
+    lastRefreshSummary: String = "No Microsoft 365 Graph refresh has run yet.",
+    lastRefreshFilteredExamples: [String] = [],
+    lastRefreshUncertainExamples: [String] = [],
+    lastRefreshReasonBreakdown: [SpaceMailClassifierReasonCount] = []
   ) {
     self.id = id
     self.displayName = displayName
@@ -1685,6 +1706,16 @@ struct Microsoft365MailboxConnection: Identifiable, Hashable, Codable {
     self.oauthReadinessStatus = oauthReadinessStatus
     self.consentAdminNotes = consentAdminNotes
     self.oauthImplementationPlanStatus = oauthImplementationPlanStatus
+    self.mailboxMode = mailboxMode
+    self.lastRefreshFetchedCount = lastRefreshFetchedCount
+    self.lastRefreshImportedCount = lastRefreshImportedCount
+    self.lastRefreshDuplicateCount = lastRefreshDuplicateCount
+    self.lastRefreshFilteredNonOrderCount = lastRefreshFilteredNonOrderCount
+    self.lastRefreshUncertainCount = lastRefreshUncertainCount
+    self.lastRefreshSummary = lastRefreshSummary
+    self.lastRefreshFilteredExamples = lastRefreshFilteredExamples
+    self.lastRefreshUncertainExamples = lastRefreshUncertainExamples
+    self.lastRefreshReasonBreakdown = lastRefreshReasonBreakdown
   }
 
   init(from decoder: Decoder) throws {
@@ -1705,6 +1736,16 @@ struct Microsoft365MailboxConnection: Identifiable, Hashable, Codable {
     oauthReadinessStatus = try container.decodeIfPresent(String.self, forKey: .oauthReadinessStatus) ?? "Not reviewed"
     consentAdminNotes = try container.decodeIfPresent(String.self, forKey: .consentAdminNotes) ?? "Local planning only. No OAuth flow runs and no tokens are requested."
     oauthImplementationPlanStatus = try container.decodeIfPresent(String.self, forKey: .oauthImplementationPlanStatus) ?? "Not reviewed"
+    mailboxMode = try container.decodeIfPresent(SpaceMailMailboxMode.self, forKey: .mailboxMode) ?? .mixedFiltered
+    lastRefreshFetchedCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshFetchedCount) ?? 0
+    lastRefreshImportedCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshImportedCount) ?? 0
+    lastRefreshDuplicateCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshDuplicateCount) ?? 0
+    lastRefreshFilteredNonOrderCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshFilteredNonOrderCount) ?? 0
+    lastRefreshUncertainCount = try container.decodeIfPresent(Int.self, forKey: .lastRefreshUncertainCount) ?? 0
+    lastRefreshSummary = try container.decodeIfPresent(String.self, forKey: .lastRefreshSummary) ?? "No Microsoft 365 Graph refresh has run yet."
+    lastRefreshFilteredExamples = try container.decodeIfPresent([String].self, forKey: .lastRefreshFilteredExamples) ?? []
+    lastRefreshUncertainExamples = try container.decodeIfPresent([String].self, forKey: .lastRefreshUncertainExamples) ?? []
+    lastRefreshReasonBreakdown = try container.decodeIfPresent([SpaceMailClassifierReasonCount].self, forKey: .lastRefreshReasonBreakdown) ?? []
   }
 }
 
@@ -2089,6 +2130,8 @@ struct Microsoft365IntakeHealthSummary: Identifiable, Hashable {
   var duplicateCount: Int
   var duplicateRefreshedCount: Int
   var duplicateNoChangeCount: Int
+  var filteredCount: Int
+  var uncertainCount: Int
   var blockedCount: Int
   var linkedIntakeCount: Int
   var lastRefreshDate: String
@@ -2099,11 +2142,13 @@ struct Microsoft365IntakeHealthSummary: Identifiable, Hashable {
     if importedCount > 0 { return "\(importedCount) imported" }
     if duplicateRefreshedCount > 0 { return "\(duplicateRefreshedCount) refreshed" }
     if duplicateCount > 0 { return "\(duplicateCount) duplicate" }
+    if uncertainCount > 0 { return "\(uncertainCount) uncertain" }
+    if filteredCount > 0 { return "\(filteredCount) filtered" }
     return "\(fetchedCount) fetched"
   }
 
   var compactRefreshCountsText: String {
-    "\(fetchedCount) fetched, \(importedCount) imported, \(duplicateCount) duplicate, \(duplicateRefreshedCount) refreshed, \(blockedCount) blocker"
+    "\(fetchedCount) fetched, \(importedCount) imported, \(duplicateCount) duplicate, \(duplicateRefreshedCount) refreshed, \(filteredCount) filtered, \(uncertainCount) uncertain, \(blockedCount) blocker"
   }
 
   var namedRefreshCountsText: String {
@@ -2115,6 +2160,8 @@ struct Microsoft365IntakeHealthSummary: Identifiable, Hashable {
     if importedCount > 0 { return "Latest Outlook refresh imported order mail" }
     if duplicateRefreshedCount > 0 { return "Latest Outlook refresh updated existing Inbox rows" }
     if duplicateCount > 0 { return "Latest Outlook refresh found duplicates" }
+    if uncertainCount > 0 { return "Latest Outlook refresh found uncertain mail" }
+    if filteredCount > 0 { return "Latest Outlook refresh filtered non-order mail" }
     return verdict
   }
 }
