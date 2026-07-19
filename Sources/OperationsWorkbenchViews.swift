@@ -787,9 +787,7 @@ struct OperationsWorkbenchView: View {
         )
         releaseCandidateBlockersPanel
         MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
-        MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
-        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
-        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
+        MailboxProviderAdvancedDiagnosticsDisclosure(store: store)
         operatorSummary
         resolutionLadderPanel
         SpaceMailPrimaryStatusStrip(store: store)

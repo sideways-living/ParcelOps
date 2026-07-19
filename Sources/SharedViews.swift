@@ -4223,6 +4223,66 @@ struct MailboxProviderTroubleshootingCard: View {
   }
 }
 
+struct MailboxProviderAdvancedDiagnosticsDisclosure: View {
+  var store: ParcelOpsStore
+  var title: String = "Provider diagnostics"
+  var detail: String = "Open this when you need release gates, handoff evidence, or troubleshooting detail. The daily queue only needs the quick status above."
+  var showReleaseGate: Bool = true
+  var showHandoffPacket: Bool = true
+  var showTroubleshooting: Bool = true
+  var showMailboxLink: Bool = true
+  var showTasksLink: Bool = true
+  var showAuditLink: Bool = true
+  @State private var isExpanded = false
+
+  var body: some View {
+    DisclosureGroup(isExpanded: $isExpanded) {
+      VStack(alignment: .leading, spacing: 12) {
+        if showReleaseGate {
+          MailboxProviderReleaseGateCard(
+            summary: store.mailboxProviderReleaseGateSummary,
+            store: store,
+            showMailboxLink: showMailboxLink,
+            showTasksLink: showTasksLink,
+            showAuditLink: showAuditLink
+          )
+        }
+        if showHandoffPacket {
+          MailboxProviderHandoffPacketCard(
+            packet: store.mailboxProviderHandoffPacketSummary,
+            store: store,
+            showTasksLink: showTasksLink,
+            showAuditLink: showAuditLink
+          )
+        }
+        if showTroubleshooting {
+          MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
+        }
+      }
+      .padding(.top, 10)
+    } label: {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: isExpanded ? "chevron.down.circle.fill" : "chevron.right.circle.fill")
+          .foregroundStyle(.secondary)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.headline)
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
 struct MailboxProviderReleaseGateCard: View {
   var summary: MailboxProviderReleaseGateSummary
   var store: ParcelOpsStore?

@@ -568,9 +568,7 @@ struct TasksView: View {
         header
         OperatorHandoffBriefCard(store: store, detail: "Summarize open follow-up before handing work to the next operator.")
         MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
-        MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store, showTasksLink: false)
-        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store, showTasksLink: false)
-        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
+        MailboxProviderAdvancedDiagnosticsDisclosure(store: store, showTasksLink: false)
         taskNextActionPanel
         taskResolutionLadderPanel
         taskScopePanel

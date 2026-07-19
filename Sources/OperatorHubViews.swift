@@ -364,8 +364,11 @@ struct InboxView: View {
         MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store, showInboxLink: false)
         mailboxProviderNextStepPanel
         mailboxProviderReleaseGatePanel
-        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
-        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
+        MailboxProviderAdvancedDiagnosticsDisclosure(
+          store: store,
+          detail: "Open this when the Inbox provider handoff or troubleshooting detail is needed. The primary Inbox queue stays focused on messages that need action.",
+          showReleaseGate: false
+        )
         SpaceMailPrimaryStatusStrip(store: store)
         SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
         SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
@@ -3110,8 +3113,11 @@ struct DispatchView: View {
         header
         dispatchSummaryPanel
         MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
-        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
-        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
+        MailboxProviderAdvancedDiagnosticsDisclosure(
+          store: store,
+          detail: "Open this when dispatch needs mailbox handoff evidence or troubleshooting detail. The dispatch queue stays focused on outbound work.",
+          showReleaseGate: false
+        )
         dispatchReadinessLadderPanel
         inboxDispatchSetupPanel
         dispatchQueuePanel

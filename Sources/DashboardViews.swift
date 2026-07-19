@@ -1101,9 +1101,10 @@ struct DashboardView: View {
         OperatorSupportSnapshotCard(store: store, detail: "Current support snapshot for the daily operator workflow.")
         OperatorTestSessionChecklistCard(store: store, detail: "Run this checklist when validating the current operator flow.")
         OperatorHandoffBriefCard(store: store, detail: "Current handoff notes for the next operator or test session.")
-        MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
-        MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
-        MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)
+        MailboxProviderAdvancedDiagnosticsDisclosure(
+          store: store,
+          detail: "Open this when validating provider release evidence. Keep it collapsed for normal daily start-screen use."
+        )
         mailboxDiagnosticDraftPanel
         OperatorMVPReadinessCard(store: store)
         LocalDataHygieneSummaryCard(
