@@ -166,8 +166,7 @@ struct CustodyChainView: View {
   }
 
   private var inboxCustodyCoverage: some View {
-    let inboxOrders = store.intakeLinkedOrders
-    let wishlistOrders = store.wishlistLinkedOrders
+    let sourceOrders = store.operatorSourceOrders
     let linkedRecords = custodyLinkedToInboxOrders
     let actionRecords = custodyNeedingAction
     let missingCustodyCount = inboxOrdersMissingCustody.count
@@ -218,7 +217,7 @@ struct CustodyChainView: View {
           }
         }
 
-        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+        if sourceOrders.isEmpty {
           Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before tracking custody.")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -260,7 +259,7 @@ struct CustodyChainView: View {
   private var custodyProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in store.intakeLinkedOrders {
+    for order in store.operatorSourceOrders {
       for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1

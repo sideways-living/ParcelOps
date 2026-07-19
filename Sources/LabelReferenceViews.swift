@@ -152,8 +152,7 @@ struct LabelReferencesView: View {
   }
 
   private var inboxLabelCoverage: some View {
-    let inboxOrders = store.intakeLinkedOrders
-    let wishlistOrders = store.wishlistLinkedOrders
+    let sourceOrders = store.operatorSourceOrders
     let linkedLabels = labelsLinkedToInboxOrders
     let actionLabels = labelsNeedingAction
     let missingLabelCount = inboxOrdersMissingLabel.count
@@ -204,7 +203,7 @@ struct LabelReferencesView: View {
           }
         }
 
-        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+        if sourceOrders.isEmpty {
           Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking label readiness.")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -246,7 +245,7 @@ struct LabelReferencesView: View {
   private var labelProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in store.intakeLinkedOrders {
+    for order in store.operatorSourceOrders {
       for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1

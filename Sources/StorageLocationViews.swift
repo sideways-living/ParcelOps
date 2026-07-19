@@ -161,8 +161,7 @@ struct StorageLocationsView: View {
   }
 
   private var inboxStorageCoverage: some View {
-    let inboxOrders = store.intakeLinkedOrders
-    let wishlistOrders = store.wishlistLinkedOrders
+    let sourceOrders = store.operatorSourceOrders
     let linkedLocations = locationsLinkedToInboxOrders
     let actionLocations = locationsNeedingStorageAction
     let missingStorageCount = inboxOrdersMissingStorage.count
@@ -213,7 +212,7 @@ struct StorageLocationsView: View {
           }
         }
 
-        if inboxOrders.isEmpty && wishlistOrders.isEmpty {
+        if sourceOrders.isEmpty {
           Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before assigning storage.")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -255,7 +254,7 @@ struct StorageLocationsView: View {
   private var storageProviderRows: [(label: String, count: Int, detail: String, symbol: String, color: Color)] {
     var counts: [String: Int] = [:]
     var tones: [String: String] = [:]
-    for order in store.intakeLinkedOrders {
+    for order in store.operatorSourceOrders {
       for email in store.linkedIntakeEmails(for: order) {
         let summary = store.intakeSourceSummary(for: email)
         counts[summary.label, default: 0] += 1
