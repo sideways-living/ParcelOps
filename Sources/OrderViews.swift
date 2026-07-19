@@ -27,6 +27,18 @@ struct OrdersView: View {
       .prefix(4)
       .map { $0 }
   }
+  private var wishlistLinkedOrderItems: [OrderQueueItem] {
+    store.wishlistLinkedOrders
+      .map(queueItem)
+      .sorted { first, second in
+        if first.wishlistHandoffPriority == second.wishlistHandoffPriority {
+          return first.order.orderNumber.localizedCaseInsensitiveCompare(second.order.orderNumber) == .orderedAscending
+        }
+        return first.wishlistHandoffPriority > second.wishlistHandoffPriority
+      }
+      .prefix(4)
+      .map { $0 }
+  }
   private var inboxCreatedOrderCount: Int {
     store.inboxCreatedOrderCount
   }
@@ -57,6 +69,13 @@ struct OrdersView: View {
   private var partialInboxOrderTaskCount: Int {
     store.reviewTasks.filter { task in
       task.status != .completed && task.isPartialInboxOrderFollowUp
+    }.count
+  }
+  private var wishlistLinkedOrderTrackingReviewCount: Int {
+    store.wishlistLinkedOrders.filter { order in
+      order.trackingNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || order.trackingNumber.isPlaceholderValidationValue
+        || order.trackingNumber.localizedCaseInsensitiveContains("pending")
     }.count
   }
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
@@ -244,6 +263,9 @@ struct OrdersView: View {
           ("Source orders", "\(inboxCreatedOrderCount)", inboxCreatedOrderCount == 0 ? .secondary : .teal),
           ("Source trail", "\(inboxCreatedOrdersWithSourceTrailCount)", inboxCreatedOrdersMissingSourceTrailCount == 0 ? .green : .orange),
           ("Actionable", "\(inboxCreatedOrdersActionableCount)", inboxCreatedOrdersActionableCount == 0 ? .green : .orange),
+          ("From Wishlist", "\(store.wishlistLinkedOrderCount)", store.wishlistLinkedOrderCount == 0 ? .secondary : .pink),
+          ("Wishlist tracking", "\(wishlistLinkedOrderTrackingReviewCount)", wishlistLinkedOrderTrackingReviewCount == 0 ? .green : .orange),
+          ("Wishlist dispatch", "\(store.wishlistLinkedOrderDispatchGapItemCount)", store.wishlistLinkedOrderDispatchGapItemCount == 0 ? .green : .purple),
           ("Mail fetched", "\(mailboxFetchedCount)", mailboxFetchedCount == 0 ? .secondary : .blue),
           ("Mail imported", "\(mailboxImportedCount)", mailboxImportedCount == 0 ? .secondary : .green),
           ("Mail filtered", "\(mailboxFilteredCount)", mailboxFilteredCount == 0 ? .secondary : .teal),
@@ -288,6 +310,24 @@ struct OrdersView: View {
         GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
 
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
+
+        if !wishlistLinkedOrderItems.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Wishlist order handoff", systemImage: "star.square.fill")
+              .font(.subheadline.weight(.semibold))
+            Text("Wishlist-linked orders stay visible here until tracking, source trail, and dispatch setup are locally reviewed.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(wishlistLinkedOrderItems) { item in
+              OrderWishlistHandoffMiniRow(item: item, store: store)
+            }
+          }
+          .padding(10)
+          .background(.pink.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          .overlay(RoundedRectangle(cornerRadius: 8).stroke(.pink.opacity(0.22)))
+        }
 
         if inboxCreatedOrderItems.isEmpty {
           OrdersInboxHandoffEmptyState(
@@ -615,14 +655,21 @@ struct OrdersView: View {
   }
 
   private func queueItem(for order: TrackedOrder) -> OrderQueueItem {
-    OrderQueueItem(
+    let wishlistItems = store.activeWishlistItemsLinked(to: order)
+    let wishlistDispatchGaps = Array(Set(wishlistItems.flatMap { item in
+      store.wishlistLinkedOrderDispatchGaps(for: item)
+    })).sorted()
+
+    return OrderQueueItem(
       order: order,
       trackingEvents: store.trackingEvents(for: order.id),
       tasks: store.tasks(for: .order, linkedEntityID: order.id.uuidString),
       manifests: store.suggestedShipmentManifestRecords(for: order),
       checklists: store.suggestedDispatchReadinessChecklists(for: order),
       sourceTrailCount: store.sourceTrailCount(for: order, includeWishlist: true),
-      mailboxSourceSummaries: store.mailboxSourceSummaries(for: order)
+      mailboxSourceSummaries: store.mailboxSourceSummaries(for: order),
+      wishlistItems: wishlistItems,
+      wishlistDispatchGaps: wishlistDispatchGaps
     )
   }
 
@@ -768,6 +815,76 @@ private struct OrderClosedWishlistSourceRow: View {
   }
 }
 
+private struct OrderWishlistHandoffMiniRow: View {
+  var item: OrderQueueItem
+  var store: ParcelOpsStore
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: item.needsWishlistTrackingReview ? "barcode.viewfinder" : "star.square.fill")
+        .foregroundStyle(item.handoffDecisionColor)
+        .frame(width: 22)
+
+      VStack(alignment: .leading, spacing: 5) {
+        HStack(alignment: .top, spacing: 8) {
+          VStack(alignment: .leading, spacing: 2) {
+            Text("\(item.order.store) • \(item.order.orderNumber)")
+              .font(.caption.weight(.semibold))
+            Text("\(item.wishlistItems.count) linked Wishlist item\(item.wishlistItems.count == 1 ? "" : "s")")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
+          Spacer(minLength: 8)
+          Badge(item.handoffDecisionBadge, color: item.handoffDecisionColor)
+        }
+
+        CompactMetadataGrid {
+          Badge(item.order.status.rawValue, color: item.order.status.color)
+          Badge(item.order.reviewState.rawValue, color: item.order.reviewState.color)
+          Badge(item.needsWishlistTrackingReview ? "Tracking review" : "Tracking present", color: item.needsWishlistTrackingReview ? .orange : .green)
+          if item.wishlistDispatchGaps.isEmpty {
+            Badge("Dispatch context ok", color: .green)
+          } else {
+            Badge("\(item.wishlistDispatchGaps.count) dispatch gap\(item.wishlistDispatchGaps.count == 1 ? "" : "s")", color: .purple)
+          }
+          Badge(item.sourceTrailCount > 0 ? "\(item.sourceTrailCount) source" : "Source missing", color: item.sourceTrailCount > 0 ? .green : .orange)
+        }
+
+        Text(item.handoffDecisionDetail)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          NavigationLink {
+            OrderDetailView(order: item.order, store: store)
+          } label: {
+            Label("Open order", systemImage: "arrow.right.circle.fill")
+          }
+
+          NavigationLink {
+            WishlistView(store: store)
+          } label: {
+            Label("Open Wishlist", systemImage: "star.square.fill")
+          }
+
+          NavigationLink {
+            DispatchView(store: store)
+          } label: {
+            Label("Open Dispatch", systemImage: "paperplane.fill")
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.background, in: RoundedRectangle(cornerRadius: 8))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
 private struct OrdersInboxHandoffEmptyState: View {
   var fetchedCount: Int
   var importedCount: Int
@@ -870,8 +987,29 @@ private struct OrderQueueItem: Identifiable {
   var checklists: [DispatchReadinessChecklist]
   var sourceTrailCount: Int
   var mailboxSourceSummaries: [OrderMailboxSourceSummary]
+  var wishlistItems: [WishlistItem]
+  var wishlistDispatchGaps: [String]
 
   var id: UUID { order.id }
+  var isWishlistLinked: Bool {
+    !wishlistItems.isEmpty
+  }
+  var needsWishlistTrackingReview: Bool {
+    isWishlistLinked
+      && (order.trackingNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || order.trackingNumber.isPlaceholderValidationValue
+        || order.trackingNumber.localizedCaseInsensitiveContains("pending"))
+  }
+  var wishlistHandoffPriority: Int {
+    guard isWishlistLinked else { return 0 }
+    if order.status == .exception || criticalTrackingCount > 0 { return 120 }
+    if needsWishlistTrackingReview { return 115 }
+    if !wishlistDispatchGaps.isEmpty { return 110 }
+    if order.reviewState != .accepted { return 100 }
+    if urgentTaskCount > 0 { return 90 }
+    if warningTrackingCount > 0 { return 80 }
+    return 50
+  }
   var warningTrackingCount: Int {
     trackingEvents.filter { $0.severity == .watch || $0.severity == .critical }.count
   }
@@ -906,6 +1044,8 @@ private struct OrderQueueItem: Identifiable {
   var operationalTimelineSignalCount: Int {
     1
       + (isInboxCreated ? 1 : 0)
+      + wishlistItems.count
+      + wishlistDispatchGaps.count
       + sourceTrailCount
       + tasks.count
       + manifests.count
@@ -936,6 +1076,7 @@ private struct OrderQueueItem: Identifiable {
       || order.latestStatus.localizedCaseInsensitiveContains("acceptance")
   }
   var inboxHandoffLabel: String {
+    if isWishlistLinked && !isInboxCreated { return "Wishlist-linked order" }
     if order.source == .forwardedMailbox { return "Mailbox-created order" }
     if order.latestStatus.localizedCaseInsensitiveContains("acceptance") { return "Acceptance-created order" }
     if order.latestStatus.localizedCaseInsensitiveContains("import queue") || order.checkedMailbox == "manual-import" { return "Import-created order" }
@@ -983,7 +1124,7 @@ private struct OrderQueueItem: Identifiable {
   var riskLabel: String {
     if order.status == .exception || criticalTrackingCount > 0 || blockedDispatchCount > 0 {
       "High risk"
-    } else if warningTrackingCount > 0 || urgentTaskCount > 0 || order.reviewState != .accepted {
+    } else if needsWishlistTrackingReview || !wishlistDispatchGaps.isEmpty || warningTrackingCount > 0 || urgentTaskCount > 0 || order.reviewState != .accepted {
       "Needs attention"
     } else if order.status == .delivered {
       "Complete"
@@ -1002,6 +1143,10 @@ private struct OrderQueueItem: Identifiable {
   var nextAction: String {
     if partialInboxTaskCount > 0 || missingDetectedFieldCount > 0 {
       "Verify missing intake details"
+    } else if needsWishlistTrackingReview {
+      "Confirm Wishlist tracking"
+    } else if !wishlistDispatchGaps.isEmpty {
+      "Stage Wishlist dispatch setup"
     } else if order.reviewState != .accepted {
       "Review order details"
     } else if order.status == .exception || criticalTrackingCount > 0 {
@@ -1019,6 +1164,12 @@ private struct OrderQueueItem: Identifiable {
     }
   }
   var handoffDecisionTitle: String {
+    if isWishlistLinked && needsWishlistTrackingReview {
+      return "Wishlist order needs tracking"
+    }
+    if isWishlistLinked && !wishlistDispatchGaps.isEmpty {
+      return "Wishlist dispatch setup is next"
+    }
     if !isInboxCreated {
       return riskLabel == "High risk" ? "Resolve order risk" : "Continue normal order monitoring"
     }
@@ -1040,6 +1191,12 @@ private struct OrderQueueItem: Identifiable {
     return "Inbox handoff is ready"
   }
   var handoffDecisionDetail: String {
+    if isWishlistLinked && needsWishlistTrackingReview {
+      return "\(wishlistItems.count) Wishlist item\(wishlistItems.count == 1 ? "" : "s") linked to this order. Confirm the tracking number before treating the purchase handoff as ready."
+    }
+    if isWishlistLinked && !wishlistDispatchGaps.isEmpty {
+      return "Linked Wishlist purchase has dispatch setup gaps: \(wishlistDispatchGaps.prefix(2).joined(separator: ", "))."
+    }
     if !isInboxCreated {
       if urgentTaskCount > 0 {
         return "\(urgentTaskCount) urgent or overdue order task needs action before routine monitoring."
@@ -1070,6 +1227,8 @@ private struct OrderQueueItem: Identifiable {
     return "Source trail and review state are clear. Continue monitoring dispatch, tracking, and linked tasks."
   }
   var handoffDecisionBadge: String {
+    if isWishlistLinked && needsWishlistTrackingReview { return "Wishlist tracking" }
+    if isWishlistLinked && !wishlistDispatchGaps.isEmpty { return "Wishlist dispatch" }
     if !isInboxCreated { return riskLabel }
     if partialInboxTaskCount > 0 || missingDetectedFieldCount > 0 { return "Verify" }
     if sourceTrailCount == 0 { return "Trace" }
@@ -1079,6 +1238,8 @@ private struct OrderQueueItem: Identifiable {
     return "Ready"
   }
   var handoffDecisionColor: Color {
+    if isWishlistLinked && needsWishlistTrackingReview { return .orange }
+    if isWishlistLinked && !wishlistDispatchGaps.isEmpty { return .purple }
     if !isInboxCreated { return riskColor }
     if order.status == .exception || criticalTrackingCount > 0 { return .red }
     if partialInboxTaskCount > 0 || missingDetectedFieldCount > 0 || sourceTrailCount == 0 || order.reviewState != .accepted { return .orange }
@@ -1086,6 +1247,8 @@ private struct OrderQueueItem: Identifiable {
     return .green
   }
   var handoffDecisionSymbol: String {
+    if isWishlistLinked && needsWishlistTrackingReview { return "barcode.viewfinder" }
+    if isWishlistLinked && !wishlistDispatchGaps.isEmpty { return "paperplane.fill" }
     if !isInboxCreated { return order.status == .exception ? "exclamationmark.triangle.fill" : "shippingbox.fill" }
     if partialInboxTaskCount > 0 || missingDetectedFieldCount > 0 { return "checklist.unchecked" }
     if sourceTrailCount == 0 { return "link.badge.plus" }
@@ -1099,6 +1262,7 @@ private struct OrderQueueItem: Identifiable {
     if criticalTrackingCount > 0 { return 110 }
     if blockedDispatchCount > 0 { return 105 }
     if partialInboxTaskCount > 0 || missingDetectedFieldCount > 0 { return 100 }
+    if needsWishlistTrackingReview || !wishlistDispatchGaps.isEmpty { return 98 }
     if urgentTaskCount > 0 { return 95 }
     if order.reviewState != .accepted { return 90 }
     if warningTrackingCount > 0 { return 80 }
@@ -1195,6 +1359,15 @@ private struct OrderQueueRow: View {
                 Badge(source.badgeLabel, color: mailboxSourceColor(source))
               }
             }
+            if item.isWishlistLinked {
+              Badge("\(item.wishlistItems.count) Wishlist", color: .pink)
+              if item.needsWishlistTrackingReview {
+                Badge("Wishlist tracking", color: .orange)
+              }
+              if !item.wishlistDispatchGaps.isEmpty {
+                Badge("\(item.wishlistDispatchGaps.count) Wishlist dispatch", color: .purple)
+              }
+            }
             if item.partialInboxTaskCount > 0 {
               Badge("\(item.partialInboxTaskCount) verify", color: .orange)
             }
@@ -1237,6 +1410,13 @@ private struct OrderQueueRow: View {
               Label(mailboxSourceTraceText(item.mailboxSourceSummaries), systemImage: "envelope.badge.fill")
                 .font(.caption)
                 .foregroundStyle(.teal)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if item.isWishlistLinked {
+              Label(wishlistSourceTraceText(item), systemImage: "star.square.fill")
+                .font(.caption)
+                .foregroundStyle(item.needsWishlistTrackingReview || !item.wishlistDispatchGaps.isEmpty ? .orange : .pink)
                 .fixedSize(horizontal: false, vertical: true)
             }
           }
@@ -1328,6 +1508,16 @@ private struct OrderQueueRow: View {
     summaries.prefix(2)
       .map { "\($0.providerName) via \($0.mailboxLabel)" }
       .joined(separator: "; ")
+  }
+
+  private func wishlistSourceTraceText(_ item: OrderQueueItem) -> String {
+    if item.needsWishlistTrackingReview {
+      return "Wishlist purchase is linked; confirm tracking before dispatch handoff."
+    }
+    if !item.wishlistDispatchGaps.isEmpty {
+      return "Wishlist dispatch setup gaps: \(item.wishlistDispatchGaps.prefix(2).joined(separator: ", "))."
+    }
+    return "Wishlist purchase source is linked to this order."
   }
 
   private func mailboxSourceColor(_ summary: OrderMailboxSourceSummary) -> Color {
