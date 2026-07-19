@@ -1885,7 +1885,7 @@ final class ParcelOpsStore {
     let blockers = mailboxReleaseBlockerSummary
     let releasePlan = mailboxReleaseTestPlanSummary
     let timeline = mailboxRunTimelineSummary
-    let providerCount = spaceMailIMAPConnections.count + gmailMailboxConnections.count
+    let providerCount = spaceMailIMAPConnections.count + gmailMailboxConnections.count + microsoft365MailboxConnections.count
     let optionalProviderNames = setup.providers
       .filter { provider in
         provider.tone == "neutral"
@@ -1896,6 +1896,12 @@ final class ParcelOpsStore {
     let gmailReadinessSummaries = gmailMailboxConnections.map(gmailOAuthReadinessSummary(for:))
     let gmailReadinessBlockers = gmailReadinessSummaries.filter { !$0.isReady }
     let gmailReadinessBlockerPreview = gmailReadinessBlockers
+      .flatMap(\.missingFields)
+      .prefix(3)
+      .joined(separator: ", ")
+    let microsoft365ReadinessSummaries = microsoft365MailboxConnections.map(microsoft365OAuthReadinessSummary(for:))
+    let microsoft365ReadinessBlockers = microsoft365ReadinessSummaries.filter { !$0.isReady }
+    let microsoft365ReadinessBlockerPreview = microsoft365ReadinessBlockers
       .flatMap(\.missingFields)
       .prefix(3)
       .joined(separator: ", ")
@@ -1974,6 +1980,21 @@ final class ParcelOpsStore {
         isPassed: gmailMailboxConnections.isEmpty || gmailReadinessBlockers.isEmpty,
         tone: gmailMailboxConnections.isEmpty ? "neutral" : (gmailReadinessBlockers.isEmpty ? "success" : "warning"),
         symbol: "g.circle.fill"
+      ),
+      MailboxProviderReleaseGateItem(
+        title: "Outlook OAuth readiness",
+        requirement: "Configured Outlook/Microsoft 365 providers must have saved non-secret Entra/OAuth values before real sign-in and Graph refresh are relied on.",
+        evidence: microsoft365MailboxConnections.isEmpty
+          ? "No Outlook setup is configured; Outlook remains optional for non-Microsoft mailboxes."
+          : "\(microsoft365ReadinessBlockers.count) of \(microsoft365MailboxConnections.count) Outlook setup\(microsoft365MailboxConnections.count == 1 ? "" : "s") still have OAuth/client/redirect/scope blockers\(microsoft365ReadinessBlockerPreview.isEmpty ? "." : ": \(microsoft365ReadinessBlockerPreview).")",
+        nextAction: microsoft365MailboxConnections.isEmpty
+          ? "Leave Outlook unconfigured unless a mailbox is hosted by Microsoft 365 or Outlook."
+          : microsoft365ReadinessBlockers.isEmpty
+            ? "Proceed with explicit Microsoft sign-in and manual read-only Graph refresh testing when needed."
+            : "Update saved Outlook setup values before relying on Microsoft sign-in or Graph mailbox refresh.",
+        isPassed: microsoft365MailboxConnections.isEmpty || microsoft365ReadinessBlockers.isEmpty,
+        tone: microsoft365MailboxConnections.isEmpty ? "neutral" : (microsoft365ReadinessBlockers.isEmpty ? "success" : "warning"),
+        symbol: "mail.stack.fill"
       ),
       MailboxProviderReleaseGateItem(
         title: "Manual refresh evidence exists",
@@ -2145,13 +2166,15 @@ final class ParcelOpsStore {
     let hasDuplicateEvidence = !mailboxIngestRecords.isEmpty
       || spaceMailIMAPConnections.contains { $0.lastRefreshDuplicateCount > 0 }
       || gmailMailboxConnections.contains { $0.lastRefreshDuplicateCount > 0 }
-    let hasMixedFilteringEvidence = spaceMailIMAPConnections.contains { connection in
+      || microsoft365MailboxConnections.contains { $0.lastRefreshDuplicateCount > 0 }
+    let hasSpaceMailMixedFilteringEvidence = spaceMailIMAPConnections.contains { connection in
       connection.mailboxMode == .mixedFiltered
         && (connection.lastRefreshFilteredNonOrderCount > 0
           || !connection.filteredMessages.isEmpty
           || !connection.uncertainMessages.isEmpty
           || !connection.lastRefreshReasonBreakdown.isEmpty)
-    } || gmailMailboxConnections.contains { connection in
+    }
+    let hasGmailMixedFilteringEvidence = gmailMailboxConnections.contains { connection in
       connection.mailboxMode == .mixedFiltered
         && (connection.lastRefreshFilteredNonOrderCount > 0
           || connection.filteredMessages?.isEmpty == false
@@ -2159,6 +2182,17 @@ final class ParcelOpsStore {
           || connection.lastRefreshFilteredExamples?.isEmpty == false
           || connection.lastRefreshUncertainExamples?.isEmpty == false)
     }
+    let hasMicrosoft365MixedFilteringEvidence = microsoft365MailboxConnections.contains { connection in
+      connection.mailboxMode == .mixedFiltered
+        && (connection.lastRefreshFilteredNonOrderCount > 0
+          || !connection.filteredMessages.isEmpty
+          || !connection.uncertainMessages.isEmpty
+          || !connection.lastRefreshFilteredExamples.isEmpty
+          || !connection.lastRefreshUncertainExamples.isEmpty)
+    }
+    let hasMixedFilteringEvidence = hasSpaceMailMixedFilteringEvidence
+      || hasGmailMixedFilteringEvidence
+      || hasMicrosoft365MixedFilteringEvidence
     let hasReadOnlyAuditEvidence = auditEvents.contains { event in
       let detail = event.afterDetail ?? ""
       return detail.localizedCaseInsensitiveContains("read-only")
@@ -2178,8 +2212,10 @@ final class ParcelOpsStore {
     let providerSplitClear = hasSpaceMailSetup || hasGmailSetup || hasMicrosoft365Setup
     let importedCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
       + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+      + microsoft365MailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
     let filteredCount = spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
       + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+      + microsoft365MailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
 
     let providerEvidence: String
     let configuredProviderNames = [
