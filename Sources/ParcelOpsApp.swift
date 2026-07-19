@@ -130,6 +130,10 @@ struct ParcelOpsRootView: View {
     store.latestGmailIntakeHealthSummary
   }
 
+  private var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary? {
+    store.latestMicrosoft365IntakeHealthSummary
+  }
+
   private var hasSpaceMailSetup: Bool {
     !store.spaceMailIMAPConnections.isEmpty
   }
@@ -138,8 +142,12 @@ struct ParcelOpsRootView: View {
     !store.gmailMailboxConnections.isEmpty
   }
 
+  private var hasMicrosoft365Setup: Bool {
+    !store.microsoft365MailboxConnections.isEmpty
+  }
+
   private var hasLiveMailboxSetup: Bool {
-    hasSpaceMailSetup || hasGmailSetup
+    hasSpaceMailSetup || hasGmailSetup || hasMicrosoft365Setup
   }
 
   private var hasSpaceMailCredentialReference: Bool {
@@ -153,8 +161,14 @@ struct ParcelOpsRootView: View {
     store.hasGmailConnectedAuth
   }
 
+  private var hasMicrosoft365ConnectedAuth: Bool {
+    store.microsoft365MailboxConnections.contains {
+      store.microsoft365AuthSessionState(for: $0).status == .connected
+    }
+  }
+
   private var hasLiveMailboxCredentialOrAuth: Bool {
-    hasSpaceMailCredentialReference || hasGmailConnectedAuth
+    hasSpaceMailCredentialReference || hasGmailConnectedAuth || hasMicrosoft365ConnectedAuth
   }
 
   private var hasRealMailboxRefreshEvidence: Bool {
@@ -162,6 +176,8 @@ struct ParcelOpsRootView: View {
       || store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
       || (latestGmailSummary?.fetchedCount ?? 0) > 0
       || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+      || (latestMicrosoft365Summary?.fetchedCount ?? 0) > 0
+      || store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
   }
 
   private var hasInboxOrderHandoff: Bool {

@@ -1362,7 +1362,7 @@ struct AuditView: View {
         }
 
         if recentEvents.isEmpty {
-          MVPEmptyState(title: normalizedAuditSearch.isEmpty ? "No audit activity yet" : "No audit events match", detail: normalizedAuditSearch.isEmpty ? "Create, edit, review, or complete a local record and the action will appear here." : "Clear the audit search or try a broader term such as mailbox, Gmail, SpaceMail, order, Inbox, tracking, parser, or the record label.", symbol: "list.clipboard.fill")
+          MVPEmptyState(title: normalizedAuditSearch.isEmpty ? "No audit activity yet" : "No audit events match", detail: normalizedAuditSearch.isEmpty ? "Create, edit, review, or complete a local record and the action will appear here." : "Clear the audit search or try a broader term such as mailbox, Gmail, SpaceMail, Outlook, order, Inbox, tracking, parser, or the record label.", symbol: "list.clipboard.fill")
         } else {
           Toggle("Show technical diagnostics", isOn: $showTechnicalDiagnostics)
             .font(.caption.weight(.semibold))

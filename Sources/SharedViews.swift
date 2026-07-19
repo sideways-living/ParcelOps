@@ -2651,7 +2651,7 @@ struct SpaceMailTestRunGuide: View {
   }
 
   private var steps: [String] {
-    [
+    return [
       "Confirm the SpaceMail row shows host, folder, SSL/TLS, mixed mailbox mode, and a Keychain password reference.",
       "Run real SpaceMail refresh manually. It must stay read-only and should show fetched, imported, duplicate, filtered, and uncertain counts.",
       "Review imported Inbox rows. Check the readiness strip before creating or linking an order.",
@@ -7245,6 +7245,10 @@ struct OperatorHandoffBriefCard: View {
     store.latestGmailIntakeHealthSummary
   }
 
+  private var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary? {
+    store.latestMicrosoft365IntakeHealthSummary
+  }
+
   private var inboxLinkedOrderCount: Int {
     Set(store.intakeEmails.compactMap(\.linkedOrderID)).count
   }
@@ -7295,12 +7299,15 @@ struct OperatorHandoffBriefCard: View {
   }
 
   private var handoffLines: [(String, String, String, Color)] {
-    [
+    let hasAnyProviderSummary = latestSpaceMailSummary != nil || latestGmailSummary != nil || latestMicrosoft365Summary != nil
+    let hasProviderWarning = latestSpaceMailSummary?.tone == "warning" || latestGmailSummary?.tone == "warning" || latestMicrosoft365Summary?.tone == "warning"
+
+    return [
       (
         "Mailbox intake",
         mailboxLine,
         "mail.stack.fill",
-        latestSpaceMailSummary == nil && latestGmailSummary == nil ? .orange : (latestSpaceMailSummary?.tone == "warning" || latestGmailSummary?.tone == "warning" ? .red : .teal)
+        hasAnyProviderSummary ? (hasProviderWarning ? Color.red : Color.teal) : Color.orange
       ),
       (
         "Inbox and orders",
@@ -7353,7 +7360,7 @@ struct OperatorHandoffBriefCard: View {
   }
 
   private var tone: Color {
-    if latestSpaceMailSummary == nil && latestGmailSummary == nil { return .orange }
+    if latestSpaceMailSummary == nil && latestGmailSummary == nil && latestMicrosoft365Summary == nil { return .orange }
     if attentionCount == 0 { return .green }
     if attentionCount <= 5 { return .orange }
     return .red

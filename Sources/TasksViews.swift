@@ -2505,7 +2505,7 @@ private struct TaskQueueItem: Identifiable {
         return "Review Outlook setup, Microsoft sign-in, Graph refresh evidence, or diagnostic context before acknowledging/completing this shift note."
       }
       if isMailboxProviderFollowUp {
-        return "Review Mailbox Monitor provider setup, Gmail/SpaceMail refresh evidence, or release gate context before acknowledging/completing this shift note."
+        return "Review Mailbox Monitor provider setup, SpaceMail/Gmail/Outlook refresh evidence, or release gate context before acknowledging/completing this shift note."
       }
       if isWishlistFollowUp {
         return "Review Wishlist purchase, order-watch, or linked order context before acknowledging or completing this shift note."

@@ -7613,7 +7613,7 @@ struct SettingsView: View {
   }
 
   private var showsActiveSetup: Bool {
-    matchesSettingsSection("active", "setup", "SpaceMail", "Gmail", "Google", "mailbox", "credential", "Keychain", "manual", "refresh")
+    matchesSettingsSection("active", "setup", "SpaceMail", "Gmail", "Google", "Outlook", "Microsoft", "Graph", "mailbox", "credential", "Keychain", "manual", "refresh")
   }
 
   private var showsLocalOnlyStatus: Bool {

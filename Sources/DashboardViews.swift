@@ -804,7 +804,7 @@ struct DashboardView: View {
   }
   private var visibleDashboardMatchCount: Int {
     [
-      dashboardMatches("inbox", "mailbox", "spacemail", "gmail", "google", "email", "parser", "import", "acceptance", "triage", "intake"),
+      dashboardMatches("inbox", "mailbox", "spacemail", "gmail", "google", "outlook", "microsoft", "email", "parser", "import", "acceptance", "triage", "intake"),
       dashboardMatches("orders", "order", "tracking", "customer", "destination", "inbox-created"),
       dashboardMatches("workbench", "exception", "validation", "reconciliation", "high-priority"),
       dashboardMatches("dispatch", "manifest", "readiness", "outbound", "handoff", "reopened"),
@@ -812,7 +812,7 @@ struct DashboardView: View {
       dashboardMatches("wishlist", "purchase", "seller", "shopping", "handoff", "ready to buy", "batch", "research brief", "agent"),
       dashboardMatches("settings", "setup", "placeholder", "shopify", "folder", "login", "local-only"),
       dashboardMatches("audit", "activity", "history", "record change", "workflow"),
-      dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "gmail", "google", "parser", "import", "acceptance"),
+      dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "gmail", "google", "outlook", "microsoft", "parser", "import", "acceptance"),
       dashboardMatches("active problem orders", "orders", "tracking", "inbox-created", "source", "trail", "customer", "destination"),
       dashboardMatches("dispatch readiness", "dispatch", "manifest", "readiness", "blocked", "undispatched", "reopened"),
       dashboardMatches("open tasks handoffs drafts", "tasks", "handoff", "draft", "overdue", "high"),
@@ -2028,7 +2028,7 @@ struct DashboardView: View {
         MailboxProviderOperatorReadinessStack(
           store: store,
           title: "Combined provider intake",
-          detail: "Use this compact provider summary as the Dashboard entry point. Open advanced evidence only when release gates, setup, Gmail, SpaceMail, or parser decisions need investigation."
+          detail: "Use this compact provider summary as the Dashboard entry point. Open advanced evidence only when release gates, setup, Gmail, SpaceMail, Outlook, or parser decisions need investigation."
         )
 
         DisclosureGroup {
@@ -2296,7 +2296,7 @@ struct DashboardView: View {
         }
 
         LazyVGrid(columns: sectionColumns, alignment: .leading, spacing: 12) {
-          if dashboardMatches("inbox", "mailbox", "spacemail", "gmail", "google", "email", "parser", "import", "acceptance", "triage", "intake") {
+        if dashboardMatches("inbox", "mailbox", "spacemail", "gmail", "google", "outlook", "microsoft", "email", "parser", "import", "acceptance", "triage", "intake") {
             OperatorDashboardCard(
               title: "Inbox",
               count: incomingAttentionCount,
@@ -2403,7 +2403,7 @@ struct DashboardView: View {
       }
 
       LazyVGrid(columns: sectionColumns, alignment: .leading, spacing: 14) {
-        if dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "gmail", "google", "parser", "import", "acceptance") {
+        if dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "gmail", "google", "outlook", "microsoft", "parser", "import", "acceptance") {
           AnalyticsSection(title: "Incoming order intake", symbol: "tray.full.fill") {
             MetricStrip(items: [
               ("Triage", "\(incomingAttentionCount)", incomingAttentionCount == 0 ? .green : .orange),

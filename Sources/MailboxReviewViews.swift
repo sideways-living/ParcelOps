@@ -3828,7 +3828,7 @@ struct NeedsReviewView: View {
   private var showsTrackingEvents: Bool { matchesReviewSection("tracking", "carrier", "events", "shipment") }
   private var showsTaskEscalations: Bool { matchesReviewSection("task", "escalations", "review tasks", "follow-up") }
   private var showsHandoffNotes: Bool { matchesReviewSection("handoff", "notes", "shift", "assigned") }
-  private var showsMailboxProviderHandoff: Bool { matchesReviewSection("mailbox", "provider", "handoff", "release", "gate", "spacemail", "gmail") }
+  private var showsMailboxProviderHandoff: Bool { matchesReviewSection("mailbox", "provider", "handoff", "release", "gate", "spacemail", "gmail", "outlook", "microsoft", "graph") }
   private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
     store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
   }
@@ -3980,7 +3980,7 @@ struct NeedsReviewView: View {
         }
 
         if visiblePrimaryReviewSectionCount == 0 {
-          MVPEmptyState(title: "No review sections match", detail: "Clear the review search or try Inbox, Workbench, validation, tracking, tasks, handoff, SpaceMail, Gmail, import, acceptance, evidence, or dispatch.", symbol: "magnifyingglass")
+          MVPEmptyState(title: "No review sections match", detail: "Clear the review search or try Inbox, Workbench, validation, tracking, tasks, handoff, SpaceMail, Gmail, Outlook, import, acceptance, evidence, or dispatch.", symbol: "magnifyingglass")
         }
 
         NeedsReviewSectionHeader(

@@ -616,7 +616,7 @@ struct OperationsWorkbenchView: View {
     [
       ReleaseBlockerRow(
         title: "Mailbox provider ready",
-        detail: releaseProviderReadyCount > 0 ? "\(releaseProviderReadyCount) provider path has usable local credential or sign-in state." : "Set up SpaceMail or Gmail before relying on live intake.",
+        detail: releaseProviderReadyCount > 0 ? "\(releaseProviderReadyCount) provider path has usable local credential or sign-in state." : "Set up SpaceMail, Gmail, or Outlook before relying on live intake.",
         count: releaseProviderReadyCount,
         symbol: "server.rack",
         color: releaseProviderReadyCount > 0 ? .green : .orange,
