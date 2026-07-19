@@ -1282,11 +1282,18 @@ final class ParcelOpsStore {
       "mailbox-release-readiness",
       "mailbox-provider-release-gate"
     ]
+    let microsoft365ReleaseConnectionIDs = Set(microsoft365MailboxConnections.map { $0.id.uuidString })
     let releaseQATasks = reviewTasks.filter {
       $0.linkedEntityType == .integration && releaseQATaskIDs.contains($0.linkedEntityID)
     }
-    let openReleaseQATaskCount = releaseQATasks.filter { $0.status != .completed }.count
-    let completedReleaseQATaskCount = releaseQATasks.filter { $0.status == .completed }.count
+    let microsoft365ReleaseQATasks = reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && microsoft365ReleaseConnectionIDs.contains($0.linkedEntityID)
+        && $0.title.localizedCaseInsensitiveContains("Outlook release self-check")
+    }
+    let allReleaseQATasks = releaseQATasks + microsoft365ReleaseQATasks
+    let openReleaseQATaskCount = allReleaseQATasks.filter { $0.status != .completed }.count
+    let completedReleaseQATaskCount = allReleaseQATasks.filter { $0.status == .completed }.count
 
     let providerLines = comparison.providers.map { provider in
       "\(provider.providerName): \(provider.statusTitle). \(provider.fetchedCount) fetched, \(provider.importedCount) imported, \(provider.uncertainCount) uncertain, \(provider.blockedCount) blockers. Next: \(provider.nextAction)"
@@ -1307,7 +1314,7 @@ final class ParcelOpsStore {
     let releaseLines = releasePlan.steps.filter { !$0.isComplete }.prefix(6).map { step in
       "\(step.title): \(step.nextAction)"
     }
-    let releaseQALines = releaseQATaskIDs.map { taskID in
+    let fixedReleaseQALines = releaseQATaskIDs.map { taskID in
       let tasks = releaseQATasks.filter { $0.linkedEntityID == taskID }
       let open = tasks.filter { $0.status != .completed }.count
       let completed = tasks.filter { $0.status == .completed }.count
@@ -1324,6 +1331,11 @@ final class ParcelOpsStore {
       }
       return "\(label): \(tasks.count) task\(tasks.count == 1 ? "" : "s"), \(open) open, \(completed) completed."
     }
+    let outlookOpen = microsoft365ReleaseQATasks.filter { $0.status != .completed }.count
+    let outlookCompleted = microsoft365ReleaseQATasks.filter { $0.status == .completed }.count
+    let releaseQALines = fixedReleaseQALines + [
+      "Outlook release self-check: \(microsoft365ReleaseQATasks.count) task\(microsoft365ReleaseQATasks.count == 1 ? "" : "s"), \(outlookOpen) open, \(outlookCompleted) completed."
+    ]
 
     let sections = [
       MailboxProviderHandoffPacketSection(
@@ -1933,10 +1945,17 @@ final class ParcelOpsStore {
           "mailbox-release-readiness"
         ].contains($0.linkedEntityID)
     }
+    let microsoft365ReleaseConnectionIDs = Set(microsoft365MailboxConnections.map { $0.id.uuidString })
+    let microsoft365ReleaseSnapshotTasks = reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && microsoft365ReleaseConnectionIDs.contains($0.linkedEntityID)
+        && $0.title.localizedCaseInsensitiveContains("Outlook release self-check")
+    }
+    let providerReleaseSnapshotTasks = releaseSnapshotTasks + microsoft365ReleaseSnapshotTasks
     let openReleaseGateTaskCount = releaseGateTasks.filter { $0.status != .completed }.count
     let completedReleaseGateTaskCount = releaseGateTasks.filter { $0.status == .completed }.count
-    let openReleaseSnapshotTaskCount = releaseSnapshotTasks.filter { $0.status != .completed }.count
-    let completedReleaseSnapshotTaskCount = releaseSnapshotTasks.filter { $0.status == .completed }.count
+    let openReleaseSnapshotTaskCount = providerReleaseSnapshotTasks.filter { $0.status != .completed }.count
+    let completedReleaseSnapshotTaskCount = providerReleaseSnapshotTasks.filter { $0.status == .completed }.count
     let refreshEvidenceCount = timeline.entries.count
     let fetchedCount = totalMailboxFetchedCount
     let importedCount = totalMailboxImportedCount
@@ -2071,7 +2090,7 @@ final class ParcelOpsStore {
       MailboxProviderReleaseGateItem(
         title: "Release validation checkpoint recorded",
         requirement: "Before release-candidate use, capture the current mailbox provider gate as a local review task.",
-        evidence: "\(releaseGateTasks.count) release gate task\(releaseGateTasks.count == 1 ? "" : "s") recorded, \(openReleaseGateTaskCount) open, \(completedReleaseGateTaskCount) completed. \(releaseSnapshotTasks.count) provider snapshot task\(releaseSnapshotTasks.count == 1 ? "" : "s") recorded, \(openReleaseSnapshotTaskCount) open, \(completedReleaseSnapshotTaskCount) completed.",
+        evidence: "\(releaseGateTasks.count) release gate task\(releaseGateTasks.count == 1 ? "" : "s") recorded, \(openReleaseGateTaskCount) open, \(completedReleaseGateTaskCount) completed. \(providerReleaseSnapshotTasks.count) provider snapshot/self-check task\(providerReleaseSnapshotTasks.count == 1 ? "" : "s") recorded, \(openReleaseSnapshotTaskCount) open, \(completedReleaseSnapshotTaskCount) completed.",
         nextAction: openReleaseGateTaskCount + openReleaseSnapshotTaskCount == 0
           ? "Create a provider release gate task or a provider snapshot task before the next hands-on test pass."
           : "Keep release gate and provider snapshot tasks current if setup or refresh evidence changes.",
