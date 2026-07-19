@@ -196,30 +196,31 @@ struct DispatchReadinessView: View {
   }
 
   private var inboxReadinessCoverage: some View {
-    let inboxOrders = store.intakeLinkedOrders
+    let sourceOrders = store.operatorSourceOrders
     let linkedChecklists = checklistsLinkedToInboxOrders
     let actionChecklists = checklistsNeedingAction
     let missingChecklistCount = inboxOrdersMissingChecklist.count
 
-    return SettingsPanel(title: "Inbox readiness coverage", symbol: "checkmark.rectangle.stack.fill") {
+    return SettingsPanel(title: "Source order readiness coverage", symbol: "checkmark.rectangle.stack.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake have a local go/no-go checklist for labels, scans, custody, manifests, and handoff requirements.")
+        Text("Checks whether orders created from Inbox intake or linked from Wishlist purchase handoff have a local go/no-go checklist for labels, scans, custody, manifests, and handoff requirements.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedChecklists.count) linked checks", color: .teal)
           Badge("\(actionChecklists.count) need action", color: actionChecklists.isEmpty ? .green : .orange)
           Badge("\(missingChecklistCount) missing checks", color: missingChecklistCount == 0 ? .green : .orange)
         }
 
-        if inboxOrders.isEmpty {
-          Text("No source-created orders are present yet. Create an order from Inbox before checking dispatch readiness.")
+        if sourceOrders.isEmpty {
+          Text("No source-created orders are present yet. Create an order from Inbox or link a Wishlist purchase before checking dispatch readiness.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedChecklists.isEmpty {
-          Text("Source-created orders do not have readiness checklists yet. Add or create a checklist before outbound handoff.")
+          Text("Source-created and Wishlist-linked orders do not have readiness checklists yet. Add or create a checklist before outbound handoff.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -291,7 +292,7 @@ struct DispatchReadinessView: View {
 
 
   private var checklistsLinkedToInboxOrders: [DispatchReadinessChecklist] {
-    let orderIDs = Set(store.intakeLinkedOrders.map(\.id))
+    let orderIDs = Set(store.operatorSourceOrders.map(\.id))
     let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -338,7 +339,7 @@ struct DispatchReadinessView: View {
 
   private var inboxOrdersMissingChecklist: [TrackedOrder] {
     let checklistOrderIDs = Set(checklistsLinkedToInboxOrders.flatMap(\.orderIDs))
-    return store.intakeLinkedOrders.filter { order in
+    return store.operatorSourceOrders.filter { order in
       !checklistOrderIDs.contains(order.id)
         && !checklistsLinkedToInboxOrders.contains { checklist in
           checklist.linkedEntityType == .order && UUID(uuidString: checklist.linkedEntityID) == order.id

@@ -203,7 +203,7 @@ struct ShipmentManifestsView: View {
   }
 
   private var inboxManifestCoverage: some View {
-    let inboxOrders = store.intakeLinkedOrders
+    let sourceOrders = store.operatorSourceOrders
     let linkedManifests = manifestsLinkedToInboxOrders
     let actionManifests = manifestsNeedingAction
     let missingManifestCount = inboxOrdersMissingManifest.count
@@ -216,12 +216,13 @@ struct ShipmentManifestsView: View {
 
         CompactMetadataGrid(minimumWidth: 150) {
           Badge("\(store.intakeLinkedOrderCount) Inbox orders", color: .blue)
+          Badge("\(store.wishlistLinkedOrderCount) Wishlist orders", color: .pink)
           Badge("\(linkedManifests.count) linked manifests", color: .teal)
           Badge("\(actionManifests.count) need action", color: actionManifests.isEmpty ? .green : .orange)
           Badge("\(missingManifestCount) missing manifests", color: missingManifestCount == 0 ? .green : .orange)
         }
 
-        if inboxOrders.isEmpty {
+        if sourceOrders.isEmpty {
           Text("No source-created orders are present yet. Create or link an order from Inbox or Wishlist before checking manifest readiness.")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -301,7 +302,7 @@ struct ShipmentManifestsView: View {
 
 
   private var manifestsLinkedToInboxOrders: [ShipmentManifestRecord] {
-    let orderIDs = Set(store.intakeLinkedOrders.map(\.id))
+    let orderIDs = Set(store.operatorSourceOrders.map(\.id))
     let receiptIDs = Set(store.inventoryReceipts.filter { receipt in
       if let orderID = receipt.orderID, orderIDs.contains(orderID) {
         return true
@@ -339,7 +340,7 @@ struct ShipmentManifestsView: View {
 
   private var inboxOrdersMissingManifest: [TrackedOrder] {
     let manifestOrderIDs = Set(manifestsLinkedToInboxOrders.flatMap(\.includedOrderIDs))
-    return store.intakeLinkedOrders.filter { order in
+    return store.operatorSourceOrders.filter { order in
       !manifestOrderIDs.contains(order.id)
         && !manifestsLinkedToInboxOrders.contains { manifest in
           manifest.linkedEntityType == .order && UUID(uuidString: manifest.linkedEntityID) == order.id
