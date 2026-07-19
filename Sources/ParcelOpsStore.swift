@@ -5516,6 +5516,12 @@ final class ParcelOpsStore {
     }
   }
 
+  func gmailClassifierImpactPreviews(for connection: GmailMailboxConnection) -> [SpaceMailClassifierImpactPreview] {
+    SpaceMailFilterPreset.allCases.map { preset in
+      gmailClassifierImpactPreview(for: connection, preset: preset)
+    }
+  }
+
   var microsoft365OAuthReadinessSummaries: [Microsoft365OAuthReadinessSummary] {
     microsoft365MailboxConnections.map { microsoft365OAuthReadinessSummary(for: $0) }
   }
@@ -11990,6 +11996,132 @@ final class ParcelOpsStore {
     messages.append(contentsOf: connection.filteredMessages.prefix(5).map { message in
       FetchedMailboxMessage(
         providerMessageID: "impact-filtered-\(message.providerMessageID)",
+        sender: message.sender,
+        subject: message.subject,
+        receivedDate: message.receivedDate,
+        plainTextBodyPreview: message.bodyPreview,
+        sourceMailboxID: mailboxID
+      )
+    })
+    return Array(messages.prefix(13))
+  }
+
+  private func gmailClassifierImpactPreview(
+    for connection: GmailMailboxConnection,
+    preset: SpaceMailFilterPreset
+  ) -> SpaceMailClassifierImpactPreview {
+    let samples = gmailClassifierImpactSamples(for: connection)
+    let previewConnection = gmailPreviewConnection(connection, preset: preset)
+    var imported = 0
+    var uncertain = 0
+    var filtered = 0
+    var changedExamples: [String] = []
+
+    for sample in samples {
+      let current = classifyGmailMessageRelevance(sample, for: connection)
+      let preview = classifyGmailMessageRelevance(sample, for: previewConnection)
+      switch preview.decision {
+      case "Imported":
+        imported += 1
+      case "Uncertain":
+        uncertain += 1
+      default:
+        filtered += 1
+      }
+      if current.decision != preview.decision {
+        changedExamples.append("\(safeAuditPreview(sample.subject, limit: 70)): \(current.decision) -> \(preview.decision)")
+      }
+    }
+
+    let changedCount = changedExamples.count
+    let riskLabel: String
+    let detail: String
+    if samples.isEmpty {
+      riskLabel = "No samples"
+      detail = "No stored Gmail preview samples are available yet. Run a manual refresh or classifier suite before relying on preset impact."
+    } else if imported > max(1, samples.count / 2) {
+      riskLabel = "Import-heavy"
+      detail = "This preset would import \(imported) of \(samples.count) local Gmail samples. Use only when the mailbox is mostly forwarded order mail."
+    } else if uncertain > 0 {
+      riskLabel = "Review-heavy"
+      detail = "This preset would leave \(uncertain) Gmail sample\(uncertain == 1 ? "" : "s") for manual uncertain review."
+    } else if changedCount == 0 {
+      riskLabel = "Stable"
+      detail = "This preset does not change the Gmail decision for the current local samples."
+    } else {
+      riskLabel = "Tighter filter"
+      detail = "This preset changes \(changedCount) Gmail sample\(changedCount == 1 ? "" : "s") while keeping most mixed-mailbox mail out of Inbox."
+    }
+
+    return SpaceMailClassifierImpactPreview(
+      preset: preset,
+      sampleCount: samples.count,
+      importedCount: imported,
+      uncertainCount: uncertain,
+      filteredCount: filtered,
+      changedCount: changedCount,
+      riskLabel: riskLabel,
+      detail: detail,
+      examples: Array(changedExamples.prefix(3))
+    )
+  }
+
+  private func gmailPreviewConnection(
+    _ connection: GmailMailboxConnection,
+    preset: SpaceMailFilterPreset
+  ) -> GmailMailboxConnection {
+    var preview = connection
+    let config = spaceMailFilterPresetConfiguration(preset)
+    preview.mailboxMode = .mixedFiltered
+    preview.trustedSenderHints = config.trustedSenders
+    preview.importKeywordHints = config.importKeywords
+    preview.uncertainKeywordHints = config.uncertainKeywords
+    preview.filterKeywordHints = config.filterKeywords
+    return preview
+  }
+
+  private func gmailClassifierImpactSamples(for connection: GmailMailboxConnection) -> [FetchedMailboxMessage] {
+    let mailboxID = trackedMailbox(for: connection).id
+    var messages: [FetchedMailboxMessage] = [
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-impact-clear-order-\(connection.id.uuidString)",
+        sender: "orders@example-shop.test",
+        subject: "Order TEST-123 shipped tracking ABC123",
+        receivedDate: Self.auditTimestamp(),
+        plainTextBodyPreview: "Order TEST-123 shipped tracking ABC123 to Melbourne.",
+        sourceMailboxID: mailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-impact-delivery-question-\(connection.id.uuidString)",
+        sender: "customer@example.com",
+        subject: "Delivery question",
+        receivedDate: Self.auditTimestamp(),
+        plainTextBodyPreview: "Can you check whether this relates to an order? I do not have the tracking number yet.",
+        sourceMailboxID: mailboxID
+      ),
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-impact-marketing-\(connection.id.uuidString)",
+        sender: "offers@example-shop.test",
+        subject: "Final days for free delivery",
+        receivedDate: Self.auditTimestamp(),
+        plainTextBodyPreview: "Final days to get free delivery on your next purchase. View this email or unsubscribe.",
+        sourceMailboxID: mailboxID
+      )
+    ]
+
+    messages.append(contentsOf: (connection.uncertainMessages ?? []).prefix(5).map { message in
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-impact-uncertain-\(message.providerMessageID)",
+        sender: message.sender,
+        subject: message.subject,
+        receivedDate: message.receivedDate,
+        plainTextBodyPreview: message.bodyPreview,
+        sourceMailboxID: mailboxID
+      )
+    })
+    messages.append(contentsOf: (connection.filteredMessages ?? []).prefix(5).map { message in
+      FetchedMailboxMessage(
+        providerMessageID: "gmail-impact-filtered-\(message.providerMessageID)",
         sender: message.sender,
         subject: message.subject,
         receivedDate: message.receivedDate,
@@ -18797,6 +18929,44 @@ final class ParcelOpsStore {
       beforeDetail: beforeDetail,
       afterDetail: gmailMailboxConnectionAuditDetail(connection)
     )
+  }
+
+  func applyGmailFilterPreset(_ preset: SpaceMailFilterPreset, to connection: GmailMailboxConnection) {
+    let beforeDetail = gmailMailboxConnectionAuditDetail(connection)
+    let config = spaceMailFilterPresetConfiguration(preset)
+    updateGmailMailboxConnection(connection) { draft in
+      draft.mailboxMode = .mixedFiltered
+      draft.trustedSenderHints = config.trustedSenders
+      draft.importKeywordHints = config.importKeywords
+      draft.uncertainKeywordHints = config.uncertainKeywords
+      draft.filterKeywordHints = config.filterKeywords
+      draft.classifierTestSummary = "\(preset.rawValue) preset applied. Run the Gmail classifier suite or custom test before real refresh."
+      appendGmailRefreshHistory(
+        GmailRefreshHistoryEntry(
+          timestamp: Self.auditTimestamp(),
+          eventType: "Filter preset",
+          status: preset.rawValue,
+          fetchedCount: 0,
+          importedCount: 0,
+          duplicateCount: 0,
+          filteredNonOrderCount: draft.lastRefreshFilteredNonOrderCount,
+          uncertainCount: draft.lastRefreshUncertainCount ?? 0,
+          summary: "Applied \(preset.rawValue) local Gmail hints. No Google sign-in, token request, Gmail API call, import, or mailbox mutation occurred."
+        ),
+        to: &draft
+      )
+    }
+    if let updated = gmailMailboxConnections.first(where: { $0.id == connection.id }) {
+      logAudit(
+        action: .edited,
+        entityType: .gmailMailboxConnection,
+        entityID: connection.id.uuidString,
+        entityLabel: connection.displayName,
+        summary: "Gmail mixed-mailbox filter preset applied.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(gmailMailboxConnectionAuditDetail(updated))\nPreset: \(preset.rawValue)\nNo Google sign-in, token request, Gmail API call, authorization header, message import, mailbox body, full request URL, password, client secret, or mailbox mutation occurred."
+      )
+    }
   }
 
   func markGmailMailboxConnectionReviewed(_ connection: GmailMailboxConnection) {

@@ -631,7 +631,8 @@ struct MailboxView: View {
               labelReadiness: store.gmailLabelReadinessSummary(for: connection),
               authState: store.gmailAuthSessionState(for: connection),
               activeRefreshTask: store.activeGmailLatestRefreshTask(for: connection),
-              postRefreshActionPlan: store.gmailPostRefreshActionPlan
+              postRefreshActionPlan: store.gmailPostRefreshActionPlan,
+              classifierImpactPreviews: store.gmailClassifierImpactPreviews(for: connection)
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {
@@ -712,6 +713,8 @@ struct MailboxView: View {
               store.testGmailCustomClassifier(for: connection, sender: sender, subject: subject, preview: preview)
             } onRunClassifierSuite: {
               store.runGmailClassifierTestSuite(for: connection)
+            } onApplyFilterPreset: { preset in
+              store.applyGmailFilterPreset(preset, to: connection)
             } onRemove: {
               store.removeGmailMailboxConnection(connection)
             }

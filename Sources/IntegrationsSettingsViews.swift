@@ -956,7 +956,8 @@ struct IntegrationsView: View {
               labelReadiness: store.gmailLabelReadinessSummary(for: connection),
               authState: store.gmailAuthSessionState(for: connection),
               activeRefreshTask: store.activeGmailLatestRefreshTask(for: connection),
-              postRefreshActionPlan: store.gmailPostRefreshActionPlan
+              postRefreshActionPlan: store.gmailPostRefreshActionPlan,
+              classifierImpactPreviews: store.gmailClassifierImpactPreviews(for: connection)
             ) { updatedConnection in
               store.updateGmailMailboxConnection(updatedConnection)
             } onReviewed: {
@@ -1037,6 +1038,8 @@ struct IntegrationsView: View {
               store.testGmailCustomClassifier(for: connection, sender: sender, subject: subject, preview: preview)
             } onRunClassifierSuite: {
               store.runGmailClassifierTestSuite(for: connection)
+            } onApplyFilterPreset: { preset in
+              store.applyGmailFilterPreset(preset, to: connection)
             } onRemove: {
               store.removeGmailMailboxConnection(connection)
             }
@@ -1673,6 +1676,7 @@ struct GmailMailboxConnectionRow: View {
   var authState: GmailAuthSessionState
   var activeRefreshTask: ReviewTask?
   var postRefreshActionPlan: GmailPostRefreshActionPlan
+  var classifierImpactPreviews: [SpaceMailClassifierImpactPreview]
   var onSave: (GmailMailboxConnection) -> Void
   var onReviewed: () -> Void
   var onMarkHostVerified: () -> Void
@@ -1713,6 +1717,7 @@ struct GmailMailboxConnectionRow: View {
   var onAddDemoUncertain: () -> Void
   var onTestCustomClassifier: (String, String, String) -> Void
   var onRunClassifierSuite: () -> Void
+  var onApplyFilterPreset: (SpaceMailFilterPreset) -> Void
   var onRemove: () -> Void
 
   @State private var draft: GmailMailboxConnection
@@ -1735,6 +1740,7 @@ struct GmailMailboxConnectionRow: View {
     authState: GmailAuthSessionState,
     activeRefreshTask: ReviewTask?,
     postRefreshActionPlan: GmailPostRefreshActionPlan,
+    classifierImpactPreviews: [SpaceMailClassifierImpactPreview],
     onSave: @escaping (GmailMailboxConnection) -> Void,
     onReviewed: @escaping () -> Void,
     onMarkHostVerified: @escaping () -> Void,
@@ -1775,6 +1781,7 @@ struct GmailMailboxConnectionRow: View {
     onAddDemoUncertain: @escaping () -> Void,
     onTestCustomClassifier: @escaping (String, String, String) -> Void,
     onRunClassifierSuite: @escaping () -> Void,
+    onApplyFilterPreset: @escaping (SpaceMailFilterPreset) -> Void,
     onRemove: @escaping () -> Void
   ) {
     self.connection = connection
@@ -1786,6 +1793,7 @@ struct GmailMailboxConnectionRow: View {
     self.authState = authState
     self.activeRefreshTask = activeRefreshTask
     self.postRefreshActionPlan = postRefreshActionPlan
+    self.classifierImpactPreviews = classifierImpactPreviews
     self.onSave = onSave
     self.onReviewed = onReviewed
     self.onMarkHostVerified = onMarkHostVerified
@@ -1826,6 +1834,7 @@ struct GmailMailboxConnectionRow: View {
     self.onAddDemoUncertain = onAddDemoUncertain
     self.onTestCustomClassifier = onTestCustomClassifier
     self.onRunClassifierSuite = onRunClassifierSuite
+    self.onApplyFilterPreset = onApplyFilterPreset
     self.onRemove = onRemove
     _draft = State(initialValue: connection)
   }
@@ -2423,6 +2432,10 @@ struct GmailMailboxConnectionRow: View {
         }
         .padding(10)
         .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      if connection.mailboxMode == .mixedFiltered {
+        gmailFilterTuningSummary
       }
 
       VStack(alignment: .leading, spacing: 8) {
@@ -3062,6 +3075,136 @@ struct GmailMailboxConnectionRow: View {
 
   private var gmailRealActionSafetyColor: Color {
     canRunRealGmailRefresh ? .green : .orange
+  }
+
+  private var gmailFilterTuningSummary: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline) {
+        Label("Tune Gmail mixed-mailbox filter", systemImage: "slider.horizontal.3")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.purple)
+        Spacer()
+        Badge("Local classifier only", color: .purple)
+      }
+      Text("Use presets and hints to choose how strict Gmail intake should be before real refresh. Presets change local hint lists only; they do not sign in, fetch Gmail, import messages, or modify the mailbox.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 126) {
+        Badge("\((connection.trustedSenderHints ?? []).count) trusted", color: (connection.trustedSenderHints ?? []).isEmpty ? .secondary : .purple)
+        Badge("\((connection.importKeywordHints ?? []).count) import hints", color: (connection.importKeywordHints ?? []).isEmpty ? .secondary : .green)
+        Badge("\((connection.uncertainKeywordHints ?? []).count) uncertain hints", color: (connection.uncertainKeywordHints ?? []).isEmpty ? .secondary : .orange)
+        Badge("\((connection.filterKeywordHints ?? []).count) filter hints", color: (connection.filterKeywordHints ?? []).isEmpty ? .secondary : .teal)
+      }
+      if let hints = connection.trustedSenderHints, !hints.isEmpty {
+        Text("Trusted senders: \(hints.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      if let hints = connection.importKeywordHints, !hints.isEmpty {
+        Text("Import hints: \(hints.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      if let hints = connection.uncertainKeywordHints, !hints.isEmpty {
+        Text("Uncertain hints: \(hints.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      if let hints = connection.filterKeywordHints, !hints.isEmpty {
+        Text("Filter hints: \(hints.joined(separator: ", "))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      if !classifierImpactPreviews.isEmpty {
+        gmailClassifierImpactPreview
+      }
+      CompactActionRow {
+        ForEach(SpaceMailFilterPreset.allCases) { preset in
+          Button(gmailPresetButtonTitle(preset), systemImage: gmailPresetSymbol(preset)) {
+            onApplyFilterPreset(preset)
+          }
+        }
+      }
+      .buttonStyle(.bordered)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.purple.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailClassifierImpactPreview: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline) {
+        Label("Gmail preset impact preview", systemImage: "chart.bar.doc.horizontal")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.teal)
+        Spacer()
+        Badge("Local Gmail samples", color: .teal)
+      }
+      Text("Preview uses built-in samples plus stored Gmail uncertain and filtered previews. It does not fetch Gmail, request tokens, import messages, change hints, or modify mailbox items.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 8)], alignment: .leading, spacing: 8) {
+        ForEach(classifierImpactPreviews) { preview in
+          VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+              Text(gmailPresetButtonTitle(preview.preset))
+                .font(.caption.weight(.semibold))
+              Spacer()
+              Badge(preview.riskLabel, color: gmailImpactColor(preview.riskLabel))
+            }
+            CompactMetadataGrid(minimumWidth: 74) {
+              Badge("\(preview.sampleCount) samples", color: .secondary)
+              Badge("\(preview.importedCount) import", color: preview.importedCount > 0 ? .green : .secondary)
+              Badge("\(preview.uncertainCount) uncertain", color: preview.uncertainCount > 0 ? .orange : .secondary)
+              Badge("\(preview.filteredCount) filtered", color: preview.filteredCount > 0 ? .teal : .secondary)
+              Badge("\(preview.changedCount) changed", color: preview.changedCount > 0 ? .purple : .secondary)
+            }
+            Text(preview.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            ForEach(preview.examples, id: \.self) { example in
+              Label(example, systemImage: "arrow.triangle.branch")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(gmailImpactColor(preview.riskLabel).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+    }
+    .padding(8)
+    .background(Color.teal.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func gmailImpactColor(_ label: String) -> Color {
+    if label.localizedCaseInsensitiveContains("import") { return .orange }
+    if label.localizedCaseInsensitiveContains("review") { return .purple }
+    if label.localizedCaseInsensitiveContains("stable") { return .green }
+    if label.localizedCaseInsensitiveContains("filter") { return .teal }
+    return .secondary
+  }
+
+  private func gmailPresetButtonTitle(_ preset: SpaceMailFilterPreset) -> String {
+    switch preset {
+    case .conservative: "Conservative"
+    case .balanced: "Balanced"
+    case .forwardedOrders: "Forwarded orders"
+    }
+  }
+
+  private func gmailPresetSymbol(_ preset: SpaceMailFilterPreset) -> String {
+    switch preset {
+    case .conservative: "line.3.horizontal.decrease.circle"
+    case .balanced: "slider.horizontal.3"
+    case .forwardedOrders: "envelope.badge.fill"
+    }
   }
 
   private var gmailSetupSequenceCard: some View {
