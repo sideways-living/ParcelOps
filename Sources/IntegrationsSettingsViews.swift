@@ -5,6 +5,9 @@ struct IntegrationsView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var setupSearchText = ""
   @State private var setupFeedbackMessage: String?
+  @State private var showSpaceMailSetupGuidance = false
+  @State private var showGmailSetupGuidance = false
+  @State private var showMicrosoftSetupGuidance = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var hasSpaceMailSetup: Bool { !store.spaceMailIMAPConnections.isEmpty }
@@ -793,7 +796,20 @@ struct IntegrationsView: View {
           Text("Do not enter passwords here. No password, app password, auth string, or Keychain item is stored in JSON or audit logs.")
             .font(.caption)
             .foregroundStyle(.secondary)
-          SpaceMailOperatorGuidanceStack(store: store)
+          DisclosureGroup(isExpanded: $showSpaceMailSetupGuidance) {
+            SpaceMailOperatorGuidanceStack(store: store)
+              .padding(.top, 8)
+          } label: {
+            VStack(alignment: .leading, spacing: 4) {
+              Text(showSpaceMailSetupGuidance ? "Hide SpaceMail setup guide" : "Show SpaceMail setup guide")
+                .font(.subheadline.weight(.semibold))
+              Text("Open this for classifier rules, mixed-mailbox review, and operator runbook detail. The setup record and refresh actions stay directly below.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .tint(.teal)
           CompactActionRow {
             Button(store.spaceMailIMAPConnections.isEmpty ? "Add SpaceMail setup" : "Show existing SpaceMail setup", systemImage: store.spaceMailIMAPConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
               addOrFocusSpaceMailSetup()
@@ -890,10 +906,25 @@ struct IntegrationsView: View {
           Text("Use this for Gmail or Google Workspace mailboxes that feed the same Inbox intake path. Mock refresh remains available; real Gmail refresh is manual, read-only, and separate from sign-in.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
-          GmailIntakeFoundationCard()
-          GmailGoogleCloudSetupGuide()
-          MailboxGmailReadinessPanel(store: store)
-          SettingsGmailManualRunbookPanel(store: store)
+          DisclosureGroup(isExpanded: $showGmailSetupGuidance) {
+            VStack(alignment: .leading, spacing: 12) {
+              GmailIntakeFoundationCard()
+              GmailGoogleCloudSetupGuide()
+              MailboxGmailReadinessPanel(store: store)
+              SettingsGmailManualRunbookPanel(store: store)
+            }
+            .padding(.top, 8)
+          } label: {
+            VStack(alignment: .leading, spacing: 4) {
+              Text(showGmailSetupGuidance ? "Hide Gmail setup guide" : "Show Gmail setup guide")
+                .font(.subheadline.weight(.semibold))
+              Text("Open this for Google Cloud setup, OAuth readiness, classifier review, and manual refresh runbook detail. The Gmail setup rows stay directly below.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .tint(.teal)
           CompactActionRow {
             Button(store.gmailMailboxConnections.isEmpty ? "Add Gmail setup" : "Show existing Gmail setup", systemImage: store.gmailMailboxConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
               addOrFocusGmailSetup()
@@ -1018,7 +1049,20 @@ struct IntegrationsView: View {
           Text("Use Microsoft 365 when the active mailbox is hosted by Outlook or Microsoft 365. Real Graph refresh remains explicit, manual, read-only, and separate from SpaceMail and Gmail.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
-          Microsoft365SetupFlowGuide()
+          DisclosureGroup(isExpanded: $showMicrosoftSetupGuidance) {
+            Microsoft365SetupFlowGuide()
+              .padding(.top, 8)
+          } label: {
+            VStack(alignment: .leading, spacing: 4) {
+              Text(showMicrosoftSetupGuidance ? "Hide Outlook setup guide" : "Show Outlook setup guide")
+                .font(.subheadline.weight(.semibold))
+              Text("Open this for Microsoft app registration, MSAL, Graph, and mock fallback guidance. The mailbox setup rows stay directly below.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          .tint(.teal)
           CompactActionRow {
             Button(store.microsoft365MailboxConnections.isEmpty ? "Add mailbox setup" : "Show Outlook setup", systemImage: store.microsoft365MailboxConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
               addOrFocusMicrosoft365Setup()
