@@ -891,7 +891,7 @@ struct DashboardView: View {
       return "\(incomingAttentionCount) incoming item\(incomingAttentionCount == 1 ? "" : "s") \(incomingAttentionCount == 1 ? "needs" : "need") triage from mailbox intake, provider review, import queue, or acceptance review."
     }
     if !partialInboxOrderBlockers.isEmpty {
-      return "\(partialInboxOrderBlockers.count) source-created or Wishlist-linked order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "has" : "have") missing details or an open verification task. Confirm those before dispatch setup."
+      return "\(partialInboxOrderBlockers.count) Inbox-created or Wishlist-linked order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "has" : "have") missing details or an open verification task. Confirm those before dispatch setup."
     }
     if problemOrdersCount > 0 {
       return "\(problemOrdersCount) order signal\(problemOrdersCount == 1 ? "" : "s") \(problemOrdersCount == 1 ? "needs" : "need") attention from review state, exceptions, tracking warnings, or source-order handoff."
@@ -1048,7 +1048,7 @@ struct DashboardView: View {
       return "\(readyInboxLinkCount) intake row\(readyInboxLinkCount == 1 ? "" : "s") look ready to create or link to an order. Use that as the next end-to-end test."
     }
     if !partialInboxOrderBlockers.isEmpty {
-      return "\(partialInboxOrderBlockers.count) source-created or Wishlist-linked order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "needs" : "need") source, customer, destination, or task cleanup before dispatch readiness should be trusted."
+      return "\(partialInboxOrderBlockers.count) Inbox-created or Wishlist-linked order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "needs" : "need") source, customer, destination, or task cleanup before dispatch readiness should be trusted."
     }
     if wishlistDashboardSignalCount > 0 {
       if wishlistLinkedOrderTrackingReviewCount > 0 {
@@ -2361,7 +2361,7 @@ struct DashboardView: View {
             OperatorDashboardCard(
               title: "Dispatch",
               count: dispatchAttentionCount,
-              detail: "Blocked manifests, reopened handoffs, undispatched batches, incomplete checklists, and source-created or Wishlist-linked orders that need verification or dispatch setup.",
+              detail: "Blocked manifests, reopened handoffs, undispatched batches, incomplete checklists, and Inbox-created or Wishlist-linked orders that need verification or dispatch setup.",
               nextAction: reopenedInboxDispatchHandoffCount > 0 ? "Review reopened handoffs" : partialInboxOrderBlockers.isEmpty ? (inboxDispatchGapOrders.isEmpty ? (dispatchAttentionCount == 0 ? "Dispatch queue is steady" : "Prepare outbound work") : "Add dispatch setup") : "Verify order details first",
               symbol: "shippingbox.and.arrow.backward.fill",
               tint: reopenedInboxDispatchHandoffCount > 0 ? .purple : partialInboxOrderBlockers.isEmpty ? (dispatchAttentionCount == 0 ? .green : .blue) : .orange
@@ -2698,7 +2698,7 @@ private struct DashboardReleaseReadinessSnapshot: View {
         color: latestFetchedCount > 0 ? .green : .orange
       ),
       ReadinessRow(
-        title: "Source-created order",
+        title: "Inbox-created order",
         detail: inboxOrderCount > 0 ? "\(inboxOrderCount) order source exists from Inbox or manual import." : "Create or link one order from confirmed intake.",
         symbol: "shippingbox.fill",
         isReady: inboxOrderCount > 0,
@@ -3603,7 +3603,7 @@ struct FirstLiveMailboxTestCard: View {
       ),
       FirstLiveMailboxTestItem(
         title: hasOnlyNonOrderOutcome ? "Wait for order mail" : "Create order",
-        detail: hasOnlyNonOrderOutcome ? "No likely order email was imported. Use a clear order/tracking test email before expecting a source-created order." : "At least one confirmed intake row has become a local order or linked order.",
+        detail: hasOnlyNonOrderOutcome ? "No likely order email was imported. Use a clear order/tracking test email before expecting an Inbox-created order." : "At least one confirmed intake row has become a local order or linked order.",
         symbol: "shippingbox.fill",
         isComplete: hasInboxOrder
       ),
@@ -3990,7 +3990,7 @@ private func dashboardOrderTimelineDetail(for order: TrackedOrder, store: Parcel
     return "\(mailboxSourceText ?? "Source handoff") linked to dispatch setup • \(order.trackingNumber)"
   }
   if order.isInboxCreatedLocalOrder {
-    return "\(mailboxSourceText ?? "Source-created order") needs local follow-up • \(order.trackingNumber)"
+    return "\(mailboxSourceText ?? "Inbox-created order") needs local follow-up • \(order.trackingNumber)"
   }
   if taskCount > 0 {
     return "\(taskCount) linked task signal • \(order.customer)"
@@ -4085,10 +4085,10 @@ struct CompactInboxCreatedOrderList: View {
   private var uniqueOrders: [TrackedOrder] { uniqueDashboardOrders(orders) }
 
   var body: some View {
-    CompactList(title: "Source-created orders", symbol: "tray.and.arrow.down.fill") {
+    CompactList(title: "Inbox-created orders", symbol: "tray.and.arrow.down.fill") {
       if uniqueOrders.isEmpty {
         CompactRow(
-          title: "No source-created orders waiting",
+          title: "No Inbox-created orders waiting",
           detail: "Orders created from Inbox triage or Wishlist source context will appear here for quick follow-up.",
           badge: "Clear",
           color: .green
@@ -4125,7 +4125,7 @@ struct CompactPartialInboxOrderList: View {
       if uniqueOrders.isEmpty {
         CompactRow(
           title: "No partial source order blockers",
-          detail: "Source-created orders have no promoted missing-detail blocker.",
+          detail: "Inbox-created orders have no promoted missing-detail blocker.",
           badge: "Clear",
           color: .green
         )
@@ -4157,7 +4157,7 @@ struct CompactInboxDispatchGapList: View {
       if uniqueOrders.isEmpty {
         CompactRow(
           title: "No source dispatch gaps",
-          detail: "Reviewed or active source-created orders have no promoted dispatch setup gap.",
+          detail: "Reviewed or active Inbox-created orders have no promoted dispatch setup gap.",
           badge: "Clear",
           color: .green
         )
@@ -4189,7 +4189,7 @@ struct CompactInboxDispatchSetupList: View {
       if uniqueOrders.isEmpty {
         CompactRow(
           title: "No source dispatch setup pending",
-          detail: "Verified source-created orders have no promoted readiness follow-up.",
+          detail: "Verified Inbox-created orders have no promoted readiness follow-up.",
           badge: "Clear",
           color: .green
         )
@@ -4222,7 +4222,7 @@ struct CompactReopenedInboxDispatchHandoffList: View {
       if uniqueManifests.isEmpty && checklists.isEmpty {
         CompactRow(
           title: "No reopened handoffs",
-          detail: "Source-created dispatch handoffs have no promoted reopened records.",
+          detail: "Inbox-created dispatch handoffs have no promoted reopened records.",
           badge: "Clear",
           color: .green
         )

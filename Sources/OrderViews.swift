@@ -341,7 +341,7 @@ struct OrdersView: View {
           )
         } else {
           Text(inboxCreatedOrdersActionableCount == 0
-            ? "Source-created orders are reviewed and have no promoted dispatch setup gap."
+            ? "Inbox-created orders are reviewed and have no promoted dispatch setup gap."
             : "The rows below are sorted by handoff risk: review gaps, missing dispatch setup, exceptions, then routine monitoring.")
             .font(.caption.weight(.semibold))
             .foregroundStyle(inboxCreatedOrdersActionableCount == 0 ? .green : .orange)
@@ -478,7 +478,7 @@ struct OrdersView: View {
     return [
       (
         "Source trail",
-        "Source-created orders should link back to intake, import, acceptance, or Wishlist evidence before handoff is closed.",
+        "Inbox-created orders should link back to intake, import, acceptance, or Wishlist evidence before handoff is closed.",
         sourceTrailMissing,
         "Inbox or order detail",
         "tray.and.arrow.down.fill",
@@ -1204,7 +1204,7 @@ private struct OrderQueueItem: Identifiable {
       if warningTrackingCount > 0 {
         return "\(warningTrackingCount) tracking warning should be checked from the order detail or Tracking screen."
       }
-      return "This order is not marked as source-created. Use the normal status, tracking, task, and dispatch context to decide the next step."
+      return "This order is not marked as Inbox-created. Use the normal status, tracking, task, and dispatch context to decide the next step."
     }
     if partialInboxTaskCount > 0 {
       return "\(partialInboxTaskCount) verification task is open for missing intake details. Resolve it after order number, tracking, and destination are confirmed."

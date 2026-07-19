@@ -4015,7 +4015,7 @@ struct NeedsReviewView: View {
         }
 
         if showsInboxOrderHandoff && !inboxCreatedOrders.isEmpty {
-          SettingsPanel(title: "Source-created order handoff", symbol: "tray.and.arrow.down.fill") {
+          SettingsPanel(title: "Inbox-created order handoff", symbol: "tray.and.arrow.down.fill") {
             Text("Orders created from Inbox, Import Queue, Acceptance Review, or Wishlist source context stay in Needs Review until tracking, destination, ownership, and dispatch setup are confirmed.")
               .font(.callout)
               .foregroundStyle(.secondary)

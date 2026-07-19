@@ -525,15 +525,15 @@ struct CommunicationView: View {
         }
 
         if sourceOrders.isEmpty {
-          Text("No source-created or Wishlist-linked orders are present yet. Create or link an order from Inbox or Wishlist before checking draft coverage.")
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create or link an order from Inbox or Wishlist before checking draft coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedDrafts.isEmpty {
-          Text("No drafts currently link to source-created or Wishlist-linked orders. Create a draft only when a customer, supplier, carrier, or team follow-up is needed.")
+          Text("No drafts currently link to Inbox-created or Wishlist-linked orders. Create a draft only when a customer, supplier, carrier, or team follow-up is needed.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if actionDrafts.isEmpty {
-          Text("Linked drafts for source-created and Wishlist-linked orders are reviewed and marked sent locally.")
+          Text("Linked drafts for Inbox-created and Wishlist-linked orders are reviewed and marked sent locally.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
@@ -1143,7 +1143,7 @@ struct DraftMessageRow: View {
       warnings.append("Draft is ready. Send it outside ParcelOps, then mark sent locally.")
     }
     if draft.status != .sentLocally && draft.status != .ready && !inboxOrders.isEmpty {
-      warnings.append("Draft is still open for a source-created order.")
+      warnings.append("Draft is still open for an Inbox-created order.")
     }
     if draft.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Draft needs review before related handoff work is closed.")

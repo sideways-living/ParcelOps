@@ -484,7 +484,7 @@ struct OperationsWorkbenchView: View {
       return "\(mailboxUncertainCount) ambiguous mailbox preview\(mailboxUncertainCount == 1 ? "" : "s") is waiting outside Inbox. Import genuine order mail from Mailbox Monitor or dismiss it locally."
     }
     if !inboxCreatedOrders.isEmpty {
-      return "\(inboxCreatedOrders.count) source-created or Wishlist-linked order\(inboxCreatedOrders.count == 1 ? "" : "s") already \(inboxCreatedOrders.count == 1 ? "exists" : "exist"). Confirm source trail, order detail, and dispatch setup before treating them as exceptions."
+      return "\(inboxCreatedOrders.count) Inbox-created or Wishlist-linked order\(inboxCreatedOrders.count == 1 ? "" : "s") already \(inboxCreatedOrders.count == 1 ? "exists" : "exist"). Confirm source trail, order detail, and dispatch setup before treating them as exceptions."
     }
     if mailboxFilteredOnlyOutcome {
       return "\(mailboxFilteredCount) mixed-mailbox message\(mailboxFilteredCount == 1 ? "" : "s") were filtered out of Inbox. There is no Workbench exception until order mail is imported, promoted, or created."
@@ -607,10 +607,10 @@ struct OperationsWorkbenchView: View {
 
   private var releaseBlockerDetail: String {
     if releaseReadyStepCount >= releaseBlockerRows.count - 1 && releaseCleanupSignalCount < 20 {
-      return "Provider setup, refresh evidence, source-created orders, and operational routing are visible. Run a focused hands-on pass and avoid expanding scope until remaining review work is intentional."
+      return "Provider setup, refresh evidence, Inbox-created orders, and operational routing are visible. Run a focused hands-on pass and avoid expanding scope until remaining review work is intentional."
     }
     if releaseProviderReadyCount > 0 && releaseMailboxEvidenceCount > 0 && releaseInboxOrderCount > 0 {
-      return "The daily path has live intake evidence and at least one source-created order. Work down dispatch, task, and cleanup signals before treating this as a release candidate."
+      return "The daily path has live intake evidence and at least one Inbox-created order. Work down dispatch, task, and cleanup signals before treating this as a release candidate."
     }
     return "Start with Mailbox Monitor, import one likely order email, create or link the order from Inbox, then check Orders, Dispatch, Tasks, and Audit."
   }
@@ -717,13 +717,13 @@ struct OperationsWorkbenchView: View {
       return "\(reopenedInboxDispatchHandoffCount) source dispatch handoff record\(reopenedInboxDispatchHandoffCount == 1 ? " was" : "s were") reopened. Open the linked order and Dispatch context before closing \(reopenedInboxDispatchHandoffCount == 1 ? "it" : "them") again."
     }
     if !partialInboxOrderBlockers.isEmpty {
-      return "\(partialInboxOrderBlockers.count) source-created or Wishlist-linked order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "has" : "have") missing details or an open verification task. Open the order before dispatch setup."
+      return "\(partialInboxOrderBlockers.count) Inbox-created or Wishlist-linked order\(partialInboxOrderBlockers.count == 1 ? "" : "s") \(partialInboxOrderBlockers.count == 1 ? "has" : "have") missing details or an open verification task. Open the order before dispatch setup."
     }
     if !inboxDispatchReadinessOrders.isEmpty {
-      return "\(inboxDispatchReadinessOrders.count) source-created or Wishlist-linked order\(inboxDispatchReadinessOrders.count == 1 ? "" : "s") \(inboxDispatchReadinessOrders.count == 1 ? "has" : "have") local dispatch setup but still \(inboxDispatchReadinessOrders.count == 1 ? "needs" : "need") readiness, label, scan, custody, or handoff confirmation."
+      return "\(inboxDispatchReadinessOrders.count) Inbox-created or Wishlist-linked order\(inboxDispatchReadinessOrders.count == 1 ? "" : "s") \(inboxDispatchReadinessOrders.count == 1 ? "has" : "have") local dispatch setup but still \(inboxDispatchReadinessOrders.count == 1 ? "needs" : "need") readiness, label, scan, custody, or handoff confirmation."
     }
     if !inboxCreatedOrders.isEmpty {
-      return "\(inboxCreatedOrders.count) source-created or Wishlist-linked order\(inboxCreatedOrders.count == 1 ? "" : "s") \(inboxCreatedOrders.count == 1 ? "needs" : "need") operational confirmation or dispatch setup before \(inboxCreatedOrders.count == 1 ? "it disappears" : "they disappear") from daily follow-up."
+      return "\(inboxCreatedOrders.count) Inbox-created or Wishlist-linked order\(inboxCreatedOrders.count == 1 ? "" : "s") \(inboxCreatedOrders.count == 1 ? "needs" : "need") operational confirmation or dispatch setup before \(inboxCreatedOrders.count == 1 ? "it disappears" : "they disappear") from daily follow-up."
     }
     if !draftFollowUpItems.isEmpty {
       return "\(draftFollowUpItems.count) draft\(draftFollowUpItems.count == 1 ? "" : "s") \(draftFollowUpItems.count == 1 ? "needs" : "need") review, sending, or reopening before the related work can be closed."
@@ -783,7 +783,7 @@ struct OperationsWorkbenchView: View {
           titleWhenClear: "Workbench primary flow is clear",
           titleWhenBusy: "Workbench has daily exceptions to clear",
           detailWhenClear: "No primary workflow exceptions are waiting. Use advanced filters only when you need supporting records.",
-          detailWhenBusy: "Clear urgent, blocked, needs-review, and source-created order work before opening advanced record queues."
+          detailWhenBusy: "Clear urgent, blocked, needs-review, and Inbox-created order work before opening advanced record queues."
         )
         releaseCandidateBlockersPanel
         MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store)
@@ -1090,7 +1090,7 @@ struct OperationsWorkbenchView: View {
           )
           WorkbenchMailboxRouteCard(
             title: "Assigned follow-up",
-            detail: "Only tasks, handoffs, source-created orders, or dispatch gaps should become Workbench work.",
+            detail: "Only tasks, handoffs, Inbox-created orders, or dispatch gaps should become Workbench work.",
             count: inboxCreatedOrders.count + mailboxWarningCount,
             symbol: "checklist",
             color: inboxCreatedOrders.isEmpty && mailboxWarningCount == 0 ? .secondary : .purple
@@ -1274,7 +1274,7 @@ struct OperationsWorkbenchView: View {
           }
         }
 
-        Text("Workbench should start after intake creates a real local follow-up: an imported order email, an uncertain message promoted from Mailbox Monitor, a source-created order, a task, or dispatch setup. Filtered non-order mail stays out of this queue by design.")
+        Text("Workbench should start after intake creates a real local follow-up: an imported order email, an uncertain message promoted from Mailbox Monitor, an Inbox-created order, a task, or dispatch setup. Filtered non-order mail stays out of this queue by design.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(color(for: spaceMailWorkbenchBoundaryTone))
           .fixedSize(horizontal: false, vertical: true)
@@ -1321,7 +1321,7 @@ struct OperationsWorkbenchView: View {
       return "SpaceMail needs Mailbox Monitor review"
     }
     if !inboxCreatedOrders.isEmpty {
-      return "Source-created orders need follow-up"
+      return "Inbox-created orders need follow-up"
     }
     if spaceMailFilteredOnlyOutcome {
       return "Mixed mailbox filtering did its job"
@@ -2084,7 +2084,7 @@ struct OperationsWorkbenchView: View {
       SettingsPanel(title: partialInboxOrderBlockers.isEmpty ? "Source order follow-up" : "Source order verification", symbol: partialInboxOrderBlockers.isEmpty ? "tray.and.arrow.down.fill" : "exclamationmark.triangle.fill") {
         Text(partialInboxOrderBlockers.isEmpty
           ? "Orders created from Inbox, Import Queue, Acceptance Review, or Wishlist source context stay here until someone confirms the operational details and dispatch setup."
-          : "Partial source-created or Wishlist-linked orders stay here until missing order, tracking, or destination details are confirmed. Do this before dispatch setup.")
+          : "Partial Inbox-created or Wishlist-linked orders stay here until missing order, tracking, or destination details are confirmed. Do this before dispatch setup.")
           .font(.callout)
           .foregroundStyle(.secondary)
         ForEach(inboxCreatedOrders) { order in

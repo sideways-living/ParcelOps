@@ -277,15 +277,15 @@ struct DeliveryInstructionsView: View {
         }
 
         if sourceOrders.isEmpty {
-          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking instruction coverage.")
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking instruction coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedInstructions.isEmpty {
-          Text("No delivery instructions currently match source-created or Wishlist-linked orders by order link, destination, customer profile, or carrier context.")
+          Text("No delivery instructions currently match Inbox-created or Wishlist-linked orders by order link, destination, customer profile, or carrier context.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionInstructions.isEmpty {
-          Text("Matched delivery instructions are enabled, reviewed, and low-risk for current source-created and Wishlist-linked orders.")
+          Text("Matched delivery instructions are enabled, reviewed, and low-risk for current Inbox-created and Wishlist-linked orders.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
@@ -666,7 +666,7 @@ struct DeliveryInstructionRow: View {
   private var instructionWarnings: [String] {
     var warnings: [String] = []
     if !instruction.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This instruction matches a source-created or Wishlist-linked order but is disabled.")
+      warnings.append("This instruction matches an Inbox-created or Wishlist-linked order but is disabled.")
     }
     if instruction.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Instruction needs review before relying on it for delivery or dispatch handoff.")

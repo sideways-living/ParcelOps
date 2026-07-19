@@ -242,11 +242,11 @@ struct VendorProfilesView: View {
         }
 
         if sourceOrders.isEmpty {
-          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking vendor profile coverage.")
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking vendor profile coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedProfiles.isEmpty {
-          Text("No vendor profiles currently match source-created or Wishlist-linked orders by store, carrier, default contact, or default account.")
+          Text("No vendor profiles currently match Inbox-created or Wishlist-linked orders by store, carrier, default contact, or default account.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionProfiles.isEmpty {
@@ -616,7 +616,7 @@ struct VendorProfileRow: View {
   private var vendorWarnings: [String] {
     var warnings: [String] = []
     if !profile.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This vendor profile matches a source-created or Wishlist-linked order but is disabled.")
+      warnings.append("This vendor profile matches an Inbox-created or Wishlist-linked order but is disabled.")
     }
     if profile.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Vendor profile needs review before relying on it for local follow-up.")

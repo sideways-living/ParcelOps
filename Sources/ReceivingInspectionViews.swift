@@ -229,11 +229,11 @@ struct ReceivingInspectionsView: View {
       }
 
       if store.operatorSourceOrderCount == 0 {
-        Text("No source-created or Wishlist-linked orders need receiving inspection checks yet.")
+        Text("No Inbox-created or Wishlist-linked orders need receiving inspection checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if inboxOrdersMissingInspection.isEmpty && inspectionsNeedingAction.isEmpty {
-        Label("Source-created and Wishlist-linked orders have receiving inspection coverage with no open local inspection warnings.", systemImage: "checkmark.seal.fill")
+        Label("Inbox-created and Wishlist-linked orders have receiving inspection coverage with no open local inspection warnings.", systemImage: "checkmark.seal.fill")
           .font(.caption)
           .foregroundStyle(.green)
       } else {
@@ -694,7 +694,7 @@ struct ReceivingInspectionRow: View {
       return "Wishlist purchase context is linked to this receiving inspection. Confirm the item physically matches the purchase handoff before closing."
     }
     if !inspectionReadinessWarnings.isEmpty && !linkedIntakeEmails.isEmpty {
-      return "This inspection is tied to a source-created order and still needs local condition, quantity, discrepancy, or review follow-up."
+      return "This inspection is tied to an Inbox-created order and still needs local condition, quantity, discrepancy, or review follow-up."
     }
     if !inspectionReadinessWarnings.isEmpty {
       return "This inspection still needs local condition, quantity, discrepancy, or review follow-up."

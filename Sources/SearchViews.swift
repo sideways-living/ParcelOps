@@ -310,7 +310,7 @@ private struct SearchReadinessPanel: View {
 
   private var title: String {
     if providerReleaseNeedsReview { return "Review mailbox provider release context" }
-    if !inboxCreatedOrdersMissingSourceTrail.isEmpty { return "Trace source-created orders" }
+    if !inboxCreatedOrdersMissingSourceTrail.isEmpty { return "Trace Inbox-created orders" }
     if uncertainMailboxCount > 0 { return "Review uncertain mailbox mail" }
     if parserIssueCount > 0 { return "Parser diagnostics are available" }
     if inboxCreatedOrderCount > 0 { return "Search is ready for handoff checks" }
@@ -322,7 +322,7 @@ private struct SearchReadinessPanel: View {
       return "Search can recover mailbox source context, but provider release gates or handoff notes still need review. Confirm those before treating a test pass as complete."
     }
     if !inboxCreatedOrdersMissingSourceTrail.isEmpty {
-      return "Some source-created orders do not currently match intake, import, acceptance, or Wishlist source context. Open them here before closing related handoff work."
+      return "Some Inbox-created orders do not currently match intake, import, acceptance, or Wishlist source context. Open them here before closing related handoff work."
     }
     if uncertainMailboxCount > 0 {
       return "Uncertain mixed-mailbox messages stay out of Inbox until they are imported or dismissed from Mailbox Monitor."
@@ -331,7 +331,7 @@ private struct SearchReadinessPanel: View {
       return "Parser diagnostics are hidden from the primary Inbox queue by default. Use Search or Mailbox Monitor when investigating a specific intake row."
     }
     if inboxCreatedOrderCount > 0 {
-      return "Source-created orders can be searched alongside intake emails, audit events, and dispatch handoff context."
+      return "Inbox-created orders can be searched alongside intake emails, audit events, and dispatch handoff context."
     }
     return "Search local JSON records when a user asks where an order, intake email, mailbox result, or audit event came from."
   }
@@ -478,12 +478,12 @@ private struct SearchOperatorHintsPanel: View {
   var onApply: (String, SearchEntityType?, ReviewState?) -> Void
 
   private let hints: [SearchOperatorHint] = [
-    SearchOperatorHint(title: "Source-created orders", query: "Inbox-created order", entityType: .order, reviewState: nil, symbol: "tray.and.arrow.down.fill", detail: "Find orders created from intake, import, acceptance, or Wishlist handoff."),
-    SearchOperatorHint(title: "Missing source trail", query: "No linked intake import acceptance source", entityType: .order, reviewState: nil, symbol: "link.badge.plus", detail: "Find source-created orders that need source context checked before handoff closure."),
+    SearchOperatorHint(title: "Inbox-created orders", query: "Inbox-created order", entityType: .order, reviewState: nil, symbol: "tray.and.arrow.down.fill", detail: "Find orders created from intake, import, acceptance, or Wishlist handoff."),
+    SearchOperatorHint(title: "Missing source trail", query: "No linked intake import acceptance source", entityType: .order, reviewState: nil, symbol: "link.badge.plus", detail: "Find Inbox-created orders that need source context checked before handoff closure."),
     SearchOperatorHint(title: "Linked Inbox orders", query: "Linked Inbox intake", entityType: .intakeEmail, reviewState: nil, symbol: "link.circle.fill", detail: "Find intake rows that already carry linked order context."),
     SearchOperatorHint(title: "Uncertain mailbox mail", query: "uncertain mixed mailbox Gmail SpaceMail", entityType: .auditEvent, reviewState: nil, symbol: "questionmark.folder.fill", detail: "Find local evidence for mixed-mailbox messages that require operator review."),
     SearchOperatorHint(title: "Gmail source trails", query: "Gmail Google Workspace mailbox source trail", entityType: .intakeEmail, reviewState: nil, symbol: "envelope.badge.shield.half.filled", detail: "Find intake rows captured through Gmail or Google Workspace manual refresh."),
-    SearchOperatorHint(title: "Reopened dispatch handoffs", query: "reopened dispatch handoff", entityType: .order, reviewState: nil, symbol: "arrow.counterclockwise.circle.fill", detail: "Find source-created orders whose local dispatch handoff was reopened."),
+    SearchOperatorHint(title: "Reopened dispatch handoffs", query: "reopened dispatch handoff", entityType: .order, reviewState: nil, symbol: "arrow.counterclockwise.circle.fill", detail: "Find Inbox-created orders whose local dispatch handoff was reopened."),
     SearchOperatorHint(title: "Missing tracking", query: "tracking number needs review", entityType: .intakeEmail, reviewState: .needsReview, symbol: "number.circle.fill", detail: "Find intake rows where the parser did not extract a usable tracking value."),
     SearchOperatorHint(title: "SpaceMail parser checks", query: "parser diagnostics", entityType: .intakeEmail, reviewState: nil, symbol: "server.rack", detail: "Find intake and audit clues from mixed-mailbox parsing and classifier work.")
   ]
@@ -491,7 +491,7 @@ private struct SearchOperatorHintsPanel: View {
   var body: some View {
     SettingsPanel(title: "Useful operator searches", symbol: "sparkle.magnifyingglass") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Start with these shortcuts when tracing source-created orders, dispatch handoffs, or parser follow-up. They only filter local JSON records.")
+        Text("Start with these shortcuts when tracing Inbox-created orders, dispatch handoffs, or parser follow-up. They only filter local JSON records.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -760,7 +760,7 @@ struct SearchResultRow: View {
     else { return nil }
 
     return result.detail.lineOrSentence(after: "Inbox handoff:")
-      ?? "Source-created order. Open the order to inspect intake, import, acceptance, and dispatch handoff context."
+      ?? "Inbox-created order. Open the order to inspect intake, import, acceptance, and dispatch handoff context."
   }
 
   var body: some View {

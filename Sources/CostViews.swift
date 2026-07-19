@@ -234,11 +234,11 @@ struct CostsBudgetsView: View {
       }
 
       if store.operatorSourceOrderCount == 0 {
-        Text("No source-created or Wishlist-linked orders need cost checks yet.")
+        Text("No Inbox-created or Wishlist-linked orders need cost checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if inboxOrdersMissingCost.isEmpty && costsNeedingAction.isEmpty {
-        Label("Source-created and Wishlist-linked orders have cost and budget coverage for this local workflow.", systemImage: "checkmark.seal.fill")
+        Label("Inbox-created and Wishlist-linked orders have cost and budget coverage for this local workflow.", systemImage: "checkmark.seal.fill")
           .font(.caption)
           .foregroundStyle(.green)
       } else {
@@ -662,7 +662,7 @@ struct CostRecordRow: View {
       return "Wishlist purchase context is linked to this cost record. Confirm AUD landed cost, budget code, and reimbursement state before closing."
     }
     if !costReadinessWarnings.isEmpty && !linkedIntakeEmails.isEmpty {
-      return "This cost is tied to a source-created order and still needs local cost readiness checks."
+      return "This cost is tied to an Inbox-created order and still needs local cost readiness checks."
     }
     if !costReadinessWarnings.isEmpty {
       return "This cost still needs local budget, approval, reimbursement, or review action."

@@ -216,11 +216,11 @@ struct DispatchReadinessView: View {
         }
 
         if sourceOrders.isEmpty {
-          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or link a Wishlist purchase before checking dispatch readiness.")
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or link a Wishlist purchase before checking dispatch readiness.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedChecklists.isEmpty {
-          Text("Source-created and Wishlist-linked orders do not have readiness checklists yet. Add or create a checklist before outbound handoff.")
+          Text("Inbox-created and Wishlist-linked orders do not have readiness checklists yet. Add or create a checklist before outbound handoff.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -241,7 +241,7 @@ struct DispatchReadinessView: View {
           }
 
           if actionChecklists.isEmpty {
-            Text("Linked readiness checklists look complete, reviewed, and clear for current source-created and Wishlist-linked orders.")
+            Text("Linked readiness checklists look complete, reviewed, and clear for current Inbox-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionChecklists.count > 3 {
@@ -537,7 +537,7 @@ struct DispatchReadinessRow: View {
 
       if checklist.isInboxDispatchHandoffSetup {
         LinkedOrdersContextPanel(
-          title: "Source-created order readiness check",
+          title: "Inbox-created order readiness check",
           linkedOrders: linkedOrders,
           sourceLabel: checklist.checklistStatus.rawValue,
           emptyDetail: "This checklist was created from Inbox handoff context, but no matching local order was found. Check the checklist before completing readiness.",
@@ -643,7 +643,7 @@ struct DispatchReadinessRow: View {
     case .ready:
       return "Checklist is ready. Open linked orders here before completing readiness if tracking, destination, or handoff setup still needs confirmation."
     case .completed:
-      return "Readiness is complete. The linked source-created or Wishlist-linked order can move through dispatch monitoring."
+      return "Readiness is complete. The linked Inbox-created or Wishlist-linked order can move through dispatch monitoring."
     case .blockedNeedsReview:
       return "Resolve the blocked readiness item before progressing dispatch."
     }

@@ -230,7 +230,7 @@ struct TrackingView: View {
             Text("Orders missing local tracking events")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.secondary)
-            Text("These source-created or Wishlist-linked orders have no local carrier event yet. Add a manual tracking note when the order needs local follow-up.")
+            Text("These Inbox-created or Wishlist-linked orders have no local carrier event yet. Add a manual tracking note when the order needs local follow-up.")
               .font(.caption2)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
@@ -251,11 +251,11 @@ struct TrackingView: View {
         }
 
         if inboxOrders.isEmpty {
-          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or link a Wishlist purchase before checking tracking coverage.")
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or link a Wishlist purchase before checking tracking coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedEvents.isEmpty {
-          Text("Source-created and Wishlist-linked orders do not have tracking events yet. Add a local tracking note from the order when carrier status needs monitoring.")
+          Text("Inbox-created and Wishlist-linked orders do not have tracking events yet. Add a local tracking note from the order when carrier status needs monitoring.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -276,7 +276,7 @@ struct TrackingView: View {
           }
 
           if actionEvents.isEmpty {
-            Text("Linked tracking events are informational and reviewed for current source-created and Wishlist-linked orders.")
+            Text("Linked tracking events are informational and reviewed for current Inbox-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionEvents.count > 3 {

@@ -249,15 +249,15 @@ struct ContactsView: View {
         }
 
         if sourceOrders.isEmpty {
-          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking contact coverage.")
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking contact coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedContacts.isEmpty {
-          Text("No contacts currently match source-created or Wishlist-linked orders by store, carrier, customer/team, or recipient email.")
+          Text("No contacts currently match Inbox-created or Wishlist-linked orders by store, carrier, customer/team, or recipient email.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionContacts.isEmpty {
-          Text("Matched contacts are enabled, reviewed, and have contact details for current source-created and Wishlist-linked orders.")
+          Text("Matched contacts are enabled, reviewed, and have contact details for current Inbox-created and Wishlist-linked orders.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
@@ -650,7 +650,7 @@ struct ContactDirectoryRow: View {
   private var contactWarnings: [String] {
     var warnings: [String] = []
     if !contact.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This contact matches a source-created or Wishlist-linked order but is disabled.")
+      warnings.append("This contact matches an Inbox-created or Wishlist-linked order but is disabled.")
     }
     if contact.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Contact needs review before relying on it for local follow-up.")

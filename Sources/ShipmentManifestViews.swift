@@ -223,11 +223,11 @@ struct ShipmentManifestsView: View {
         }
 
         if sourceOrders.isEmpty {
-          Text("No source-created or Wishlist-linked orders are present yet. Create or link an order from Inbox or Wishlist before checking manifest readiness.")
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create or link an order from Inbox or Wishlist before checking manifest readiness.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedManifests.isEmpty {
-          Text("Source-created and Wishlist-linked orders do not have shipment manifests yet. Add or create dispatch setup before outbound handoff.")
+          Text("Inbox-created and Wishlist-linked orders do not have shipment manifests yet. Add or create dispatch setup before outbound handoff.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -651,7 +651,7 @@ struct ShipmentManifestRow: View {
     case .dispatched:
       return "Manifest is dispatched. Confirm courier/internal handoff and monitor the linked order from Orders."
     case .handedOff:
-      return "Handoff is complete. The linked source-created or Wishlist-linked order can be monitored from Orders."
+      return "Handoff is complete. The linked Inbox-created or Wishlist-linked order can be monitored from Orders."
     case .blockedNeedsReview:
       return "Resolve the blocked handoff before progressing the linked order."
     }

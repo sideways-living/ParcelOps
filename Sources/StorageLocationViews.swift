@@ -213,11 +213,11 @@ struct StorageLocationsView: View {
         }
 
         if sourceOrders.isEmpty {
-          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before assigning storage.")
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before assigning storage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedLocations.isEmpty {
-          Text("Source-created or Wishlist-linked orders do not have storage locations yet. Add or link a location after receiving stock.")
+          Text("Inbox-created or Wishlist-linked orders do not have storage locations yet. Add or link a location after receiving stock.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else {
@@ -238,7 +238,7 @@ struct StorageLocationsView: View {
           }
 
           if actionLocations.isEmpty {
-            Text("Linked storage locations look enabled, coded, reviewed, and ready for current source-created and Wishlist-linked orders.")
+            Text("Linked storage locations look enabled, coded, reviewed, and ready for current Inbox-created and Wishlist-linked orders.")
               .font(.caption)
               .foregroundStyle(.secondary)
           } else if actionLocations.count > 3 {

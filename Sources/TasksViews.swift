@@ -2877,7 +2877,7 @@ private struct TaskQueueRow: View {
               sourceLabel: item.sourceLabel,
               emptyDetail: "This action is tied to an order ID, but the matching local order was not found. Open the detailed task or handoff before completing the work.",
               linkedDetail: linkedOrder?.isInboxCreatedLocalOrder == true
-                ? "Source-created order follow-up. Open the order before completing this task if tracking, destination, or dispatch setup still needs confirmation."
+                ? "Inbox-created order follow-up. Open the order before completing this task if tracking, destination, or dispatch setup still needs confirmation."
                 : "This action has linked order context. Open the order before completing the task if tracking, destination, or dispatch setup still needs confirmation.",
               store: store
             )

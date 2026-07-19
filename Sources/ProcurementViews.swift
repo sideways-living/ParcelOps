@@ -232,11 +232,11 @@ struct ProcurementView: View {
       }
 
       if store.operatorSourceOrderCount == 0 {
-        Text("No source-created or Wishlist-linked orders need procurement checks yet.")
+        Text("No Inbox-created or Wishlist-linked orders need procurement checks yet.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if requestsLinkedToInboxOrders.isEmpty {
-        Text("No procurement requests are linked to source-created or Wishlist-linked orders. Create one only when buying, replacement, or supplier follow-up is needed.")
+        Text("No procurement requests are linked to Inbox-created or Wishlist-linked orders. Create one only when buying, replacement, or supplier follow-up is needed.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else if requestsNeedingAction.isEmpty && requestsMissingBudget.isEmpty {
@@ -676,7 +676,7 @@ struct ProcurementRequestRow: View {
       return "Wishlist purchase context is linked to this procurement request. Confirm buyer, budget, seller, and receiving handoff before closing."
     }
     if !procurementReadinessWarnings.isEmpty && !linkedIntakeEmails.isEmpty {
-      return "This procurement request is tied to a source-created order and still needs local approval, ordering, receiving, budget, or review follow-up."
+      return "This procurement request is tied to an Inbox-created order and still needs local approval, ordering, receiving, budget, or review follow-up."
     }
     if !procurementReadinessWarnings.isEmpty {
       return "This procurement request still needs local approval, ordering, receiving, budget, or review follow-up."

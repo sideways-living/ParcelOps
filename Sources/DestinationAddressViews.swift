@@ -242,15 +242,15 @@ struct DestinationAddressesView: View {
         }
 
         if sourceOrders.isEmpty {
-          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking destination coverage.")
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking destination coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedAddresses.isEmpty {
-          Text("No destination addresses currently match source-created or Wishlist-linked orders by destination, city, carrier, or customer profile.")
+          Text("No destination addresses currently match Inbox-created or Wishlist-linked orders by destination, city, carrier, or customer profile.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionAddresses.isEmpty {
-          Text("Matched destination addresses are enabled, reviewed, and not high-risk for current source-created and Wishlist-linked orders.")
+          Text("Matched destination addresses are enabled, reviewed, and not high-risk for current Inbox-created and Wishlist-linked orders.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
@@ -587,7 +587,7 @@ struct DestinationAddressRow: View {
   private var addressWarnings: [String] {
     var warnings: [String] = []
     if !address.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This address matches a source-created or Wishlist-linked order but is disabled.")
+      warnings.append("This address matches an Inbox-created or Wishlist-linked order but is disabled.")
     }
     if address.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Address needs review before relying on it for dispatch or delivery handoff.")

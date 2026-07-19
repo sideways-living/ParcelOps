@@ -6980,7 +6980,7 @@ struct SettingsReleaseCandidateCard: View {
   private var title: String {
     if !hasMailboxSetup { return "Mailbox setup needed" }
     if manualRefreshCount == 0 { return "Manual mailbox refresh needed" }
-    if inboxCreatedOrdersCount == 0 { return "Source-created order needed" }
+    if inboxCreatedOrdersCount == 0 { return "Inbox-created order needed" }
     if unresolvedOperatorCount > 0 { return "Open operator work remains" }
     return "Daily workflow is clean"
   }
@@ -7373,7 +7373,7 @@ struct SettingsView: View {
       ),
       (
         "Inbox to order handoff",
-        "At least one source-created order confirms the operator path from live intake into Orders, Workbench, Tasks, and Audit.",
+        "At least one Inbox-created order confirms the operator path from live intake into Orders, Workbench, Tasks, and Audit.",
         settingsInboxCreatedOrdersCount == 0 ? 1 : 0,
         "Inbox or Orders",
         "shippingbox.fill",
@@ -7483,7 +7483,7 @@ struct SettingsView: View {
     if settingsInboxCreatedOrdersCount == 0 {
       return "Mailbox refresh has evidence. Create or link one order from Inbox to prove downstream Orders, Workbench, Tasks, Dispatch, and Audit handoff."
     }
-    return "The local MVP has primary navigation, manual mailbox intake evidence, source-created order handoff, task/workbench follow-up, audit history, and local Wishlist planning. Remaining work is production hardening and live integration expansion."
+    return "The local MVP has primary navigation, manual mailbox intake evidence, Inbox-created order handoff, task/workbench follow-up, audit history, and local Wishlist planning. Remaining work is production hardening and live integration expansion."
   }
 
   private var appSnapshotRows: [(title: String, status: String, detail: String, symbol: String, color: Color)] {

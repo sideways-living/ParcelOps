@@ -265,11 +265,11 @@ struct AccountsView: View {
         }
 
         if sourceOrders.isEmpty {
-          Text("No source-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking account placeholder coverage.")
+          Text("No Inbox-created or Wishlist-linked orders are present yet. Create an order from Inbox or complete a Wishlist purchase handoff before checking account placeholder coverage.")
             .font(.caption)
             .foregroundStyle(.secondary)
         } else if linkedAccounts.isEmpty {
-          Text("No account placeholders currently match source-created or Wishlist-linked orders by store, carrier, linked contact, or linked order.")
+          Text("No account placeholders currently match Inbox-created or Wishlist-linked orders by store, carrier, linked contact, or linked order.")
             .font(.caption)
             .foregroundStyle(.orange)
         } else if actionAccounts.isEmpty {
@@ -667,7 +667,7 @@ struct AccountCredentialRow: View {
   private var accountWarnings: [String] {
     var warnings: [String] = []
     if !account.isEnabled && !inboxOrders.isEmpty {
-      warnings.append("This account placeholder matches a source-created or Wishlist-linked order but is disabled.")
+      warnings.append("This account placeholder matches an Inbox-created or Wishlist-linked order but is disabled.")
     }
     if account.reviewState != .accepted && !inboxOrders.isEmpty {
       warnings.append("Account placeholder needs review before relying on it for local follow-up.")

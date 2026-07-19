@@ -8848,7 +8848,7 @@ struct LinkedOrdersContextPanel: View {
         orderNumber: order.orderNumber,
         sourceLabel: "No intake match",
         status: "Check order",
-        detail: "This dispatch row is linked to a source-created order, but no intake email matched the current order number.",
+        detail: "This dispatch row is linked to an Inbox-created order, but no intake email matched the current order number.",
         color: .orange
       )
     }
