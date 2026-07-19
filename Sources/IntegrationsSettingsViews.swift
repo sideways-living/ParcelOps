@@ -474,7 +474,7 @@ struct IntegrationsView: View {
 
         ActiveOperatorQueueFocusCard(store: store)
         PrimaryRouteShortcutGuideCard()
-        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary)
+        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
         MailboxProviderChoiceGuideCard()
 
         SettingsPanel(title: "Find setup section", symbol: "magnifyingglass") {

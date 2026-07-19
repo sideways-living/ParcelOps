@@ -39,7 +39,7 @@ struct ShipmentManifestsView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
-        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary)
+        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
         MVPWorkflowGuide(
           title: "Manifest workflow",
           detail: "Use manifests to bundle outbound work before checking readiness and handoff.",

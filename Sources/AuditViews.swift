@@ -779,7 +779,7 @@ struct AuditView: View {
   private var mailboxProviderReleaseGateAuditPanel: some View {
     SettingsPanel(title: "Mailbox provider release gate", symbol: "checkmark.seal.fill") {
       VStack(alignment: .leading, spacing: 12) {
-        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary)
+        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
         MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: nil)
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store, showAuditLink: false)
         MailboxProviderTroubleshootingCard(summary: store.mailboxProviderTroubleshootingSummary, store: store)

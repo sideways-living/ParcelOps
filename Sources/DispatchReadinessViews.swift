@@ -37,7 +37,7 @@ struct DispatchReadinessView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
-        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary)
+        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
         MVPWorkflowGuide(
           title: "Readiness workflow",
           detail: "Use this screen as the local go/no-go check before dispatch.",

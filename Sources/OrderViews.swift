@@ -212,7 +212,7 @@ struct OrdersView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         header
-        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary)
+        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
         orderNextActionPanel
         orderReadinessLadderPanel
 

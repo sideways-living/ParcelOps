@@ -5624,6 +5624,7 @@ struct MailboxProviderSetupChecklistCard: View {
 
 struct MailboxProviderQuickStatusCard: View {
   var summary: MailboxProviderComparisonSummary
+  var store: ParcelOpsStore?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var color: Color {
@@ -5734,7 +5735,23 @@ struct MailboxProviderQuickStatusCard: View {
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+          }
+      }
+
+      if let store {
+        CompactActionRow {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+          NavigationLink {
+            InboxView(store: store)
+          } label: {
+            Label("Inbox", systemImage: "tray.full.fill")
+          }
         }
+        .buttonStyle(.bordered)
       }
     }
     .padding(14)
@@ -6523,7 +6540,7 @@ struct MailboxProviderOperatorReadinessStack: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
-          MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary)
+          MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
           MailboxProviderQAMatrixCard(store: store)
           SpaceMailPrimaryStatusStrip(store: store, title: "Combined provider intake")
           MailboxProviderReleaseGateCard(summary: store.mailboxProviderReleaseGateSummary, store: store, showMailboxLink: showMailboxLink)
