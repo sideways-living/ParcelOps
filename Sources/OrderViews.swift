@@ -3,6 +3,7 @@ import SwiftUI
 struct OrdersView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var showOrderProviderEvidence = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var orderItems: [OrderQueueItem] {
@@ -274,57 +275,75 @@ struct OrdersView: View {
           ("Refreshed", "\(mailboxDuplicateRefreshedCount)", mailboxDuplicateRefreshedCount == 0 ? .secondary : .green)
         ])
 
-        VStack(alignment: .leading, spacing: 8) {
-          Label("Mailbox provider handoff", systemImage: "point.3.connected.trianglepath.dotted")
-            .font(.subheadline.weight(.semibold))
-          Text("Orders only change after an imported Inbox row or source record is created or linked as an order. Provider rows explain why the latest mailbox refresh did or did not create order work.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+        DisclosureGroup(isExpanded: $showOrderProviderEvidence) {
+          VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+              Label("Mailbox provider handoff", systemImage: "point.3.connected.trianglepath.dotted")
+                .font(.subheadline.weight(.semibold))
+              Text("Orders only change after an imported Inbox row or source record is created or linked as an order. Provider rows explain why the latest mailbox refresh did or did not create order work.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
-          ForEach(orderMailboxProviderRows, id: \.provider) { row in
-            HStack(alignment: .top, spacing: 10) {
-              Image(systemName: row.symbol)
-                .foregroundStyle(row.color)
-                .frame(width: 22)
-              VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) {
-                  Text(row.provider)
-                    .font(.caption.weight(.semibold))
-                  Badge(row.status, color: row.color)
+              ForEach(orderMailboxProviderRows, id: \.provider) { row in
+                HStack(alignment: .top, spacing: 10) {
+                  Image(systemName: row.symbol)
+                    .foregroundStyle(row.color)
+                    .frame(width: 22)
+                  VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 8) {
+                      Text(row.provider)
+                        .font(.caption.weight(.semibold))
+                      Badge(row.status, color: row.color)
+                    }
+                    Text(row.detail)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
+                  Spacer(minLength: 0)
                 }
-                Text(row.detail)
-                  .font(.caption2)
-                  .foregroundStyle(.secondary)
-                  .fixedSize(horizontal: false, vertical: true)
               }
-              Spacer(minLength: 0)
             }
+            .padding(10)
+            .background(.background, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+
+            gmailOrderReadinessPanel
+
+            if !store.gmailMailboxConnections.isEmpty {
+              MailboxProviderPostRefreshDisclosure(
+                title: "Gmail refresh follow-up",
+                detail: "Open this when Gmail refresh results need order handoff review. The order queue remains focused on linked order records.",
+                symbol: "envelope.badge.shield.half.filled",
+                tone: .pink,
+                statusLabel: "Gmail"
+              ) {
+                GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+              }
+            }
+
+            MailboxProviderAdvancedDiagnosticsDisclosure(
+              store: store,
+              detail: "Open this when order handoff needs provider evidence or troubleshooting. The order queue stays focused on created and linked orders.",
+              showReleaseGate: false
+            )
+          }
+          .padding(.top, 8)
+        } label: {
+          VStack(alignment: .leading, spacing: 4) {
+            Text(showOrderProviderEvidence ? "Hide provider evidence" : "Show provider evidence")
+              .font(.subheadline.weight(.semibold))
+            Text("Open this only when troubleshooting why a mailbox refresh did or did not create order work. The source metrics and order rows below are the daily workflow.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
           }
         }
+        .tint(.teal)
         .padding(10)
         .background(.background, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
-
-        gmailOrderReadinessPanel
-
-        if !store.gmailMailboxConnections.isEmpty {
-          MailboxProviderPostRefreshDisclosure(
-            title: "Gmail refresh follow-up",
-            detail: "Open this when Gmail refresh results need order handoff review. The order queue remains focused on linked order records.",
-            symbol: "envelope.badge.shield.half.filled",
-            tone: .pink,
-            statusLabel: "Gmail"
-          ) {
-            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
-          }
-        }
-
-        MailboxProviderAdvancedDiagnosticsDisclosure(
-          store: store,
-          detail: "Open this when order handoff needs provider evidence or troubleshooting. The order queue stays focused on created and linked orders.",
-          showReleaseGate: false
-        )
 
         if !wishlistLinkedOrderItems.isEmpty {
           VStack(alignment: .leading, spacing: 8) {
