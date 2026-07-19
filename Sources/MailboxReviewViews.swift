@@ -169,7 +169,7 @@ struct MailboxView: View {
         store.gmailMailboxConnections.isEmpty ? .secondary : gmailProviderFitAttentionCount > 0 ? .teal : gmailSignedIn ? .green : .orange
       ),
       (
-        "Microsoft 365 / Outlook",
+        "Outlook / Microsoft 365",
         store.microsoft365MailboxConnections.isEmpty ? "Advanced option" : microsoft365Connected ? "Signed in" : microsoft365Ready ? "Sign-in needed" : "Setup needed",
         microsoft365ProviderNextActionDetail(connected: microsoft365Connected, setupReady: microsoft365Ready),
         "mail.stack.fill",
@@ -201,7 +201,7 @@ struct MailboxView: View {
     if !connected {
       return "Next: use the explicit Microsoft sign-in test only for Microsoft-hosted mailboxes. SpaceMail and Gmail remain separate provider paths."
     }
-    return "Next: run manual read-only Graph refresh only when this Outlook/Microsoft 365 mailbox is the active intake source."
+    return "Next: run manual read-only Graph refresh only when this Outlook / Microsoft 365 mailbox is the active intake source."
   }
 
   private var wishlistOrderWatchItems: [WishlistItem] {
@@ -474,7 +474,7 @@ struct MailboxView: View {
         }
 
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
-          Text("Use SpaceMail for IMAP mailboxes. Gmail covers Google-hosted mailboxes, and Microsoft 365 covers Outlook-hosted mailboxes; all feed the same local Inbox intake path.")
+          Text("Use SpaceMail for IMAP mailboxes. Gmail covers Google-hosted mailboxes, and Outlook / Microsoft 365 covers Microsoft-hosted mailboxes; all feed the same local Inbox intake path.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Text("Do not enter passwords here. No password, app password, auth string, or Keychain item is stored in JSON or audit logs.")

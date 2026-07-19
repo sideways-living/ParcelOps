@@ -1851,7 +1851,7 @@ struct TasksView: View {
     if !outlookAssignedFollowUpItems.isEmpty {
       SettingsPanel(title: "Outlook assigned follow-up", symbol: "mail.stack.fill") {
         VStack(alignment: .leading, spacing: 12) {
-          Text("These tasks or handoffs reference Outlook/Microsoft 365 setup, MSAL sign-in, Graph refresh diagnostics, or Outlook provider release checks. Use Mailbox Monitor for the source evidence, then complete the assigned work here.")
+          Text("These tasks or handoffs reference Outlook / Microsoft 365 setup, MSAL sign-in, Graph refresh diagnostics, or Outlook provider release checks. Use Mailbox Monitor for the source evidence, then complete the assigned work here.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)

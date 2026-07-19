@@ -585,16 +585,16 @@ struct DashboardView: View {
       let detail: String
       if refreshedCount > 0 {
         value = "\(refreshedCount) refreshed"
-        detail = "Microsoft 365 / Outlook has read-only Graph refresh evidence. Use Mailbox Monitor or Audit for Graph-specific diagnostics."
+        detail = "Outlook / Microsoft 365 has read-only Graph refresh evidence. Use Mailbox Monitor or Audit for Graph-specific diagnostics."
       } else if signedInCount > 0 {
         value = "\(signedInCount) signed in"
-        detail = "Microsoft 365 sign-in is connected, but no Graph refresh has imported Inbox work yet."
+        detail = "Outlook / Microsoft 365 sign-in is connected, but no Graph refresh has imported Inbox work yet."
       } else if readyCount > 0 {
         value = "\(readyCount) ready"
-        detail = "Microsoft 365 setup is ready for explicit sign-in. Keep it secondary unless this mailbox is Outlook-hosted."
+        detail = "Outlook / Microsoft 365 setup is ready for explicit sign-in. Keep it secondary unless this mailbox is Outlook-hosted."
       } else {
         value = "Setup"
-        detail = "Microsoft 365 is available for Outlook-hosted mailboxes. Finish OAuth readiness before sign-in or Graph refresh."
+        detail = "Outlook / Microsoft 365 is available for Outlook-hosted mailboxes. Finish OAuth readiness before sign-in or Graph refresh."
       }
       rows.append(("Outlook", value, detail, latestMicrosoft365Tone))
     }
@@ -1086,7 +1086,7 @@ struct DashboardView: View {
         MVPDevelopmentStatusPanel(store: store)
         MVPWorkflowGuide(
           title: "Daily operator path",
-          detail: "Use these screens in order for the current manual mailbox workflow. SpaceMail, Gmail, and Outlook/Microsoft 365 are the manual read-only live intake paths.",
+          detail: "Use these screens in order for the current manual mailbox workflow. SpaceMail, Gmail, and Outlook / Microsoft 365 are the manual read-only live intake paths.",
           steps: [
             "Run or review the latest manual mailbox refresh.",
             "Triage imported intake and decide on uncertain mixed-mailbox messages.",
@@ -2038,7 +2038,7 @@ struct DashboardView: View {
               Microsoft365ReleaseSelfCheckCard(summary: summary)
             }
 
-            Text("Outlook/Microsoft 365 remains a separate, explicit provider path. Use it only for Microsoft-hosted mailboxes; real Graph refresh is manual and read-only, and token values stay out of ParcelOps JSON.")
+            Text("Outlook / Microsoft 365 remains a separate, explicit provider path. Use it only for Microsoft-hosted mailboxes; real Graph refresh is manual and read-only, and token values stay out of ParcelOps JSON.")
               .font(.caption2.weight(.semibold))
               .foregroundStyle(latestMicrosoft365Tone)
               .fixedSize(horizontal: false, vertical: true)
@@ -3545,7 +3545,7 @@ struct FirstLiveMailboxTestCard: View {
 
   private var statusDetail: String {
     if !hasMailboxSetup {
-      return "Open Mailbox Monitor or Settings and confirm SpaceMail IMAP, Gmail, or Microsoft 365 setup for the mailbox you want to test."
+      return "Open Mailbox Monitor or Settings and confirm SpaceMail IMAP, Gmail, or Outlook / Microsoft 365 setup for the mailbox you want to test."
     }
     if !hasMailboxCredentialOrAuth {
       return "Set/check the SpaceMail Keychain credential, complete Gmail sign-in, or complete Microsoft sign-in. Do not place passwords, tokens, or app secrets in notes or JSON-backed fields."
@@ -3579,13 +3579,13 @@ struct FirstLiveMailboxTestCard: View {
     [
       FirstLiveMailboxTestItem(
         title: "Confirm setup",
-        detail: "SpaceMail IMAP, Gmail, or Microsoft 365 setup exists with the non-secret mailbox settings needed for manual refresh.",
+        detail: "SpaceMail IMAP, Gmail, or Outlook / Microsoft 365 setup exists with the non-secret mailbox settings needed for manual refresh.",
         symbol: "mail.stack.fill",
         isComplete: hasMailboxSetup
       ),
       FirstLiveMailboxTestItem(
         title: "Check credential or sign-in",
-        detail: "SpaceMail has a Keychain password reference, Gmail has connected sign-in, or Microsoft 365 has connected sign-in; no secret is stored in JSON.",
+        detail: "SpaceMail has a Keychain password reference, Gmail has connected sign-in, or Outlook / Microsoft 365 has connected sign-in; no secret is stored in JSON.",
         symbol: "lock.shield.fill",
         isComplete: hasMailboxCredentialOrAuth
       ),

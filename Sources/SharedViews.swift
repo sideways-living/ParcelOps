@@ -6192,14 +6192,14 @@ struct SpaceMailPrimaryStatusStrip: View {
 
   private var microsoft365StatusDetail: String {
     guard let latest = microsoft365HealthSummaries.first else {
-      return "Add or review Microsoft 365 setup from Settings or Mailbox Monitor when a mailbox is Outlook-hosted."
+      return "Add or review Outlook / Microsoft 365 setup from Settings or Mailbox Monitor when a mailbox is Outlook-hosted."
     }
     return "\(latest.displayName): \(latest.detail)"
   }
 
   private var microsoft365StatusFooter: String {
     guard let latest = microsoft365HealthSummaries.first else {
-      return "Next: add Microsoft 365 setup placeholder"
+      return "Next: add Outlook / Microsoft 365 setup placeholder"
     }
     return "\(latest.compactRefreshCountsText). Next: \(latest.nextAction)"
   }
