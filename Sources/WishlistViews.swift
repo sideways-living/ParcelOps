@@ -9845,6 +9845,13 @@ struct WishlistView: View {
       }
       return total + store.suggestedWishlistOrderConfirmations(for: item).count
     }
+    let focusRecords = Array(records
+      .filter {
+        $0.linkedOrderID == nil
+          || $0.reviewState != .accepted
+          || !$0.watchStatus.localizedCaseInsensitiveContains("matched")
+      }
+      .prefix(3))
 
     return SettingsPanel(title: "Order watch rules", symbol: "envelope.badge.shield.half.filled") {
       VStack(alignment: .leading, spacing: 12) {
@@ -9861,6 +9868,66 @@ struct WishlistView: View {
           ("Blocked", "\(blocked)", blocked == 0 ? .secondary : .red),
           ("Need review", "\(needsReview)", needsReview == 0 ? .green : .purple)
         ])
+
+        if !focusRecords.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Next order-watch focus", systemImage: "scope")
+              .font(.caption.bold())
+              .foregroundStyle(.blue)
+            Text("Start here after a mailbox refresh or external purchase. These are the local watch records most likely to need an Inbox confirmation link or review.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 220 : 300), spacing: 8)], alignment: .leading, spacing: 8) {
+              ForEach(focusRecords) { record in
+                let item = record.wishlistItemID.flatMap { itemID in
+                  store.wishlistItems.first { $0.id == itemID }
+                }
+                let candidates = item.map { store.suggestedWishlistOrderConfirmations(for: $0) } ?? []
+                let linkedOrder = record.linkedOrderID.flatMap { orderID in
+                  store.orders.first { $0.id == orderID }
+                }
+                let focusTone: Color = linkedOrder != nil ? .green : candidates.isEmpty ? .orange : .teal
+                VStack(alignment: .leading, spacing: 6) {
+                  HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: linkedOrder != nil ? "checkmark.seal.fill" : candidates.isEmpty ? "envelope.badge.clock" : "link.badge.plus")
+                      .foregroundStyle(focusTone)
+                      .frame(width: 18)
+                    VStack(alignment: .leading, spacing: 2) {
+                      Text(record.itemName)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(2)
+                      Text(record.sellerName)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    }
+                    Spacer(minLength: 6)
+                    Badge(linkedOrder != nil ? "Linked" : candidates.isEmpty ? "Waiting" : "\(candidates.count) candidate\(candidates.count == 1 ? "" : "s")", color: focusTone)
+                  }
+
+                  Text(linkedOrder.map { "Linked to \($0.orderNumber). Review closure and dispatch setup." }
+                    ?? (candidates.first.map { "Review candidate: \($0.subject)" }
+                      ?? "No candidate yet. Refresh mailbox, then run Check open rules."))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .background(focusTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+              }
+            }
+          }
+          .padding(10)
+          .background(.background.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+          .overlay(
+            RoundedRectangle(cornerRadius: 8)
+              .stroke(.secondary.opacity(0.14), lineWidth: 1)
+          )
+        }
 
         CompactActionRow {
           Button("Add watch rule", systemImage: "envelope.badge.shield.half.filled") {
