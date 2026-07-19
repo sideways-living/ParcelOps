@@ -7485,7 +7485,22 @@ struct SettingsView: View {
         tone: summary.tone
       )
     }
-    return [spaceMailCandidate, gmailCandidate]
+    let outlookCandidate = store.latestMicrosoft365IntakeHealthSummary.map { summary in
+      activeProviderCandidate(
+        provider: "Outlook",
+        summaryDetail: summary.detail,
+        nextAction: summary.nextAction,
+        importedCount: summary.importedCount,
+        uncertainCount: 0,
+        filteredCount: 0,
+        duplicateCount: summary.duplicateCount,
+        duplicateRefreshedCount: summary.duplicateRefreshedCount,
+        fetchedCount: summary.fetchedCount,
+        blockedCount: summary.blockedCount,
+        tone: summary.tone
+      )
+    }
+    return [spaceMailCandidate, gmailCandidate, outlookCandidate]
       .compactMap { $0 }
       .sorted { lhs, rhs in
         if lhs.rank == rhs.rank { return lhs.provider < rhs.provider }
@@ -7504,6 +7519,7 @@ struct SettingsView: View {
     duplicateCount: Int,
     duplicateRefreshedCount: Int,
     fetchedCount: Int,
+    blockedCount: Int = 0,
     tone: String
   ) -> (provider: String, title: String, detail: String, tone: Color, rank: Int) {
     let title: String
@@ -7511,6 +7527,9 @@ struct SettingsView: View {
     if importedCount > 0 {
       title = "\(provider) imported order mail"
       rank = 500 + importedCount
+    } else if blockedCount > 0 {
+      title = "\(provider) needs refresh diagnostics"
+      rank = 450 + blockedCount
     } else if uncertainCount > 0 {
       title = "\(provider) has uncertain mail to review"
       rank = 400 + uncertainCount
