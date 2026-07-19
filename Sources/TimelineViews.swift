@@ -46,7 +46,7 @@ struct TimelineView: View {
 
 
   private var sourceOrdersWithSourceTrail: [TrackedOrder] {
-    store.operatorSourceOrdersWithSourceTrail()
+    store.operatorSourceOrdersWithSourceTrail(includeWishlist: true)
   }
 
   private var sourceOrdersWithMailboxSourceTrail: [TrackedOrder] {
@@ -56,7 +56,7 @@ struct TimelineView: View {
   }
 
   private var sourceOrdersMissingSourceTrail: [TrackedOrder] {
-    store.operatorSourceOrdersMissingSourceTrail()
+    store.operatorSourceOrdersMissingSourceTrail(includeWishlist: true)
   }
 
   private var inboxSourceTimelineActivities: [TimelineActivity] {

@@ -9,7 +9,7 @@ struct SearchView: View {
 
 
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
-    store.inboxCreatedOrdersWithSourceTrail(includeWishlist: true)
+    store.operatorSourceOrdersWithSourceTrail(includeWishlist: true)
   }
 
   private var inboxCreatedOrdersWithMailboxSourceTrail: [TrackedOrder] {
@@ -19,7 +19,7 @@ struct SearchView: View {
   }
 
   private var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder] {
-    store.inboxCreatedOrdersMissingSourceTrail(includeWishlist: true)
+    store.operatorSourceOrdersMissingSourceTrail(includeWishlist: true)
   }
 
   private var uncertainSpaceMailCount: Int {
@@ -95,7 +95,8 @@ struct SearchView: View {
 
         SearchReadinessPanel(
           store: store,
-          inboxCreatedOrderCount: store.inboxCreatedOrderCount,
+          inboxCreatedOrderCount: store.operatorSourceOrderCount,
+          wishlistLinkedOrderCount: store.wishlistLinkedOrderCount,
           inboxCreatedOrdersWithSourceTrailCount: inboxCreatedOrdersWithSourceTrail.count,
           inboxCreatedOrdersWithMailboxSourceTrailCount: inboxCreatedOrdersWithMailboxSourceTrail.count,
           inboxCreatedOrdersMissingSourceTrail: Array(inboxCreatedOrdersMissingSourceTrail.prefix(3)),
@@ -176,6 +177,7 @@ struct SearchView: View {
 private struct SearchReadinessPanel: View {
   var store: ParcelOpsStore
   var inboxCreatedOrderCount: Int
+  var wishlistLinkedOrderCount: Int
   var inboxCreatedOrdersWithSourceTrailCount: Int
   var inboxCreatedOrdersWithMailboxSourceTrailCount: Int
   var inboxCreatedOrdersMissingSourceTrail: [TrackedOrder]
@@ -354,7 +356,8 @@ private struct SearchReadinessPanel: View {
         }
 
         MetricStrip(items: [
-          ("Inbox orders", "\(inboxCreatedOrderCount)", inboxCreatedOrderCount == 0 ? .secondary : .teal),
+          ("Source orders", "\(inboxCreatedOrderCount)", inboxCreatedOrderCount == 0 ? .secondary : .teal),
+          ("Wishlist orders", "\(wishlistLinkedOrderCount)", wishlistLinkedOrderCount == 0 ? .secondary : .pink),
           ("With source", "\(inboxCreatedOrdersWithSourceTrailCount)", inboxCreatedOrderCount == 0 ? .secondary : (inboxCreatedOrdersMissingSourceTrail.isEmpty ? .green : .orange)),
           ("Mailbox source", "\(inboxCreatedOrdersWithMailboxSourceTrailCount)", inboxCreatedOrdersWithMailboxSourceTrailCount == 0 ? .secondary : .blue),
           ("Uncertain", "\(uncertainMailboxCount)", uncertainMailboxCount == 0 ? .green : .orange),
