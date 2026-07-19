@@ -15919,8 +15919,25 @@ private struct WishlistPastedComparisonResultEditor: View {
         TextField("Paste seller comparison notes, quote summary, or future-agent output", text: $draft.pastedText, axis: .vertical)
           .lineLimit(5...12)
         Toggle("Split blank-line or --- separated seller blocks into multiple options", isOn: $draft.splitIntoSellerOptions)
-        Text("ParcelOps reads this text locally and creates reviewable seller options. Use blank lines or --- between sellers in a future-agent or manual comparison result. It does not open retailer links, compare live websites, convert currency, quote postage, check trust services, log into accounts, buy, or pay.")
+        Text("Best format per seller: Seller, URL, Price, AUD total, Postage, Delivery, Trust, and Notes. Use blank lines or --- between sellers. Missing AUD, postage, delivery, link, or trust evidence keeps the option in review.")
           .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        Text("""
+        Example:
+        Seller: Example Store
+        URL: https://example.com/product
+        Price: $120
+        AUD total: $145 delivered
+        Postage: $25
+        Delivery: 7-10 days
+        Trust: established retailer / needs review
+        """)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        Text("ParcelOps reads this text locally and creates reviewable seller options. It does not open retailer links, compare live websites, convert currency, quote postage, check trust services, log into accounts, buy, or pay.")
+          .font(.caption2)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
       }

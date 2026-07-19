@@ -22772,9 +22772,10 @@ final class ParcelOpsStore {
   }
 
   private static func normalizedProductURLString(_ urlString: String) -> String {
+    let urlWithScheme = Self.URLStringWithScheme(urlString)
     guard
-      !urlString.isPlaceholderValidationValue,
-      var components = URLComponents(string: urlString)
+      !urlWithScheme.isPlaceholderValidationValue,
+      var components = URLComponents(string: urlWithScheme)
     else {
       return urlString
     }
@@ -22801,7 +22802,17 @@ final class ParcelOpsStore {
       components.queryItems = nil
     }
     components.fragment = nil
-    return components.string ?? urlString
+    return components.string ?? urlWithScheme
+  }
+
+  private static func URLStringWithScheme(_ urlString: String) -> String {
+    let cleaned = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleaned.isEmpty, !cleaned.isPlaceholderValidationValue else { return urlString }
+    if cleaned.localizedCaseInsensitiveContains("://") { return cleaned }
+    if cleaned.contains(".") && !cleaned.contains(" ") {
+      return "https://\(cleaned)"
+    }
+    return cleaned
   }
 
   private static func storefrontHint(from urlString: String) -> String {
@@ -22912,6 +22923,73 @@ final class ParcelOpsStore {
     return blocks.isEmpty ? [text.trimmingCharacters(in: .whitespacesAndNewlines)].filter { !$0.isEmpty } : Array(blocks.prefix(8))
   }
 
+  private static func currencyHint(from listedPrice: String, urlString: String) -> String {
+    let lowerPrice = listedPrice.localizedLowercase
+    let lowerURL = urlString.localizedLowercase
+    if lowerPrice.contains("aud") || lowerURL.contains(".com.au") || lowerURL.hasSuffix(".au") { return "AUD" }
+    if lowerPrice.contains("usd") || lowerPrice.contains("us$") { return "USD" }
+    if lowerPrice.contains("gbp") || lowerPrice.contains("£") { return "GBP" }
+    if lowerPrice.contains("eur") || lowerPrice.contains("€") { return "EUR" }
+    if lowerPrice.contains("jpy") || lowerPrice.contains("¥") { return "JPY" }
+    if listedPrice.contains("$") { return "Currency needs review" }
+    return "Currency needs review"
+  }
+
+  private static func sellerRegionHint(from urlString: String, currency: String) -> String {
+    let lowerURL = urlString.localizedLowercase
+    let lowerHost = URL(string: urlString)?.host?.localizedLowercase ?? lowerURL
+    let lowerCurrency = currency.localizedLowercase
+    if lowerHost.hasSuffix(".com.au") || lowerHost.hasSuffix(".au") || lowerCurrency.contains("aud") { return "Australia" }
+    if lowerHost.hasSuffix(".co.nz") || lowerHost.hasSuffix(".nz") { return "New Zealand" }
+    if lowerHost.hasSuffix(".co.uk") || lowerHost.hasSuffix(".uk") || lowerCurrency.contains("gbp") { return "United Kingdom" }
+    if lowerHost.hasSuffix(".de") { return "Germany" }
+    if lowerHost.hasSuffix(".fr") { return "France" }
+    if lowerHost.hasSuffix(".it") { return "Italy" }
+    if lowerHost.hasSuffix(".es") { return "Spain" }
+    if lowerHost.hasSuffix(".nl") { return "Netherlands" }
+    if lowerHost.hasSuffix(".eu") || lowerCurrency.contains("eur") { return "Europe" }
+    if lowerHost.hasSuffix(".jp") || lowerCurrency.contains("jpy") { return "Japan" }
+    if lowerHost.hasSuffix(".sg") { return "Singapore" }
+    if lowerHost.hasSuffix(".hk") { return "Hong Kong" }
+    if lowerHost.hasSuffix(".cn") { return "China" }
+    if lowerHost.hasSuffix(".kr") { return "South Korea" }
+    return "Region needs review"
+  }
+
+  private static func wishlistSellerOptionReviewAssessment(
+    seller: String,
+    productURL: String,
+    listedPrice: String,
+    audTotal: String,
+    postageCost: String,
+    postageTime: String,
+    trust: String
+  ) -> (risk: String, recommendation: String, gaps: [String]) {
+    var gaps: [String] = []
+    let trustLower = trust.localizedLowercase
+    let riskyTrustWords = ["unknown", "needs review", "low trust", "new seller", "marketplace", "unverified", "scam", "complaint"]
+    let trustNeedsReview = trust.isPlaceholderValidationValue || riskyTrustWords.contains { trustLower.contains($0) }
+
+    if seller.isPlaceholderValidationValue { gaps.append("seller") }
+    if productURL.isPlaceholderValidationValue || !productURL.localizedCaseInsensitiveContains("http") { gaps.append("product link") }
+    if listedPrice.isPlaceholderValidationValue || listedPrice.localizedCaseInsensitiveContains("needs review") { gaps.append("listed price") }
+    if audTotal.isPlaceholderValidationValue || audTotal.localizedCaseInsensitiveContains("needs review") { gaps.append("AUD landed total") }
+    if postageCost.isPlaceholderValidationValue || postageCost.localizedCaseInsensitiveContains("needs review") { gaps.append("postage cost") }
+    if postageTime.isPlaceholderValidationValue || postageTime.localizedCaseInsensitiveContains("needs review") { gaps.append("delivery time") }
+    if trustNeedsReview { gaps.append("seller trust") }
+
+    if trustLower.contains("scam") || trustLower.contains("low trust") || trustLower.contains("complaint") {
+      return ("High", "Do not buy until seller trust is checked", gaps)
+    }
+    if gaps.count >= 4 {
+      return ("High", "Needs evidence before purchase review: \(gaps.prefix(4).joined(separator: ", "))", gaps)
+    }
+    if gaps.isEmpty {
+      return ("Medium", "Ready for operator verification", gaps)
+    }
+    return ("Needs review", "Needs evidence before purchase review: \(gaps.joined(separator: ", "))", gaps)
+  }
+
   private static func wishlistComparisonOptionFromPastedResult(
     pastedText: String,
     sellerHint: String,
@@ -22926,9 +23004,10 @@ final class ParcelOpsStore {
   ) -> WishlistComparisonOption {
     let cleanText = pastedText.trimmingCharacters(in: .whitespacesAndNewlines)
     let cleanNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-    let detectedURL = productURLHint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      ? Self.firstURLString(in: cleanText)
-      : productURLHint.trimmingCharacters(in: .whitespacesAndNewlines)
+    let rawURL = Self.nonBlank(productURLHint)
+      ?? Self.labeledValue(in: cleanText, labels: ["url", "product url", "product link", "link"])
+      ?? Self.firstURLString(in: cleanText)
+    let detectedURL = Self.normalizedProductURLString(rawURL)
     let seller = Self.nonBlank(sellerHint)
       ?? Self.labeledValue(in: cleanText, labels: ["seller", "retailer", "store", "merchant"])
       ?? Self.storefrontHint(from: detectedURL)
@@ -22937,7 +23016,7 @@ final class ParcelOpsStore {
       ?? "Listed price needs review"
     let currency = Self.nonBlank(currencyHint)
       ?? Self.labeledValue(in: cleanText, labels: ["currency"])
-      ?? (listedPrice.contains("$") ? "AUD" : "Currency needs review")
+      ?? Self.currencyHint(from: listedPrice, urlString: detectedURL)
     let audTotal = Self.nonBlank(audTotalHint)
       ?? Self.labeledValue(in: cleanText, labels: ["aud total", "total aud", "estimated aud", "landed", "landed cost", "total"])
       ?? (currency.localizedCaseInsensitiveContains("AUD") ? listedPrice : "AUD total needs review")
@@ -22958,23 +23037,35 @@ final class ParcelOpsStore {
     ]
       .compactMap { $0 }
       .joined(separator: " ")
+    let cleanSeller = seller.isPlaceholderValidationValue ? "Seller needs review" : seller
+    let cleanProductURL = detectedURL.isPlaceholderValidationValue ? "Product URL needs review" : detectedURL
+    let region = Self.sellerRegionHint(from: cleanProductURL, currency: currency)
+    let assessment = Self.wishlistSellerOptionReviewAssessment(
+      seller: cleanSeller,
+      productURL: cleanProductURL,
+      listedPrice: listedPrice,
+      audTotal: audTotal,
+      postageCost: postageCost,
+      postageTime: postageTime,
+      trust: trust
+    )
 
     return WishlistComparisonOption(
-      sellerName: seller.isPlaceholderValidationValue ? "Seller needs review" : seller,
-      productURL: detectedURL.isPlaceholderValidationValue ? "Product URL needs review" : detectedURL,
+      sellerName: cleanSeller,
+      productURL: cleanProductURL,
       listedPrice: listedPrice,
       currency: currency,
       estimatedAUDTotal: audTotal,
       postageCost: postageCost,
       postageTime: postageTime,
-      sellerRegion: "Region needs review",
+      sellerRegion: region,
       trustRating: trust,
       trustNotes: trustNotes.isEmpty ? "Seller trust, returns, warranty, and delivery reliability need review." : trustNotes,
-      recommendation: "Pasted comparison result needs review",
+      recommendation: assessment.recommendation,
       lastChecked: Self.auditTimestamp(),
       localScore: nil,
-      riskLevel: "Needs review",
-      decisionReason: "Created from a pasted comparison research result. Operator must verify live price, stock, AUD total, postage, seller trust, returns, warranty, account fit, and payment readiness before purchase."
+      riskLevel: assessment.risk,
+      decisionReason: "Created from a pasted comparison research result. Review gaps: \(assessment.gaps.isEmpty ? "none detected in pasted fields" : assessment.gaps.joined(separator: ", ")). Operator must verify live price, stock, AUD total, postage, seller trust, returns, warranty, account fit, and payment readiness before purchase."
     )
   }
 
@@ -23833,6 +23924,10 @@ final class ParcelOpsStore {
       AUD total: \(option.estimatedAUDTotal)
       Postage: \(option.postageCost); \(option.postageTime)
       Trust: \(option.trustRating)
+      Region: \(option.sellerRegion)
+      Risk: \(option.riskLevel ?? "Needs review")
+      Recommendation: \(option.recommendation)
+      Review reason: \(option.decisionReason ?? "Pasted comparison result needs operator review.")
       Manual paste-back only. No live retailer search, website scraping, browser automation, currency API, postage quote, seller trust service, account login, checkout, purchase, payment, mailbox mutation, or external service occurred.
       """
     )
@@ -23907,6 +24002,8 @@ final class ParcelOpsStore {
       \(wishlistItems[index].auditDetail)
       Seller options added: \(newOptions.count)
       Sellers: \(newOptions.map(\.sellerName).joined(separator: ", "))
+      Highest risk: \(newOptions.map { $0.riskLevel ?? "Needs review" }.contains("High") ? "High" : "Needs review")
+      Review gaps: \(newOptions.map { $0.decisionReason ?? "Needs operator review." }.joined(separator: " | "))
       Blocks parsed: \(blocks.count)
       Maximum blocks imported per paste: 8
       Manual paste-back only. No live retailer search, website scraping, browser automation, currency API, postage quote, seller trust service, account login, checkout, purchase, payment, mailbox mutation, or external service occurred.
