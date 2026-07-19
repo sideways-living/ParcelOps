@@ -296,23 +296,28 @@ struct CustodyChainView: View {
   }
 
   private var gmailCustodyReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      GmailReleaseBoundaryPanel(
-        store: store,
-        title: "Gmail custody readiness",
-        lead: "Gmail-origin intake should create custody work only after Gmail setup is ready and the imported Inbox order has confirmed possession, source, destination, and owner context.",
-        sourceMetricTitle: "Gmail custody sources",
-        sourceCount: gmailCustodySourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, capture signatures, connect access-control systems, or change custody records automatically."
-      )
-      Microsoft365ReleaseBoundaryPanel(
-        store: store,
-        title: "Outlook custody readiness",
-        lead: "Outlook-origin intake should create custody work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order possession, source, destination, and owner context are clear.",
-        sourceMetricTitle: "Outlook custody sources",
-        sourceCount: microsoft365CustodySourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, capture signatures, connect access-control systems, or change custody records automatically."
-      )
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox custody evidence",
+      detail: "Open provider release evidence only when custody work depends on Gmail or Outlook source trails."
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail custody readiness",
+          lead: "Gmail-origin intake should create custody work only after Gmail setup is ready and the imported Inbox order has confirmed possession, source, destination, and owner context.",
+          sourceMetricTitle: "Gmail custody sources",
+          sourceCount: gmailCustodySourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, capture signatures, connect access-control systems, or change custody records automatically."
+        )
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook custody readiness",
+          lead: "Outlook-origin intake should create custody work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order possession, source, destination, and owner context are clear.",
+          sourceMetricTitle: "Outlook custody sources",
+          sourceCount: microsoft365CustodySourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, capture signatures, connect access-control systems, or change custody records automatically."
+        )
+      }
     }
   }
 

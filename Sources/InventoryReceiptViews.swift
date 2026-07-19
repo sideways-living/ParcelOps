@@ -292,23 +292,28 @@ struct InventoryReceiptsView: View {
   }
 
   private var gmailInventoryReceiptReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      GmailReleaseBoundaryPanel(
-        store: store,
-        title: "Gmail inventory receipt readiness",
-        lead: "Gmail-origin intake should start inventory receipt or handoff work only after Gmail setup is ready and the imported Inbox order has confirmed receipt, storage, and owner context.",
-        sourceMetricTitle: "Gmail receipt sources",
-        sourceCount: gmailInventoryReceiptSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, connect inventory systems, scan barcodes, or change inventory receipt records automatically."
-      )
-      Microsoft365ReleaseBoundaryPanel(
-        store: store,
-        title: "Outlook inventory receipt readiness",
-        lead: "Outlook-origin intake should start inventory receipt or handoff work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order receipt, storage, and owner context are clear.",
-        sourceMetricTitle: "Outlook receipt sources",
-        sourceCount: microsoft365InventoryReceiptSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, connect inventory systems, scan barcodes, or change inventory receipt records automatically."
-      )
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox inventory evidence",
+      detail: "Open provider release evidence only when inventory receipt or handoff work depends on Gmail or Outlook source trails."
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail inventory receipt readiness",
+          lead: "Gmail-origin intake should start inventory receipt or handoff work only after Gmail setup is ready and the imported Inbox order has confirmed receipt, storage, and owner context.",
+          sourceMetricTitle: "Gmail receipt sources",
+          sourceCount: gmailInventoryReceiptSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, connect inventory systems, scan barcodes, or change inventory receipt records automatically."
+        )
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook inventory receipt readiness",
+          lead: "Outlook-origin intake should start inventory receipt or handoff work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order receipt, storage, and owner context are clear.",
+          sourceMetricTitle: "Outlook receipt sources",
+          sourceCount: microsoft365InventoryReceiptSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, connect inventory systems, scan barcodes, or change inventory receipt records automatically."
+        )
+      }
     }
   }
 

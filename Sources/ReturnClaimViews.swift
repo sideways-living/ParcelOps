@@ -294,24 +294,29 @@ struct ReturnsClaimsView: View {
   }
 
   private var gmailReturnClaimReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      GmailReleaseBoundaryPanel(
-        store: store,
-        title: "Gmail return and claim readiness",
-        lead: "Gmail-origin intake should create return, refund, missing-item, or carrier-claim work only after Gmail setup is ready and the imported Inbox order has confirmed outcome, evidence, and owner context.",
-        sourceMetricTitle: "Gmail claim sources",
-        sourceCount: gmailClaimSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, process refunds, submit carrier claims, or change return/claim records automatically."
-      )
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox return and claim evidence",
+      detail: "Open provider release evidence only when return, refund, or claim work depends on Gmail or Outlook source trails."
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail return and claim readiness",
+          lead: "Gmail-origin intake should create return, refund, missing-item, or carrier-claim work only after Gmail setup is ready and the imported Inbox order has confirmed outcome, evidence, and owner context.",
+          sourceMetricTitle: "Gmail claim sources",
+          sourceCount: gmailClaimSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, process refunds, submit carrier claims, or change return/claim records automatically."
+        )
 
-      Microsoft365ReleaseBoundaryPanel(
-        store: store,
-        title: "Outlook return and claim readiness",
-        lead: "Outlook-origin intake should create return, refund, missing-item, or carrier-claim work only after Microsoft setup, sign-in, Graph diagnostics, and the imported Inbox order has confirmed outcome, evidence, and owner context.",
-        sourceMetricTitle: "Outlook claim sources",
-        sourceCount: microsoft365ClaimSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, process refunds, submit carrier claims, mutate mail, or change return/claim records automatically."
-      )
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook return and claim readiness",
+          lead: "Outlook-origin intake should create return, refund, missing-item, or carrier-claim work only after Microsoft setup, sign-in, Graph diagnostics, and the imported Inbox order has confirmed outcome, evidence, and owner context.",
+          sourceMetricTitle: "Outlook claim sources",
+          sourceCount: microsoft365ClaimSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, process refunds, submit carrier claims, mutate mail, or change return/claim records automatically."
+        )
+      }
     }
   }
 

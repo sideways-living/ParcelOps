@@ -312,23 +312,28 @@ struct CostsBudgetsView: View {
   }
 
   private var gmailCostReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      GmailReleaseBoundaryPanel(
-        store: store,
-        title: "Gmail cost readiness",
-        lead: "Gmail-origin intake should create cost, budget, or reimbursement work only after Gmail setup is ready and the imported Inbox order has confirmed charge, vendor, evidence, and owner context.",
-        sourceMetricTitle: "Gmail cost sources",
-        sourceCount: gmailCostSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, process payments, connect accounting systems, or change cost records automatically."
-      )
-      Microsoft365ReleaseBoundaryPanel(
-        store: store,
-        title: "Outlook cost readiness",
-        lead: "Outlook-origin intake should create cost, budget, or reimbursement work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order charge, vendor, evidence, and owner context are clear.",
-        sourceMetricTitle: "Outlook cost sources",
-        sourceCount: microsoft365CostSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, process payments, connect accounting systems, or change cost records automatically."
-      )
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox cost evidence",
+      detail: "Open provider release evidence only when cost, budget, or reimbursement work depends on Gmail or Outlook source trails."
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail cost readiness",
+          lead: "Gmail-origin intake should create cost, budget, or reimbursement work only after Gmail setup is ready and the imported Inbox order has confirmed charge, vendor, evidence, and owner context.",
+          sourceMetricTitle: "Gmail cost sources",
+          sourceCount: gmailCostSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, process payments, connect accounting systems, or change cost records automatically."
+        )
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook cost readiness",
+          lead: "Outlook-origin intake should create cost, budget, or reimbursement work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order charge, vendor, evidence, and owner context are clear.",
+          sourceMetricTitle: "Outlook cost sources",
+          sourceCount: microsoft365CostSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, process payments, connect accounting systems, or change cost records automatically."
+        )
+      }
     }
   }
 

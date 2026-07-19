@@ -297,23 +297,28 @@ struct ProcurementView: View {
   }
 
   private var gmailProcurementReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      GmailReleaseBoundaryPanel(
-        store: store,
-        title: "Gmail procurement readiness",
-        lead: "Gmail-origin intake should create procurement work only after Gmail setup is ready and the imported Inbox order has confirmed item, budget, vendor, buyer, and receiving context.",
-        sourceMetricTitle: "Gmail procurement sources",
-        sourceCount: gmailProcurementSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, purchase items, connect supplier systems, or change procurement records automatically."
-      )
-      Microsoft365ReleaseBoundaryPanel(
-        store: store,
-        title: "Outlook procurement readiness",
-        lead: "Outlook-origin intake should create procurement work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order item, budget, vendor, buyer, and receiving context are clear.",
-        sourceMetricTitle: "Outlook procurement sources",
-        sourceCount: microsoft365ProcurementSourceCount,
-        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, purchase items, connect supplier systems, or change procurement records automatically."
-      )
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox procurement evidence",
+      detail: "Open provider release evidence only when procurement work depends on Gmail or Outlook source trails."
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        GmailReleaseBoundaryPanel(
+          store: store,
+          title: "Gmail procurement readiness",
+          lead: "Gmail-origin intake should create procurement work only after Gmail setup is ready and the imported Inbox order has confirmed item, budget, vendor, buyer, and receiving context.",
+          sourceMetricTitle: "Gmail procurement sources",
+          sourceCount: gmailProcurementSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, purchase items, connect supplier systems, or change procurement records automatically."
+        )
+        Microsoft365ReleaseBoundaryPanel(
+          store: store,
+          title: "Outlook procurement readiness",
+          lead: "Outlook-origin intake should create procurement work only after Microsoft setup, Graph diagnostics, and confirmed Inbox order item, budget, vendor, buyer, and receiving context are clear.",
+          sourceMetricTitle: "Outlook procurement sources",
+          sourceCount: microsoft365ProcurementSourceCount,
+          boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, purchase items, connect supplier systems, or change procurement records automatically."
+        )
+      }
     }
   }
 
