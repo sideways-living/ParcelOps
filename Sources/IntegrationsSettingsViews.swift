@@ -1954,6 +1954,9 @@ struct GmailMailboxConnectionRow: View {
             }
           } else if !readiness.isReady {
             Button("Check readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
+            Label("Real Gmail locked until compiled config matches", systemImage: "lock.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.orange)
           } else if authState.status != .connected {
             Button("Test real Google sign-in", systemImage: "person.badge.key", action: onRealAuthReadinessCheck)
           } else if connection.lastRefreshUncertainCount ?? 0 > 0 || !(connection.uncertainMessages ?? []).isEmpty {
@@ -2700,7 +2703,7 @@ struct GmailMailboxConnectionRow: View {
               .disabled(shouldDisableRealGmailSignIn)
             Button("Check readiness", systemImage: "network.badge.shield.half.filled", action: onRealReadinessCheck)
             Button(gmailRealRefreshActionLabel, systemImage: gmailRealRefreshActionSymbol, action: onRealRefresh)
-              .disabled(hasMissingCoreGmailSetup)
+              .disabled(!canRunRealGmailRefresh)
           }
           if shouldDisableRealGmailSignIn {
             Label(gmailRealSignInDisabledReason, systemImage: "lock.fill")
