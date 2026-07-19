@@ -5664,6 +5664,14 @@ struct MailboxProviderQuickStatusCard: View {
     summary.actionItems.first?.detail ?? summary.detail
   }
 
+  private var providerColumns: [GridItem] {
+    [GridItem(.adaptive(minimum: isCompact ? 190 : 230), spacing: 8)]
+  }
+
+  private var visibleProviders: [MailboxProviderComparisonItem] {
+    Array(summary.providers.prefix(isCompact ? 2 : 3))
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       if isCompact {
@@ -5687,8 +5695,35 @@ struct MailboxProviderQuickStatusCard: View {
         ("Blockers", "\(totalBlockerCount)", totalBlockerCount > 0 ? .red : .green)
       ])
 
+      if !visibleProviders.isEmpty {
+        LazyVGrid(columns: providerColumns, alignment: .leading, spacing: 8) {
+          ForEach(visibleProviders) { provider in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: provider.symbol)
+                .foregroundStyle(color(for: provider.tone))
+                .frame(width: 20)
+              VStack(alignment: .leading, spacing: 3) {
+                Text(provider.providerName)
+                  .font(.caption.weight(.semibold))
+                Text(provider.statusTitle)
+                  .font(.caption2.weight(.semibold))
+                  .foregroundStyle(color(for: provider.tone))
+                  .fixedSize(horizontal: false, vertical: true)
+                Text(provider.nextAction)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+            .padding(9)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(color(for: provider.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+        }
+      }
+
       HStack(alignment: .top, spacing: 8) {
-        Image(systemName: totalBlockerCount > 0 ? "wrench.and.screwdriver.fill" : "arrow.forward.circle.fill")
+        Image(systemName: summary.actionItems.first?.symbol ?? (totalBlockerCount > 0 ? "wrench.and.screwdriver.fill" : "arrow.forward.circle.fill"))
           .foregroundStyle(color)
           .frame(width: 20)
         VStack(alignment: .leading, spacing: 3) {
