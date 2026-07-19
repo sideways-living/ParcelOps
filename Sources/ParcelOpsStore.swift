@@ -11329,6 +11329,8 @@ final class ParcelOpsStore {
       draft.lastRefreshFilteredExamples = filterResult.filteredExamples
       draft.lastRefreshUncertainExamples = filterResult.uncertainExamples
       draft.lastRefreshReasonBreakdown = Array(filterResult.reasonBreakdown.prefix(12))
+      draft.uncertainMessages = Array(filterResult.uncertainMessages.prefix(10))
+      draft.filteredMessages = Array(filterResult.filteredMessages.prefix(10))
       draft.lastRefreshSummary = "Mock Graph refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. \(filterResult.detail)"
     }
 
@@ -11422,6 +11424,8 @@ final class ParcelOpsStore {
         draft.lastRefreshFilteredExamples = filterResult.filteredExamples
         draft.lastRefreshUncertainExamples = filterResult.uncertainExamples
         draft.lastRefreshReasonBreakdown = Array(filterResult.reasonBreakdown.prefix(12))
+        draft.uncertainMessages = Array(filterResult.uncertainMessages.prefix(10))
+        draft.filteredMessages = Array(filterResult.filteredMessages.prefix(10))
         draft.lastRefreshSummary = "Real Graph refresh: \(fetchResult.messages.count) fetched, \(result.imported) imported, \(result.duplicates) duplicates, \(filterResult.filteredCount) filtered, \(filterResult.uncertainCount) uncertain. \(filterResult.detail)"
       }
 
@@ -11831,10 +11835,12 @@ final class ParcelOpsStore {
   private func filteredMicrosoft365Messages(
     _ messages: [FetchedMailboxMessage],
     for connection: Microsoft365MailboxConnection
-  ) -> (importMessages: [FetchedMailboxMessage], filteredCount: Int, uncertainCount: Int, filteredExamples: [String], uncertainExamples: [String], reasonBreakdown: [SpaceMailClassifierReasonCount], detail: String) {
+  ) -> (importMessages: [FetchedMailboxMessage], uncertainMessages: [GmailReviewMessage], filteredMessages: [GmailReviewMessage], filteredCount: Int, uncertainCount: Int, filteredExamples: [String], uncertainExamples: [String], reasonBreakdown: [SpaceMailClassifierReasonCount], detail: String) {
     guard connection.mailboxMode == .mixedFiltered else {
       return (
         messages,
+        [],
+        [],
         0,
         0,
         [],
@@ -11845,6 +11851,8 @@ final class ParcelOpsStore {
     }
 
     var importMessages: [FetchedMailboxMessage] = []
+    var uncertainMessages: [GmailReviewMessage] = []
+    var filteredMessages: [GmailReviewMessage] = []
     var filteredExamples: [String] = []
     var uncertainExamples: [String] = []
     var importedExamples: [String] = []
@@ -11857,8 +11865,32 @@ final class ParcelOpsStore {
         importedExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
       } else if relevance.decision == "Uncertain" {
         uncertainExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
+        uncertainMessages.append(
+          GmailReviewMessage(
+            providerMessageID: message.providerMessageID,
+            sourceMailboxID: message.sourceMailboxID,
+            sender: safeAuditPreview(message.sender, limit: 120),
+            subject: safeAuditPreview(message.subject, limit: 160),
+            receivedDate: message.receivedDate,
+            bodyPreview: safeAuditPreview(message.plainTextBodyPreview, limit: 280),
+            reason: relevance.reason,
+            capturedDate: Self.auditTimestamp()
+          )
+        )
       } else {
         filteredExamples.append("\(safeAuditPreview(message.subject, limit: 80)) (\(relevance.reason))")
+        filteredMessages.append(
+          GmailReviewMessage(
+            providerMessageID: message.providerMessageID,
+            sourceMailboxID: message.sourceMailboxID,
+            sender: safeAuditPreview(message.sender, limit: 120),
+            subject: safeAuditPreview(message.subject, limit: 160),
+            receivedDate: message.receivedDate,
+            bodyPreview: safeAuditPreview(message.plainTextBodyPreview, limit: 280),
+            reason: relevance.reason,
+            capturedDate: Self.auditTimestamp()
+          )
+        )
       }
       reasonCounts["\(relevance.decision)|\(relevance.reason)", default: 0] += 1
     }
@@ -11884,6 +11916,8 @@ final class ParcelOpsStore {
 
     return (
       importMessages,
+      uncertainMessages,
+      filteredMessages,
       filteredExamples.count,
       uncertainExamples.count,
       Array(filteredExamples.prefix(5)),
@@ -18945,6 +18979,92 @@ final class ParcelOpsStore {
       entityLabel: connection.displayName,
       summary: "Microsoft 365 OAuth readiness reviewed locally.",
       afterDetail: "\(summary.detailText)\nNo OAuth flow ran, no tokens were requested, and no credentials were stored."
+    )
+  }
+
+  func importUncertainMicrosoft365Message(_ uncertainMessage: GmailReviewMessage, for connection: Microsoft365MailboxConnection) {
+    let fetchedMessage = FetchedMailboxMessage(
+      providerMessageID: uncertainMessage.providerMessageID,
+      sender: uncertainMessage.sender,
+      subject: uncertainMessage.subject,
+      receivedDate: uncertainMessage.receivedDate,
+      plainTextBodyPreview: uncertainMessage.bodyPreview,
+      sourceMailboxID: uncertainMessage.sourceMailboxID
+    )
+    let result = importFetchedMailboxMessages([fetchedMessage])
+    updateMicrosoft365MailboxConnection(connection) { draft in
+      draft.uncertainMessages.removeAll { $0.id == uncertainMessage.id || $0.providerMessageID == uncertainMessage.providerMessageID }
+      draft.lastRefreshUncertainCount = draft.uncertainMessages.count
+      draft.lastRefreshUncertainExamples = draft.uncertainMessages.prefix(5).map { "\($0.subject) (\($0.reason))" }
+      draft.lastRefreshSummary = "Microsoft 365 uncertain preview imported locally. \(draft.uncertainMessages.count) uncertain Outlook previews remain."
+    }
+    logAudit(
+      action: .created,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Uncertain Microsoft 365 message imported into intake locally.",
+      afterDetail: "Subject: \(uncertainMessage.subject)\nReason: \(uncertainMessage.reason)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nStored preview only was used. No Microsoft Graph call, OAuth token, mailbox fetch, mailbox mutation, or full message body was logged."
+    )
+  }
+
+  func dismissUncertainMicrosoft365Message(_ uncertainMessage: GmailReviewMessage, for connection: Microsoft365MailboxConnection) {
+    updateMicrosoft365MailboxConnection(connection) { draft in
+      draft.uncertainMessages.removeAll { $0.id == uncertainMessage.id || $0.providerMessageID == uncertainMessage.providerMessageID }
+      draft.lastRefreshUncertainCount = draft.uncertainMessages.count
+      draft.lastRefreshUncertainExamples = draft.uncertainMessages.prefix(5).map { "\($0.subject) (\($0.reason))" }
+      draft.lastRefreshSummary = "Microsoft 365 uncertain preview dismissed locally. \(draft.uncertainMessages.count) uncertain Outlook previews remain."
+    }
+    logAudit(
+      action: .ignored,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Uncertain Microsoft 365 message dismissed locally.",
+      afterDetail: "Subject: \(uncertainMessage.subject)\nReason: \(uncertainMessage.reason)\nThe message was removed from the local Outlook uncertain review list only. No Microsoft Graph call, OAuth token, mailbox item, or full message body was changed."
+    )
+  }
+
+  func importFilteredMicrosoft365Message(_ filteredMessage: GmailReviewMessage, for connection: Microsoft365MailboxConnection) {
+    let fetchedMessage = FetchedMailboxMessage(
+      providerMessageID: filteredMessage.providerMessageID,
+      sender: filteredMessage.sender,
+      subject: filteredMessage.subject,
+      receivedDate: filteredMessage.receivedDate,
+      plainTextBodyPreview: filteredMessage.bodyPreview,
+      sourceMailboxID: filteredMessage.sourceMailboxID
+    )
+    let result = importFetchedMailboxMessages([fetchedMessage])
+    updateMicrosoft365MailboxConnection(connection) { draft in
+      draft.filteredMessages.removeAll { $0.id == filteredMessage.id || $0.providerMessageID == filteredMessage.providerMessageID }
+      draft.lastRefreshFilteredNonOrderCount = draft.filteredMessages.count
+      draft.lastRefreshFilteredExamples = draft.filteredMessages.prefix(5).map { "\($0.subject) (\($0.reason))" }
+      draft.lastRefreshSummary = "Microsoft 365 filtered preview imported locally. \(draft.filteredMessages.count) filtered Outlook previews remain."
+    }
+    logAudit(
+      action: .created,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Filtered Microsoft 365 message imported into intake locally.",
+      afterDetail: "Subject: \(filteredMessage.subject)\nReason: \(filteredMessage.reason)\nImported: \(result.imported)\nDuplicate skips: \(result.duplicates)\nThis was an explicit local operator action from a filtered preview. No Microsoft Graph call, OAuth token, mailbox fetch, mailbox mutation, or full message body was logged."
+    )
+  }
+
+  func dismissFilteredMicrosoft365Message(_ filteredMessage: GmailReviewMessage, for connection: Microsoft365MailboxConnection) {
+    updateMicrosoft365MailboxConnection(connection) { draft in
+      draft.filteredMessages.removeAll { $0.id == filteredMessage.id || $0.providerMessageID == filteredMessage.providerMessageID }
+      draft.lastRefreshFilteredNonOrderCount = draft.filteredMessages.count
+      draft.lastRefreshFilteredExamples = draft.filteredMessages.prefix(5).map { "\($0.subject) (\($0.reason))" }
+      draft.lastRefreshSummary = "Microsoft 365 filtered preview dismissed locally. \(draft.filteredMessages.count) filtered Outlook previews remain."
+    }
+    logAudit(
+      action: .ignored,
+      entityType: .microsoft365MailboxConnection,
+      entityID: connection.id.uuidString,
+      entityLabel: connection.displayName,
+      summary: "Filtered Microsoft 365 message dismissed locally.",
+      afterDetail: "Subject: \(filteredMessage.subject)\nReason: \(filteredMessage.reason)\nThe message was removed from the local Outlook filtered review list only. It was not imported into Inbox, and no Microsoft Graph call, OAuth token, mailbox item, or full message body was changed."
     )
   }
 

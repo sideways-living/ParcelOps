@@ -1109,6 +1109,14 @@ struct IntegrationsView: View {
               store.createReviewTaskFromMicrosoft365OAuthPlan(connection)
             } onRemove: {
               store.removeMicrosoft365MailboxConnection(connection)
+            } onImportUncertain: { message in
+              store.importUncertainMicrosoft365Message(message, for: connection)
+            } onDismissUncertain: { message in
+              store.dismissUncertainMicrosoft365Message(message, for: connection)
+            } onImportFiltered: { message in
+              store.importFilteredMicrosoft365Message(message, for: connection)
+            } onDismissFiltered: { message in
+              store.dismissFilteredMicrosoft365Message(message, for: connection)
             }
           }
         }
@@ -1276,6 +1284,10 @@ struct Microsoft365MailboxConnectionRow: View {
   var onReviewImplementationPlan: () -> Void
   var onCreatePlanTask: () -> Void
   var onRemove: () -> Void
+  var onImportUncertain: (GmailReviewMessage) -> Void = { _ in }
+  var onDismissUncertain: (GmailReviewMessage) -> Void = { _ in }
+  var onImportFiltered: (GmailReviewMessage) -> Void = { _ in }
+  var onDismissFiltered: (GmailReviewMessage) -> Void = { _ in }
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var isEditing = false
 
@@ -1327,6 +1339,7 @@ struct Microsoft365MailboxConnectionRow: View {
         .foregroundStyle(.secondary)
 
       microsoftGraphRefreshSummary
+      microsoft365ReviewQueueSummary
       Microsoft365AuthStateSection(authState: authState)
       Microsoft365RealSignInChecklist(connection: connection, readiness: readiness)
 
@@ -1483,6 +1496,108 @@ struct Microsoft365MailboxConnectionRow: View {
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(refreshStatusColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var microsoft365ReviewQueueSummary: some View {
+    let uncertainCount = connection.uncertainMessages.count
+    let filteredCount = connection.filteredMessages.count
+
+    return VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Label("Review queued Outlook examples", systemImage: "tray.full.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(uncertainCount > 0 ? .orange : (filteredCount > 0 ? .teal : .secondary))
+        Spacer()
+        Badge("\(uncertainCount) uncertain", color: uncertainCount > 0 ? .orange : .secondary)
+        Badge("\(filteredCount) filtered", color: filteredCount > 0 ? .teal : .secondary)
+      }
+      Text(microsoft365ReviewQueueSummaryText(uncertainCount: uncertainCount, filteredCount: filteredCount))
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      if uncertainCount > 0 {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Uncertain previews")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.orange)
+          ForEach(Array(connection.uncertainMessages.prefix(3))) { message in
+            microsoft365ReviewQueueRow(
+              message: message,
+              color: .orange,
+              onImport: { onImportUncertain(message) },
+              onDismiss: { onDismissUncertain(message) }
+            )
+          }
+        }
+      }
+      if filteredCount > 0 {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Filtered examples")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.teal)
+          ForEach(Array(connection.filteredMessages.prefix(3))) { message in
+            microsoft365ReviewQueueRow(
+              message: message,
+              color: .teal,
+              onImport: { onImportFiltered(message) },
+              onDismiss: { onDismissFiltered(message) }
+            )
+          }
+        }
+      }
+      if uncertainCount > 0 || filteredCount > 0 {
+        Text("Review actions use stored safe previews only. They do not call Microsoft Graph, request tokens, fetch mail, clear duplicate metadata, or mutate mailbox messages.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background((uncertainCount > 0 ? Color.orange : (filteredCount > 0 ? Color.teal : Color.secondary)).opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func microsoft365ReviewQueueRow(
+    message: GmailReviewMessage,
+    color: Color,
+    onImport: @escaping () -> Void,
+    onDismiss: @escaping () -> Void
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 5) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text(message.subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No subject" : message.subject)
+          .font(.caption.weight(.semibold))
+          .lineLimit(2)
+        Spacer()
+        Badge(message.reason, color: color)
+      }
+      Text("\(message.sender) • \(message.receivedDate)")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(2)
+      Text(message.bodyPreview)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(3)
+      CompactActionRow {
+        Button("Import to Inbox", systemImage: "tray.and.arrow.down.fill", action: onImport)
+        Button("Dismiss", systemImage: "xmark.circle", role: .destructive, action: onDismiss)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.mini)
+    }
+    .padding(8)
+    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func microsoft365ReviewQueueSummaryText(uncertainCount: Int, filteredCount: Int) -> String {
+    if uncertainCount > 0 {
+      return "\(uncertainCount) uncertain Outlook preview\(uncertainCount == 1 ? "" : "s") stayed out of Inbox until an operator imports or dismisses them locally."
+    }
+    if filteredCount > 0 {
+      return "\(filteredCount) filtered Outlook preview\(filteredCount == 1 ? "" : "s") stayed out of Inbox. Spot-check them only when expected order mail is missing."
+    }
+    return "No Outlook review previews are queued. Mixed-mailbox filtering keeps non-order mail out of the primary Inbox flow."
   }
 
   private var refreshStatusSummary: String {

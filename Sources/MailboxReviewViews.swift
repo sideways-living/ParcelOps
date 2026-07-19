@@ -854,6 +854,14 @@ struct MailboxView: View {
               store.createReviewTaskFromMicrosoft365OAuthPlan(connection)
             } onRemove: {
               store.removeMicrosoft365MailboxConnection(connection)
+            } onImportUncertain: { message in
+              store.importUncertainMicrosoft365Message(message, for: connection)
+            } onDismissUncertain: { message in
+              store.dismissUncertainMicrosoft365Message(message, for: connection)
+            } onImportFiltered: { message in
+              store.importFilteredMicrosoft365Message(message, for: connection)
+            } onDismissFiltered: { message in
+              store.dismissFilteredMicrosoft365Message(message, for: connection)
             }
           }
         }

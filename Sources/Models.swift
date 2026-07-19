@@ -1661,6 +1661,8 @@ struct Microsoft365MailboxConnection: Identifiable, Hashable, Codable {
   var lastRefreshFilteredExamples: [String] = []
   var lastRefreshUncertainExamples: [String] = []
   var lastRefreshReasonBreakdown: [SpaceMailClassifierReasonCount] = []
+  var uncertainMessages: [GmailReviewMessage] = []
+  var filteredMessages: [GmailReviewMessage] = []
 
   init(
     id: UUID = UUID(),
@@ -1688,7 +1690,9 @@ struct Microsoft365MailboxConnection: Identifiable, Hashable, Codable {
     lastRefreshSummary: String = "No Microsoft 365 Graph refresh has run yet.",
     lastRefreshFilteredExamples: [String] = [],
     lastRefreshUncertainExamples: [String] = [],
-    lastRefreshReasonBreakdown: [SpaceMailClassifierReasonCount] = []
+    lastRefreshReasonBreakdown: [SpaceMailClassifierReasonCount] = [],
+    uncertainMessages: [GmailReviewMessage] = [],
+    filteredMessages: [GmailReviewMessage] = []
   ) {
     self.id = id
     self.displayName = displayName
@@ -1716,6 +1720,8 @@ struct Microsoft365MailboxConnection: Identifiable, Hashable, Codable {
     self.lastRefreshFilteredExamples = lastRefreshFilteredExamples
     self.lastRefreshUncertainExamples = lastRefreshUncertainExamples
     self.lastRefreshReasonBreakdown = lastRefreshReasonBreakdown
+    self.uncertainMessages = uncertainMessages
+    self.filteredMessages = filteredMessages
   }
 
   init(from decoder: Decoder) throws {
@@ -1746,6 +1752,8 @@ struct Microsoft365MailboxConnection: Identifiable, Hashable, Codable {
     lastRefreshFilteredExamples = try container.decodeIfPresent([String].self, forKey: .lastRefreshFilteredExamples) ?? []
     lastRefreshUncertainExamples = try container.decodeIfPresent([String].self, forKey: .lastRefreshUncertainExamples) ?? []
     lastRefreshReasonBreakdown = try container.decodeIfPresent([SpaceMailClassifierReasonCount].self, forKey: .lastRefreshReasonBreakdown) ?? []
+    uncertainMessages = try container.decodeIfPresent([GmailReviewMessage].self, forKey: .uncertainMessages) ?? []
+    filteredMessages = try container.decodeIfPresent([GmailReviewMessage].self, forKey: .filteredMessages) ?? []
   }
 }
 
