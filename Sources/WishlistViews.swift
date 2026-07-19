@@ -7056,10 +7056,12 @@ struct WishlistView: View {
     let sellerTrust = summaries.filter { $0.category == "Seller trust" }.count
     let postage = summaries.filter { $0.category == "Postage" }.count
     let landedCost = summaries.filter { $0.category == "AUD landed cost" }.count
+    let linkOrPolicy = summaries.filter { $0.category == "Product link" || $0.category == "Returns/warranty" }.count
+    let choiceReview = summaries.filter { $0.category == "Seller choice" }.count
 
     return SettingsPanel(title: "Readiness blockers", symbol: "checklist.unchecked") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Use this summary after running purchase readiness checks. It groups the local blockers that must be cleared before a human buys externally.")
+        Text("Use this summary after running purchase readiness checks. It groups the local blockers that must be cleared before a human buys externally: product link, landed AUD total, postage, trust, returns/warranty, owner/account, and seller choice rationale.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -7069,7 +7071,9 @@ struct WishlistView: View {
           ("Critical", "\(critical)", critical == 0 ? .green : .red),
           ("Seller trust", "\(sellerTrust)", sellerTrust == 0 ? .green : .orange),
           ("Postage", "\(postage)", postage == 0 ? .green : .teal),
-          ("AUD cost", "\(landedCost)", landedCost == 0 ? .green : .brown)
+          ("AUD cost", "\(landedCost)", landedCost == 0 ? .green : .brown),
+          ("Link/policy", "\(linkOrPolicy)", linkOrPolicy == 0 ? .green : .indigo),
+          ("Choice", "\(choiceReview)", choiceReview == 0 ? .green : .purple)
         ])
 
         if summaries.isEmpty {
@@ -7110,9 +7114,12 @@ struct WishlistView: View {
   }
 
   private func wishlistReadinessCategory(for title: String) -> String {
+    if title.localizedCaseInsensitiveContains("direct product link") || title.localizedCaseInsensitiveContains("product link") { return "Product link" }
     if title.localizedCaseInsensitiveContains("trust") { return "Seller trust" }
     if title.localizedCaseInsensitiveContains("postage") || title.localizedCaseInsensitiveContains("delivery") { return "Postage" }
     if title.localizedCaseInsensitiveContains("aud") || title.localizedCaseInsensitiveContains("cost") { return "AUD landed cost" }
+    if title.localizedCaseInsensitiveContains("returns") || title.localizedCaseInsensitiveContains("warranty") { return "Returns/warranty" }
+    if title.localizedCaseInsensitiveContains("rationale") || title.localizedCaseInsensitiveContains("choice") { return "Seller choice" }
     if title.localizedCaseInsensitiveContains("seller") { return "Seller selection" }
     if title.localizedCaseInsensitiveContains("owner") || title.localizedCaseInsensitiveContains("account") { return "Owner/account" }
     if title.localizedCaseInsensitiveContains("source") || title.localizedCaseInsensitiveContains("item") { return "Item/source" }
@@ -7120,9 +7127,12 @@ struct WishlistView: View {
   }
 
   private func wishlistReadinessNextAction(for title: String) -> String {
+    if title.localizedCaseInsensitiveContains("direct product link") || title.localizedCaseInsensitiveContains("product link") { return "Confirm product link" }
     if title.localizedCaseInsensitiveContains("trust") { return "Confirm seller trust" }
     if title.localizedCaseInsensitiveContains("postage") || title.localizedCaseInsensitiveContains("delivery") { return "Confirm postage" }
     if title.localizedCaseInsensitiveContains("aud") || title.localizedCaseInsensitiveContains("cost") { return "Confirm AUD total" }
+    if title.localizedCaseInsensitiveContains("returns") || title.localizedCaseInsensitiveContains("warranty") { return "Confirm returns/warranty" }
+    if title.localizedCaseInsensitiveContains("rationale") || title.localizedCaseInsensitiveContains("choice") { return "Confirm seller choice" }
     if title.localizedCaseInsensitiveContains("seller") { return "Choose seller" }
     if title.localizedCaseInsensitiveContains("owner") || title.localizedCaseInsensitiveContains("account") { return "Confirm owner/account" }
     if title.localizedCaseInsensitiveContains("source") || title.localizedCaseInsensitiveContains("item") { return "Confirm item/source" }
@@ -13636,14 +13646,19 @@ private struct WishlistReadinessBlockerSummary: Identifiable {
   var sortPriority: Int {
     if !criticalChecks.isEmpty { return 0 }
     if category == "Seller trust" { return 1 }
-    if category == "Postage" || category == "AUD landed cost" { return 2 }
+    if category == "AUD landed cost" || category == "Product link" { return 2 }
+    if category == "Postage" || category == "Returns/warranty" { return 3 }
+    if category == "Seller choice" { return 4 }
     return 3
   }
 
   var tone: Color {
     if !criticalChecks.isEmpty { return .red }
+    if category == "Product link" { return .indigo }
     if category == "Postage" { return .teal }
     if category == "AUD landed cost" { return .brown }
+    if category == "Returns/warranty" { return .purple }
+    if category == "Seller choice" { return .blue }
     return .orange
   }
 }
@@ -13676,6 +13691,13 @@ private struct WishlistReadinessBlockerSummaryRow: View {
       HStack(spacing: 6) {
         Badge(summary.category, color: summary.tone)
         Badge(summary.nextAction, color: .blue)
+      }
+
+      if !summary.criticalChecks.isEmpty {
+        Text("Critical: \(summary.criticalChecks.prefix(3).map(\.title).joined(separator: ", "))")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.red)
+          .fixedSize(horizontal: false, vertical: true)
       }
 
       Text(summary.detail)
