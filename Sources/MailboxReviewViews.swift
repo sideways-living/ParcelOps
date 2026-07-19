@@ -1314,7 +1314,7 @@ private struct MailboxMissedOrderInvestigationPanel: View {
 
   private var detail: String {
     if !hasProviderSetup {
-      return "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Microsoft 365 for Outlook-hosted mailboxes, then run a manual read-only refresh."
+      return "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook / Microsoft 365 for Microsoft-hosted mailboxes, then run a manual read-only refresh."
     }
     if latestImportedCount > 0 {
       return "\(latestImportedCount) likely order message\(latestImportedCount == 1 ? "" : "s") reached Inbox. Start in Inbox, then create or link orders."
@@ -1761,7 +1761,7 @@ private struct MailboxReviewStartPanel: View {
       return "Work the detected order emails below. Confirm fields, then create/link orders, mark reviewed, ignore, task, or draft."
     }
     if latestSummary == nil && latestGmailSummary == nil {
-      return "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Microsoft 365 for Outlook-hosted mailboxes. All paths feed the same local Inbox intake queue."
+      return "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook / Microsoft 365 for Microsoft-hosted mailboxes. All paths feed the same local Inbox intake queue."
     }
     return "Latest mailbox activity has no immediate review rows. Use setup details only when tuning the active mailbox provider or investigating Audit evidence."
   }

@@ -445,16 +445,16 @@ final class ParcelOpsStore {
       microsoftTone = "neutral"
     } else if microsoftProblemCount > 0 {
       microsoftStatusTitle = "Microsoft 365 needs review"
-      microsoftDetail = "\(microsoftProblemCount) Microsoft 365 setup\(microsoftProblemCount == 1 ? "" : "s") have auth, consent, or Graph-read diagnostics to review."
-      microsoftNextAction = "Open Microsoft 365 setup or Audit before relying on Graph refresh."
+      microsoftDetail = "\(microsoftProblemCount) Outlook / Microsoft 365 setup\(microsoftProblemCount == 1 ? "" : "s") have auth, consent, or Graph-read diagnostics to review."
+      microsoftNextAction = "Open Outlook / Microsoft 365 setup or Audit before relying on Graph refresh."
       microsoftTone = "warning"
     } else if microsoftImported > 0 {
-      microsoftStatusTitle = "Microsoft 365 has operator work"
+      microsoftStatusTitle = "Outlook / Microsoft 365 has operator work"
       microsoftDetail = "\(microsoftImported) Outlook-origin message\(microsoftImported == 1 ? "" : "s") were imported through provider-neutral intake."
       microsoftNextAction = "Review Outlook-origin Inbox rows and create or link orders where appropriate."
       microsoftTone = "attention"
     } else if microsoftSignedInCount > 0 && microsoftFetched > 0 {
-      microsoftStatusTitle = "Microsoft 365 has refresh evidence"
+      microsoftStatusTitle = "Outlook / Microsoft 365 has refresh evidence"
       microsoftDetail = "\(microsoftFetched) Outlook fetch signal\(microsoftFetched == 1 ? "" : "s") and \(microsoftDuplicate) duplicate-safe result\(microsoftDuplicate == 1 ? "" : "s") are available for review."
       microsoftNextAction = "Review Mailbox Monitor or Audit before using Outlook as the active provider path."
       microsoftTone = "attention"
@@ -469,8 +469,8 @@ final class ParcelOpsStore {
       microsoftNextAction = "Test Microsoft sign-in only for an Outlook-hosted mailbox."
       microsoftTone = "neutral"
     } else {
-      microsoftStatusTitle = "Microsoft 365 setup incomplete"
-      microsoftDetail = "Microsoft 365 remains an advanced provider path until tenant, client, redirect, scope, and sign-in readiness are complete."
+      microsoftStatusTitle = "Outlook / Microsoft 365 setup incomplete"
+      microsoftDetail = "Outlook / Microsoft 365 remains an advanced provider path until tenant, client, redirect, scope, and sign-in readiness are complete."
       microsoftNextAction = "Finish Microsoft 365 readiness or use SpaceMail/Gmail for the active mailbox."
       microsoftTone = "neutral"
     }
@@ -1094,7 +1094,7 @@ final class ParcelOpsStore {
           providerName: "Outlook",
           phase: "Refresh",
           title: microsoftFetched > 0 ? "Outlook refresh evidence exists" : signedInCount > 0 ? "Run Outlook manual refresh" : "Test Microsoft sign-in",
-          detail: microsoftFetched > 0 ? "Outlook has Microsoft Graph refresh evidence available for operator review." : signedInCount > 0 ? "A Microsoft account is connected, but no Graph fetch evidence is recorded yet." : "Microsoft 365 setup exists but needs a connected sign-in before real Graph refresh.",
+          detail: microsoftFetched > 0 ? "Outlook has Microsoft Graph refresh evidence available for operator review." : signedInCount > 0 ? "A Microsoft account is connected, but no Graph fetch evidence is recorded yet." : "Outlook / Microsoft 365 setup exists but needs a connected sign-in before real Graph refresh.",
           nextAction: microsoftFetched > 0 ? "Review Outlook fetch, duplicate, and auth diagnostics." : signedInCount > 0 ? "Run real Graph refresh when checking an Outlook-hosted mailbox." : "Run Test real Microsoft sign-in before refresh.",
           evidence: "\(readyCount) ready setup, \(signedInCount) signed in, \(microsoftFetched) refresh run\(microsoftFetched == 1 ? "" : "s").",
           isComplete: microsoftFetched > 0,
@@ -5357,12 +5357,12 @@ final class ParcelOpsStore {
       tone = "warning"
     } else if !readiness.isReady {
       verdict = "Outlook setup incomplete"
-      detail = "\(readiness.statusText). Microsoft 365 remains optional unless this is an Outlook-hosted mailbox."
+      detail = "\(readiness.statusText). Outlook / Microsoft 365 remains optional unless this is a Microsoft-hosted mailbox."
       nextAction = "Complete tenant, client, redirect, and scope placeholders before real sign-in."
       tone = "neutral"
     } else if authState.status != .connected && fetchedCount == 0 {
       verdict = "Outlook sign-in needed"
-      detail = "Microsoft 365 setup has readiness values, but no signed-in account or refresh evidence is available."
+      detail = "Outlook / Microsoft 365 setup has readiness values, but no signed-in account or refresh evidence is available."
       nextAction = "Run Test real Microsoft sign-in only when this mailbox is Outlook-hosted."
       tone = "attention"
     } else if importedCount > 0 {
@@ -5382,12 +5382,12 @@ final class ParcelOpsStore {
       tone = "neutral"
     } else if fetchedCount > 0 {
       verdict = "Outlook refresh evidence recorded"
-      detail = "Microsoft 365 has manual Graph refresh evidence, but no actionable Inbox intake is pending."
+      detail = "Outlook / Microsoft 365 has manual Graph refresh evidence, but no actionable Inbox intake is pending."
       nextAction = "Use Outlook refresh only when this is the active mailbox provider."
       tone = "neutral"
     } else {
       verdict = "Ready for Outlook refresh"
-      detail = "Microsoft 365 setup exists, but no refresh evidence is active yet."
+      detail = "Outlook / Microsoft 365 setup exists, but no refresh evidence is active yet."
       nextAction = "Run explicit read-only Graph refresh only for an Outlook-hosted mailbox."
       tone = "neutral"
     }

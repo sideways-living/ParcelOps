@@ -437,7 +437,7 @@ struct IntegrationsView: View {
         VStack(alignment: .leading, spacing: 10) {
           Text("Local source setup")
             .font(isCompact ? .title2.bold() : .title.bold())
-          Text("SpaceMail IMAP and Gmail are the current manual read-only mailbox paths. Shopify, folders, logins, and Microsoft 365 remain setup or planning surfaces unless explicitly enabled.")
+          Text("SpaceMail IMAP and Gmail are the current manual read-only mailbox paths. Shopify, folders, logins, and Outlook / Microsoft 365 remain setup or planning surfaces unless explicitly enabled.")
             .font(.callout)
             .foregroundStyle(.secondary)
           CompactActionRow {
@@ -556,7 +556,7 @@ struct IntegrationsView: View {
             VStack(alignment: .leading, spacing: 8) {
               Label("Choose the mailbox provider path", systemImage: "point.3.connected.trianglepath.dotted")
                 .font(.subheadline.weight(.semibold))
-              Text("Use one provider path per mailbox. SpaceMail/IMAP and Gmail are the practical daily paths; Microsoft 365 remains available only when a mailbox is actually hosted there.")
+              Text("Use one provider path per mailbox. SpaceMail/IMAP and Gmail are the practical daily paths; Outlook / Microsoft 365 remains available only when a mailbox is actually hosted there.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

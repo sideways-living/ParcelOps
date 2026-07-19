@@ -74,7 +74,7 @@ struct MVPSetupView: View {
           MVPStatusCard(title: "Manual operations", detail: "You can create, edit, review, link, and remove local operational records.", status: "Available", symbol: "hand.tap.fill", color: .green)
           MVPStatusCard(title: "SpaceMail intake", detail: "SpaceMail IMAP can run a manual read-only refresh, filter mixed mailbox mail, and import likely order messages into local Inbox review.", status: "Manual", symbol: "envelope.badge.fill", color: .green)
           MVPStatusCard(title: "Gmail intake", detail: "Gmail can use readiness checks, explicit sign-in, and manual read-only refresh for Google-hosted mailboxes, with mock refresh still available for local testing.", status: "Manual", symbol: "envelope.open.fill", color: .green)
-          MVPStatusCard(title: "Microsoft 365", detail: "Microsoft 365 setup, sign-in, and Graph diagnostics remain available as the manual read-only path for Outlook-hosted mailboxes.", status: "Outlook path", symbol: "building.2.crop.circle", color: .teal)
+          MVPStatusCard(title: "Outlook / Microsoft 365", detail: "Outlook / Microsoft 365 setup, sign-in, and Graph diagnostics remain available as the manual read-only path for Microsoft-hosted mailboxes.", status: "Outlook path", symbol: "building.2.crop.circle", color: .teal)
           MVPStatusCard(title: "Wishlist", detail: "Wishlist supports local manual capture, comparison planning, seller trust notes, purchase handoff, and order-watch records. Agent research and browser extension capture remain planning/local handoff work.", status: "Local", symbol: "star.square.fill", color: .purple)
           MVPStatusCard(title: "Shopify", detail: "Shopify records and account placeholders exist, but no Shopify API or OAuth flow is connected.", status: "Placeholder", symbol: "cart.badge.plus", color: .orange)
           MVPStatusCard(title: "Carrier tracking", detail: "Tracking events are local records only. Carrier APIs and live refresh are not connected.", status: "Placeholder", symbol: "location.fill.viewfinder", color: .orange)
@@ -598,7 +598,7 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
 
   private var currentPriorityDetail: String {
     if !hasManualMailboxSetup {
-      return "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Microsoft 365 for Outlook-hosted mailboxes."
+      return "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook / Microsoft 365 for Microsoft-hosted mailboxes."
     }
     if !hasManualMailboxReady {
       return "Use Keychain-backed SpaceMail credential storage, explicit Gmail sign-in, or explicit Microsoft sign-in. Do not place passwords, tokens, client secrets, or auth details in JSON fields or setup notes."
@@ -1131,7 +1131,7 @@ struct MVPUsableVersionPanel: View {
 
   private var readinessDetail: String {
     if !hasManualMailboxSetup {
-      return "The local records, navigation, Tasks, Audit, and Settings flows are usable. Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Microsoft 365 for Outlook-hosted mailboxes before relying on live mailbox intake."
+      return "The local records, navigation, Tasks, Audit, and Settings flows are usable. Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook / Microsoft 365 for Microsoft-hosted mailboxes before relying on live mailbox intake."
     }
     if !hasManualMailboxReady {
       return "The mailbox setup exists, but real manual refresh still needs a SpaceMail Keychain credential, connected Gmail sign-in, or connected Microsoft sign-in."
@@ -1576,7 +1576,7 @@ struct MVPDevelopmentProgressPanel: View {
     if hasManualMailboxSetup {
       return "Confirm credential/sign-in readiness, run one manual read-only refresh, then use the latest refresh summary to decide whether Inbox should receive work."
     }
-    return "Use SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Microsoft 365 for Outlook-hosted mailboxes."
+    return "Use SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook / Microsoft 365 for Microsoft-hosted mailboxes."
   }
 
   private var activeMailboxEvidence: String {
@@ -1586,7 +1586,7 @@ struct MVPDevelopmentProgressPanel: View {
   private var remainingBlockers: [(title: String, detail: String, symbol: String, color: Color)] {
     var items: [(title: String, detail: String, symbol: String, color: Color)] = []
     if !hasManualMailboxSetup {
-      items.append(("Choose provider", "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Microsoft 365 for Outlook-hosted mailboxes.", "server.rack", .orange))
+      items.append(("Choose provider", "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook / Microsoft 365 for Microsoft-hosted mailboxes.", "server.rack", .orange))
     } else if !hasManualMailboxReady {
       items.append(("Finish auth", "Set the SpaceMail Keychain credential, complete Gmail sign-in, or complete Microsoft sign-in before relying on real refresh.", "key.fill", .orange))
     }
@@ -1877,7 +1877,7 @@ struct MVPHandsOnReleaseChecklist: View {
 
   private var nextTestDetail: String {
     if !hasManualMailboxSetup {
-      return "Create a non-secret SpaceMail setup for IMAP mailboxes, Gmail setup for Google-hosted mailboxes, or Microsoft 365 setup for Outlook-hosted mailboxes."
+      return "Create a non-secret SpaceMail setup for IMAP mailboxes, Gmail setup for Google-hosted mailboxes, or Outlook / Microsoft 365 setup for Microsoft-hosted mailboxes."
     }
     if !hasManualMailboxReady {
       return "Use the secure SpaceMail credential prompt, explicit Gmail sign-in, or explicit Microsoft sign-in. Do not put passwords, tokens, or auth details in notes or JSON."
