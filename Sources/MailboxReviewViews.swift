@@ -294,9 +294,9 @@ struct MailboxView: View {
   private func addOrFocusMicrosoft365Setup() {
     if store.microsoft365MailboxConnections.isEmpty {
       store.addMicrosoft365MailboxConnectionPlaceholder()
-      providerSetupFeedbackMessage = "Microsoft 365 setup added locally. Keep this path advanced unless the mailbox is Microsoft-hosted."
+      providerSetupFeedbackMessage = "Outlook / Microsoft 365 setup added locally. Keep this path advanced unless the mailbox is Microsoft-hosted."
     } else {
-      providerSetupFeedbackMessage = "Use the existing Microsoft 365 setup row below. Keep it secondary unless this mailbox is actually Microsoft-hosted."
+      providerSetupFeedbackMessage = "Use the existing Outlook / Microsoft 365 setup row below. Keep it secondary unless this mailbox is actually Microsoft-hosted."
     }
   }
 
@@ -770,20 +770,20 @@ struct MailboxView: View {
           latestGmailSummary: latestGmailSummary
         )
 
-        SettingsPanel(title: "Microsoft 365 setup planning", symbol: "mail.stack.fill") {
+        SettingsPanel(title: "Outlook / Microsoft 365 setup", symbol: "mail.stack.fill") {
           Text("Use Microsoft 365 when the active mailbox is Outlook-hosted. Real sign-in and manual Graph refresh remain explicit, read-only, and separate from SpaceMail and Gmail.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
           CompactActionRow {
-            Button(store.microsoft365MailboxConnections.isEmpty ? "Add mailbox setup" : "Show Microsoft 365 setup", systemImage: store.microsoft365MailboxConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
+            Button(store.microsoft365MailboxConnections.isEmpty ? "Add mailbox setup" : "Show Outlook setup", systemImage: store.microsoft365MailboxConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
               addOrFocusMicrosoft365Setup()
             }
               .buttonStyle(.bordered)
             Badge("\(store.microsoft365MailboxConnections.count) setup records", color: .orange)
           }
           if store.microsoft365MailboxConnections.isEmpty {
-            MVPEmptyState(title: "No Microsoft 365 mailbox setup", detail: "Add a setup record in Mailbox Monitor or Settings, then run Mock Graph refresh to test the local intake path.", symbol: "mail.stack")
+            MVPEmptyState(title: "No Outlook / Microsoft 365 mailbox setup", detail: "Add a setup record in Mailbox Monitor or Settings, then run Mock Graph refresh to test the local intake path.", symbol: "mail.stack")
           }
           ForEach(store.microsoft365MailboxConnections) { connection in
             Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection), authState: store.microsoft365AuthSessionState(for: connection)) { updatedConnection in
@@ -1538,7 +1538,7 @@ private struct MailboxProviderRefreshSummaryGrid: View {
     return ProviderSummary(
       name: connection.displayName,
       verdict: hasRefresh ? "Manual Graph refresh evidence" : "Setup exists",
-      detail: connection.connectionStatus.isEmpty ? "Microsoft 365 setup is present for an Outlook-hosted mailbox." : connection.connectionStatus,
+      detail: connection.connectionStatus.isEmpty ? "Outlook / Microsoft 365 setup is present for an Outlook-hosted mailbox." : connection.connectionStatus,
       nextAction: hasRefresh
         ? "Review Audit if Graph auth, consent, or mailbox diagnostics need follow-up."
         : "Complete readiness and explicit Microsoft sign-in before manual Graph refresh.",
@@ -1606,7 +1606,7 @@ private struct MailboxProviderRefreshSummaryGrid: View {
         title: "Outlook / Microsoft 365",
         symbol: "mail.stack.fill",
         summary: microsoft365Summary,
-        emptyDetail: "Use Microsoft 365 setup only for Outlook-hosted mailboxes. Real Graph refresh remains explicit, manual, and read-only."
+        emptyDetail: "Use Outlook / Microsoft 365 setup only for Outlook-hosted mailboxes. Real Graph refresh remains explicit, manual, and read-only."
       )
     }
   }
@@ -2158,7 +2158,7 @@ private struct MailboxMicrosoft365ReadinessPanel: View {
 
   private var detail: String {
     guard let connection = primaryConnection else {
-      return "Add Microsoft 365 setup only for Outlook-hosted mailboxes. SpaceMail and Gmail remain separate provider paths."
+      return "Add Outlook / Microsoft 365 setup only for Outlook-hosted mailboxes. SpaceMail and Gmail remain separate provider paths."
     }
     if !hasOAuthReadiness {
       let missing = readiness?.missingFields.joined(separator: ", ") ?? "tenant, client, redirect, scope, and folder values"
@@ -2223,7 +2223,7 @@ private struct MailboxMicrosoft365ReadinessPanel: View {
         }
         .buttonStyle(.bordered)
 
-        Text("This panel only reads existing Microsoft 365 setup, auth state, and manual Graph refresh evidence. It does not start sign-in, request tokens, fetch mailbox messages, mutate mailboxes, or store secrets.")
+        Text("This panel only reads existing Outlook / Microsoft 365 setup, auth state, and manual Graph refresh evidence. It does not start sign-in, request tokens, fetch mailbox messages, mutate mailboxes, or store secrets.")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -4309,7 +4309,7 @@ struct NeedsReviewView: View {
             if !store.hasMailboxProviderSetup {
               MVPEmptyState(
                 title: "No mailbox setup exists",
-                detail: "Add a SpaceMail IMAP, Gmail, or Microsoft 365 setup before mixed-mailbox review can show uncertain or filtered examples.",
+                detail: "Add a SpaceMail IMAP, Gmail, or Outlook / Microsoft 365 setup before mixed-mailbox review can show uncertain or filtered examples.",
                 symbol: "envelope.badge.fill"
               )
             } else {

@@ -425,9 +425,9 @@ struct IntegrationsView: View {
   private func addOrFocusMicrosoft365Setup() {
     if store.microsoft365MailboxConnections.isEmpty {
       store.addMicrosoft365MailboxConnectionPlaceholder()
-      focusSetupSection("Microsoft", message: "Microsoft 365 setup placeholder added locally. Graph remains optional; no mailbox fetch starts here.")
+      focusSetupSection("Microsoft", message: "Outlook / Microsoft 365 setup placeholder added locally. Graph remains optional; no mailbox fetch starts here.")
     } else {
-      focusSetupSection("Microsoft", message: "Showing existing Microsoft 365 setup. Keep this as an advanced path unless the mailbox is Microsoft-hosted.")
+      focusSetupSection("Microsoft", message: "Showing existing Outlook / Microsoft 365 setup. Keep this as an advanced path unless the mailbox is Microsoft-hosted.")
     }
   }
 
@@ -444,7 +444,7 @@ struct IntegrationsView: View {
             Button(hasSpaceMailSetup ? "Show SpaceMail setup" : "SpaceMail IMAP setup", systemImage: "server.rack") {
               addOrFocusSpaceMailSetup()
             }
-            Button(store.microsoft365MailboxConnections.isEmpty ? "Microsoft 365 setup" : "Show Microsoft 365 setup", systemImage: "mail.stack.fill") {
+            Button(store.microsoft365MailboxConnections.isEmpty ? "Outlook setup" : "Show Outlook setup", systemImage: "mail.stack.fill") {
               addOrFocusMicrosoft365Setup()
             }
             Button(hasGmailSetup ? "Show Gmail setup" : "Gmail setup", systemImage: "envelope.badge.shield.half.filled") {
@@ -1011,20 +1011,20 @@ struct IntegrationsView: View {
         }
 
         if showsMicrosoftSetup {
-          SettingsPanel(title: "Microsoft 365 mailbox setup", symbol: "mail.stack.fill") {
+          SettingsPanel(title: "Outlook / Microsoft 365 mailbox setup", symbol: "mail.stack.fill") {
           Text("Use Microsoft 365 when the active mailbox is hosted by Outlook or Microsoft 365. Real Graph refresh remains explicit, manual, read-only, and separate from SpaceMail and Gmail.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
           CompactActionRow {
-            Button(store.microsoft365MailboxConnections.isEmpty ? "Add mailbox setup" : "Show Microsoft 365 setup", systemImage: store.microsoft365MailboxConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
+            Button(store.microsoft365MailboxConnections.isEmpty ? "Add mailbox setup" : "Show Outlook setup", systemImage: store.microsoft365MailboxConnections.isEmpty ? "plus" : "arrow.down.circle.fill") {
               addOrFocusMicrosoft365Setup()
             }
             .buttonStyle(.bordered)
             Badge("\(store.microsoft365MailboxConnections.count) setup records", color: .orange)
           }
           if store.microsoft365MailboxConnections.isEmpty {
-            MVPEmptyState(title: "No Microsoft 365 mailbox setup", detail: "Add a setup record to capture the mailbox address, OAuth planning notes, and mock refresh setup before real authentication is used.", symbol: "mail.stack")
+            MVPEmptyState(title: "No Outlook / Microsoft 365 mailbox setup", detail: "Add a setup record to capture the mailbox address, OAuth planning notes, and mock refresh setup before real authentication is used.", symbol: "mail.stack")
           }
           ForEach(store.microsoft365MailboxConnections) { connection in
             Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection), authState: store.microsoft365AuthSessionState(for: connection)) { updatedConnection in
@@ -6680,7 +6680,7 @@ struct Microsoft365MailboxConnectionEditor: View {
         .overlay(Divider(), alignment: .top)
       }
       .frame(minWidth: 480, idealWidth: 640, maxWidth: 760, minHeight: 320, idealHeight: 680)
-      .navigationTitle("Microsoft 365 mailbox")
+      .navigationTitle("Outlook / Microsoft 365 mailbox")
     }
   }
 }
@@ -7519,7 +7519,7 @@ struct SettingsView: View {
       (
         "Outlook intake",
         hasMicrosoft365ConnectedAuth ? "Ready/manual" : hasMicrosoft365Setup ? "Setup/sign-in" : "Optional",
-        "Microsoft 365 setup, MSAL sign-in, Graph diagnostics, and mock fallback remain available for Microsoft-hosted mailboxes.",
+        "Outlook / Microsoft 365 setup, MSAL sign-in, Graph diagnostics, and mock fallback remain available for Microsoft-hosted mailboxes.",
         "mail.stack.fill",
         hasMicrosoft365ConnectedAuth ? .green : hasMicrosoft365Setup ? .orange : .secondary
       ),
