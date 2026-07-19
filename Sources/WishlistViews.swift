@@ -157,10 +157,18 @@ private struct WishlistLinkedOrderSummaryRow: View {
   }
 
   private var statusText: String {
+    if summary.order.trackingNumber.isPlaceholderValidationValue || summary.order.trackingNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return "Confirm tracking from the Inbox/order source before dispatch handoff."
+    }
     if summary.gaps.isEmpty {
       return "Dispatch setup staged locally"
     }
     return "Needs \(summary.gaps.joined(separator: " and "))"
+  }
+
+  private var hasTracking: Bool {
+    !summary.order.trackingNumber.isPlaceholderValidationValue
+      && !summary.order.trackingNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var body: some View {
@@ -195,6 +203,7 @@ private struct WishlistLinkedOrderSummaryRow: View {
         .fixedSize(horizontal: false, vertical: true)
 
       CompactMetadataGrid(minimumWidth: 120) {
+        WishlistMatrixMetric(title: "Tracking", value: hasTracking ? summary.order.trackingNumber : "Needs review", symbol: "number")
         WishlistMatrixMetric(title: "Manifest", value: summary.manifestCount == 0 ? "Missing" : "\(summary.manifestCount) staged", symbol: "paperplane.fill")
         WishlistMatrixMetric(title: "Readiness", value: summary.checklistCount == 0 ? "Missing" : "\(summary.checklistCount) staged", symbol: "checkmark.rectangle.stack.fill")
         WishlistMatrixMetric(title: "Order", value: summary.order.orderNumber, symbol: "shippingbox.fill")
@@ -223,6 +232,11 @@ private struct WishlistLinkedOrderSummaryRow: View {
       }
       .buttonStyle(.bordered)
       .controlSize(.mini)
+
+      Text("Local handoff only: use the linked order as source of truth. ParcelOps does not poll carriers, book dispatch, print labels, or update external retailer records from this card.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
     .padding(10)
     .background(tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
@@ -986,6 +1000,11 @@ struct WishlistView: View {
         gaps: gaps
       )
     }
+    let linkedTrackingNeedsReview = linkedOrderSummaries.filter {
+      $0.order.trackingNumber.isPlaceholderValidationValue
+        || $0.order.trackingNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }.count
+    let linkedDispatchSetupGaps = linkedOrderSummaries.filter { !$0.gaps.isEmpty }.count
     let inboxCandidates = active.reduce(0) { total, item in
       total + store.suggestedWishlistOrderConfirmations(for: item).count
     }
@@ -1024,6 +1043,8 @@ struct WishlistView: View {
           ("Need order link", "\(waitingForConfirmation.count)", waitingForConfirmation.isEmpty ? .secondary : .green),
           ("Inbox matches", "\(inboxCandidates)", inboxCandidates == 0 ? .secondary : .teal),
           ("Linked orders", "\(linkedOrders.count)", linkedOrders.isEmpty ? .secondary : .purple),
+          ("Tracking review", "\(linkedTrackingNeedsReview)", linkedTrackingNeedsReview == 0 ? .green : .orange),
+          ("Dispatch gaps", "\(linkedDispatchSetupGaps)", linkedDispatchSetupGaps == 0 ? .green : .brown),
           ("Blocked", "\(blockers.count)", blockers.isEmpty ? .green : .orange)
         ])
 
@@ -1083,6 +1104,11 @@ struct WishlistView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
+            MetricStrip(items: [
+              ("Linked", "\(linkedOrderSummaries.count)", .purple),
+              ("Tracking review", "\(linkedTrackingNeedsReview)", linkedTrackingNeedsReview == 0 ? .green : .orange),
+              ("Manifest/readiness gaps", "\(linkedDispatchSetupGaps)", linkedDispatchSetupGaps == 0 ? .green : .brown)
+            ])
             LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 250 : 360), spacing: 10)], alignment: .leading, spacing: 10) {
               ForEach(Array(linkedOrderSummaries.prefix(3))) { summary in
                 WishlistLinkedOrderSummaryRow(summary: summary, store: store) {
