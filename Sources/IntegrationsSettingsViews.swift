@@ -3400,9 +3400,23 @@ struct GmailMailboxConnectionRow: View {
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
+      if gmailCompiledPlaceholderBlockerText != nil {
+        Label(gmailCompiledPlaceholderBlockerText ?? "", systemImage: "exclamationmark.triangle.fill")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
     .padding(10)
     .background(gmailPrimaryActionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var gmailCompiledPlaceholderBlockerText: String? {
+    let clientStatus = readiness.compiledClientIDStatus
+    let schemeStatus = readiness.compiledCallbackSchemeStatus
+    let combined = "\(clientStatus) \(schemeStatus)"
+    guard combined.localizedCaseInsensitiveContains("placeholder") else { return nil }
+    return "Compiled Gmail app config still contains placeholder values. Real Google sign-in and real Gmail refresh will stop until Project.json/App Info.plist are updated with the Google iOS client ID and reversed URL scheme, then rebuilt."
   }
 
   private var gmailPrimaryActionLabel: String {
