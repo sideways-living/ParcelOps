@@ -4770,6 +4770,43 @@ struct GmailPostRefreshActionCard: View {
   }
 }
 
+struct MailboxProviderPostRefreshDisclosure<Content: View>: View {
+  var title: String = "Provider post-refresh actions"
+  var detail: String = "Open this when you need provider-specific refresh follow-up. Keep it collapsed when working the main queue."
+  var symbol: String = "arrow.triangle.branch"
+  var tone: Color = .secondary
+  @ViewBuilder var content: Content
+  @State private var isExpanded = false
+
+  var body: some View {
+    DisclosureGroup(isExpanded: $isExpanded) {
+      VStack(alignment: .leading, spacing: 12) {
+        content
+      }
+      .padding(.top, 10)
+    } label: {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: isExpanded ? "chevron.down.circle.fill" : symbol)
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .font(.headline)
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("Optional", color: tone)
+      }
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(tone.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 struct SpaceMailOperationsRunbook: View {
   private let normalSteps = [
     ("Confirm setup", "Check host, port, SSL/TLS, folder, mixed mailbox mode, and Keychain credential status before refreshing."),

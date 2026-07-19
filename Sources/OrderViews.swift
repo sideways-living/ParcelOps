@@ -308,7 +308,16 @@ struct OrdersView: View {
 
         gmailOrderReadinessPanel
 
-        GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+        if !store.gmailMailboxConnections.isEmpty {
+          MailboxProviderPostRefreshDisclosure(
+            title: "Gmail refresh follow-up",
+            detail: "Open this when Gmail refresh results need order handoff review. The order queue remains focused on linked order records.",
+            symbol: "envelope.badge.shield.half.filled",
+            tone: .pink
+          ) {
+            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          }
+        }
 
         MailboxProviderAdvancedDiagnosticsDisclosure(
           store: store,

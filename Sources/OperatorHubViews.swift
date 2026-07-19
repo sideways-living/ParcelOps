@@ -3327,7 +3327,14 @@ struct DispatchView: View {
           .padding(10)
           .background(dispatchGmailCompileColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
-          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          MailboxProviderPostRefreshDisclosure(
+            title: "Gmail refresh follow-up",
+            detail: "Open this when Gmail refresh results need dispatch follow-up. Keep it collapsed while working the dispatch queue.",
+            symbol: "envelope.badge.shield.half.filled",
+            tone: dispatchGmailCompileColor
+          ) {
+            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          }
         }
 
         gmailDispatchReadinessPanel

@@ -55,7 +55,14 @@ struct ShipmentManifestsView: View {
         inboxManifestCoverage
         gmailManifestReleaseBoundary
         if !store.gmailMailboxConnections.isEmpty {
-          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          MailboxProviderPostRefreshDisclosure(
+            title: "Gmail refresh follow-up",
+            detail: "Open this only when mailbox refresh evidence affects manifest setup. Manifest rows remain the primary work here.",
+            symbol: "envelope.badge.shield.half.filled",
+            tone: .pink
+          ) {
+            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          }
         }
 
         SettingsPanel(title: "Shipment manifest records", symbol: "list.bullet.clipboard.fill") {

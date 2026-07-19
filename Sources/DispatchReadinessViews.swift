@@ -54,7 +54,14 @@ struct DispatchReadinessView: View {
         gmailReadinessReleaseBoundary
         microsoft365ReadinessReleaseBoundary
         if !store.gmailMailboxConnections.isEmpty {
-          GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          MailboxProviderPostRefreshDisclosure(
+            title: "Gmail refresh follow-up",
+            detail: "Open this only when mailbox refresh evidence affects dispatch readiness. Checklist rows remain the primary work here.",
+            symbol: "envelope.badge.shield.half.filled",
+            tone: .pink
+          ) {
+            GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
+          }
         }
 
         SettingsPanel(title: "Dispatch readiness checklists", symbol: "checkmark.rectangle.stack.fill") {
