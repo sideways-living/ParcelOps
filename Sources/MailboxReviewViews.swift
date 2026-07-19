@@ -6,6 +6,7 @@ struct MailboxView: View {
   @State private var intakeSearchText = ""
   @State private var showResolvedIntakeEmails = false
   @State private var providerSetupFeedbackMessage: String?
+  @State private var showAdvancedMailboxEvidence = false
 
   private var normalizedIntakeSearch: String {
     intakeSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -395,6 +396,47 @@ struct MailboxView: View {
     }
   }
 
+  private var advancedMailboxEvidencePanel: some View {
+    SettingsPanel(title: "Advanced provider evidence", symbol: "doc.text.magnifyingglass") {
+      DisclosureGroup(isExpanded: $showAdvancedMailboxEvidence) {
+        VStack(alignment: .leading, spacing: 14) {
+          MailboxProviderOperatorReadinessStack(
+            store: store,
+            title: "Provider intake at a glance",
+            detail: "Use this when troubleshooting setup, parser, release, or provider readiness evidence. Normal mailbox review can start with the active path and provider setup rows above.",
+            showHandoffPacket: true,
+            showMailboxLink: false
+          )
+
+          MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
+
+          MailboxSpaceMailReadinessPanel(store: store)
+
+          MailboxSpaceMailRunbookPanel(store: store)
+
+          MailboxGmailReadinessPanel(store: store)
+
+          MailboxMicrosoft365ReadinessPanel(store: store)
+
+          MailboxGmailRunbookPanel(store: store)
+
+          SpaceMailOperatorGuidanceStack(store: store)
+        }
+        .padding(.top, 8)
+      } label: {
+        VStack(alignment: .leading, spacing: 4) {
+          Text(showAdvancedMailboxEvidence ? "Hide diagnostics and runbooks" : "Show diagnostics and runbooks")
+            .font(.subheadline.weight(.semibold))
+          Text("Detailed release gates, setup checklists, runbooks, and provider evidence stay available without crowding the daily intake workflow.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .tint(.teal)
+    }
+  }
+
   private func intakeEmailMatchesSearch(_ email: ForwardedEmailIntake) -> Bool {
     let query = normalizedIntakeSearch
     guard !query.isEmpty else { return true }
@@ -442,29 +484,9 @@ struct MailboxView: View {
 
         MailboxReviewStartPanel(store: store)
 
-        MailboxProviderOperatorReadinessStack(
-          store: store,
-          title: "Provider intake at a glance",
-          detail: "Start here to decide which mailbox provider is the active manual intake path today. Open advanced evidence only when troubleshooting setup, parser, release, or provider readiness.",
-          showHandoffPacket: true,
-          showMailboxLink: false
-        )
-
-        MailboxProviderSetupChecklistCard(summary: store.mailboxProviderSetupChecklistSummary)
-
         wishlistOrderWatchPanel
 
-        MailboxSpaceMailReadinessPanel(store: store)
-
-        MailboxSpaceMailRunbookPanel(store: store)
-
-        MailboxGmailReadinessPanel(store: store)
-
-        MailboxMicrosoft365ReadinessPanel(store: store)
-
-        MailboxGmailRunbookPanel(store: store)
-
-        SpaceMailOperatorGuidanceStack(store: store)
+        advancedMailboxEvidencePanel
 
         if let providerSetupFeedbackMessage {
           Label(providerSetupFeedbackMessage, systemImage: "checkmark.circle.fill")
