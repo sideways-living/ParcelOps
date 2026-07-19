@@ -3889,6 +3889,22 @@ struct NeedsReviewView: View {
   private var gmailReleaseNeedsReview: Bool {
     gmailReleaseBlockingCount > 0 || gmailReleaseAttentionCount > 0
   }
+  private var microsoft365ReleaseSelfChecks: [Microsoft365ReleaseSelfCheckSummary] {
+    store.microsoft365MailboxConnections.map { store.microsoft365ReleaseSelfCheckSummary(for: $0) }
+  }
+  private var microsoft365ReleaseBlockingCount: Int {
+    microsoft365ReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "warning" }.count
+    }
+  }
+  private var microsoft365ReleaseAttentionCount: Int {
+    microsoft365ReleaseSelfChecks.reduce(0) { total, summary in
+      total + summary.items.filter { !$0.isComplete && $0.tone == "attention" }.count
+    }
+  }
+  private var microsoft365ReleaseNeedsReview: Bool {
+    microsoft365ReleaseBlockingCount > 0 || microsoft365ReleaseAttentionCount > 0
+  }
   private var mailboxProviderTroubleshootingNeedsReview: Bool {
     let tone = store.mailboxProviderTroubleshootingSummary.tone
     return tone == "warning" || tone == "attention"
@@ -3898,6 +3914,7 @@ struct NeedsReviewView: View {
       || store.mailboxProviderHandoffPacketSummary.tone != "success"
       || mailboxProviderTroubleshootingNeedsReview
       || gmailReleaseNeedsReview
+      || microsoft365ReleaseNeedsReview
   }
 
   private var visiblePrimaryReviewSectionCount: Int {
@@ -3964,6 +3981,8 @@ struct NeedsReviewView: View {
       + (mailboxProviderNeedsReview ? 1 : 0)
       + gmailReleaseBlockingCount
       + gmailReleaseAttentionCount
+      + microsoft365ReleaseBlockingCount
+      + microsoft365ReleaseAttentionCount
   }
 
   private var advancedBacklogCount: Int {
@@ -4055,6 +4074,14 @@ struct NeedsReviewView: View {
                 sourceMetricTitle: "Needs Review signals",
                 sourceCount: gmailReleaseBlockingCount + gmailReleaseAttentionCount,
                 boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store token values, create Needs Review records automatically, or mutate mailbox messages."
+              )
+              Microsoft365ReleaseBoundaryPanel(
+                store: store,
+                title: "Outlook Needs Review boundary",
+                lead: "These are provider-readiness checks, not Inbox or Dispatch records. Create a task only when missing Microsoft setup, sign-in, Graph refresh evidence, mixed-mailbox review, Inbox handoff, or audit evidence needs an owner.",
+                sourceMetricTitle: "Needs Review signals",
+                sourceCount: microsoft365ReleaseBlockingCount + microsoft365ReleaseAttentionCount,
+                boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Graph messages, store token values, create Needs Review records automatically, or mutate mailbox messages."
               )
             }
           }
