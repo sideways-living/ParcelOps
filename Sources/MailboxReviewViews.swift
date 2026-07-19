@@ -437,7 +437,7 @@ struct MailboxView: View {
         )
 
         activeMailboxProviderPanel
-        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
+        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store, showMailboxLink: false)
         MailboxProviderChoiceGuideCard()
 
         MailboxReviewStartPanel(store: store)

@@ -5625,6 +5625,8 @@ struct MailboxProviderSetupChecklistCard: View {
 struct MailboxProviderQuickStatusCard: View {
   var summary: MailboxProviderComparisonSummary
   var store: ParcelOpsStore?
+  var showMailboxLink = true
+  var showInboxLink = true
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var color: Color {
@@ -5738,17 +5740,21 @@ struct MailboxProviderQuickStatusCard: View {
           }
       }
 
-      if let store {
+      if let store, showMailboxLink || showInboxLink {
         CompactActionRow {
-          NavigationLink {
-            MailboxView(store: store)
-          } label: {
-            Label("Mailbox Monitor", systemImage: "server.rack")
+          if showMailboxLink {
+            NavigationLink {
+              MailboxView(store: store)
+            } label: {
+              Label("Mailbox Monitor", systemImage: "server.rack")
+            }
           }
-          NavigationLink {
-            InboxView(store: store)
-          } label: {
-            Label("Inbox", systemImage: "tray.full.fill")
+          if showInboxLink {
+            NavigationLink {
+              InboxView(store: store)
+            } label: {
+              Label("Inbox", systemImage: "tray.full.fill")
+            }
           }
         }
         .buttonStyle(.bordered)

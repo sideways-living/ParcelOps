@@ -361,6 +361,7 @@ struct InboxView: View {
       VStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
         header
         inboxSummaryPanel
+        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store, showInboxLink: false)
         mailboxProviderNextStepPanel
         mailboxProviderReleaseGatePanel
         MailboxProviderHandoffPacketCard(packet: store.mailboxProviderHandoffPacketSummary, store: store)
