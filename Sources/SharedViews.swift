@@ -4235,6 +4235,32 @@ struct MailboxProviderAdvancedDiagnosticsDisclosure: View {
   var showAuditLink: Bool = true
   @State private var isExpanded = false
 
+  private var collapsedStatus: String {
+    if showReleaseGate {
+      return store.mailboxProviderReleaseGateSummary.verdict
+    }
+    if showHandoffPacket {
+      return store.mailboxProviderHandoffPacketSummary.title
+    }
+    if showTroubleshooting {
+      return store.mailboxProviderTroubleshootingSummary.title
+    }
+    return "Details"
+  }
+
+  private var collapsedTone: Color {
+    if showReleaseGate {
+      return color(for: store.mailboxProviderReleaseGateSummary.tone)
+    }
+    if showHandoffPacket {
+      return color(for: store.mailboxProviderHandoffPacketSummary.tone)
+    }
+    if showTroubleshooting {
+      return color(for: store.mailboxProviderTroubleshootingSummary.tone)
+    }
+    return .secondary
+  }
+
   var body: some View {
     DisclosureGroup(isExpanded: $isExpanded) {
       VStack(alignment: .leading, spacing: 12) {
@@ -4273,6 +4299,8 @@ struct MailboxProviderAdvancedDiagnosticsDisclosure: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         }
+        Spacer(minLength: 8)
+        Badge(collapsedStatus, color: collapsedTone)
       }
     }
     .padding(14)
@@ -4280,6 +4308,19 @@ struct MailboxProviderAdvancedDiagnosticsDisclosure: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+
+  private func color(for tone: String) -> Color {
+    switch tone {
+    case "success":
+      return .green
+    case "attention":
+      return .orange
+    case "warning":
+      return .red
+    default:
+      return .secondary
+    }
   }
 }
 
