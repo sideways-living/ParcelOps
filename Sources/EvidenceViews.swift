@@ -292,23 +292,29 @@ struct EvidenceView: View {
             ("Mailbox refreshes", "\(store.totalMailboxFetchedCount)", store.totalMailboxFetchedCount == 0 ? .secondary : .teal)
           ])
 
-          GmailReleaseBoundaryPanel(
-            store: store,
-            title: "Gmail evidence readiness",
-            lead: "Use this before treating Gmail source trails as sufficient release evidence. Setup, sign-in, labels, classifier review, Inbox handoff, and Audit evidence should be clear before evidence gaps are closed.",
-            sourceMetricTitle: "Gmail source rows",
-            sourceCount: gmailSourceTrailEmails.count,
-            boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, create evidence attachments, or mutate mailbox messages."
-          )
+          CollapsedProviderEvidencePanel(
+            title: "Mailbox evidence boundaries",
+            detail: "Provider setup, source counts, and local-only boundaries for Gmail and Outlook evidence trails.",
+            symbol: "doc.viewfinder.fill"
+          ) {
+            GmailReleaseBoundaryPanel(
+              store: store,
+              title: "Gmail evidence readiness",
+              lead: "Use this before treating Gmail source trails as sufficient release evidence. Setup, sign-in, labels, classifier review, Inbox handoff, and Audit evidence should be clear before evidence gaps are closed.",
+              sourceMetricTitle: "Gmail source rows",
+              sourceCount: gmailSourceTrailEmails.count,
+              boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, create evidence attachments, or mutate mailbox messages."
+            )
 
-          Microsoft365ReleaseBoundaryPanel(
-            store: store,
-            title: "Outlook evidence readiness",
-            lead: "Use this before treating Outlook source trails as sufficient release evidence. Microsoft setup, sign-in, Graph diagnostics, Inbox handoff, and Audit evidence should be clear before evidence gaps are closed.",
-            sourceMetricTitle: "Outlook source rows",
-            sourceCount: outlookSourceTrailEmails.count,
-            boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, open file pickers, run OCR, create evidence attachments, or mutate mailbox messages."
-          )
+            Microsoft365ReleaseBoundaryPanel(
+              store: store,
+              title: "Outlook evidence readiness",
+              lead: "Use this before treating Outlook source trails as sufficient release evidence. Microsoft setup, sign-in, Graph diagnostics, Inbox handoff, and Audit evidence should be clear before evidence gaps are closed.",
+              sourceMetricTitle: "Outlook source rows",
+              sourceCount: outlookSourceTrailEmails.count,
+              boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, open file pickers, run OCR, create evidence attachments, or mutate mailbox messages."
+            )
+          }
 
           if !store.gmailMailboxConnections.isEmpty {
             MailboxProviderPostRefreshDisclosure(

@@ -389,14 +389,20 @@ struct TimelineView: View {
   }
 
   private var gmailTimelineReleaseBoundary: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail timeline readiness",
-      lead: "Gmail release checks are provider setup evidence. Timeline should show when Gmail is ready for daily intake, but it should not replace Inbox review, order creation, or dispatch handoff.",
-      sourceMetricTitle: "Gmail timeline sources",
-      sourceCount: gmailTimelineSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, mutate mail, create timeline events, or change audit history automatically."
-    )
+    CollapsedProviderEvidencePanel(
+      title: "Gmail timeline evidence",
+      detail: "Provider setup, source counts, and local-only boundaries for Gmail timeline context.",
+      symbol: "clock.arrow.circlepath"
+    ) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail timeline readiness",
+        lead: "Gmail release checks are provider setup evidence. Timeline should show when Gmail is ready for daily intake, but it should not replace Inbox review, order creation, or dispatch handoff.",
+        sourceMetricTitle: "Gmail timeline sources",
+        sourceCount: gmailTimelineSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, mutate mail, create timeline events, or change audit history automatically."
+      )
+    }
   }
 
   private var gmailTimelineSourceCount: Int {
@@ -406,14 +412,20 @@ struct TimelineView: View {
   }
 
   private var microsoft365TimelineReleaseBoundary: some View {
-    Microsoft365ReleaseBoundaryPanel(
-      store: store,
-      title: "Outlook timeline readiness",
-      lead: "Outlook release checks are provider setup and Graph evidence. Timeline can show Outlook source context, but it should not replace Inbox review, order creation, or dispatch handoff.",
-      sourceMetricTitle: "Outlook timeline sources",
-      sourceCount: microsoft365TimelineSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, mutate mail, create timeline events, or change audit history automatically."
-    )
+    CollapsedProviderEvidencePanel(
+      title: "Outlook timeline evidence",
+      detail: "Provider setup, source counts, and local-only boundaries for Outlook timeline context.",
+      symbol: "clock.arrow.circlepath"
+    ) {
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook timeline readiness",
+        lead: "Outlook release checks are provider setup and Graph evidence. Timeline can show Outlook source context, but it should not replace Inbox review, order creation, or dispatch handoff.",
+        sourceMetricTitle: "Outlook timeline sources",
+        sourceCount: microsoft365TimelineSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, mutate mail, create timeline events, or change audit history automatically."
+      )
+    }
   }
 
   private var microsoft365TimelineSourceCount: Int {

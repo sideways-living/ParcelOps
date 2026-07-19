@@ -291,23 +291,29 @@ struct ImportQueueView: View {
         .background(.background, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
 
-        GmailReleaseBoundaryPanel(
-          store: store,
-          title: "Gmail staging readiness",
-          lead: "Gmail release checks are provider-readiness work. Import Queue should only receive Gmail work after a real or mock Gmail row is imported into Inbox and intentionally staged.",
-          sourceMetricTitle: "Gmail fetched",
-          sourceCount: latestGmailSummary?.fetchedCount ?? 0,
-          boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, stage imports automatically, or mutate mailbox messages."
-        )
+        CollapsedProviderEvidencePanel(
+          title: "Mailbox staging evidence",
+          detail: "Provider setup, source counts, and local-only boundaries for Gmail and Outlook import staging.",
+          symbol: "tray.full.fill"
+        ) {
+          GmailReleaseBoundaryPanel(
+            store: store,
+            title: "Gmail staging readiness",
+            lead: "Gmail release checks are provider-readiness work. Import Queue should only receive Gmail work after a real or mock Gmail row is imported into Inbox and intentionally staged.",
+            sourceMetricTitle: "Gmail fetched",
+            sourceCount: latestGmailSummary?.fetchedCount ?? 0,
+            boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, stage imports automatically, or mutate mailbox messages."
+          )
 
-        Microsoft365ReleaseBoundaryPanel(
-          store: store,
-          title: "Outlook staging readiness",
-          lead: "Outlook release checks are provider-readiness work. Import Queue should only receive Outlook work after Graph/manual intake creates an Inbox row and an operator intentionally stages it.",
-          sourceMetricTitle: "Outlook fetched",
-          sourceCount: latestMicrosoft365Summary?.fetchedCount ?? 0,
-          boundaryDetail: "Local-only boundary: this panel does not open Microsoft sign-in, request tokens, fetch Outlook messages, stage imports automatically, or mutate mailbox messages."
-        )
+          Microsoft365ReleaseBoundaryPanel(
+            store: store,
+            title: "Outlook staging readiness",
+            lead: "Outlook release checks are provider-readiness work. Import Queue should only receive Outlook work after Graph/manual intake creates an Inbox row and an operator intentionally stages it.",
+            sourceMetricTitle: "Outlook fetched",
+            sourceCount: latestMicrosoft365Summary?.fetchedCount ?? 0,
+            boundaryDetail: "Local-only boundary: this panel does not open Microsoft sign-in, request tokens, fetch Outlook messages, stage imports automatically, or mutate mailbox messages."
+          )
+        }
 
         if !store.gmailMailboxConnections.isEmpty {
           MailboxProviderPostRefreshDisclosure(

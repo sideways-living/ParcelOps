@@ -296,14 +296,20 @@ struct HandoffNotesView: View {
             ("Needs review", "\(gmailHandoffNotes.filter { $0.reviewState != .accepted }.count)", gmailHandoffNotes.contains { $0.reviewState != .accepted } ? .orange : .green)
           ])
 
-          GmailReleaseBoundaryPanel(
-            store: store,
-            title: "Gmail handoff readiness",
-            lead: "Use this before handing Gmail intake to the next operator. Setup, sign-in, labels, classifier review, Inbox handoff, and Audit evidence should be clear or assigned.",
-            sourceMetricTitle: "Gmail handoff notes",
-            sourceCount: gmailHandoffNotes.count,
-            boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, create handoff notes automatically, or mutate mailbox messages."
-          )
+          CollapsedProviderEvidencePanel(
+            title: "Gmail handoff evidence",
+            detail: "Provider setup, source counts, and local-only boundaries for Gmail handoff notes.",
+            symbol: "person.2.wave.2.fill"
+          ) {
+            GmailReleaseBoundaryPanel(
+              store: store,
+              title: "Gmail handoff readiness",
+              lead: "Use this before handing Gmail intake to the next operator. Setup, sign-in, labels, classifier review, Inbox handoff, and Audit evidence should be clear or assigned.",
+              sourceMetricTitle: "Gmail handoff notes",
+              sourceCount: gmailHandoffNotes.count,
+              boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, create handoff notes automatically, or mutate mailbox messages."
+            )
+          }
 
           if !activeGmailHandoffNotes.isEmpty {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 260), spacing: 10)], alignment: .leading, spacing: 10) {

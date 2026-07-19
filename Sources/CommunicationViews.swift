@@ -392,14 +392,20 @@ struct CommunicationView: View {
             ("Needs review", "\(gmailDrafts.filter { $0.reviewState != .accepted }.count)", gmailDrafts.contains { $0.reviewState != .accepted } ? .orange : .green)
           ])
 
-          GmailReleaseBoundaryPanel(
-            store: store,
-            title: "Gmail draft readiness",
-            lead: "Use this before drafting operator, customer, or supplier follow-up from Gmail intake. Setup, sign-in, labels, classifier review, Inbox handoff, and Audit evidence should be clear before release messages are treated as routine.",
-            sourceMetricTitle: "Gmail drafts",
-            sourceCount: gmailDrafts.count,
-            boundaryDetail: "Local-only boundary: this panel does not send Gmail messages, open Google sign-in, fetch Gmail, store token values, or mutate mailbox messages."
-          )
+          CollapsedProviderEvidencePanel(
+            title: "Gmail communication evidence",
+            detail: "Provider setup, source counts, and local-only boundaries for Gmail-derived draft messages.",
+            symbol: "bubble.left.and.text.bubble.right.fill"
+          ) {
+            GmailReleaseBoundaryPanel(
+              store: store,
+              title: "Gmail draft readiness",
+              lead: "Use this before drafting operator, customer, or supplier follow-up from Gmail intake. Setup, sign-in, labels, classifier review, Inbox handoff, and Audit evidence should be clear before release messages are treated as routine.",
+              sourceMetricTitle: "Gmail drafts",
+              sourceCount: gmailDrafts.count,
+              boundaryDetail: "Local-only boundary: this panel does not send Gmail messages, open Google sign-in, fetch Gmail, store token values, or mutate mailbox messages."
+            )
+          }
 
           if !store.gmailMailboxConnections.isEmpty {
             MailboxProviderPostRefreshDisclosure(

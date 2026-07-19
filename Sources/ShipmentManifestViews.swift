@@ -271,7 +271,11 @@ struct ShipmentManifestsView: View {
   }
 
   private var gmailManifestReleaseBoundary: some View {
-    VStack(alignment: .leading, spacing: 10) {
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox manifest evidence",
+      detail: "Provider setup, source counts, and local-only boundaries for Gmail and Outlook manifest handoff.",
+      symbol: "paperplane.fill"
+    ) {
       GmailReleaseBoundaryPanel(
         store: store,
         title: "Gmail manifest readiness",

@@ -273,7 +273,11 @@ struct ShipmentGroupsView: View {
   }
 
   private var gmailShipmentGroupReadinessPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
+    CollapsedProviderEvidencePanel(
+      title: "Mailbox shipment group evidence",
+      detail: "Provider setup, source counts, and local-only boundaries for Gmail and Outlook shipment group handoff.",
+      symbol: "shippingbox.fill"
+    ) {
       GmailReleaseBoundaryPanel(
         store: store,
         title: "Gmail shipment group readiness",

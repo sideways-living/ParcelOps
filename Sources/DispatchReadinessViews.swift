@@ -264,14 +264,20 @@ struct DispatchReadinessView: View {
   }
 
   private var gmailReadinessReleaseBoundary: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail dispatch readiness",
-      lead: "Gmail release checks are setup and evidence work. Dispatch readiness checklists should only be created for concrete orders, manifests, labels, scans, custody, or handoff requirements after Inbox or Wishlist source context has been confirmed.",
-      sourceMetricTitle: "Gmail readiness sources",
-      sourceCount: gmailReadinessSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, call carrier APIs, book couriers, print labels, scan barcodes, or change dispatch readiness automatically."
-    )
+    CollapsedProviderEvidencePanel(
+      title: "Gmail dispatch readiness evidence",
+      detail: "Provider setup, source counts, and local-only boundaries for Gmail dispatch readiness.",
+      symbol: "checklist.checked"
+    ) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail dispatch readiness",
+        lead: "Gmail release checks are setup and evidence work. Dispatch readiness checklists should only be created for concrete orders, manifests, labels, scans, custody, or handoff requirements after Inbox or Wishlist source context has been confirmed.",
+        sourceMetricTitle: "Gmail readiness sources",
+        sourceCount: gmailReadinessSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, call carrier APIs, book couriers, print labels, scan barcodes, or change dispatch readiness automatically."
+      )
+    }
   }
 
   private var gmailReadinessSourceCount: Int {
@@ -282,14 +288,20 @@ struct DispatchReadinessView: View {
   }
 
   private var microsoft365ReadinessReleaseBoundary: some View {
-    Microsoft365ReleaseBoundaryPanel(
-      store: store,
-      title: "Outlook dispatch readiness",
-      lead: "Outlook release checks are provider setup and Graph evidence work. Dispatch readiness checklists should only be created after Outlook Inbox or Wishlist source context has been confirmed and linked to a concrete order.",
-      sourceMetricTitle: "Outlook readiness sources",
-      sourceCount: microsoft365ReadinessSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, call carrier APIs, book couriers, print labels, scan barcodes, or change dispatch readiness automatically."
-    )
+    CollapsedProviderEvidencePanel(
+      title: "Outlook dispatch readiness evidence",
+      detail: "Provider setup, source counts, and local-only boundaries for Outlook dispatch readiness.",
+      symbol: "checklist.checked"
+    ) {
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook dispatch readiness",
+        lead: "Outlook release checks are provider setup and Graph evidence work. Dispatch readiness checklists should only be created after Outlook Inbox or Wishlist source context has been confirmed and linked to a concrete order.",
+        sourceMetricTitle: "Outlook readiness sources",
+        sourceCount: microsoft365ReadinessSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, call carrier APIs, book couriers, print labels, scan barcodes, or change dispatch readiness automatically."
+      )
+    }
   }
 
   private var microsoft365ReadinessSourceCount: Int {

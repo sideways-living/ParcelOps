@@ -191,14 +191,20 @@ struct ReconciliationView: View {
   }
 
   private var gmailReconciliationReleaseBoundary: some View {
-    GmailReleaseBoundaryPanel(
-      store: store,
-      title: "Gmail reconciliation readiness",
-      lead: "Gmail self-checks should be complete before Gmail-derived source values, order links, tracking values, or acceptance handoffs are treated as reconciled release evidence.",
-      sourceMetricTitle: "Gmail reconciliation sources",
-      sourceCount: gmailReconciliationSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, mutate mail, resolve reconciliation issues, or change order/source links automatically."
-    )
+    CollapsedProviderEvidencePanel(
+      title: "Gmail reconciliation evidence",
+      detail: "Provider setup, source counts, and local-only boundaries for Gmail reconciliation checks.",
+      symbol: "arrow.triangle.2.circlepath"
+    ) {
+      GmailReleaseBoundaryPanel(
+        store: store,
+        title: "Gmail reconciliation readiness",
+        lead: "Gmail self-checks should be complete before Gmail-derived source values, order links, tracking values, or acceptance handoffs are treated as reconciled release evidence.",
+        sourceMetricTitle: "Gmail reconciliation sources",
+        sourceCount: gmailReconciliationSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Google sign-in, fetch Gmail, store tokens, mutate mail, resolve reconciliation issues, or change order/source links automatically."
+      )
+    }
   }
 
   private var gmailReconciliationSourceCount: Int {
@@ -208,14 +214,20 @@ struct ReconciliationView: View {
   }
 
   private var microsoft365ReconciliationReleaseBoundary: some View {
-    Microsoft365ReleaseBoundaryPanel(
-      store: store,
-      title: "Outlook reconciliation readiness",
-      lead: "Outlook self-checks should be complete before Graph-derived source values, order links, tracking values, or acceptance handoffs are treated as reconciled release evidence.",
-      sourceMetricTitle: "Outlook reconciliation sources",
-      sourceCount: microsoft365ReconciliationSourceCount,
-      boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, mutate mail, resolve reconciliation issues, or change order/source links automatically."
-    )
+    CollapsedProviderEvidencePanel(
+      title: "Outlook reconciliation evidence",
+      detail: "Provider setup, source counts, and local-only boundaries for Outlook reconciliation checks.",
+      symbol: "arrow.triangle.2.circlepath"
+    ) {
+      Microsoft365ReleaseBoundaryPanel(
+        store: store,
+        title: "Outlook reconciliation readiness",
+        lead: "Outlook self-checks should be complete before Graph-derived source values, order links, tracking values, or acceptance handoffs are treated as reconciled release evidence.",
+        sourceMetricTitle: "Outlook reconciliation sources",
+        sourceCount: microsoft365ReconciliationSourceCount,
+        boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Outlook messages, mutate mail, resolve reconciliation issues, or change order/source links automatically."
+      )
+    }
   }
 
   private var microsoft365ReconciliationSourceCount: Int {

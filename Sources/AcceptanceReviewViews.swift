@@ -230,14 +230,20 @@ struct AcceptanceReviewView: View {
         .background(.background, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
 
-        GmailReleaseBoundaryPanel(
-          store: store,
-          title: "Gmail acceptance readiness",
-          lead: "Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence stay provider-readiness work. Acceptance should only close Gmail intake after a concrete imported row has clear order/tracking fields and link decisions.",
-          sourceMetricTitle: "Gmail fetched",
-          sourceCount: latestGmailSummary?.fetchedCount ?? 0,
-          boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, accept records automatically, or mutate mailbox messages."
-        )
+        CollapsedProviderEvidencePanel(
+          title: "Gmail acceptance evidence",
+          detail: "Provider setup, source counts, and local-only boundaries for Gmail acceptance review.",
+          symbol: "tray.and.arrow.down.fill"
+        ) {
+          GmailReleaseBoundaryPanel(
+            store: store,
+            title: "Gmail acceptance readiness",
+            lead: "Gmail setup, sign-in, labels, classifier review, Inbox handoff, and audit evidence stay provider-readiness work. Acceptance should only close Gmail intake after a concrete imported row has clear order/tracking fields and link decisions.",
+            sourceMetricTitle: "Gmail fetched",
+            sourceCount: latestGmailSummary?.fetchedCount ?? 0,
+            boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, accept records automatically, or mutate mailbox messages."
+          )
+        }
 
         if !store.gmailMailboxConnections.isEmpty {
           MailboxProviderPostRefreshDisclosure(

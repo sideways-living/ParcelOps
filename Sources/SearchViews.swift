@@ -378,14 +378,20 @@ private struct SearchReadinessPanel: View {
               showTroubleshooting: false
             )
 
-            GmailReleaseBoundaryPanel(
-              store: store,
-              title: "Gmail search recovery checks",
-              lead: "Use this when a Gmail order email is missing from Search results. Setup, sign-in, labels, classifier review, Inbox handoff, and Audit evidence must be visible before a Gmail test pass is considered complete.",
-              sourceMetricTitle: "Gmail fetched",
-              sourceCount: latestGmailSummary?.fetchedCount ?? 0,
-              boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, change search indexes, or mutate mailbox messages."
-            )
+            CollapsedProviderEvidencePanel(
+              title: "Gmail search evidence",
+              detail: "Provider setup, source counts, and local-only boundaries for Gmail search recovery.",
+              symbol: "magnifyingglass.circle.fill"
+            ) {
+              GmailReleaseBoundaryPanel(
+                store: store,
+                title: "Gmail search recovery checks",
+                lead: "Use this when a Gmail order email is missing from Search results. Setup, sign-in, labels, classifier review, Inbox handoff, and Audit evidence must be visible before a Gmail test pass is considered complete.",
+                sourceMetricTitle: "Gmail fetched",
+                sourceCount: latestGmailSummary?.fetchedCount ?? 0,
+                boundaryDetail: "Local-only boundary: this panel does not open Google sign-in, fetch Gmail, store token values, change search indexes, or mutate mailbox messages."
+              )
+            }
 
             if !store.gmailMailboxConnections.isEmpty {
               MailboxProviderPostRefreshDisclosure(
