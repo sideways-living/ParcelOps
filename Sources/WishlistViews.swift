@@ -15824,11 +15824,12 @@ private struct WishlistPastedLinkCaptureEditor: View {
   var body: some View {
     Form {
       Section("Paste product link") {
-        TextField("Product URL or copied page text", text: $draft.pastedText, axis: .vertical)
+        TextField("Product URL or copied product text", text: $draft.pastedText, axis: .vertical)
           .lineLimit(3...8)
-        Text("Paste the direct product link where possible. ParcelOps only stores local hints; it does not open the link or read the website.")
+        Text("Paste the direct product link where possible. Structured lines such as Product:, Seller:, Price:, Model:, Shipping:, or Notes: are read locally as hints. Tracking URL parameters are stripped when possible. ParcelOps does not open the link or read the website.")
           .font(.caption)
           .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
 
       Section("Optional hints") {
@@ -15837,6 +15838,10 @@ private struct WishlistPastedLinkCaptureEditor: View {
         TextField("Visible price or budget", text: $draft.priceHint)
         TextField("Notes, model, size, shipping clue, or why it is wanted", text: $draft.notes, axis: .vertical)
           .lineLimit(3...6)
+        Text("Optional hints override anything parsed from the pasted text. Leave them blank when the pasted text already includes clear labelled lines.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
 
       Section("What happens next") {

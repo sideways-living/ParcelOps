@@ -22709,17 +22709,23 @@ final class ParcelOpsStore {
     let cleanSellerHint = sellerHint.trimmingCharacters(in: .whitespacesAndNewlines)
     let cleanPriceHint = priceHint.trimmingCharacters(in: .whitespacesAndNewlines)
     let cleanNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-    let detectedURL = Self.firstURLString(in: cleanText)
+    let detectedURL = Self.normalizedProductURLString(Self.firstURLString(in: cleanText))
+    let labeledItemName = Self.labeledValue(in: cleanText, labels: ["item", "item name", "product", "product name", "title", "name"])
+    let labeledSeller = Self.labeledValue(in: cleanText, labels: ["seller", "retailer", "store", "storefront", "merchant", "brand"])
+    let labeledPrice = Self.labeledValue(in: cleanText, labels: ["price", "visible price", "budget", "cost", "listed price", "sale price"])
+    let labeledNotes = Self.labeledValue(in: cleanText, labels: ["notes", "note", "model", "size", "shipping", "postage", "why"])
     let storefront = cleanSellerHint.isEmpty
-      ? Self.storefrontHint(from: detectedURL)
+      ? labeledSeller ?? Self.storefrontHint(from: detectedURL)
       : cleanSellerHint
+    let detectedPrice = cleanPriceHint.isEmpty ? labeledPrice ?? "Price needs review" : cleanPriceHint
     let inferredTitle = cleanItemName.isEmpty
-      ? Self.titleHint(from: detectedURL, fallback: cleanText)
+      ? labeledItemName ?? Self.titleHint(from: detectedURL, fallback: cleanText)
       : cleanItemName
     let summaryParts = [
-      cleanItemName.isEmpty ? nil : "Item: \(cleanItemName)",
+      cleanItemName.isEmpty ? labeledItemName.map { "Item: \($0)" } : "Item: \(cleanItemName)",
       detectedURL.isPlaceholderValidationValue ? nil : "URL pasted for later review",
-      cleanPriceHint.isEmpty ? nil : "Price clue: \(cleanPriceHint)",
+      detectedPrice.isPlaceholderValidationValue ? nil : "Price clue: \(detectedPrice)",
+      labeledNotes,
       cleanNotes.isEmpty ? nil : cleanNotes
     ].compactMap { $0 }
     let summary = summaryParts.isEmpty
@@ -22731,7 +22737,7 @@ final class ParcelOpsStore {
       pageTitle: inferredTitle,
       pageURL: detectedURL,
       detectedStorefront: storefront,
-      detectedPrice: cleanPriceHint.isEmpty ? "Price needs review" : cleanPriceHint,
+      detectedPrice: detectedPrice,
       productSummary: summary,
       captureStatus: "Pasted link staged",
       reviewState: .needsReview,
@@ -22746,7 +22752,7 @@ final class ParcelOpsStore {
       entityID: capture.id.uuidString,
       entityLabel: capture.pageTitle,
       summary: "Wishlist pasted product link staged locally.",
-      afterDetail: "\(capture.auditDetail)\nParsed hints: URL \(detectedURL.isPlaceholderValidationValue ? "missing" : "present"), seller \(storefront.isPlaceholderValidationValue ? "needs review" : "hinted"), price \(cleanPriceHint.isEmpty ? "needs review" : "hinted"). No browser extension, web lookup, scraping, account login, checkout, purchase, payment, currency conversion, seller trust lookup, mailbox fetch, or external service occurred."
+      afterDetail: "\(capture.auditDetail)\nParsed hints: URL \(detectedURL.isPlaceholderValidationValue ? "missing" : "present"), seller \(storefront.isPlaceholderValidationValue ? "needs review" : "hinted"), price \(detectedPrice.isPlaceholderValidationValue ? "needs review" : "hinted"), item \(inferredTitle.isPlaceholderValidationValue ? "needs review" : "hinted"). Tracking parameters were stripped when possible. No browser extension, web lookup, scraping, account login, checkout, purchase, payment, currency conversion, seller trust lookup, mailbox fetch, or external service occurred."
     )
   }
 
@@ -22763,6 +22769,39 @@ final class ParcelOpsStore {
       url.removeLast()
     }
     return url
+  }
+
+  private static func normalizedProductURLString(_ urlString: String) -> String {
+    guard
+      !urlString.isPlaceholderValidationValue,
+      var components = URLComponents(string: urlString)
+    else {
+      return urlString
+    }
+
+    let removablePrefixes = ["utm_", "fbclid", "gclid", "mc_", "igshid"]
+    let removableNames: Set<String> = [
+      "ref",
+      "ref_",
+      "referrer",
+      "campaign",
+      "source",
+      "medium",
+      "yclid",
+      "msclkid",
+      "spm",
+      "tag"
+    ]
+    components.queryItems = components.queryItems?.filter { item in
+      let name = item.name.lowercased()
+      if removableNames.contains(name) { return false }
+      return !removablePrefixes.contains { name.hasPrefix($0) }
+    }
+    if components.queryItems?.isEmpty == true {
+      components.queryItems = nil
+    }
+    components.fragment = nil
+    return components.string ?? urlString
   }
 
   private static func storefrontHint(from urlString: String) -> String {
@@ -22798,7 +22837,18 @@ final class ParcelOpsStore {
     let pathPieces = url.path
       .split(separator: "/")
       .map(String.init)
-      .filter { !$0.isEmpty }
+      .filter { piece in
+        let lower = piece.lowercased()
+        return !piece.isEmpty
+          && lower != "products"
+          && lower != "product"
+          && lower != "item"
+          && lower != "items"
+          && lower != "p"
+          && lower != "dp"
+          && lower != "collections"
+          && !lower.allSatisfy(\.isNumber)
+      }
     guard let bestPiece = pathPieces.last else {
       return storefrontHint(from: urlString)
     }
@@ -22806,6 +22856,7 @@ final class ParcelOpsStore {
     let cleaned = decoded
       .replacingOccurrences(of: "-", with: " ")
       .replacingOccurrences(of: "_", with: " ")
+      .replacingOccurrences(of: "+", with: " ")
       .trimmingCharacters(in: .whitespacesAndNewlines)
     return cleaned.isEmpty ? storefrontHint(from: urlString) : String(cleaned.prefix(80))
   }
