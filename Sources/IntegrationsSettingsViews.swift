@@ -7456,6 +7456,126 @@ struct SettingsView: View {
     return "Mailbox setup, manual refresh, source-to-order handoff, local tasks, and audit trace are in place for hands-on MVP use."
   }
 
+  private var appSnapshotTone: Color {
+    if !hasLiveMailboxSetup || !hasLiveMailboxCredentialOrAuth { return .orange }
+    if settingsManualRefreshCount == 0 || settingsInboxCreatedOrdersCount == 0 { return .teal }
+    return .green
+  }
+
+  private var appSnapshotTitle: String {
+    if !hasLiveMailboxSetup { return "MVP app is built; live intake still needs a provider" }
+    if !hasLiveMailboxCredentialOrAuth { return "MVP app is built; credentials/sign-in need finishing" }
+    if settingsManualRefreshCount == 0 { return "MVP app is ready for first live refresh proof" }
+    if settingsInboxCreatedOrdersCount == 0 { return "MVP app is ready for Inbox-to-order proof" }
+    return "MVP app is usable for hands-on daily testing"
+  }
+
+  private var appSnapshotDetail: String {
+    if !hasLiveMailboxSetup {
+      return "Core local workflows, JSON persistence, provider setup rows, and audit trails are present. Add the active mailbox provider before judging live intake."
+    }
+    if !hasLiveMailboxCredentialOrAuth {
+      return "Daily operator screens are present. Finish the active provider credential or sign-in before relying on real manual intake."
+    }
+    if settingsManualRefreshCount == 0 {
+      return "The app has a credential/sign-in path ready. Run one manual read-only refresh to prove the mailbox-to-Inbox path."
+    }
+    if settingsInboxCreatedOrdersCount == 0 {
+      return "Mailbox refresh has evidence. Create or link one order from Inbox to prove downstream Orders, Workbench, Tasks, Dispatch, and Audit handoff."
+    }
+    return "The local MVP has primary navigation, manual mailbox intake evidence, source-created order handoff, task/workbench follow-up, audit history, and local Wishlist planning. Remaining work is production hardening and live integration expansion."
+  }
+
+  private var appSnapshotRows: [(title: String, status: String, detail: String, symbol: String, color: Color)] {
+    [
+      (
+        "Primary operator app",
+        "Built",
+        "Dashboard, Inbox, Orders, Workbench, Dispatch, Tasks, Wishlist, Audit, and Settings are the daily flow.",
+        "rectangle.stack.fill",
+        .green
+      ),
+      (
+        "Local persistence",
+        "Built",
+        "Operational records, sample data, setup placeholders, and audit history remain JSON-backed.",
+        "internaldrive.fill",
+        .green
+      ),
+      (
+        "SpaceMail intake",
+        hasSpaceMailCredentialReference ? "Live manual" : hasSpaceMailSetup ? "Setup needs credential" : "Not configured",
+        "Read-only manual IMAP refresh is the current practical live path for SpaceMail-hosted mailboxes.",
+        "server.rack",
+        hasSpaceMailCredentialReference ? .green : hasSpaceMailSetup ? .orange : .secondary
+      ),
+      (
+        "Gmail intake",
+        hasGmailConnectedAuth ? "Ready/manual" : hasGmailSetup ? "Setup/sign-in" : "Optional",
+        "Gmail setup, mock refresh, OAuth planning, and readiness guidance exist; use it only for Google-hosted mailboxes.",
+        "envelope.badge.shield.half.filled",
+        hasGmailConnectedAuth ? .green : hasGmailSetup ? .orange : .secondary
+      ),
+      (
+        "Outlook intake",
+        hasMicrosoft365ConnectedAuth ? "Ready/manual" : hasMicrosoft365Setup ? "Setup/sign-in" : "Optional",
+        "Microsoft 365 setup, MSAL sign-in, Graph diagnostics, and mock fallback remain available for Microsoft-hosted mailboxes.",
+        "mail.stack.fill",
+        hasMicrosoft365ConnectedAuth ? .green : hasMicrosoft365Setup ? .orange : .secondary
+      ),
+      (
+        "Mixed-mailbox filtering",
+        latestManualMailboxFilteredCount > 0 || latestManualMailboxUncertainCount > 0 ? "Active" : "Available",
+        "Likely non-order mail can be filtered away from Inbox, with uncertain previews held for local review.",
+        "line.3.horizontal.decrease.circle.fill",
+        latestManualMailboxFilteredCount > 0 || latestManualMailboxUncertainCount > 0 ? .green : .teal
+      ),
+      (
+        "Wishlist planning",
+        store.activeWishlistItemCount > 0 ? "Active" : "Ready",
+        "Manual Wishlist capture, seller options, trust notes, landed-cost planning, purchase handoff, and order-watch records are local.",
+        "star.square.fill",
+        store.activeWishlistItemCount > 0 ? .purple : .teal
+      ),
+      (
+        "Still not live",
+        "Deliberate",
+        "Background sync, notifications, browser extension capture, live retailer comparison, carrier APIs, Shopify APIs, OCR, scanners, calendars, checkout, payments, and outbound email are not active.",
+        "lock.shield.fill",
+        .orange
+      )
+    ]
+  }
+
+  private var nextDevelopmentMilestones: [(title: String, detail: String, status: String, color: Color)] {
+    [
+      (
+        "Prove live intake on real mail",
+        "Use the active provider to refresh, confirm mixed-mailbox filtering, and create or link one order from a genuine order email.",
+        settingsManualRefreshCount > 0 && settingsInboxCreatedOrdersCount > 0 ? "Proved" : "Next",
+        settingsManualRefreshCount > 0 && settingsInboxCreatedOrdersCount > 0 ? .green : .orange
+      ),
+      (
+        "Tighten parsing with real examples",
+        "Use parser diagnostics and reprocess actions to improve order/tracking/destination extraction from actual mailbox samples.",
+        store.intakeParserDiagnostics.isEmpty ? "Clear" : "\(store.intakeParserDiagnostics.count)",
+        store.intakeParserDiagnostics.isEmpty ? .green : .orange
+      ),
+      (
+        "Make Wishlist research operational",
+        "Next production slice is an explicit research workflow or browser-extension capture boundary; current seller comparison remains local/manual.",
+        store.activeWishlistItemCount > 0 ? "Planned" : "Queued",
+        .purple
+      ),
+      (
+        "Production hardening",
+        "Add regression tests, data migration checks, and release packaging before relying on it as the only operational record.",
+        "Pending",
+        .teal
+      )
+    ]
+  }
+
   private var activeProviderCandidate: (provider: String, title: String, detail: String, tone: Color, rank: Int)? {
     let spaceMailCandidate = latestSpaceMailSummary.map { summary in
       activeProviderCandidate(
@@ -7724,6 +7844,96 @@ struct SettingsView: View {
     }
   }
 
+  private var appReadinessSnapshotPanel: some View {
+    SettingsPanel(title: "App readiness snapshot", symbol: "chart.bar.doc.horizontal.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: appSnapshotTone == .green ? "checkmark.seal.fill" : "chart.bar.doc.horizontal.fill")
+            .font(.title3)
+            .foregroundStyle(appSnapshotTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(appSnapshotTitle)
+              .font(.headline)
+            Text(appSnapshotDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge(appSnapshotTone == .green ? "Hands-on ready" : "Setup proof needed", color: appSnapshotTone)
+        }
+
+        MetricStrip(items: [
+          ("Providers", "\(store.mailboxProviderSetupCount)", store.mailboxProviderSetupCount == 0 ? .orange : .green),
+          ("Refreshes", "\(settingsManualRefreshCount)", settingsManualRefreshCount == 0 ? .orange : .green),
+          ("Fetched", "\(latestManualMailboxFetchedCount)", latestManualMailboxFetchedCount == 0 ? .secondary : .blue),
+          ("Imported", "\(latestManualMailboxImportedCount)", latestManualMailboxImportedCount == 0 ? .secondary : .green),
+          ("Filtered", "\(latestManualMailboxFilteredCount)", latestManualMailboxFilteredCount == 0 ? .secondary : .teal),
+          ("Inbox orders", "\(settingsInboxCreatedOrdersCount)", settingsInboxCreatedOrdersCount == 0 ? .orange : .green),
+          ("Wishlist", "\(store.activeWishlistItemCount)", store.activeWishlistItemCount == 0 ? .secondary : .purple),
+          ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .secondary : .teal)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 175 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(appSnapshotRows, id: \.title) { row in
+            VStack(alignment: .leading, spacing: 7) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(row.title, systemImage: row.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(row.color)
+                Spacer(minLength: 6)
+                Badge(row.status, color: row.color)
+              }
+              Text(row.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+          }
+        }
+
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Next development milestones", systemImage: "flag.checkered")
+            .font(.caption.weight(.semibold))
+          ForEach(nextDevelopmentMilestones, id: \.title) { milestone in
+            HStack(alignment: .top, spacing: 8) {
+              Image(systemName: milestone.color == .green ? "checkmark.circle.fill" : "circle.dashed")
+                .foregroundStyle(milestone.color)
+                .frame(width: 18)
+              VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                  Text(milestone.title)
+                    .font(.caption.weight(.semibold))
+                  Badge(milestone.status, color: milestone.color)
+                }
+                Text(milestone.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+          }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+
+        Text("This snapshot is local and observational. It does not run mail refreshes, compare retailers, mutate mailboxes, start background work, save secrets, or call external services.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var setupCompletionLadderPanel: some View {
     SettingsPanel(title: "Setup completion ladder", symbol: "checklist.checked") {
       VStack(alignment: .leading, spacing: 12) {
@@ -7943,6 +8153,7 @@ struct SettingsView: View {
           .font(isCompact ? .title.bold() : .largeTitle.bold())
 
         settingsReadinessPanel
+        appReadinessSnapshotPanel
         setupCompletionLadderPanel
         wishlistPlanningSettingsPanel
 
