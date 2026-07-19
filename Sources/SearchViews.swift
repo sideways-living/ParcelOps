@@ -392,7 +392,8 @@ private struct SearchReadinessPanel: View {
                 title: "Gmail search follow-up",
                 detail: "Open this when Gmail refresh evidence explains missing search results. Search stays focused on local records.",
                 symbol: "envelope.badge.shield.half.filled",
-                tone: .pink
+                tone: .pink,
+                statusLabel: "Gmail"
               ) {
                 GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
               }

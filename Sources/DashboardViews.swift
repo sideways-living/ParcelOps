@@ -2442,7 +2442,8 @@ struct DashboardView: View {
               title: "Mailbox intake evidence",
               detail: "Open this for provider follow-up, release evidence, and handoff detail. The Dashboard keeps counts and recent intake visible first.",
               symbol: "tray.full.fill",
-              tone: mailboxHealthAttentionCount == 0 ? .teal : .orange
+              tone: mailboxHealthAttentionCount == 0 ? .teal : .orange,
+              statusLabel: "Evidence"
             ) {
               CompactSpaceMailActionPlan(plan: store.spaceMailPostRefreshActionPlan)
               SpaceMailShiftHandoffCard(

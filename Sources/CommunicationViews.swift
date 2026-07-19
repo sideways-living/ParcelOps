@@ -406,7 +406,8 @@ struct CommunicationView: View {
               title: "Gmail draft follow-up",
               detail: "Open this when Gmail refresh results affect draft-message follow-up. Draft rows remain the primary work here.",
               symbol: "envelope.badge.shield.half.filled",
-              tone: .pink
+              tone: .pink,
+              statusLabel: "Gmail"
             ) {
               GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
             }

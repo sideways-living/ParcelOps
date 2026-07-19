@@ -4816,6 +4816,7 @@ struct MailboxProviderPostRefreshDisclosure<Content: View>: View {
   var detail: String = "Open this when you need provider-specific refresh follow-up. Keep it collapsed when working the main queue."
   var symbol: String = "arrow.triangle.branch"
   var tone: Color = .secondary
+  var statusLabel: String = "Optional"
   @ViewBuilder var content: Content
   @State private var isExpanded = false
 
@@ -4839,7 +4840,7 @@ struct MailboxProviderPostRefreshDisclosure<Content: View>: View {
             .fixedSize(horizontal: false, vertical: true)
         }
         Spacer()
-        Badge("Optional", color: tone)
+        Badge(statusLabel, color: tone)
       }
     }
     .padding(14)

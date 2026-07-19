@@ -1351,7 +1351,8 @@ struct TasksView: View {
           title: "Gmail task follow-up",
           detail: "Open this when Gmail refresh results need assigned follow-up. The task queue remains focused on owned work.",
           symbol: "envelope.badge.shield.half.filled",
-          tone: .pink
+          tone: .pink,
+          statusLabel: "Gmail"
         ) {
           GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
           GmailShiftHandoffCard(
@@ -1671,7 +1672,8 @@ struct TasksView: View {
           title: "SpaceMail task follow-up",
           detail: "Open this when SpaceMail refresh results need assigned follow-up. Keep it collapsed when clearing the main task queue.",
           symbol: "server.rack",
-          tone: .teal
+          tone: .teal,
+          statusLabel: "SpaceMail"
         ) {
           SpaceMailPostRefreshActionCard(plan: spaceMailPostRefreshPlan)
           SpaceMailShiftHandoffCard(
@@ -1955,7 +1957,8 @@ struct TasksView: View {
             title: "SpaceMail handoff detail",
             detail: "Open this when the assigned SpaceMail follow-up needs a shift handoff draft. The assigned list below remains the primary task surface.",
             symbol: "person.2.wave.2.fill",
-            tone: .teal
+            tone: .teal,
+            statusLabel: "Handoff"
           ) {
             SpaceMailShiftHandoffCard(
               summary: store.spaceMailShiftHandoffSummary,

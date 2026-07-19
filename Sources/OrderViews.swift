@@ -313,7 +313,8 @@ struct OrdersView: View {
             title: "Gmail refresh follow-up",
             detail: "Open this when Gmail refresh results need order handoff review. The order queue remains focused on linked order records.",
             symbol: "envelope.badge.shield.half.filled",
-            tone: .pink
+            tone: .pink,
+            statusLabel: "Gmail"
           ) {
             GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
           }

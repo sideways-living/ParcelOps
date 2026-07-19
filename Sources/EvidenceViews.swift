@@ -315,7 +315,8 @@ struct EvidenceView: View {
               title: "Gmail evidence follow-up",
               detail: "Open this when Gmail refresh results affect evidence review. Evidence rows remain the primary work here.",
               symbol: "envelope.badge.shield.half.filled",
-              tone: .pink
+              tone: .pink,
+              statusLabel: "Gmail"
             ) {
               GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
             }

@@ -797,7 +797,8 @@ struct OperationsWorkbenchView: View {
           title: "SpaceMail refresh follow-up",
           detail: "Open this when SpaceMail refresh results need Workbench follow-up. The exception queue remains the primary work here.",
           symbol: "server.rack",
-          tone: .teal
+          tone: .teal,
+          statusLabel: "SpaceMail"
         ) {
           SpaceMailPostRefreshActionCard(plan: spaceMailPostRefreshPlan)
           SpaceMailShiftHandoffCard(
@@ -810,7 +811,8 @@ struct OperationsWorkbenchView: View {
           title: "Gmail refresh follow-up",
           detail: "Open this when Gmail refresh results need Workbench follow-up. Keep it collapsed while working operational exceptions.",
           symbol: "envelope.badge.shield.half.filled",
-          tone: .pink
+          tone: .pink,
+          statusLabel: "Gmail"
         ) {
           GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
           GmailShiftHandoffCard(

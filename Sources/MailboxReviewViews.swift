@@ -723,7 +723,8 @@ struct MailboxView: View {
               title: "Provider refresh follow-up",
               detail: "Open this for handoff notes, Gmail/SpaceMail follow-up, and release evidence. The summary above is enough for normal mailbox review.",
               symbol: "tray.and.arrow.down.fill",
-              tone: latestMailboxUncertainCount == 0 && latestMailboxFilteredCount == 0 ? .teal : .orange
+              tone: latestMailboxUncertainCount == 0 && latestMailboxFilteredCount == 0 ? .teal : .orange,
+              statusLabel: "Evidence"
             ) {
               SpaceMailShiftHandoffCard(
                 summary: store.spaceMailShiftHandoffSummary,

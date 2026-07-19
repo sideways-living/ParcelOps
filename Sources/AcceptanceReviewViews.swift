@@ -244,7 +244,8 @@ struct AcceptanceReviewView: View {
             title: "Gmail acceptance follow-up",
             detail: "Open this when Gmail refresh results affect acceptance review. Candidate rows remain the primary work here.",
             symbol: "envelope.badge.shield.half.filled",
-            tone: .pink
+            tone: .pink,
+            statusLabel: "Gmail"
           ) {
             GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
           }

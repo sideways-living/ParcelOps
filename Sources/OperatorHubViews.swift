@@ -3331,7 +3331,8 @@ struct DispatchView: View {
             title: "Gmail refresh follow-up",
             detail: "Open this when Gmail refresh results need dispatch follow-up. Keep it collapsed while working the dispatch queue.",
             symbol: "envelope.badge.shield.half.filled",
-            tone: dispatchGmailCompileColor
+            tone: dispatchGmailCompileColor,
+            statusLabel: "Gmail"
           ) {
             GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
           }

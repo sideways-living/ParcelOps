@@ -58,7 +58,8 @@ struct DispatchReadinessView: View {
             title: "Gmail refresh follow-up",
             detail: "Open this only when mailbox refresh evidence affects dispatch readiness. Checklist rows remain the primary work here.",
             symbol: "envelope.badge.shield.half.filled",
-            tone: .pink
+            tone: .pink,
+            statusLabel: "Gmail"
           ) {
             GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
           }

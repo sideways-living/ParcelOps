@@ -1118,7 +1118,8 @@ struct AuditView: View {
             title: "Gmail audit follow-up",
             detail: "Open this when Audit needs Gmail post-refresh evidence. The activity feed remains the primary audit surface.",
             symbol: "envelope.badge.shield.half.filled",
-            tone: .pink
+            tone: .pink,
+            statusLabel: "Gmail"
           ) {
             GmailPostRefreshActionCard(plan: store.gmailPostRefreshActionPlan)
           }
