@@ -215,7 +215,7 @@ enum SampleData {
       monitoredLabelNames: "INBOX, Order Updates",
       connectionStatus: "OAuth not connected",
       lastManualRefreshDate: "Never",
-      setupNotes: "Gmail setup placeholder for mailboxes hosted on Gmail/Google Workspace. No OAuth flow, token exchange, Gmail API call, or mailbox mutation is connected yet.",
+      setupNotes: "Gmail setup placeholder for mailboxes hosted on Gmail/Google Workspace. Real sign-in and manual read-only Gmail API refresh are available after Google Cloud setup values replace the placeholders. No token values or Gmail message bodies are stored in JSON, and mailbox mutation is not used.",
       oauthReadinessStatus: "Needs Google Cloud OAuth setup",
       googleCloudProjectHint: "ParcelOps Gmail intake test project",
       oauthClientIDPlaceholder: "Google OAuth client ID placeholder only",

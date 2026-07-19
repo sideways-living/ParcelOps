@@ -4779,12 +4779,13 @@ struct GmailIntakeFoundationCard: View {
   private let setupSteps: [(String, String, Color)] = [
     ("1 Save setup", "Capture Gmail address, labels, mailbox mode, and non-secret OAuth notes.", .blue),
     ("2 Run mock refresh", "Test provider-neutral Inbox intake without Google sign-in or Gmail API calls.", .teal),
-    ("3 Review results", "Use fetched/imported/duplicate/filtered/uncertain counts before trusting the flow.", .orange),
-    ("4 Enable real path later", "Only after Google app config, sign-in, and read-only consent are ready.", .green)
+    ("3 Prepare Google", "Replace placeholder client ID and callback scheme in Project.json/App Info before real sign-in.", .orange),
+    ("4 Run real refresh", "Only after setup readiness, Google sign-in, and read-only Gmail consent are clear.", .green)
   ]
 
   private let boundaryBadges: [(String, Color)] = [
     ("Mock intake ready", .teal),
+    ("Real manual path gated", .orange),
     ("JSON stores non-secrets", .blue),
     ("No Gmail tokens", .secondary),
     ("No background sync", .secondary),
@@ -4800,7 +4801,7 @@ struct GmailIntakeFoundationCard: View {
         VStack(alignment: .leading, spacing: 4) {
           Text("Gmail intake foundation")
             .font(.caption.weight(.semibold))
-          Text("Start with the mock Gmail refresh to verify the local Inbox workflow. Real Google sign-in and Gmail API refresh stay explicit, manual, and separate.")
+          Text("Start with mock refresh for local workflow testing. Use real Google sign-in and real Gmail refresh only after the saved Google Cloud values match the compiled app configuration.")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -4830,7 +4831,7 @@ struct GmailIntakeFoundationCard: View {
         }
       }
 
-      Text("Safe boundary: mock Gmail refresh creates deterministic local message payloads and routes them through the existing duplicate-safe intake path. It does not open browser sign-in, request scopes, call Google APIs, store tokens, use Keychain for Gmail, send mail, or alter mailbox messages.")
+      Text("Safe boundary: mock Gmail refresh creates deterministic local message payloads. Real Gmail refresh is separate, explicit, manual, read-only, and uses GoogleSignIn in-memory session state; ParcelOps still does not store token values in JSON, send mail, or alter mailbox messages.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
