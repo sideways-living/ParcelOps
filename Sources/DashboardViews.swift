@@ -1077,6 +1077,7 @@ struct DashboardView: View {
         dailyStartDecisionPanel
         DashboardReleaseReadinessSnapshot(store: store)
         dashboardDevelopmentFocusPanel
+        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary)
         ActiveOperatorQueueFocusCard(store: store)
         RecentOperatorImprovementsCard()
         inboxTriageQualityPanel
