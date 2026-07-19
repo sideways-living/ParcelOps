@@ -14053,6 +14053,20 @@ private struct WishlistOrderWatchRecordRow: View {
     return .purple
   }
 
+  private func confirmationDetail(for email: ForwardedEmailIntake) -> (score: Int, confidence: String, reasons: [String])? {
+    guard let item = store?.wishlistItem(id: record.wishlistItemID) else { return nil }
+    return store?.wishlistOrderConfirmationMatchDetail(item: item, email: email)
+  }
+
+  private func confirmationTone(_ confidence: String) -> Color {
+    switch confidence {
+    case "High": return .green
+    case "Medium": return .teal
+    case "Low": return .orange
+    default: return .secondary
+    }
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 10) {
@@ -14108,7 +14122,9 @@ private struct WishlistOrderWatchRecordRow: View {
             .font(.caption.bold())
             .foregroundStyle(.teal)
           ForEach(candidateMatches.prefix(2)) { email in
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            let detail = confirmationDetail(for: email)
+            let matchTone = detail.map { confirmationTone($0.confidence) } ?? .teal
+            HStack(alignment: .top, spacing: 8) {
               VStack(alignment: .leading, spacing: 2) {
                 Text(email.subject)
                   .font(.caption.weight(.semibold))
@@ -14117,16 +14133,32 @@ private struct WishlistOrderWatchRecordRow: View {
                   .font(.caption2)
                   .foregroundStyle(.secondary)
                   .lineLimit(1)
+                if let detail {
+                  Text("Match: \(detail.confidence) (\(detail.score)) • \(detail.reasons.prefix(4).joined(separator: ", "))")
+                    .font(.caption2)
+                    .foregroundStyle(matchTone)
+                    .lineLimit(2)
+                } else {
+                  Text("Match needs manual review against seller, item, order, and tracking signals.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                }
               }
               Spacer(minLength: 8)
-              Button("Use", systemImage: "link") {
-                onUseConfirmation(email)
+              VStack(alignment: .trailing, spacing: 6) {
+                if let detail {
+                  Badge(detail.confidence, color: matchTone)
+                }
+                Button("Use", systemImage: "link") {
+                  onUseConfirmation(email)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
               }
-              .buttonStyle(.bordered)
-              .controlSize(.mini)
             }
           }
-          Text("Using a match links the existing local Inbox confirmation to this Wishlist item; it does not fetch mail or change the mailbox.")
+          Text("Use only high-confidence or operator-verified candidates. This links an existing local Inbox confirmation to this Wishlist item; it does not fetch mail, mark mail read, or change the mailbox.")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
