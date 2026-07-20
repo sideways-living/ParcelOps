@@ -54,6 +54,55 @@ struct TasksView: View {
     store.wishlistPurchasePacketDrafts
   }
 
+  private var developmentStatusLinkedTasks: [ReviewTask] {
+    store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .completed
+    }
+  }
+
+  private var developmentStatusLinkedHandoffs: [HandoffNote] {
+    store.handoffNotes.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .completed
+    }
+  }
+
+  private var developmentStatusLinkedDrafts: [DraftMessage] {
+    store.draftMessages.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .sentLocally
+    }
+  }
+
+  private var developmentStatusFollowUpCount: Int {
+    developmentStatusLinkedTasks.count + developmentStatusLinkedHandoffs.count + developmentStatusLinkedDrafts.count
+  }
+
+  private var developmentStatusFollowUpTone: Color {
+    if developmentStatusLinkedTasks.contains(where: { $0.priority == .high || $0.priority == .urgent || $0.status == .blocked }) { return .orange }
+    if !developmentStatusLinkedTasks.isEmpty || !developmentStatusLinkedHandoffs.isEmpty { return .teal }
+    if !developmentStatusLinkedDrafts.isEmpty { return .blue }
+    return .secondary
+  }
+
+  private var developmentStatusFollowUpTitle: String {
+    if !developmentStatusLinkedTasks.isEmpty { return "Development checkpoint has an owner" }
+    if !developmentStatusLinkedHandoffs.isEmpty { return "Development checkpoint is ready for shift handoff" }
+    if !developmentStatusLinkedDrafts.isEmpty { return "Development checkpoint draft is ready to review" }
+    return "No development checkpoint follow-up is active"
+  }
+
+  private var developmentStatusFollowUpDetail: String {
+    if developmentStatusFollowUpCount > 0 {
+      return "Use this panel when you ask where development is up to. It collects the status task, shift handoff, and local draft packet created from the current app state."
+    }
+    return "Create a task, handoff, or local draft from the current development checkpoint when the next operator needs a clear status packet."
+  }
+
   private var wishlistReadyPacketItems: [WishlistItem] {
     store.wishlistReadyPacketItems
   }
@@ -590,6 +639,7 @@ struct TasksView: View {
         taskNextActionPanel
         taskResolutionLadderPanel
         taskScopePanel
+        developmentStatusFollowUpPanel
         wishlistTaskContextPanel
         mailboxIntakeTaskReadinessPanel
         inboxParserTaskContextPanel
@@ -760,6 +810,97 @@ struct TasksView: View {
           }
         }
         .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var developmentStatusFollowUpPanel: some View {
+    SettingsPanel(title: "Development status follow-up", symbol: "checkmark.seal.text.page.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: developmentStatusFollowUpCount > 0 ? "checklist.checked" : "doc.badge.plus")
+            .font(.title3)
+            .foregroundStyle(developmentStatusFollowUpTone)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(developmentStatusFollowUpTitle)
+              .font(.headline)
+            Text(developmentStatusFollowUpDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer()
+          Badge(developmentStatusFollowUpCount > 0 ? "\(developmentStatusFollowUpCount) active" : "Optional", color: developmentStatusFollowUpTone)
+        }
+
+        MetricStrip(items: [
+          ("Task", developmentStatusLinkedTasks.isEmpty ? "Missing" : "\(developmentStatusLinkedTasks.count)", developmentStatusLinkedTasks.isEmpty ? .secondary : .orange),
+          ("Handoff", developmentStatusLinkedHandoffs.isEmpty ? "Missing" : "\(developmentStatusLinkedHandoffs.count)", developmentStatusLinkedHandoffs.isEmpty ? .secondary : .teal),
+          ("Draft", developmentStatusLinkedDrafts.isEmpty ? "Missing" : "\(developmentStatusLinkedDrafts.count)", developmentStatusLinkedDrafts.isEmpty ? .secondary : .blue),
+          ("Open queue", "\(queueItems.count)", queueItems.isEmpty ? .green : .orange)
+        ])
+
+        ForEach(developmentStatusLinkedTasks.prefix(1)) { task in
+          CompactRow(
+            title: task.title,
+            detail: task.summary,
+            badge: task.priority.rawValue,
+            color: task.priority.color
+          )
+        }
+
+        ForEach(developmentStatusLinkedHandoffs.prefix(1)) { note in
+          CompactRow(
+            title: note.title,
+            detail: note.summary,
+            badge: note.status.rawValue,
+            color: note.status.color
+          )
+        }
+
+        ForEach(developmentStatusLinkedDrafts.prefix(1)) { draft in
+          CompactRow(
+            title: draft.subject,
+            detail: "Local draft packet for the current development status. No outbound email is sent.",
+            badge: draft.status.rawValue,
+            color: draft.status == .ready ? .green : .blue
+          )
+        }
+
+        CompactActionRow {
+          Button(developmentStatusLinkedTasks.isEmpty ? "Create status task" : "Refresh status task", systemImage: "checklist") {
+            store.createReviewTaskFromDevelopmentStatusCheckpoint()
+            mvpFeedbackMessage = "Development status task refreshed from current local state."
+          }
+          .buttonStyle(.borderedProminent)
+
+          Button(developmentStatusLinkedHandoffs.isEmpty ? "Create handoff" : "Refresh handoff", systemImage: "arrow.left.arrow.right.square.fill") {
+            store.createHandoffNoteFromDevelopmentStatusCheckpoint()
+            mvpFeedbackMessage = "Development status handoff refreshed from current local state."
+          }
+          .buttonStyle(.bordered)
+
+          Button(developmentStatusLinkedDrafts.isEmpty ? "Create status draft" : "Refresh draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessageFromDevelopmentStatusCheckpoint()
+            mvpFeedbackMessage = "Development status draft refreshed locally. No outbound email was sent."
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+
+        Text("Local-only status packet. These actions read current JSON-backed app state and create or refresh local task, handoff, and draft records only.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
@@ -2284,7 +2425,8 @@ private struct TaskQueueItem: Identifiable {
       "gmail-release-readiness",
       "mailbox-release-readiness",
       "mailbox-provider-release-gate",
-      "mailbox-provider-handoff-packet"
+      "mailbox-provider-handoff-packet",
+      "development-status-checkpoint"
     ]
     if knownIDs.contains(linkedEntityID) { return true }
 
@@ -2372,7 +2514,8 @@ private struct TaskQueueItem: Identifiable {
         "gmail-release-readiness",
         "mailbox-release-readiness",
         "mailbox-provider-release-gate",
-        "mailbox-provider-handoff-packet"
+        "mailbox-provider-handoff-packet",
+        "development-status-checkpoint"
       ].contains(task.linkedEntityID)
     let isWishlistFollowUp = task.linkedEntityType == .wishlistItem
       || task.linkedEntityID.localizedCaseInsensitiveContains("wishlist")
