@@ -1666,6 +1666,12 @@ struct DashboardView: View {
         .background(appReadinessTone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
         CompactActionRow {
+          Button("Record status checkpoint", systemImage: "list.clipboard.fill") {
+            store.recordDevelopmentStatusCheckpoint()
+            feedbackMessage = "Development status checkpoint recorded in Audit."
+          }
+          .buttonStyle(.borderedProminent)
+          .help("Records a local Audit snapshot of current app completeness and next work. It does not run refreshes or contact services.")
           NavigationLink {
             dailyRouteDestination(for: recommendedDailySection)
           } label: {
@@ -3482,6 +3488,12 @@ private struct DashboardReleaseCandidateQACard: View {
         Button("Record RC checkpoint", systemImage: "checkmark.seal.fill") {
           store.recordReleaseCandidateCheckpoint()
           feedbackMessage = "Release-candidate checkpoint recorded in Audit."
+        }
+        .buttonStyle(.bordered)
+
+        Button("Record status checkpoint", systemImage: "list.clipboard.fill") {
+          store.recordDevelopmentStatusCheckpoint()
+          feedbackMessage = "Development status checkpoint recorded in Audit."
         }
         .buttonStyle(.bordered)
 
