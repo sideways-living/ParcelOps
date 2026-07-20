@@ -7353,6 +7353,10 @@ struct SettingsReleaseCandidateCard: View {
     store.latestGmailIntakeHealthSummary
   }
 
+  private var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary? {
+    store.latestMicrosoft365IntakeHealthSummary
+  }
+
   private var hasMailboxSetup: Bool {
     store.hasMailboxProviderSetup
   }
@@ -7387,6 +7391,7 @@ struct SettingsReleaseCandidateCard: View {
   private var latestManualUncertainCount: Int {
     max(latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0, latestSpaceMailSummary?.uncertainCount ?? 0)
       + max(latestGmailSummary?.pendingUncertainReviewCount ?? 0, latestGmailSummary?.uncertainCount ?? 0)
+      + max(latestMicrosoft365Summary?.pendingUncertainReviewCount ?? 0, latestMicrosoft365Summary?.uncertainCount ?? 0)
   }
 
   private var inboxCreatedOrdersCount: Int {
@@ -7589,6 +7594,9 @@ struct SettingsView: View {
   private var latestGmailSummary: GmailIntakeHealthSummary? {
     store.latestGmailIntakeHealthSummary
   }
+  private var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary? {
+    store.latestMicrosoft365IntakeHealthSummary
+  }
   private var hasGmailConnectedAuth: Bool {
     store.hasGmailConnectedAuth
   }
@@ -7670,6 +7678,7 @@ struct SettingsView: View {
   private var latestManualMailboxUncertainCount: Int {
     max(latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0, latestSpaceMailSummary?.uncertainCount ?? 0)
       + max(latestGmailSummary?.pendingUncertainReviewCount ?? 0, latestGmailSummary?.uncertainCount ?? 0)
+      + max(latestMicrosoft365Summary?.pendingUncertainReviewCount ?? 0, latestMicrosoft365Summary?.uncertainCount ?? 0)
   }
 
   private var settingsInboxCreatedOrdersCount: Int {
