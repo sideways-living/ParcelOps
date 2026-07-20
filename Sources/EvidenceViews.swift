@@ -106,6 +106,12 @@ struct EvidenceView: View {
     }
   }
 
+  private var spaceMailSourceTrailEmails: [ForwardedEmailIntake] {
+    store.intakeEmails.filter { email in
+      store.intakeSourceSummary(for: email).tone == "spacemail"
+    }
+  }
+
   private var gmailSourceTrailOrders: [TrackedOrder] {
     store.operatorSourceOrders.filter { order in
       store.linkedIntakeEmails(for: order).contains { email in
@@ -114,8 +120,20 @@ struct EvidenceView: View {
     }
   }
 
+  private var spaceMailSourceTrailOrders: [TrackedOrder] {
+    store.operatorSourceOrders.filter { order in
+      store.linkedIntakeEmails(for: order).contains { email in
+        store.intakeSourceSummary(for: email).tone == "spacemail"
+      }
+    }
+  }
+
   private var gmailOrdersMissingEvidence: [TrackedOrder] {
     gmailSourceTrailOrders.filter { evidenceForOrder($0).isEmpty }
+  }
+
+  private var spaceMailOrdersMissingEvidence: [TrackedOrder] {
+    spaceMailSourceTrailOrders.filter { evidenceForOrder($0).isEmpty }
   }
 
   private var outlookSourceTrailEmails: [ForwardedEmailIntake] {
@@ -134,6 +152,14 @@ struct EvidenceView: View {
 
   private var outlookOrdersMissingEvidence: [TrackedOrder] {
     outlookSourceTrailOrders.filter { evidenceForOrder($0).isEmpty }
+  }
+
+  private var providerSourceTrailEmails: [ForwardedEmailIntake] {
+    (spaceMailSourceTrailEmails + gmailSourceTrailEmails + outlookSourceTrailEmails).uniquedByID()
+  }
+
+  private var providerOrdersMissingEvidence: [TrackedOrder] {
+    (spaceMailOrdersMissingEvidence + gmailOrdersMissingEvidence + outlookOrdersMissingEvidence).uniquedByID()
   }
 
   var body: some View {
@@ -274,27 +300,27 @@ struct EvidenceView: View {
 
   @ViewBuilder
   private var gmailEvidenceFocusPanel: some View {
-    if !store.gmailMailboxConnections.isEmpty || !store.microsoft365MailboxConnections.isEmpty || !gmailSourceTrailEmails.isEmpty || !outlookSourceTrailEmails.isEmpty {
+    if !store.spaceMailIMAPConnections.isEmpty || !store.gmailMailboxConnections.isEmpty || !store.microsoft365MailboxConnections.isEmpty || !providerSourceTrailEmails.isEmpty {
       SettingsPanel(title: "Mailbox evidence focus", symbol: "mail.stack.fill") {
         VStack(alignment: .leading, spacing: 12) {
-          Text("Gmail and Outlook/Microsoft-origin intake can serve as the local source trail for an order even when no file attachment exists. Use this to decide whether mailbox-created orders need extra evidence before handoff closure.")
+          Text("SpaceMail, Gmail, and Outlook-origin intake can serve as the local source trail for an order even when no file attachment exists. Use this to decide whether mailbox-created orders need extra evidence before handoff closure.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
           MetricStrip(items: [
+            ("SpaceMail rows", "\(spaceMailSourceTrailEmails.count)", spaceMailSourceTrailEmails.isEmpty ? .secondary : .teal),
             ("Gmail source rows", "\(gmailSourceTrailEmails.count)", gmailSourceTrailEmails.isEmpty ? .secondary : .blue),
-            ("Gmail orders", "\(gmailSourceTrailOrders.count)", gmailSourceTrailOrders.isEmpty ? .secondary : .blue),
             ("Outlook source rows", "\(outlookSourceTrailEmails.count)", outlookSourceTrailEmails.isEmpty ? .secondary : .purple),
-            ("Outlook orders", "\(outlookSourceTrailOrders.count)", outlookSourceTrailOrders.isEmpty ? .secondary : .purple),
-            ("Missing evidence", "\(gmailOrdersMissingEvidence.count)", gmailOrdersMissingEvidence.isEmpty ? .green : .orange),
-            ("Outlook missing", "\(outlookOrdersMissingEvidence.count)", outlookOrdersMissingEvidence.isEmpty ? .green : .orange),
+            ("Mailbox orders", "\((spaceMailSourceTrailOrders + gmailSourceTrailOrders + outlookSourceTrailOrders).uniquedByID().count)", providerSourceTrailEmails.isEmpty ? .secondary : .green),
+            ("SpaceMail missing", "\(spaceMailOrdersMissingEvidence.count)", spaceMailOrdersMissingEvidence.isEmpty ? .green : .orange),
+            ("Provider missing", "\(providerOrdersMissingEvidence.count)", providerOrdersMissingEvidence.isEmpty ? .green : .orange),
             ("Mailbox refreshes", "\(store.totalMailboxFetchedCount)", store.totalMailboxFetchedCount == 0 ? .secondary : .teal)
           ])
 
           CollapsedProviderEvidencePanel(
             title: "Mailbox evidence boundaries",
-            detail: "Provider setup, source counts, and local-only boundaries for Gmail and Outlook evidence trails.",
+            detail: "Provider setup, source counts, and local-only boundaries for SpaceMail, Gmail, and Outlook evidence trails.",
             symbol: "doc.viewfinder.fill"
           ) {
             GmailReleaseBoundaryPanel(
@@ -328,11 +354,11 @@ struct EvidenceView: View {
             }
           }
 
-          if gmailSourceTrailEmails.isEmpty && outlookSourceTrailEmails.isEmpty {
-            Label("No Gmail or Outlook-origin intake is linked to orders yet. Run the matching manual refresh, then create or link confirmed order rows from Inbox.", systemImage: "tray.and.arrow.down.fill")
+          if providerSourceTrailEmails.isEmpty {
+            Label("No mailbox-origin intake is linked to orders yet. Run the matching manual refresh, then create or link confirmed order rows from Inbox.", systemImage: "tray.and.arrow.down.fill")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.secondary)
-          } else if gmailOrdersMissingEvidence.isEmpty && outlookOrdersMissingEvidence.isEmpty {
+          } else if providerOrdersMissingEvidence.isEmpty {
             Label("Mailbox-created orders have evidence or source context available.", systemImage: "checkmark.seal.fill")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.green)
@@ -342,7 +368,7 @@ struct EvidenceView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
               LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 190 : 260), spacing: 10)], spacing: 10) {
-                ForEach(Array((gmailOrdersMissingEvidence + outlookOrdersMissingEvidence).uniquedByID().prefix(4))) { order in
+                ForEach(Array(providerOrdersMissingEvidence.prefix(4))) { order in
                   NavigationLink {
                     OrderDetailView(order: order, store: store)
                   } label: {
@@ -385,7 +411,7 @@ struct EvidenceView: View {
           }
           .buttonStyle(.bordered)
 
-          Text("This panel is local evidence guidance only. It does not fetch Gmail or Outlook, open sign-in, store token values, attach files, or mutate mailbox messages.")
+          Text("This panel is local evidence guidance only. It does not fetch SpaceMail, Gmail, or Outlook, open sign-in, store token values, attach files, or mutate mailbox messages.")
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -794,6 +820,15 @@ private extension Array where Element == TrackedOrder {
     var seen: Set<UUID> = []
     return filter { order in
       seen.insert(order.id).inserted
+    }
+  }
+}
+
+private extension Array where Element == ForwardedEmailIntake {
+  func uniquedByID() -> [ForwardedEmailIntake] {
+    var seen: Set<UUID> = []
+    return filter { email in
+      seen.insert(email.id).inserted
     }
   }
 }
