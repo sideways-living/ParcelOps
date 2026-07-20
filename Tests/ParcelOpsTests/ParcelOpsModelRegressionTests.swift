@@ -4330,6 +4330,59 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.metrics.first { $0.title == "Blockers" }?.value, "0")
   }
 
+  func testMailboxProviderReadinessCheckpointIncludesActiveIntakeSource() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = [
+      makeSpaceMailConnection(
+        credentialStorageStatus: "Password reference available",
+        fetched: 10,
+        imported: 0,
+        filtered: 8,
+        uncertain: 0
+      )
+    ]
+    store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = []
+    store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [:]
+    store.auditEvents = []
+
+    store.recordMailboxProviderReadinessCheckpoint()
+
+    let event = try XCTUnwrap(store.auditEvents.first)
+    XCTAssertEqual(event.summary, "Mailbox provider readiness checkpoint recorded.")
+    XCTAssertTrue(event.afterDetail?.contains("Active intake source: SpaceMail - Monitor SpaceMail refreshes") == true)
+    XCTAssertTrue(event.afterDetail?.contains("Active source next action: Current evidence is quiet; refresh manually when new order mail is expected.") == true)
+    XCTAssertTrue(event.afterDetail?.contains("Boundary: This checkpoint reads local JSON-backed provider state only.") == true)
+  }
+
+  func testDevelopmentStatusCheckpointIncludesActiveIntakeSource() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.spaceMailIMAPConnections = []
+    store.gmailMailboxConnections = [
+      makeGmailConnection(
+        oauthReadinessStatus: "Needs review",
+        credentialStorageStatus: "GoogleSignIn cache pending",
+        fetched: 0,
+        imported: 0,
+        filtered: 0,
+        uncertain: nil
+      )
+    ]
+    store.microsoft365MailboxConnections = []
+    store.gmailAuthSessionStates = [:]
+    store.microsoft365AuthSessionStates = [:]
+    store.auditEvents = []
+
+    store.recordDevelopmentStatusCheckpoint()
+
+    let event = try XCTUnwrap(store.auditEvents.first)
+    XCTAssertTrue(event.summary.contains("Development checkpoint recorded"))
+    XCTAssertTrue(event.afterDetail?.contains("Active intake source: Gmail - Finish Gmail setup") == true)
+    XCTAssertTrue(event.afterDetail?.contains("Active source detail:") == true)
+    XCTAssertTrue(event.afterDetail?.contains("Boundary: This checkpoint reads local JSON-backed state only.") == true)
+  }
+
   func testMailboxProviderComparisonFlagsMicrosoft365Diagnostics() {
     let outlookID = UUID()
     let store = ParcelOpsStore()
