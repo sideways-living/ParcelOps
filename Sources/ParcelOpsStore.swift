@@ -2345,6 +2345,9 @@ final class ParcelOpsStore {
     let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
     let parserIssueCount = intakeParserDiagnostics.count
     let criticalParserIssueCount = intakeParserDiagnostics.filter { $0.severity == .critical || $0.severity == .high }.count
+    let regressionResults = intakeParserRegressionResults
+    let regressionPassedCount = regressionResults.filter(\.passed).count
+    let regressionFailureCount = regressionResults.count - regressionPassedCount
     let intakeIDsWithSourceTrace = Set(mailboxIngestRecords.compactMap(\.intakeEmailID))
     let tracedIntakeCount = intakeEmails.filter { intakeIDsWithSourceTrace.contains($0.id) }.count
     let rowsWithOrderOrTracking = intakeEmails.filter { email in
@@ -2418,6 +2421,13 @@ final class ParcelOpsStore {
         evidence: linkedOrderCount > 0 ? "\(linkedOrderCount) intake row\(linkedOrderCount == 1 ? "" : "s") linked to local orders." : "No intake row is linked to an order yet.",
         isComplete: linkedOrderCount > 0,
         tone: linkedOrderCount > 0 ? "success" : "attention"
+      ),
+      SpaceMailQACheck(
+        title: "Parser regression samples",
+        detail: "Fixed local samples should prove the parser can extract order and tracking values before mailbox provider changes are trusted.",
+        evidence: regressionFailureCount == 0 ? "\(regressionPassedCount) of \(regressionResults.count) parser regression samples pass." : "\(regressionFailureCount) parser regression sample\(regressionFailureCount == 1 ? "" : "s") need review.",
+        isComplete: regressionFailureCount == 0,
+        tone: regressionFailureCount == 0 ? "success" : "warning"
       ),
       SpaceMailQACheck(
         title: "Parser diagnostics controlled",
