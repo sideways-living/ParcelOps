@@ -893,6 +893,7 @@ struct MVPWishlistWorkflowReadinessPanel: View {
 
 struct MVPDevelopmentStatusPanel: View {
   var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
     store.latestSpaceMailIntakeHealthSummary
@@ -1034,6 +1035,30 @@ struct MVPDevelopmentStatusPanel: View {
         }
 
         CompactActionRow {
+          Button("Record checkpoint", systemImage: "list.clipboard.fill") {
+            store.recordDevelopmentStatusCheckpoint()
+            feedbackMessage = "Development status checkpoint recorded in Audit."
+          }
+          .buttonStyle(.borderedProminent)
+
+          Button("Create task", systemImage: "checklist") {
+            store.createReviewTaskFromDevelopmentStatusCheckpoint()
+            feedbackMessage = "Development status task created or refreshed."
+          }
+          .buttonStyle(.bordered)
+
+          Button("Create handoff", systemImage: "arrow.left.arrow.right.square.fill") {
+            store.createHandoffNoteFromDevelopmentStatusCheckpoint()
+            feedbackMessage = "Development status handoff note created or refreshed."
+          }
+          .buttonStyle(.bordered)
+
+          Button("Create draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessageFromDevelopmentStatusCheckpoint()
+            feedbackMessage = "Development status draft created or refreshed locally. No outbound message was sent."
+          }
+          .buttonStyle(.bordered)
+
           NavigationLink {
             DashboardView(store: store)
           } label: {
@@ -1056,6 +1081,18 @@ struct MVPDevelopmentStatusPanel: View {
           }
         }
         .buttonStyle(.bordered)
+
+        if let feedbackMessage {
+          Label(feedbackMessage, systemImage: "checkmark.circle.fill")
+            .font(.caption)
+            .foregroundStyle(.green)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Text("Checkpoint actions only read local state and create local audit/task/handoff/draft records. They do not fetch mail, read credentials, call providers, send messages, purchase items, or mutate external systems.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
