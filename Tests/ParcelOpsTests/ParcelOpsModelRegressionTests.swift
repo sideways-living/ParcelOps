@@ -779,6 +779,8 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(event.entityType, .wishlistItem)
     XCTAssertEqual(event.entityID, "wishlist-agent-readiness")
     XCTAssertEqual(event.summary, "Wishlist agent readiness snapshot recorded for operator review.")
+    XCTAssertTrue(event.afterDetail?.contains("Top blocker:") == true)
+    XCTAssertTrue(event.afterDetail?.contains("Top blocker next action:") == true)
     XCTAssertTrue(event.afterDetail?.contains("Order watch gaps: 1") == true)
     XCTAssertTrue(event.afterDetail?.contains("Post-purchase order watch: 1 open") == true)
     XCTAssertTrue(event.afterDetail?.contains("No web search, browser automation, retailer comparison") == true)

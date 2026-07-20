@@ -26022,6 +26022,9 @@ final class ParcelOpsStore {
   func createWishlistAgentReadinessReviewTask() {
     let summary = wishlistAgentReadinessSummary
     let openItems = summary.items.filter { $0.tone != "success" }
+    let topBlocker = openItems.first { $0.tone == "warning" }
+      ?? openItems.first { $0.tone == "attention" }
+      ?? openItems.first
     let taskTitle = summary.tone == "success"
       ? "Confirm Wishlist agent readiness"
       : "Review Wishlist agent readiness blockers"
@@ -26034,6 +26037,7 @@ final class ParcelOpsStore {
     let taskSummary = [
       summary.verdict,
       summary.detail,
+      topBlocker.map { "Top blocker: \($0.title) - \($0.status). Next: \($0.nextAction)" } ?? "Top blocker: none promoted.",
       "Open readiness areas: \(openSummary)",
       "Boundary: this is a local planning task only. It does not browse websites, compare live prices, convert currencies, rate sellers, open accounts, buy items, pay, or monitor orders."
     ].joined(separator: " ")
@@ -26084,6 +26088,9 @@ final class ParcelOpsStore {
 
   func recordWishlistAgentReadinessSnapshot() {
     let summary = wishlistAgentReadinessSummary
+    let topBlocker = summary.items.first { $0.tone == "warning" }
+      ?? summary.items.first { $0.tone == "attention" }
+      ?? summary.items.first { $0.tone != "success" }
     let readinessLines = summary.items.map { item in
       "\(item.title): \(item.status) - \(item.detail) Next: \(item.nextAction)"
     }
@@ -26092,6 +26099,8 @@ final class ParcelOpsStore {
       "Verdict: \(summary.verdict)",
       "Detail: \(summary.detail)",
       "Tone: \(summary.tone)",
+      topBlocker.map { "Top blocker: \($0.title) - \($0.status)" } ?? "Top blocker: none promoted",
+      topBlocker.map { "Top blocker next action: \($0.nextAction)" } ?? "Top blocker next action: Continue normal Wishlist review.",
       "Ready briefs: \(summary.readyBriefCount)",
       "Scope gaps: \(summary.scopeGapCount)",
       "Seller option gaps: \(summary.sellerOptionGapCount)",
