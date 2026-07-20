@@ -4749,6 +4749,9 @@ struct WishlistView: View {
   private var wishlistAgentReadinessVerdictPanel: some View {
     let summary = store.wishlistAgentReadinessSummary
     let color = wishlistAgentReadinessColor(summary.tone)
+    let topBlocker = summary.items.first { $0.tone == "warning" }
+      ?? summary.items.first { $0.tone == "attention" }
+      ?? summary.items.first { $0.tone != "success" }
 
     return SettingsPanel(title: "Wishlist agent readiness verdict", symbol: "sparkles.rectangle.stack.fill") {
       VStack(alignment: .leading, spacing: 12) {
@@ -4772,6 +4775,27 @@ struct WishlistView: View {
         }
         .padding(10)
         .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+        if let topBlocker {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Top readiness blocker", systemImage: topBlocker.tone == "warning" ? "exclamationmark.triangle.fill" : "arrow.forward.circle.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(wishlistAgentReadinessColor(topBlocker.tone))
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              Text(topBlocker.title)
+                .font(.caption.weight(.semibold))
+              Spacer(minLength: 8)
+              Badge(topBlocker.status, color: wishlistAgentReadinessColor(topBlocker.tone))
+            }
+            Text("Next: \(topBlocker.nextAction)")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(wishlistAgentReadinessColor(topBlocker.tone))
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .padding(10)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(wishlistAgentReadinessColor(topBlocker.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
 
         MetricStrip(items: [
           ("Ready briefs", "\(summary.readyBriefCount)", summary.readyBriefCount == 0 ? .secondary : .green),

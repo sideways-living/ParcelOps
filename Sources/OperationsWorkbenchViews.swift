@@ -249,6 +249,30 @@ struct OperationsWorkbenchView: View {
       return .secondary
     }
   }
+
+  private var wishlistTopReadinessBlocker: WishlistAgentReadinessItem? {
+    wishlistAgentReadiness.items.first { $0.tone == "warning" }
+      ?? wishlistAgentReadiness.items.first { $0.tone == "attention" }
+      ?? wishlistAgentReadiness.items.first { $0.tone != "success" }
+  }
+
+  private var wishlistTopReadinessBlockerTint: Color {
+    guard let item = wishlistTopReadinessBlocker else {
+      return wishlistAgentReadinessTint
+    }
+
+    switch item.tone {
+    case "success":
+      return .green
+    case "warning":
+      return .orange
+    case "attention":
+      return .purple
+    default:
+      return .secondary
+    }
+  }
+
   private var wishlistPurchasePacketNeededItems: [WishlistItem] {
     store.wishlistPurchasePacketNeededItems
   }
@@ -2366,6 +2390,29 @@ struct OperationsWorkbenchView: View {
         }
         .padding(10)
         .background(wishlistAgentReadinessTint.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+        if let blocker = wishlistTopReadinessBlocker {
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: blocker.tone == "warning" ? "exclamationmark.triangle.fill" : "arrow.forward.circle.fill")
+              .foregroundStyle(wishlistTopReadinessBlockerTint)
+              .frame(width: 24)
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Top Wishlist blocker")
+                .font(.subheadline.weight(.semibold))
+              Text("\(blocker.title) - \(blocker.status)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(wishlistTopReadinessBlockerTint)
+              Text("Next: \(blocker.nextAction)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Badge(blocker.tone.capitalized, color: wishlistTopReadinessBlockerTint)
+          }
+          .padding(10)
+          .background(wishlistTopReadinessBlockerTint.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
 
         if wishlistBatchBriefNeeded || !wishlistBatchResearchDrafts.isEmpty {
           HStack(alignment: .top, spacing: 10) {
