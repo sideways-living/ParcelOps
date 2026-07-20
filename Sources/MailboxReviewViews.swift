@@ -441,6 +441,23 @@ struct MailboxView: View {
           MailboxGmailRunbookPanel(store: store)
 
           SpaceMailOperatorGuidanceStack(store: store)
+
+          CompactActionRow {
+            Button("Record provider checkpoint", systemImage: "checkmark.seal.fill") {
+              store.recordMailboxProviderReadinessCheckpoint()
+            }
+            NavigationLink {
+              AuditView(store: store)
+            } label: {
+              Label("Open Audit", systemImage: "list.clipboard.fill")
+            }
+          }
+          .buttonStyle(.bordered)
+
+          Text("The checkpoint records the current local provider state to Audit. It does not run refreshes, read credentials, request tokens, call external services, or mutate mailbox messages.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, 8)
       } label: {

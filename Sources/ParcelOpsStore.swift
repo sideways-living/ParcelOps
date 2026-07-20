@@ -15042,6 +15042,80 @@ final class ParcelOpsStore {
     )
   }
 
+  func recordMailboxProviderReadinessCheckpoint() {
+    let comparison = mailboxProviderComparisonSummary
+    let setup = mailboxProviderSetupChecklistSummary
+    let queue = mailboxProviderTestQueueSummary
+    let gate = mailboxProviderReleaseGateSummary
+    let troubleshooting = mailboxProviderTroubleshootingSummary
+    let handoff = mailboxProviderHandoffPacketSummary
+    let timeline = mailboxRunTimelineSummary
+
+    let metricLines = comparison.metrics.map { "\($0.title): \($0.value) (\($0.tone))" }
+    let providerLines = comparison.providers.map { provider in
+      "\(provider.providerName): \(provider.statusTitle). Fetched \(provider.fetchedCount), imported \(provider.importedCount), filtered \(provider.filteredCount), uncertain \(provider.uncertainCount), blockers \(provider.blockedCount). Next: \(provider.nextAction)"
+    }
+    let actionLines = comparison.actionItems.prefix(8).map { item in
+      "\(item.priority). \(item.providerName): \(item.title). \(item.detail)"
+    }
+    let setupLines = setup.providers.map { provider in
+      let incomplete = provider.checks.filter { !$0.isComplete }.map(\.title)
+      return "\(provider.providerName): \(provider.status). \(incomplete.isEmpty ? "Setup checks clear." : "Incomplete: \(incomplete.joined(separator: ", ")).")"
+    }
+    let openQueueLines = queue.items.filter { !$0.isComplete }.prefix(8).map { item in
+      "\(item.providerName) / \(item.phase): \(item.title). Next: \(item.nextAction)"
+    }
+    let openGateLines = gate.gates.filter { !$0.isPassed }.prefix(8).map { item in
+      "\(item.title): \(item.nextAction)"
+    }
+    let troubleshootingLines = troubleshooting.issues.prefix(8).map { issue in
+      "\(issue.title): \(issue.nextAction)"
+    }
+
+    let afterDetail = [
+      "Checkpoint: \(Self.auditTimestamp())",
+      "Provider comparison: \(comparison.title)",
+      "Detail: \(comparison.detail)",
+      "Recommended provider path: \(comparison.recommendedProvider)",
+      "Provider metrics: \(metricLines.isEmpty ? "none" : metricLines.joined(separator: ", "))",
+      "Setup checklist: \(setup.title) - \(setup.detail)",
+      "Test queue: \(queue.title) - \(queue.detail)",
+      "Release gate: \(gate.title) - \(gate.verdict)",
+      "Troubleshooting: \(troubleshooting.title) - \(troubleshooting.detail)",
+      "Handoff packet: \(handoff.title) - \(handoff.detail)",
+      "Run timeline entries: \(timeline.entries.count)",
+      "",
+      "Providers:",
+      providerLines.isEmpty ? "No provider setup rows." : providerLines.joined(separator: "\n"),
+      "",
+      "Current action items:",
+      actionLines.isEmpty ? "No provider action items promoted." : actionLines.joined(separator: "\n"),
+      "",
+      "Setup rows:",
+      setupLines.isEmpty ? "No setup checklist rows." : setupLines.joined(separator: "\n"),
+      "",
+      "Open queue items:",
+      openQueueLines.isEmpty ? "No open provider queue items." : openQueueLines.joined(separator: "\n"),
+      "",
+      "Open release gate items:",
+      openGateLines.isEmpty ? "No open release gate items." : openGateLines.joined(separator: "\n"),
+      "",
+      "Troubleshooting issues:",
+      troubleshootingLines.isEmpty ? "No troubleshooting issues promoted." : troubleshootingLines.joined(separator: "\n"),
+      "",
+      "Boundary: This checkpoint reads local JSON-backed provider state only. It does not run Gmail, SpaceMail, Outlook, IMAP, Microsoft Graph, OAuth, token refresh, mailbox fetch, credential read, external service call, outbound email, notification, background sync, or mailbox mutation."
+    ].joined(separator: "\n")
+
+    logAudit(
+      action: .evaluated,
+      entityType: .settings,
+      entityID: "mailbox-provider-readiness-checkpoint",
+      entityLabel: "Mailbox provider readiness checkpoint",
+      summary: "Mailbox provider readiness checkpoint recorded.",
+      afterDetail: afterDetail
+    )
+  }
+
   func createReviewTaskFromMailboxProviderTroubleshooting() {
     let troubleshooting = mailboxProviderTroubleshootingSummary
     let taskPriority: TaskPriority

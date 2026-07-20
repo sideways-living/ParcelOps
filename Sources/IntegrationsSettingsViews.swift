@@ -697,6 +697,10 @@ struct IntegrationsView: View {
             )
 
             CompactActionRow {
+              Button("Record provider checkpoint", systemImage: "checkmark.seal.fill") {
+                store.recordMailboxProviderReadinessCheckpoint()
+                setupFeedbackMessage = "Mailbox provider readiness checkpoint recorded in Audit."
+              }
               Button("Create provider handoff", systemImage: "arrow.left.arrow.right.square.fill") {
                 store.createHandoffNoteFromMailboxProviderHandoffPacket()
                 setupFeedbackMessage = "Mailbox provider handoff note created or refreshed. Check Handoff Notes."
