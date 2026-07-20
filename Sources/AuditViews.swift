@@ -7,6 +7,7 @@ struct AuditView: View {
   @State private var selectedEntityType: AuditEntityType?
   @State private var showTechnicalDiagnostics = false
   @State private var showAuditProviderEvidence = false
+  @State private var developmentStatusFeedbackMessage: String?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var normalizedAuditSearch: String {
@@ -56,6 +57,44 @@ struct AuditView: View {
 
   private var visibleMVPFollowUpEvents: [AuditEvent] {
     Array(mvpFollowUpEvents.prefix(8))
+  }
+
+  private var developmentStatusEvents: [AuditEvent] {
+    searchMatchedEvents.filter { event in
+      event.entityID == "development-status-checkpoint" ||
+      event.entityLabel.localizedCaseInsensitiveContains("Development status") ||
+      event.summary.localizedCaseInsensitiveContains("development status") ||
+      (event.beforeDetail ?? "").localizedCaseInsensitiveContains("development status") ||
+      (event.afterDetail ?? "").localizedCaseInsensitiveContains("development status")
+    }
+  }
+
+  private var visibleDevelopmentStatusEvents: [AuditEvent] {
+    Array(developmentStatusEvents.prefix(8))
+  }
+
+  private var developmentStatusTaskCount: Int {
+    store.reviewTasks.filter {
+      $0.linkedEntityType == .integration &&
+      $0.linkedEntityID == "development-status-checkpoint" &&
+      $0.status != .completed
+    }.count
+  }
+
+  private var developmentStatusHandoffCount: Int {
+    store.handoffNotes.filter {
+      $0.linkedEntityType == .integration &&
+      $0.linkedEntityID == "development-status-checkpoint" &&
+      $0.status != .completed
+    }.count
+  }
+
+  private var developmentStatusDraftCount: Int {
+    store.draftMessages.filter {
+      $0.linkedEntityType == .integration &&
+      $0.linkedEntityID == "development-status-checkpoint" &&
+      $0.status != .sentLocally
+    }.count
   }
 
   private var inboxOrderHandoffEvents: [AuditEvent] {
@@ -596,6 +635,7 @@ struct AuditView: View {
         auditNextCheckPanel
         mailboxProviderReleaseGateAuditPanel
         auditEvidenceChecklistPanel
+        developmentStatusAuditPanel
 
         MVPWorkflowGuide(
           title: "Audit workflow",
@@ -664,6 +704,7 @@ struct AuditView: View {
           ("MVP follow-up", "\(mvpFollowUpEvents.count)", mvpFollowUpEvents.isEmpty ? .secondary : .purple),
           ("Release gate", "\(mailboxProviderReleaseGateEvents.count)", mailboxProviderReleaseGateEvents.isEmpty ? color(for: store.mailboxProviderReleaseGateSummary.tone) : .orange),
           ("Mailbox evidence", "\(mailboxEvidenceEvents.count)", mailboxEvidenceEvents.isEmpty ? .secondary : .teal),
+          ("Status", "\(developmentStatusEvents.count)", developmentStatusEvents.isEmpty ? .secondary : .teal),
           ("Hidden technical", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
           ("Inbox handoffs", "\(inboxOrderHandoffEvents.count)", inboxOrderHandoffEvents.isEmpty ? .secondary : .blue),
           ("Dispatch trail", "\(inboxDispatchHandoffEvents.count)", inboxDispatchHandoffEvents.isEmpty ? .secondary : .purple),
@@ -765,6 +806,7 @@ struct AuditView: View {
         ("Recent", "\(recentEvents.count)", .blue),
         ("Workflow", "\(workflowEvents.count)", .teal),
         ("MVP follow-up", "\(mvpFollowUpEvents.count)", mvpFollowUpEvents.isEmpty ? .secondary : .purple),
+        ("Status", "\(developmentStatusEvents.count)", developmentStatusEvents.isEmpty ? .secondary : .teal),
         ("Release gate", store.mailboxProviderReleaseGateSummary.verdict, color(for: store.mailboxProviderReleaseGateSummary.tone)),
         ("Mailbox", "\(mailboxEvidenceEvents.count)", mailboxEvidenceEvents.isEmpty ? .secondary : .teal),
         ("Hidden tech", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange),
@@ -776,6 +818,102 @@ struct AuditView: View {
         ("Tasks", "\(recentEvents.filter { $0.entityType == .reviewTask }.count)", .purple),
         ("Removed", "\(recentEvents.filter { $0.action == .removed }.count)", .red)
       ])
+    }
+  }
+
+  private var developmentStatusAuditPanel: some View {
+    SettingsPanel(title: "Development status audit trail", symbol: "checkmark.seal.text.page.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: developmentStatusEvents.isEmpty ? "doc.badge.plus" : "list.clipboard.fill")
+            .font(.title3)
+            .foregroundStyle(developmentStatusEvents.isEmpty ? Color.secondary : Color.teal)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(developmentStatusEvents.isEmpty ? "No development checkpoint has been recorded" : "Development status history is available")
+              .font(.headline)
+            Text("Use this when answering where the app is up to. It groups checkpoint, task, handoff, and draft audit events without digging through the raw log.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge(developmentStatusEvents.isEmpty ? "No history" : "\(developmentStatusEvents.count) events", color: developmentStatusEvents.isEmpty ? .secondary : .teal)
+        }
+
+        MetricStrip(items: [
+          ("Audit events", "\(developmentStatusEvents.count)", developmentStatusEvents.isEmpty ? .secondary : .teal),
+          ("Status tasks", "\(developmentStatusTaskCount)", developmentStatusTaskCount == 0 ? .secondary : .orange),
+          ("Handoffs", "\(developmentStatusHandoffCount)", developmentStatusHandoffCount == 0 ? .secondary : .teal),
+          ("Drafts", "\(developmentStatusDraftCount)", developmentStatusDraftCount == 0 ? .secondary : .blue)
+        ])
+
+        if visibleDevelopmentStatusEvents.isEmpty {
+          Text("Record a checkpoint to create a local summary of current MVP readiness, mailbox provider state, Inbox-to-order handoff, and remaining integration boundaries.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.quinary)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        } else {
+          ForEach(visibleDevelopmentStatusEvents.prefix(3)) { event in
+            CompactRow(
+              title: event.entityLabel,
+              detail: event.summary,
+              badge: event.action.rawValue,
+              color: developmentStatusEventColor(event)
+            )
+          }
+        }
+
+        CompactActionRow {
+          Button("Record checkpoint", systemImage: "list.clipboard.fill") {
+            store.recordDevelopmentStatusCheckpoint()
+            developmentStatusFeedbackMessage = "Development status checkpoint recorded in Audit."
+          }
+          .buttonStyle(.borderedProminent)
+
+          Button(developmentStatusTaskCount == 0 ? "Create status task" : "Refresh task", systemImage: "checklist") {
+            store.createReviewTaskFromDevelopmentStatusCheckpoint()
+            developmentStatusFeedbackMessage = "Development status task refreshed from current local state."
+          }
+          .buttonStyle(.bordered)
+
+          Button(developmentStatusHandoffCount == 0 ? "Create handoff" : "Refresh handoff", systemImage: "arrow.left.arrow.right.square.fill") {
+            store.createHandoffNoteFromDevelopmentStatusCheckpoint()
+            developmentStatusFeedbackMessage = "Development status handoff refreshed from current local state."
+          }
+          .buttonStyle(.bordered)
+
+          Button(developmentStatusDraftCount == 0 ? "Create draft" : "Refresh draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessageFromDevelopmentStatusCheckpoint()
+            developmentStatusFeedbackMessage = "Development status draft refreshed locally. No outbound email was sent."
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Tasks", systemImage: "checklist")
+          }
+          .buttonStyle(.bordered)
+        }
+
+        if let developmentStatusFeedbackMessage {
+          Label(developmentStatusFeedbackMessage, systemImage: "checkmark.circle.fill")
+            .font(.caption)
+            .foregroundStyle(.green)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Text("Local-only boundary: these actions summarize existing local state and create local follow-up records only. They do not fetch mail, call providers, read credentials, send messages, or mutate external systems.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
   }
 
@@ -1421,6 +1559,10 @@ struct AuditView: View {
             store.createReviewTask(from: event)
           })
 
+          AuditFeedSection(title: "Development status trail", detail: "Checkpoint, task, handoff, and draft events used to explain current app readiness and remaining work.", events: visibleDevelopmentStatusEvents, onCreateTask: { event in
+            store.createReviewTask(from: event)
+          })
+
           AuditFeedSection(title: "Mailbox provider release gate", detail: "Release-gate task creation, refreshes, reviews, and provider-readiness actions for active mailbox providers, Inbox evidence, and operator follow-up.", events: visibleMailboxProviderReleaseGateEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
           })
@@ -1496,6 +1638,21 @@ struct AuditView: View {
 
   private func wishlistHandoffSanityDetail(for item: WishlistItem) -> String {
     store.wishlistHandoffSanityDetail(for: item)
+  }
+
+  private func developmentStatusEventColor(_ event: AuditEvent) -> Color {
+    switch event.entityType {
+    case .reviewTask:
+      return .orange
+    case .handoffNote:
+      return .teal
+    case .draftMessage:
+      return .blue
+    case .settings:
+      return .purple
+    default:
+      return .secondary
+    }
   }
 }
 
