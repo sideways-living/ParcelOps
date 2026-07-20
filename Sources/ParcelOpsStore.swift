@@ -15116,6 +15116,115 @@ final class ParcelOpsStore {
     )
   }
 
+  func recordDevelopmentStatusCheckpoint() {
+    let comparison = mailboxProviderComparisonSummary
+    let setup = mailboxProviderSetupChecklistSummary
+    let queue = mailboxProviderTestQueueSummary
+    let gate = mailboxProviderReleaseGateSummary
+    let wishlist = wishlistAgentReadinessSummary
+    let latestTimeline = mailboxRunTimelineSummary
+    let openTaskAndHandoffCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let parserDiagnosticCount = intakeParserDiagnostics.count
+    let operatorOrderCount = operatorSourceOrderCount
+    let inboxOrderCount = inboxCreatedOrderCount
+
+    let primaryWorkflowLines = [
+      "Dashboard: daily start screen and local readiness summaries are built.",
+      "Inbox: provider-neutral intake, mixed-mailbox filtering, linked-order shortcuts, and create-order handoff are built.",
+      "Orders: Inbox-created order handoff, source trail, linked context, and dispatch setup path are built.",
+      "Workbench: local exception queue, blocked work, high-risk work, and handoff follow-up are built.",
+      "Dispatch: unified manifests/readiness queue and Inbox order dispatch setup are built.",
+      "Tasks: review tasks and handoff context are built.",
+      "Audit: simplified activity feed and detailed local evidence are built.",
+      "Settings: setup guidance, provider readiness, credential/sign-in boundaries, and local checkpoints are built."
+    ]
+
+    let mailboxLines = comparison.providers.map { provider in
+      "\(provider.providerName): \(provider.statusTitle). Fetched \(provider.fetchedCount), imported \(provider.importedCount), filtered \(provider.filteredCount), uncertain \(provider.uncertainCount), blocked \(provider.blockedCount). Next: \(provider.nextAction)"
+    }
+    let setupLines = setup.providers.map { provider in
+      let incomplete = provider.checks.filter { !$0.isComplete }.map(\.title)
+      return "\(provider.providerName): \(provider.status). \(incomplete.isEmpty ? "Setup checks clear." : "Incomplete: \(incomplete.joined(separator: ", ")).")"
+    }
+    let queueLines = queue.items.filter { !$0.isComplete }.prefix(8).map { item in
+      "\(item.providerName) / \(item.phase): \(item.title). Next: \(item.nextAction)"
+    }
+    let gateLines = gate.gates.filter { !$0.isPassed }.prefix(8).map { item in
+      "\(item.title): \(item.nextAction)"
+    }
+
+    let summaryTitle: String
+    if mailboxProviderSetupCount == 0 {
+      summaryTitle = "Development checkpoint recorded: app built, mailbox provider setup still needed."
+    } else if mailboxManualRefreshCount == 0 {
+      summaryTitle = "Development checkpoint recorded: app built, first live refresh proof still needed."
+    } else if inboxOrderCount == 0 {
+      summaryTitle = "Development checkpoint recorded: app built, Inbox-to-order proof still needed."
+    } else {
+      summaryTitle = "Development checkpoint recorded: app usable for hands-on MVP testing."
+    }
+
+    let afterDetail = [
+      "Checkpoint: \(Self.auditTimestamp())",
+      "Overall status: \(summaryTitle)",
+      "",
+      "Core counts:",
+      "Orders: \(orders.count)",
+      "Operator-source orders: \(operatorOrderCount)",
+      "Inbox-created orders: \(inboxOrderCount)",
+      "Intake emails: \(intakeEmails.count)",
+      "Linked intake sources: \(intakeLinkedOrderCount)",
+      "Mailbox providers configured: \(mailboxProviderSetupCount)",
+      "Manual mailbox refreshes: \(mailboxManualRefreshCount)",
+      "Latest mailbox fetched/imported/duplicates/filtered/uncertain: \(latestMailboxFetchedCount)/\(latestMailboxImportedCount)/\(latestMailboxDuplicateCount)/\(latestMailboxFilteredCount)/\(latestMailboxUncertainCount)",
+      "Open task and handoff items: \(openTaskAndHandoffCount)",
+      "Parser diagnostics: \(parserDiagnosticCount)",
+      "Wishlist active items: \(activeWishlistItemCount)",
+      "Wishlist agent-ready requests: \(agentReadyWishlistResearchRequestCount)",
+      "Audit events: \(auditEvents.count)",
+      "",
+      "Primary workflows:",
+      primaryWorkflowLines.joined(separator: "\n"),
+      "",
+      "Mailbox provider comparison:",
+      comparison.title,
+      comparison.detail,
+      "Recommended provider: \(comparison.recommendedProvider)",
+      mailboxLines.isEmpty ? "No mailbox provider rows are configured." : mailboxLines.joined(separator: "\n"),
+      "",
+      "Setup state:",
+      setupLines.isEmpty ? "No provider setup checks are available." : setupLines.joined(separator: "\n"),
+      "",
+      "Open provider queue:",
+      queueLines.isEmpty ? "No open provider queue items." : queueLines.joined(separator: "\n"),
+      "",
+      "Open release gates:",
+      gateLines.isEmpty ? "No open release gate items." : gateLines.joined(separator: "\n"),
+      "",
+      "Wishlist status:",
+      wishlist.title,
+      wishlist.detail,
+      "Wishlist verdict: \(wishlist.verdict)",
+      "",
+      "Timeline:",
+      "Mailbox run timeline entries: \(latestTimeline.entries.count)",
+      "",
+      "Still not active:",
+      "Browser extension capture, live retailer comparison agent, background sync, notifications, carrier APIs, Shopify APIs, checkout/payment flows, outbound email, OCR, scanners, calendars, and mailbox mutation are not active.",
+      "",
+      "Boundary: This checkpoint reads local JSON-backed state only. It does not run Gmail, SpaceMail, Outlook, IMAP, Microsoft Graph, OAuth, token refresh, mailbox fetch, credential read, external service call, outbound email, notification, background sync, purchase action, or mailbox mutation."
+    ].joined(separator: "\n")
+
+    logAudit(
+      action: .evaluated,
+      entityType: .settings,
+      entityID: "development-status-checkpoint",
+      entityLabel: "Development status checkpoint",
+      summary: summaryTitle,
+      afterDetail: afterDetail
+    )
+  }
+
   func createReviewTaskFromMailboxProviderTroubleshooting() {
     let troubleshooting = mailboxProviderTroubleshootingSummary
     let taskPriority: TaskPriority

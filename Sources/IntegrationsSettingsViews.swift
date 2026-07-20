@@ -8328,6 +8328,24 @@ struct SettingsView: View {
           ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .secondary : .teal)
         ])
 
+        HStack(alignment: .top, spacing: 10) {
+          Label("Need a current answer on app completeness?", systemImage: "checkmark.seal.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.teal)
+          Spacer(minLength: 8)
+          Button {
+            store.recordDevelopmentStatusCheckpoint()
+            settingsFeedbackMessage = "Development status checkpoint recorded in Audit."
+          } label: {
+            Label("Record status checkpoint", systemImage: "list.clipboard.fill")
+          }
+          .buttonStyle(.borderedProminent)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+
         LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 175 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
           ForEach(appSnapshotRows, id: \.title) { row in
             VStack(alignment: .leading, spacing: 7) {
