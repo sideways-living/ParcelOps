@@ -28959,6 +28959,55 @@ final class ParcelOpsStore {
     )
   }
 
+  func recordLocalJSONBackupCheckpoint() {
+    let storePath = JSONParcelOpsRepository.defaultStoreDirectoryPath
+    let expectedFileNames = JSONParcelOpsRepository.persistedJSONFileNames
+    let fileManager = FileManager.default
+    let storeURL = URL(fileURLWithPath: storePath, isDirectory: true)
+    let directoryContents = (try? fileManager.contentsOfDirectory(
+      at: storeURL,
+      includingPropertiesForKeys: [.fileSizeKey],
+      options: [.skipsHiddenFiles]
+    )) ?? []
+    let presentFileNames = Set(directoryContents.map(\.lastPathComponent))
+    let presentCount = expectedFileNames.filter { presentFileNames.contains($0) }.count
+    let missingFileNames = expectedFileNames.filter { !presentFileNames.contains($0) }
+    let archivedInvalidFileNames = directoryContents
+      .map(\.lastPathComponent)
+      .filter { $0.contains(".invalid-") && $0.hasSuffix(".json") }
+      .sorted()
+    let totalBytes = directoryContents.reduce(0) { total, url in
+      let values = try? url.resourceValues(forKeys: [.fileSizeKey])
+      return total + (values?.fileSize ?? 0)
+    }
+    let totalSizeText = ByteCountFormatter.string(fromByteCount: Int64(totalBytes), countStyle: .file)
+    let folderStatus = fileManager.fileExists(atPath: storePath) ? "Folder exists" : "Folder pending"
+
+    let afterDetail = [
+      "Checkpoint: local JSON backup readiness recorded.",
+      "Folder status: \(folderStatus)",
+      "JSON folder: \(storePath)",
+      "Expected JSON files: \(expectedFileNames.count)",
+      "Present JSON files: \(presentCount)",
+      "Sample-backed or missing files: \(missingFileNames.count)",
+      "Archived invalid JSON files: \(archivedInvalidFileNames.count)",
+      "Local JSON folder size: \(totalSizeText)",
+      missingFileNames.isEmpty ? "Missing examples: none" : "Missing examples: \(Array(missingFileNames.prefix(6)).joined(separator: ", "))",
+      archivedInvalidFileNames.isEmpty ? "Archived invalid examples: none" : "Archived invalid examples: \(Array(archivedInvalidFileNames.prefix(4)).joined(separator: ", "))",
+      "Boundary: no files were copied, exported, uploaded, deleted, or modified by this checkpoint.",
+      "Secrets boundary: SpaceMail passwords, app passwords, Google/Microsoft tokens, auth codes, client secrets, raw callback URLs, and Keychain item contents are not stored in ParcelOps JSON or Audit."
+    ].joined(separator: "\n")
+
+    logAudit(
+      action: .evaluated,
+      entityType: .settings,
+      entityID: "local-json-backup-checkpoint",
+      entityLabel: "Local JSON backup checkpoint",
+      summary: "Local JSON backup checkpoint recorded.",
+      afterDetail: afterDetail
+    )
+  }
+
   private func addWishlistItem(source: WishlistSource, name: String, detail: String) {
     let item = WishlistItem(
       itemName: name,

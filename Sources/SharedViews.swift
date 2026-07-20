@@ -7913,6 +7913,7 @@ struct OperatorHandoffBriefCard: View {
 struct LocalDataSafetyCard: View {
   var store: ParcelOpsStore
   var compact: Bool = false
+  @State private var checkpointMessage: String?
 
   private var localRecordCount: Int {
     store.orders.count
@@ -7966,6 +7967,43 @@ struct LocalDataSafetyCard: View {
       ])
 
       localPersistenceSnapshot
+
+      VStack(alignment: .leading, spacing: 8) {
+        Label("Manual backup checkpoint", systemImage: "externaldrive.badge.checkmark")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.green)
+        Text("Use this before larger live-mailbox testing or before copying the JSON folder manually. It records the current JSON folder path, file counts, and safety boundary in Audit only.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          Button {
+            store.recordLocalJSONBackupCheckpoint()
+            checkpointMessage = "Backup checkpoint recorded in Audit. No files were copied, exported, uploaded, deleted, or modified."
+          } label: {
+            Label("Record checkpoint", systemImage: "checkmark.seal.fill")
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard.fill")
+          }
+          .buttonStyle(.bordered)
+        }
+
+        if let checkpointMessage {
+          Text(checkpointMessage)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.green)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.green.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: compact ? 180 : 220), spacing: 10)], alignment: .leading, spacing: 10) {
         safetyLine(
