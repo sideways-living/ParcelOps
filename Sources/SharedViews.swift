@@ -8133,6 +8133,7 @@ struct LocalDataSafetyCard: View {
 struct LocalDataHygieneCard: View {
   var store: ParcelOpsStore
   var compact: Bool = false
+  @State private var hygieneFeedbackMessage: String?
 
   private var summary: LocalDataHygieneSummary {
     store.localDataHygieneSummary
@@ -8225,10 +8226,17 @@ struct LocalDataHygieneCard: View {
       CompactActionRow {
         Button("Record snapshot", systemImage: "camera.metering.center.weighted") {
           store.recordLocalDataHygieneSnapshot()
+          hygieneFeedbackMessage = "Local data hygiene snapshot recorded in Audit."
         }
         .buttonStyle(.borderedProminent)
+        Button("Backup checkpoint", systemImage: "externaldrive.badge.checkmark") {
+          store.recordLocalJSONBackupCheckpoint()
+          hygieneFeedbackMessage = "Local JSON backup checkpoint recorded in Audit. No files were copied or modified."
+        }
+        .buttonStyle(.bordered)
         Button("Create hygiene task", systemImage: "checklist") {
           store.createReviewTaskFromLocalDataHygiene()
+          hygieneFeedbackMessage = "Local data hygiene task created. Check Tasks."
         }
         .buttonStyle(.bordered)
         NavigationLink { InboxView(store: store) } label: { Label("Open Inbox", systemImage: "tray.full.fill") }
@@ -8239,6 +8247,13 @@ struct LocalDataHygieneCard: View {
           .buttonStyle(.bordered)
         NavigationLink { AuditView(store: store) } label: { Label("Audit", systemImage: "list.clipboard.fill") }
           .buttonStyle(.bordered)
+      }
+
+      if let hygieneFeedbackMessage {
+        Text(hygieneFeedbackMessage)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.green)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
     .padding(14)
@@ -8287,6 +8302,7 @@ struct LocalDataHygieneSummaryCard: View {
   var title: String = "Local data hygiene"
   var detail: String = "A compact read-only check for test noise, parser leftovers, duplicate ingest, and partial Inbox order follow-up."
   var showExamples: Bool = true
+  @State private var hygieneFeedbackMessage: String?
 
   private var summary: LocalDataHygieneSummary {
     store.localDataHygieneSummary
@@ -8434,10 +8450,17 @@ struct LocalDataHygieneSummaryCard: View {
       CompactActionRow {
         Button("Record snapshot", systemImage: "camera.metering.center.weighted") {
           store.recordLocalDataHygieneSnapshot()
+          hygieneFeedbackMessage = "Local data hygiene snapshot recorded in Audit."
         }
         .buttonStyle(.borderedProminent)
+        Button("Backup checkpoint", systemImage: "externaldrive.badge.checkmark") {
+          store.recordLocalJSONBackupCheckpoint()
+          hygieneFeedbackMessage = "Local JSON backup checkpoint recorded in Audit. No files were copied or modified."
+        }
+        .buttonStyle(.bordered)
         Button("Create task", systemImage: "checklist") {
           store.createReviewTaskFromLocalDataHygiene()
+          hygieneFeedbackMessage = "Local data hygiene task created. Check Tasks."
         }
         .buttonStyle(.bordered)
         NavigationLink { SettingsView(store: store) } label: { Label("Full hygiene view", systemImage: "gearshape.2.fill") }
@@ -8448,6 +8471,13 @@ struct LocalDataHygieneSummaryCard: View {
           .buttonStyle(.bordered)
         NavigationLink { TasksView(store: store) } label: { Label("Tasks", systemImage: "checklist") }
           .buttonStyle(.bordered)
+      }
+
+      if let hygieneFeedbackMessage {
+        Text(hygieneFeedbackMessage)
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.green)
+          .fixedSize(horizontal: false, vertical: true)
       }
 
       Text("Read-only boundary: this card does not delete, merge, rewrite, refresh mail, read Keychain, or mutate mailbox messages.")
