@@ -8139,6 +8139,77 @@ struct SettingsView: View {
     }
   }
 
+  private var mailboxProviderStatusRows: [(title: String, status: String, detail: String, nextAction: String, symbol: String, color: Color)] {
+    let spaceMailStatus: String
+    let spaceMailDetail: String
+    let spaceMailNextAction: String
+    let spaceMailColor: Color
+    if let summary = latestSpaceMailSummary {
+      spaceMailStatus = hasSpaceMailCredentialReference ? "Live manual" : "Credential needed"
+      spaceMailDetail = "\(summary.compactRefreshCountsText). \(summary.detail)"
+      spaceMailNextAction = summary.nextAction
+      spaceMailColor = activeProviderTone(for: summary.tone)
+    } else if hasSpaceMailSetup {
+      spaceMailStatus = hasSpaceMailCredentialReference ? "Credential ready" : "Needs credential"
+      spaceMailDetail = "SpaceMail IMAP setup exists. Real refresh is manual, read-only, and uses the Keychain password reference only in memory."
+      spaceMailNextAction = hasSpaceMailCredentialReference ? "Run real SpaceMail refresh when order mail is expected." : "Set/check the SpaceMail credential first."
+      spaceMailColor = hasSpaceMailCredentialReference ? .green : .orange
+    } else {
+      spaceMailStatus = "Not configured"
+      spaceMailDetail = "Use this path for SpaceMail or other IMAP-hosted mailboxes."
+      spaceMailNextAction = "Add SpaceMail setup only for the mailbox that actually hosts the mail."
+      spaceMailColor = .secondary
+    }
+
+    let gmailStatus: String
+    let gmailDetail: String
+    let gmailNextAction: String
+    let gmailColor: Color
+    if let summary = latestGmailSummary {
+      gmailStatus = hasGmailConnectedAuth ? "Live manual" : "Refresh evidence"
+      gmailDetail = "\(summary.compactRefreshCountsText). \(summary.detail)"
+      gmailNextAction = summary.nextAction
+      gmailColor = activeProviderTone(for: summary.tone)
+    } else if hasGmailSetup {
+      gmailStatus = hasGmailConnectedAuth ? "Signed in" : hasGmailCoreSetup ? "Ready for sign-in" : "Setup incomplete"
+      gmailDetail = "Gmail setup, mock refresh, OAuth readiness, classifier review, and read-only Gmail API boundaries are present. Use it only for Gmail or Google Workspace mailboxes."
+      gmailNextAction = hasGmailConnectedAuth ? "Run manual read-only Gmail refresh when testing a Google-hosted mailbox." : hasGmailCoreSetup ? "Test real Google sign-in next." : "Fill Gmail address, labels, client ID, callback scheme, and read-only scope notes."
+      gmailColor = hasGmailConnectedAuth ? .green : .orange
+    } else {
+      gmailStatus = "Optional"
+      gmailDetail = "Gmail is available as a provider path, but should not be used for SpaceMail or Microsoft-hosted addresses."
+      gmailNextAction = "Add Gmail setup only when the mailbox is Google-hosted."
+      gmailColor = .secondary
+    }
+
+    let outlookStatus: String
+    let outlookDetail: String
+    let outlookNextAction: String
+    let outlookColor: Color
+    if let summary = latestMicrosoft365Summary {
+      outlookStatus = hasMicrosoft365ConnectedAuth ? "Live manual" : "Refresh evidence"
+      outlookDetail = "\(summary.compactRefreshCountsText). \(summary.detail)"
+      outlookNextAction = summary.nextAction
+      outlookColor = activeProviderTone(for: summary.tone)
+    } else if hasMicrosoft365Setup {
+      outlookStatus = hasMicrosoft365ConnectedAuth ? "Signed in" : hasMicrosoft365CoreSetup ? "Ready for sign-in" : "Setup incomplete"
+      outlookDetail = "Outlook / Microsoft 365 setup, MSAL sign-in, Graph diagnostics, mock refresh, and read-only Graph mailbox boundaries are present."
+      outlookNextAction = hasMicrosoft365ConnectedAuth ? "Run manual read-only Microsoft Graph refresh when testing a Microsoft-hosted mailbox." : hasMicrosoft365CoreSetup ? "Test real Microsoft sign-in next." : "Fill tenant/client/redirect/folder/scope placeholders before real sign-in."
+      outlookColor = hasMicrosoft365ConnectedAuth ? .green : .orange
+    } else {
+      outlookStatus = "Optional"
+      outlookDetail = "Outlook is available for Microsoft-hosted mailboxes only."
+      outlookNextAction = "Add Outlook / Microsoft 365 setup only when the active mailbox is Microsoft-hosted."
+      outlookColor = .secondary
+    }
+
+    return [
+      ("SpaceMail / IMAP", spaceMailStatus, spaceMailDetail, spaceMailNextAction, "server.rack", spaceMailColor),
+      ("Gmail / Google Workspace", gmailStatus, gmailDetail, gmailNextAction, "envelope.badge.shield.half.filled", gmailColor),
+      ("Outlook / Microsoft 365", outlookStatus, outlookDetail, outlookNextAction, "mail.stack.fill", outlookColor)
+    ]
+  }
+
   private var activeSetupTitle: String {
     if let activeProviderCandidate { return activeProviderCandidate.title }
     if store.mailboxProviderSetupCount > 1 { return "Run a manual refresh for an active mailbox provider" }
@@ -8506,6 +8577,73 @@ struct SettingsView: View {
     .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
+  private var mailboxProviderStatusPanel: some View {
+    SettingsPanel(title: "Mailbox provider status", symbol: "envelope.badge.shield.half.filled") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: "envelope.badge.shield.half.filled")
+            .font(.title3)
+            .foregroundStyle(mailboxStatus.1)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Choose the provider that actually hosts the mailbox")
+              .font(.headline)
+            Text("SpaceMail, Gmail, and Outlook feed the same local Inbox path, but they are separate setup and sign-in routes. This summary shows what is usable now and what still needs setup.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge(mailboxStatus.0, color: mailboxStatus.1)
+        }
+
+        MetricStrip(items: [
+          ("Providers", "\(store.mailboxProviderSetupCount)", store.mailboxProviderSetupCount == 0 ? .orange : .green),
+          ("Credential/auth", credentialStatus.0, credentialStatus.1),
+          ("Refreshes", "\(settingsManualRefreshCount)", settingsManualRefreshCount == 0 ? .orange : .blue),
+          ("Fetched", "\(latestManualMailboxFetchedCount)", latestManualMailboxFetchedCount == 0 ? .secondary : .blue),
+          ("Imported", "\(latestManualMailboxImportedCount)", latestManualMailboxImportedCount == 0 ? .secondary : .green),
+          ("Filtered", "\(latestManualMailboxFilteredCount)", latestManualMailboxFilteredCount == 0 ? .secondary : .teal)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 180 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
+          ForEach(mailboxProviderStatusRows, id: \.title) { row in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(row.title, systemImage: row.symbol)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(row.color)
+                Spacer(minLength: 6)
+                Badge(row.status, color: row.color)
+              }
+
+              Text(row.detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              Label(row.nextAction, systemImage: "arrow.right.circle.fill")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(row.color)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+          }
+        }
+
+        Text("Boundary: this panel only reads local setup, refresh summaries, auth state, and JSON-backed audit context. It does not start sign-in, fetch mail, save secrets, mutate mailbox messages, poll in the background, send notifications, or call Shopify/carrier services.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   private var setupCompletionLadderPanel: some View {
     SettingsPanel(title: "Setup completion ladder", symbol: "checklist.checked") {
       VStack(alignment: .leading, spacing: 12) {
@@ -8727,6 +8865,7 @@ struct SettingsView: View {
         settingsReadinessPanel
         appReadinessSnapshotPanel
         platformDirectionPanel
+        mailboxProviderStatusPanel
         setupCompletionLadderPanel
         wishlistPlanningSettingsPanel
 
