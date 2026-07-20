@@ -1789,6 +1789,10 @@ private struct MailboxReviewStartPanel: View {
     store.latestGmailIntakeHealthSummary
   }
 
+  private var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary? {
+    store.latestMicrosoft365IntakeHealthSummary
+  }
+
   private var reviewEmailCount: Int {
     store.reviewIntakeEmails.count
   }
@@ -1805,18 +1809,42 @@ private struct MailboxReviewStartPanel: View {
     store.pendingGmailUncertainReviewCount
   }
 
+  private var microsoft365UncertainCount: Int {
+    store.pendingMicrosoft365UncertainReviewCount
+  }
+
   private var gmailWarningCount: Int {
     store.gmailIntakeHealthSummaries.filter { $0.tone == "warning" || $0.tone == "attention" }.count
   }
 
+  private var microsoft365WarningCount: Int {
+    store.microsoft365IntakeHealthSummaries.filter { $0.tone == "warning" || $0.tone == "attention" }.count
+  }
+
   private var providerReviewCount: Int {
-    uncertainCount + gmailUncertainCount + gmailWarningCount
+    uncertainCount + gmailUncertainCount + microsoft365UncertainCount + gmailWarningCount + microsoft365WarningCount
+  }
+
+  private var totalFetchedCount: Int {
+    (latestSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0) + (latestMicrosoft365Summary?.fetchedCount ?? 0)
+  }
+
+  private var totalImportedCount: Int {
+    (latestSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0) + (latestMicrosoft365Summary?.importedCount ?? 0)
+  }
+
+  private var totalFilteredCount: Int {
+    (latestSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0) + (latestMicrosoft365Summary?.totalFilteredCount ?? 0)
+  }
+
+  private var totalUncertainCount: Int {
+    uncertainCount + gmailUncertainCount + microsoft365UncertainCount
   }
 
   private var tone: Color {
     if parserIssueCount > 0 || providerReviewCount > 0 { return .orange }
     if reviewEmailCount > 0 { return .teal }
-    if latestSummary == nil && latestGmailSummary == nil { return .orange }
+    if latestSummary == nil && latestGmailSummary == nil && latestMicrosoft365Summary == nil { return .orange }
     return .green
   }
 
@@ -1824,9 +1852,11 @@ private struct MailboxReviewStartPanel: View {
     if parserIssueCount > 0 { return "Start with parser checks" }
     if uncertainCount > 0 { return "Review uncertain SpaceMail messages" }
     if gmailUncertainCount > 0 { return "Review uncertain Gmail messages" }
+    if microsoft365UncertainCount > 0 { return "Review uncertain Outlook messages" }
     if gmailWarningCount > 0 { return "Review Gmail setup or refresh state" }
+    if microsoft365WarningCount > 0 { return "Review Outlook setup or refresh state" }
     if reviewEmailCount > 0 { return "Review imported order emails" }
-    if latestSummary == nil && latestGmailSummary == nil { return "Set up a mailbox before real intake" }
+    if latestSummary == nil && latestGmailSummary == nil && latestMicrosoft365Summary == nil { return "Set up a mailbox before real intake" }
     return "Mailbox review is clear"
   }
 
@@ -1840,13 +1870,19 @@ private struct MailboxReviewStartPanel: View {
     if gmailUncertainCount > 0 {
       return "Gmail uncertain previews are also held out of Inbox. Review them in the Gmail setup row before importing any mixed-mailbox message."
     }
+    if microsoft365UncertainCount > 0 {
+      return "Outlook uncertain previews are also held out of Inbox. Review them in the Microsoft 365 setup row before importing any mixed-mailbox message."
+    }
     if gmailWarningCount > 0 {
       return "At least one Gmail setup has a sign-in, consent, label, API, or readiness state that needs review before it should create Inbox work."
+    }
+    if microsoft365WarningCount > 0 {
+      return "At least one Outlook / Microsoft 365 setup has a sign-in, consent, Graph, folder, or readiness state that needs review before it should create Inbox work."
     }
     if reviewEmailCount > 0 {
       return "Work the detected order emails below. Confirm fields, then create/link orders, mark reviewed, ignore, task, or draft."
     }
-    if latestSummary == nil && latestGmailSummary == nil {
+    if latestSummary == nil && latestGmailSummary == nil && latestMicrosoft365Summary == nil {
       return "Add SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, or Outlook / Microsoft 365 for Microsoft-hosted mailboxes. All paths feed the same local Inbox intake queue."
     }
     return "Latest mailbox activity has no immediate review rows. Use setup details only when tuning the active mailbox provider or investigating Audit evidence."
@@ -1871,10 +1907,10 @@ private struct MailboxReviewStartPanel: View {
       }
 
       MetricStrip(items: [
-        ("Fetched", "\((latestSummary?.fetchedCount ?? 0) + (latestGmailSummary?.fetchedCount ?? 0))", .blue),
-        ("Imported", "\((latestSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0))", ((latestSummary?.importedCount ?? 0) + (latestGmailSummary?.importedCount ?? 0)) > 0 ? .green : .secondary),
-        ("Filtered", "\((latestSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0))", ((latestSummary?.filteredCount ?? 0) + (latestGmailSummary?.filteredCount ?? 0)) > 0 ? .teal : .secondary),
-        ("Uncertain", "\(uncertainCount + gmailUncertainCount)", uncertainCount + gmailUncertainCount == 0 ? .green : .orange),
+        ("Fetched", "\(totalFetchedCount)", .blue),
+        ("Imported", "\(totalImportedCount)", totalImportedCount > 0 ? .green : .secondary),
+        ("Filtered", "\(totalFilteredCount)", totalFilteredCount > 0 ? .teal : .secondary),
+        ("Uncertain", "\(totalUncertainCount)", totalUncertainCount == 0 ? .green : .orange),
         ("Parser", "\(parserIssueCount)", parserIssueCount == 0 ? .green : .orange),
         ("Review rows", "\(reviewEmailCount)", reviewEmailCount == 0 ? .green : .teal)
       ])
