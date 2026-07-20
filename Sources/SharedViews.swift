@@ -6014,6 +6014,17 @@ struct MailboxProviderQuickStatusCard: View {
     max(0, summary.providers.count - visibleProviders.count)
   }
 
+  private var releaseSnapshot: SpaceMailReleaseSnapshot? {
+    store?.mailboxReleaseReadinessSnapshot
+  }
+
+  private var releaseSnapshotColor: Color {
+    guard let snapshot = releaseSnapshot else {
+      return color
+    }
+    return color(for: snapshot.tone)
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       if isCompact {
@@ -6065,6 +6076,32 @@ struct MailboxProviderQuickStatusCard: View {
       }
       .padding(10)
       .background(color(for: summary.activeProvider.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+      if let releaseSnapshot {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: releaseSnapshot.tone == "success" ? "checkmark.seal.fill" : releaseSnapshot.tone == "warning" ? "exclamationmark.triangle.fill" : "checklist")
+            .foregroundStyle(releaseSnapshotColor)
+            .frame(width: 22)
+          VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+              Text("Release readiness")
+                .font(.caption.weight(.semibold))
+              Badge(releaseSnapshot.tone.capitalized, color: releaseSnapshotColor)
+            }
+            Text(releaseSnapshot.verdict)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(releaseSnapshotColor)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(releaseSnapshot.detail)
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(releaseSnapshotColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+      }
 
       if !visibleProviders.isEmpty {
         LazyVGrid(columns: providerColumns, alignment: .leading, spacing: 8) {
