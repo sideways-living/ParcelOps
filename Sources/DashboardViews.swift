@@ -3296,6 +3296,7 @@ private struct LocalDemoWorkflowStatusCard: View {
 
 private struct DashboardReleaseCandidateQACard: View {
   var store: ParcelOpsStore
+  @State private var feedbackMessage: String?
 
   private var latestDemoOrder: TrackedOrder? {
     store.orders.first { order in
@@ -3472,10 +3473,17 @@ private struct DashboardReleaseCandidateQACard: View {
         if let order = latestDemoOrder {
           Button("Complete handoff", systemImage: "checkmark.rectangle.stack.fill") {
             store.completeInboxDispatchHandoff(for: order)
+            feedbackMessage = "Local dispatch handoff action ran. Check Audit for the trail."
           }
           .buttonStyle(.bordered)
           .disabled(!canCompleteHandoff)
         }
+
+        Button("Record RC checkpoint", systemImage: "checkmark.seal.fill") {
+          store.recordReleaseCandidateCheckpoint()
+          feedbackMessage = "Release-candidate checkpoint recorded in Audit."
+        }
+        .buttonStyle(.bordered)
 
         NavigationLink { MVPSetupView(store: store) } label: { Label("Full QA", systemImage: "checklist.checked") }
           .buttonStyle(.bordered)
@@ -3483,6 +3491,13 @@ private struct DashboardReleaseCandidateQACard: View {
           .buttonStyle(.bordered)
         NavigationLink { AuditView(store: store) } label: { Label("Audit", systemImage: "list.clipboard.fill") }
           .buttonStyle(.bordered)
+      }
+
+      if let feedbackMessage {
+        Text(feedbackMessage)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
 
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {

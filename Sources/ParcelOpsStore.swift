@@ -13982,6 +13982,81 @@ final class ParcelOpsStore {
     )
   }
 
+  func recordReleaseCandidateCheckpoint() {
+    let latestDemoOrder = orders.first { order in
+      order.source == .forwardedMailbox
+        && order.orderNumber.range(of: "TEST-", options: [.caseInsensitive, .anchored]) != nil
+    }
+
+    let linkedIntakeCount: Int
+    let dispatchSetupCount: Int
+    let completedDispatchCount: Int
+    let demoAuditCount: Int
+    if let latestDemoOrder {
+      linkedIntakeCount = intakeEmails.filter { $0.linkedOrderID == latestDemoOrder.id }.count
+      dispatchSetupCount = suggestedShipmentManifestRecords(for: latestDemoOrder).count
+        + suggestedDispatchReadinessChecklists(for: latestDemoOrder).count
+      completedDispatchCount = suggestedShipmentManifestRecords(for: latestDemoOrder).filter { $0.dispatchStatus == .handedOff }.count
+        + suggestedDispatchReadinessChecklists(for: latestDemoOrder).filter { $0.checklistStatus == .completed }.count
+      demoAuditCount = auditEvents.filter {
+        $0.entityID == latestDemoOrder.id.uuidString
+          || $0.entityLabel.localizedCaseInsensitiveContains(latestDemoOrder.orderNumber)
+          || $0.afterDetail?.localizedCaseInsensitiveContains(latestDemoOrder.orderNumber) == true
+      }.count
+    } else {
+      linkedIntakeCount = 0
+      dispatchSetupCount = 0
+      completedDispatchCount = 0
+      demoAuditCount = 0
+    }
+
+    let persistenceEvidenceReady = !orders.isEmpty && !intakeEmails.isEmpty && !auditEvents.isEmpty
+    let liveMailboxEvidenceReady =
+      spaceMailIntakeHealthSummaries.contains { summary in
+        summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
+      } || gmailIntakeHealthSummaries.contains { summary in
+        summary.fetchedCount > 0 || summary.importedCount > 0 || summary.filteredCount > 0 || summary.duplicateCount > 0 || summary.uncertainCount > 0
+      } || microsoft365IntakeHealthSummaries.contains { summary in
+        summary.fetchedCount > 0 || summary.importedCount > 0 || summary.duplicateCount > 0 || summary.blockedCount > 0
+      }
+
+    let requiredChecks: [(title: String, complete: Bool)] = [
+      ("Demo order", latestDemoOrder != nil),
+      ("Inbox source linked", linkedIntakeCount > 0),
+      ("Dispatch setup exists", dispatchSetupCount > 0),
+      ("Dispatch handoff closed", completedDispatchCount > 0),
+      ("Audit trail exists", demoAuditCount > 0),
+      ("Persistence evidence exists", persistenceEvidenceReady)
+    ]
+    let completedRequiredCount = requiredChecks.filter(\.complete).count
+    let missingChecks = requiredChecks.filter { !$0.complete }.map(\.title)
+    let orderLabel = latestDemoOrder?.orderNumber ?? "No demo order"
+
+    let afterDetail = [
+      "Demo order: \(orderLabel)",
+      "Required checks complete: \(completedRequiredCount)/\(requiredChecks.count)",
+      "Missing checks: \(missingChecks.isEmpty ? "None" : missingChecks.joined(separator: ", "))",
+      "Linked intake records: \(linkedIntakeCount)",
+      "Dispatch setup records: \(dispatchSetupCount)",
+      "Completed dispatch records: \(completedDispatchCount)",
+      "Demo audit entries: \(demoAuditCount)",
+      "Persistence evidence: \(persistenceEvidenceReady ? "yes" : "no")",
+      "Live mailbox evidence: \(liveMailboxEvidenceReady ? "seen" : "optional/not seen")",
+      "This checkpoint reads local JSON-backed state only. It does not refresh mail, read credentials, mutate mailboxes, send messages, call Shopify or carriers, create notifications, or run background work."
+    ].joined(separator: "\n")
+
+    logAudit(
+      action: .evaluated,
+      entityType: .settings,
+      entityID: "release-candidate-checkpoint",
+      entityLabel: "Release-candidate checkpoint",
+      summary: completedRequiredCount == requiredChecks.count
+        ? "Release-candidate checkpoint recorded as ready for hands-on QA."
+        : "Release-candidate checkpoint recorded with remaining checks.",
+      afterDetail: afterDetail
+    )
+  }
+
   func reopenInboxDispatchHandoff(for order: TrackedOrder) {
     guard let orderIndex = orders.firstIndex(where: { $0.id == order.id }) else { return }
 
