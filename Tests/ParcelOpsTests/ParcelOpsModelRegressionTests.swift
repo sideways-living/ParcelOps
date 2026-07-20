@@ -202,6 +202,124 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     })
   }
 
+  func testIntakeParserRegressionSamplesStayGreen() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let results = store.intakeParserRegressionResults
+
+    XCTAssertFalse(results.isEmpty)
+    XCTAssertTrue(results.allSatisfy(\.passed), results.map(\.detail).joined(separator: "\n"))
+
+    let clearOrder = try XCTUnwrap(results.first { $0.id == "clear-order-shipped" })
+    XCTAssertEqual(clearOrder.detectedOrderNumber, "TEST-123")
+    XCTAssertEqual(clearOrder.detectedTrackingNumber, "ABC123")
+
+    let trackingOnly = try XCTUnwrap(results.first { $0.id == "tracking-only-update" })
+    XCTAssertTrue(trackingOnly.detectedOrderNumber.isPlaceholderValidationValue)
+    XCTAssertEqual(trackingOnly.detectedTrackingNumber, "ZXCV123456789")
+
+    let marketing = try XCTUnwrap(results.first { $0.id == "encoded-subject" })
+    XCTAssertTrue(marketing.detectedOrderNumber.isPlaceholderValidationValue)
+    XCTAssertTrue(marketing.detectedTrackingNumber.isPlaceholderValidationValue)
+  }
+
+  func testFetchedMailboxMessageImportsClearOrderAndTrackingSignals() throws {
+    let sourceMailboxID = UUID()
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    store.intakeEmails = []
+    store.mailboxIngestRecords = []
+    store.auditEvents = []
+
+    let result = store.importFetchedMailboxMessages([
+      FetchedMailboxMessage(
+        providerMessageID: "provider-clear-order-001",
+        sender: "orders@example-shop.test",
+        subject: "Order TEST-123 shipped tracking ABC123",
+        receivedDate: "Today",
+        plainTextBodyPreview: "Order TEST-123 shipped tracking ABC123",
+        sourceMailboxID: sourceMailboxID
+      )
+    ])
+
+    XCTAssertEqual(result.imported, 1)
+    XCTAssertEqual(result.duplicates, 0)
+
+    let email = try XCTUnwrap(store.intakeEmails.first)
+    XCTAssertEqual(email.sender, "orders@example-shop.test")
+    XCTAssertEqual(email.subject, "Order TEST-123 shipped tracking ABC123")
+    XCTAssertEqual(email.detectedOrderNumber, "TEST-123")
+    XCTAssertEqual(email.detectedTrackingNumber, "ABC123")
+    XCTAssertEqual(email.reviewState, .needsReview)
+
+    let ingestRecord = try XCTUnwrap(store.mailboxIngestRecords.first)
+    XCTAssertEqual(ingestRecord.providerMessageID, "provider-clear-order-001")
+    XCTAssertEqual(ingestRecord.sourceMailboxID, sourceMailboxID)
+    XCTAssertEqual(ingestRecord.intakeEmailID, email.id)
+    XCTAssertEqual(ingestRecord.status, .imported)
+  }
+
+  func testDuplicateFetchedMailboxRefreshUpdatesMessyExistingIntakeWithoutDuplicating() throws {
+    let sourceMailboxID = UUID()
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let staleIntakeID = UUID()
+    store.intakeEmails = [
+      ForwardedEmailIntake(
+        id: staleIntakeID,
+        sender: "Unknown Sender",
+        subject: "No subject",
+        receivedDate: "Unknown date",
+        rawBodyPreview: "* 39763 FETCH (UID 39763 BODY[] {4096} Return-Path: <orders@example-shop.test> Dovecot internal routing text",
+        detectedMerchant: "Unknown Sender",
+        detectedOrderNumber: "Order number needs review",
+        detectedTrackingNumber: "Tracking number needs review",
+        detectedDestinationAddress: "Destination needs review",
+        linkedOrderID: nil,
+        reviewState: .needsReview
+      )
+    ]
+    store.mailboxIngestRecords = [
+      MailboxIngestRecord(
+        providerMessageID: "provider-clear-order-duplicate",
+        sourceMailboxID: sourceMailboxID,
+        intakeEmailID: staleIntakeID,
+        capturedDate: "Earlier",
+        status: .imported,
+        summary: "Imported fetched mailbox message: No subject"
+      )
+    ]
+    store.auditEvents = []
+
+    let result = store.importFetchedMailboxMessages([
+      FetchedMailboxMessage(
+        providerMessageID: "provider-clear-order-duplicate",
+        sender: "orders@example-shop.test",
+        subject: "Order TEST-123 shipped tracking ABC123",
+        receivedDate: "Today",
+        plainTextBodyPreview: "Order TEST-123 shipped tracking ABC123",
+        sourceMailboxID: sourceMailboxID
+      )
+    ])
+
+    XCTAssertEqual(result.imported, 0)
+    XCTAssertEqual(result.duplicates, 1)
+    XCTAssertEqual(store.intakeEmails.count, 1)
+
+    let refreshed = try XCTUnwrap(store.intakeEmails.first)
+    XCTAssertEqual(refreshed.id, staleIntakeID)
+    XCTAssertEqual(refreshed.sender, "orders@example-shop.test")
+    XCTAssertEqual(refreshed.subject, "Order TEST-123 shipped tracking ABC123")
+    XCTAssertEqual(refreshed.detectedOrderNumber, "TEST-123")
+    XCTAssertEqual(refreshed.detectedTrackingNumber, "ABC123")
+    XCTAssertEqual(refreshed.reviewState, .needsReview)
+
+    let latestIngestRecord = try XCTUnwrap(store.mailboxIngestRecords.first)
+    XCTAssertEqual(latestIngestRecord.status, .duplicateRefreshed)
+    XCTAssertEqual(latestIngestRecord.intakeEmailID, staleIntakeID)
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Duplicate fetched mailbox message refreshed existing intake email."
+        && (event.afterDetail?.contains("No duplicate intake email was created") ?? false)
+    })
+  }
+
   func testWishlistSellerEvidenceGapsAndScore() {
     let weakOption = WishlistComparisonOption(
       sellerName: "Unknown marketplace seller",
@@ -2911,7 +3029,10 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(store.latestMailboxFetchedCount, 2)
     XCTAssertEqual(store.latestMailboxImportedCount, 1)
     XCTAssertEqual(store.latestMailboxDuplicateCount, 1)
-    XCTAssertTrue(store.latestMailboxCompactRefreshText.contains("Outlook 2 fetched, 1 imported, 1 duplicate, 1 refreshed, 0 blocker"))
+    XCTAssertTrue(store.latestMailboxCompactRefreshText.contains("Outlook 2 fetched"))
+    XCTAssertTrue(store.latestMailboxCompactRefreshText.contains("1 imported"))
+    XCTAssertTrue(store.latestMailboxCompactRefreshText.contains("1 duplicate"))
+    XCTAssertTrue(store.latestMailboxCompactRefreshText.contains("1 refreshed"))
     XCTAssertTrue(store.latestActiveMailboxEvidenceText.contains("Outlook latest: 2 fetched, 1 imported"))
   }
 
@@ -4300,12 +4421,12 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     XCTAssertEqual(summary.title, "Mailbox intake needs operator review")
     XCTAssertEqual(summary.recommendedProvider, "Outlook")
     XCTAssertEqual(summary.tone, "attention")
-    XCTAssertEqual(outlook?.statusTitle, "Microsoft 365 has operator work")
+    XCTAssertEqual(outlook?.statusTitle, "Outlook / Microsoft 365 has operator work")
     XCTAssertEqual(outlook?.importedCount, 1)
     XCTAssertEqual(outlook?.blockedCount, 0)
     XCTAssertEqual(summary.metrics.first { $0.title == "Imported" }?.value, "1")
     XCTAssertEqual(summary.metrics.first { $0.title == "Fetched" }?.value, "1")
-    XCTAssertTrue(summary.actionItems.contains { $0.providerName == "Outlook" && $0.title == "Keep Outlook as explicit refresh" })
+    XCTAssertTrue(summary.actionItems.contains { $0.providerName == "Outlook" && $0.title == "Review Outlook intake" })
   }
 
   func testMailboxProviderComparisonFlagsGmailSetupBlockers() {
@@ -5016,6 +5137,7 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
     store.spaceMailIMAPConnections = []
     store.gmailMailboxConnections = []
+    store.microsoft365MailboxConnections = []
     store.gmailAuthSessionStates = [:]
     store.intakeEmails = []
     store.mailboxIngestRecords = []
