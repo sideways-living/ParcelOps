@@ -8191,6 +8191,10 @@ struct SettingsView: View {
     matchesSettingsSection("MVP", "local-only", "status", "JSON", "Shopify", "carrier", "credential", "background sync", "notifications")
   }
 
+  private var showsPlatformDirection: Bool {
+    matchesSettingsSection("platform", "Mac", "iPad", "iOS", "SwiftUI", "web", "webapp", "browser extension", "local-first")
+  }
+
   private var showsMailboxIntake: Bool {
     matchesSettingsSection("mailbox", "intake", "forwarded", "email", "order creation", "confidence", "review")
   }
@@ -8223,6 +8227,7 @@ struct SettingsView: View {
     [
       showsActiveSetup,
       showsLocalOnlyStatus,
+      showsPlatformDirection,
       showsMailboxIntake,
       showsWishlistPlanning,
       showsTrackedMailboxes,
@@ -8420,6 +8425,85 @@ struct SettingsView: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
+  }
+
+  private var platformDirectionPanel: some View {
+    SettingsPanel(title: "Platform direction", symbol: "macwindow.and.cursorarrow") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: "macwindow.and.cursorarrow")
+            .font(.title3)
+            .foregroundStyle(.teal)
+            .frame(width: 28)
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Build Mac and iPad first; treat web as later")
+              .font(.headline)
+            Text("ParcelOps is currently a SwiftUI local-first operations app. That remains the practical path while mailbox intake, Inbox-to-order handoff, Wishlist planning, and audit evidence are still being hardened.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          Spacer(minLength: 8)
+          Badge("Native first", color: .teal)
+        }
+
+        MetricStrip(items: [
+          ("Mac app", "Primary", .green),
+          ("iPad path", "Compatible", .teal),
+          ("Web app", "Later", .secondary),
+          ("Extension", "Later", .orange)
+        ])
+
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 165 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
+          platformStep(
+            title: "Why native first",
+            detail: "The current app already uses SwiftUI, local JSON, Keychain-backed credential paths, MSAL/Google sign-in boundaries, and macOS/iPad-style operator navigation.",
+            symbol: "laptopcomputer.and.iphone",
+            color: .green
+          )
+          platformStep(
+            title: "What stays local",
+            detail: "Manual mailbox refresh, local triage, local orders, Tasks, Audit, Wishlist planning, and evidence records should be stable before moving logic into a web backend.",
+            symbol: "internaldrive.fill",
+            color: .teal
+          )
+          platformStep(
+            title: "Web app later",
+            detail: "A web version needs hosted auth, server persistence, secure credential architecture, background jobs, and user/admin model decisions. Those are separate production choices.",
+            symbol: "network",
+            color: .secondary
+          )
+          platformStep(
+            title: "Browser extension later",
+            detail: "Wishlist capture from retailer pages should become a small capture client that sends title, URL, visible price, and notes into the same local/review workflow.",
+            symbol: "puzzlepiece.extension.fill",
+            color: .orange
+          )
+        }
+
+        Text("Boundary: this direction panel only documents the current product choice. It does not add a web backend, browser extension, network service, sync layer, notification service, or hosted credential store.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func platformStep(title: String, detail: String, symbol: String, color: Color) -> some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Label(title, systemImage: symbol)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+      Text(detail)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .topLeading)
+    .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
   }
 
   private var setupCompletionLadderPanel: some View {
@@ -8642,13 +8726,14 @@ struct SettingsView: View {
 
         settingsReadinessPanel
         appReadinessSnapshotPanel
+        platformDirectionPanel
         setupCompletionLadderPanel
         wishlistPlanningSettingsPanel
 
         SettingsPanel(title: "Find setting", symbol: "magnifyingglass") {
           VStack(alignment: .leading, spacing: 10) {
             FilterControlGrid {
-              TextField("Search settings, mailbox, Wishlist, SpaceMail, Gmail, Outlook, Shopify, folders, review, carrier", text: $settingsSearchText)
+              TextField("Search settings, platform, mailbox, Wishlist, SpaceMail, Gmail, Outlook, Shopify, folders, review, carrier", text: $settingsSearchText)
                 .textFieldStyle(.roundedBorder)
 
               Button("Clear", systemImage: "xmark.circle") {
@@ -8667,7 +8752,7 @@ struct SettingsView: View {
         }
 
         if visibleSettingsSectionCount == 0 {
-          MVPEmptyState(title: "No settings sections match", detail: "Clear the settings search or try mailbox, Wishlist, SpaceMail, Gmail, Outlook, Shopify, folders, review, carrier, credential, or local-only.", symbol: "magnifyingglass")
+          MVPEmptyState(title: "No settings sections match", detail: "Clear the settings search or try platform, mailbox, Wishlist, SpaceMail, Gmail, Outlook, Shopify, folders, review, carrier, credential, or local-only.", symbol: "magnifyingglass")
         }
 
         if showsActiveSetup {
