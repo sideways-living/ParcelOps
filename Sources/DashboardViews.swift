@@ -1684,6 +1684,12 @@ struct DashboardView: View {
           }
           .buttonStyle(.bordered)
           .help("Creates or refreshes one local handoff note summarising current app completeness and next work.")
+          Button("Create status draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessageFromDevelopmentStatusCheckpoint()
+            feedbackMessage = "Development status draft created or refreshed. Check Communication Drafts."
+          }
+          .buttonStyle(.bordered)
+          .help("Creates or refreshes one local draft packet. It does not send email.")
           NavigationLink {
             dailyRouteDestination(for: recommendedDailySection)
           } label: {
@@ -3518,6 +3524,12 @@ private struct DashboardReleaseCandidateQACard: View {
         Button("Create handoff note", systemImage: "arrow.triangle.branch") {
           store.createHandoffNoteFromDevelopmentStatusCheckpoint()
           feedbackMessage = "Development status handoff note created or refreshed. Check Handoff Notes."
+        }
+        .buttonStyle(.bordered)
+
+        Button("Create status draft", systemImage: "envelope.open.fill") {
+          store.createDraftMessageFromDevelopmentStatusCheckpoint()
+          feedbackMessage = "Development status draft created or refreshed. Check Communication Drafts."
         }
         .buttonStyle(.bordered)
 

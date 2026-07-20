@@ -15461,6 +15461,143 @@ final class ParcelOpsStore {
     )
   }
 
+  func createDraftMessageFromDevelopmentStatusCheckpoint() {
+    let comparison = mailboxProviderComparisonSummary
+    let gate = mailboxProviderReleaseGateSummary
+    let wishlist = wishlistAgentReadinessSummary
+    let openTaskAndHandoffCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let parserDiagnosticCount = intakeParserDiagnostics.count
+    let incompleteGateLines = gate.gates.filter { !$0.isPassed }.prefix(8).map { gate in
+      "- \(gate.title): \(gate.nextAction)"
+    }
+    let providerActionLines = comparison.actionItems.prefix(8).map { item in
+      "- \(item.priority). \(item.providerName): \(item.title). \(item.detail)"
+    }
+    let wishlistActionLines = wishlist.items.filter { $0.tone != "success" }.prefix(6).map { item in
+      "- \(item.title): \(item.status). Next: \(item.nextAction)"
+    }
+
+    let subject: String
+    let headline: String
+    if mailboxProviderSetupCount == 0 || mailboxManualRefreshCount == 0 {
+      subject = "ParcelOps development status - provider proof needed"
+      headline = "ParcelOps is built as a local MVP, but the active mailbox provider path still needs setup or first refresh proof."
+    } else if inboxCreatedOrderCount == 0 {
+      subject = "ParcelOps development status - Inbox-to-order proof needed"
+      headline = "Mailbox intake has evidence; the next proof is creating or linking one real Inbox row to an order."
+    } else if parserDiagnosticCount > 0 || openTaskAndHandoffCount > 0 || !incompleteGateLines.isEmpty {
+      subject = "ParcelOps development status - follow-up queue"
+      headline = "ParcelOps is usable for hands-on MVP testing, with parser, task, handoff, or release-gate cleanup still visible."
+    } else {
+      subject = "ParcelOps development status - ready for MVP QA"
+      headline = "ParcelOps has enough local workflow coverage for a hands-on MVP QA pass."
+    }
+
+    let selectedTemplate = communicationTemplates.first { $0.linkedEntityType == .integration && $0.isEnabled } ?? communicationTemplates.first
+    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: subject) ?? "Please review the local ParcelOps record \(subject)."
+    let body = [
+      baseBody,
+      "",
+      "Development status packet",
+      headline,
+      "",
+      "Current counts:",
+      "- Providers configured: \(mailboxProviderSetupCount)",
+      "- Manual mailbox refreshes: \(mailboxManualRefreshCount)",
+      "- Latest mailbox fetched/imported/filtered/uncertain: \(latestMailboxFetchedCount)/\(latestMailboxImportedCount)/\(latestMailboxFilteredCount)/\(latestMailboxUncertainCount)",
+      "- Inbox-created orders: \(inboxCreatedOrderCount)",
+      "- Parser diagnostics: \(parserDiagnosticCount)",
+      "- Open task and handoff items: \(openTaskAndHandoffCount)",
+      "- Active Wishlist items: \(activeWishlistItemCount)",
+      "",
+      "Provider status:",
+      "\(comparison.title): \(comparison.detail)",
+      "Recommended provider: \(comparison.recommendedProvider)",
+      providerActionLines.isEmpty ? "No provider action items are currently promoted." : providerActionLines.joined(separator: "\n"),
+      "",
+      "Release gates:",
+      incompleteGateLines.isEmpty ? "No open release-gate items are currently promoted." : incompleteGateLines.joined(separator: "\n"),
+      "",
+      "Wishlist:",
+      "\(wishlist.title): \(wishlist.verdict)",
+      wishlistActionLines.isEmpty ? "No Wishlist action items are currently promoted." : wishlistActionLines.joined(separator: "\n"),
+      "",
+      "Recommended next step:",
+      mailboxProviderSetupCount == 0 || mailboxManualRefreshCount == 0
+        ? "Finish the active mailbox provider setup and run one explicit manual read-only refresh."
+        : "Run the Dashboard recommended route, then use Tasks, Handoff Notes, and Audit to close the visible follow-up trail.",
+      "",
+      "Local-only boundary:",
+      "This draft was created locally from existing ParcelOps state. It did not run mailbox refreshes, read credentials, request tokens, call external services, send email, create notifications, compare retailers, purchase items, or mutate mailbox messages."
+    ].joined(separator: "\n")
+
+    if let existingIndex = draftMessages.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .sentLocally
+    }) {
+      let beforeDetail = draftMessages[existingIndex].auditDetail
+      draftMessages[existingIndex].templateID = selectedTemplate?.id
+      draftMessages[existingIndex].recipient = "operations@parcelops.example"
+      draftMessages[existingIndex].subject = subject
+      draftMessages[existingIndex].body = body
+      draftMessages[existingIndex].channel = selectedTemplate?.channel ?? .email
+      draftMessages[existingIndex].reviewState = .needsReview
+      if draftMessages[existingIndex].status == .ready {
+        draftMessages[existingIndex].status = .reopened
+      }
+      persistDraftMessages()
+      logAudit(
+        action: .edited,
+        entityType: .draftMessage,
+        entityID: draftMessages[existingIndex].id.uuidString,
+        entityLabel: draftMessages[existingIndex].subject,
+        summary: "Existing development status draft refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(draftMessages[existingIndex].auditDetail)\nRefreshed from current development status checkpoint. No duplicate unsent draft was created."
+      )
+      return
+    }
+
+    let draft = DraftMessage(
+      linkedEntityType: .integration,
+      linkedEntityID: "development-status-checkpoint",
+      templateID: selectedTemplate?.id,
+      recipient: "operations@parcelops.example",
+      subject: subject,
+      body: body,
+      channel: selectedTemplate?.channel ?? .email,
+      createdDate: Self.auditTimestamp(),
+      status: .draft,
+      reviewState: .needsReview
+    )
+    draftMessages.insert(draft, at: 0)
+    persistDraftMessages()
+
+    if let selectedTemplate, let index = communicationTemplates.firstIndex(where: { $0.id == selectedTemplate.id }) {
+      communicationTemplates[index].lastUsedDate = Self.auditTimestamp()
+      communicationTemplates[index].usageCount += 1
+      persistCommunicationTemplates()
+    }
+
+    logAudit(
+      action: .created,
+      entityType: .draftMessage,
+      entityID: draft.id.uuidString,
+      entityLabel: draft.subject,
+      summary: "Development status draft created locally.",
+      afterDetail: "\(draft.auditDetail)\nCreated from current development status checkpoint. No outbound email was sent."
+    )
+    logAudit(
+      action: .linked,
+      entityType: .settings,
+      entityID: "development-status-checkpoint",
+      entityLabel: "Development status checkpoint",
+      summary: "Development status checkpoint linked to a draft message.",
+      afterDetail: "Draft: \(draft.subject)\nRecipient: \(draft.recipient)\nNo outbound email was sent."
+    )
+  }
+
   func createReviewTaskFromMailboxProviderTroubleshooting() {
     let troubleshooting = mailboxProviderTroubleshootingSummary
     let taskPriority: TaskPriority

@@ -8351,6 +8351,12 @@ struct SettingsView: View {
             } label: {
               Label("Create handoff note", systemImage: "arrow.triangle.branch")
             }
+            Button {
+              store.createDraftMessageFromDevelopmentStatusCheckpoint()
+              settingsFeedbackMessage = "Development status draft created or refreshed."
+            } label: {
+              Label("Create status draft", systemImage: "envelope.open.fill")
+            }
           }
           .buttonStyle(.borderedProminent)
         }
