@@ -2390,10 +2390,20 @@ struct MailboxProviderComparisonSummary: Hashable {
   var detail: String
   var tone: String
   var recommendedProvider: String
+  var activeProvider: MailboxActiveProviderDecision
   var metrics: [SpaceMailReleaseSnapshotMetric]
   var decisionRules: [MailboxProviderDecisionRule]
   var providers: [MailboxProviderComparisonItem]
   var actionItems: [MailboxProviderActionItem]
+}
+
+struct MailboxActiveProviderDecision: Hashable {
+  var providerName: String
+  var title: String
+  var detail: String
+  var nextAction: String
+  var tone: String
+  var symbol: String
 }
 
 struct MailboxProviderDecisionRule: Identifiable, Hashable {

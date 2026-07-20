@@ -5992,6 +5992,34 @@ struct MailboxProviderQuickStatusCard: View {
         ("Blockers", "\(totalBlockerCount)", totalBlockerCount > 0 ? .red : .green)
       ])
 
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: summary.activeProvider.symbol)
+          .foregroundStyle(color(for: summary.activeProvider.tone))
+          .frame(width: 22)
+        VStack(alignment: .leading, spacing: 4) {
+          HStack(spacing: 8) {
+            Text("Active intake source")
+              .font(.caption.weight(.semibold))
+            Badge(summary.activeProvider.providerName, color: color(for: summary.activeProvider.tone))
+          }
+          Text(summary.activeProvider.title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color(for: summary.activeProvider.tone))
+            .fixedSize(horizontal: false, vertical: true)
+          Text(summary.activeProvider.detail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("Next: \(summary.activeProvider.nextAction)")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color(for: summary.activeProvider.tone))
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 0)
+      }
+      .padding(10)
+      .background(color(for: summary.activeProvider.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
       if !visibleProviders.isEmpty {
         LazyVGrid(columns: providerColumns, alignment: .leading, spacing: 8) {
           ForEach(visibleProviders) { provider in

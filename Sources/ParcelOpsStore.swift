@@ -757,11 +757,93 @@ final class ParcelOpsStore {
       }
     }
 
+    let sortedActionItems = actionItems.sorted { lhs, rhs in
+      if lhs.priority != rhs.priority {
+        return lhs.priority < rhs.priority
+      }
+      return lhs.providerName < rhs.providerName
+    }
+    let providerItems = [
+      MailboxProviderComparisonItem(
+        providerName: "SpaceMail",
+        statusTitle: spaceMailStatusTitle,
+        detail: spaceMailDetail,
+        nextAction: spaceMailNextAction,
+        tone: spaceMailTone,
+        symbol: "server.rack",
+        fetchedCount: spaceMailFetched,
+        importedCount: spaceMailImported,
+        filteredCount: spaceMailFiltered,
+        blockedCount: spaceMailBlocked,
+        uncertainCount: spaceMailUncertain
+      ),
+      MailboxProviderComparisonItem(
+        providerName: "Gmail",
+        statusTitle: gmailStatusTitle,
+        detail: gmailDetail,
+        nextAction: gmailNextAction,
+        tone: gmailTone,
+        symbol: "envelope.badge.shield.half.filled",
+        fetchedCount: gmailFetched,
+        importedCount: gmailImported,
+        filteredCount: gmailFiltered,
+        blockedCount: gmailSetupBlockers,
+        uncertainCount: gmailUncertain
+      ),
+      MailboxProviderComparisonItem(
+        providerName: "Outlook",
+        statusTitle: microsoftStatusTitle,
+        detail: microsoftDetail,
+        nextAction: microsoftNextAction,
+        tone: microsoftTone,
+        symbol: "mail.stack.fill",
+        fetchedCount: microsoftFetched,
+        importedCount: microsoftImported,
+        filteredCount: microsoftFiltered,
+        blockedCount: microsoftProblemCount,
+        uncertainCount: microsoftUncertain
+      )
+    ]
+    let configuredProviderItems = providerItems.filter { configuredProviderNames.contains($0.providerName) }
+    let activeProvider: MailboxActiveProviderDecision
+    if let action = sortedActionItems.first {
+      activeProvider = MailboxActiveProviderDecision(
+        providerName: action.providerName,
+        title: action.title,
+        detail: action.detail,
+        nextAction: action.detail,
+        tone: action.tone,
+        symbol: action.symbol
+      )
+    } else if let provider = configuredProviderItems.first(where: { $0.tone == "attention" })
+        ?? configuredProviderItems.first(where: { $0.tone == "warning" })
+        ?? configuredProviderItems.first(where: { $0.tone == "success" })
+        ?? configuredProviderItems.first {
+      activeProvider = MailboxActiveProviderDecision(
+        providerName: provider.providerName,
+        title: "\(provider.providerName) active mailbox path",
+        detail: provider.statusTitle,
+        nextAction: provider.nextAction,
+        tone: provider.tone,
+        symbol: provider.symbol
+      )
+    } else {
+      activeProvider = MailboxActiveProviderDecision(
+        providerName: "Mailbox",
+        title: "Choose active mailbox provider",
+        detail: "No mailbox provider setup exists yet.",
+        nextAction: "Add SpaceMail, Gmail, or Outlook setup for the mailbox that should feed Inbox.",
+        tone: "warning",
+        symbol: "envelope.badge.fill"
+      )
+    }
+
     return MailboxProviderComparisonSummary(
       title: title,
       detail: detail,
       tone: tone,
       recommendedProvider: recommendedProvider,
+      activeProvider: activeProvider,
       metrics: [
         SpaceMailReleaseSnapshotMetric(title: "Providers", value: "\(mailboxProviderSetupCount)", tone: anyProviderConfigured ? "success" : "warning"),
         SpaceMailReleaseSnapshotMetric(title: "Fetched", value: "\(spaceMailFetched + gmailFetched + microsoftFetched)", tone: anyRefreshEvidence ? "neutral" : "attention"),
@@ -771,53 +853,8 @@ final class ParcelOpsStore {
         SpaceMailReleaseSnapshotMetric(title: "Blockers", value: "\(spaceMailBlocked + gmailSetupBlockers + microsoftProblemCount)", tone: (spaceMailBlocked + gmailSetupBlockers + microsoftProblemCount) > 0 ? "warning" : "success")
       ],
       decisionRules: Array(decisionRules.prefix(4)),
-      providers: [
-        MailboxProviderComparisonItem(
-          providerName: "SpaceMail",
-          statusTitle: spaceMailStatusTitle,
-          detail: spaceMailDetail,
-          nextAction: spaceMailNextAction,
-          tone: spaceMailTone,
-          symbol: "server.rack",
-          fetchedCount: spaceMailFetched,
-          importedCount: spaceMailImported,
-          filteredCount: spaceMailFiltered,
-          blockedCount: spaceMailBlocked,
-          uncertainCount: spaceMailUncertain
-        ),
-        MailboxProviderComparisonItem(
-          providerName: "Gmail",
-          statusTitle: gmailStatusTitle,
-          detail: gmailDetail,
-          nextAction: gmailNextAction,
-          tone: gmailTone,
-          symbol: "envelope.badge.shield.half.filled",
-          fetchedCount: gmailFetched,
-          importedCount: gmailImported,
-          filteredCount: gmailFiltered,
-          blockedCount: gmailSetupBlockers,
-          uncertainCount: gmailUncertain
-        ),
-        MailboxProviderComparisonItem(
-          providerName: "Outlook",
-          statusTitle: microsoftStatusTitle,
-          detail: microsoftDetail,
-          nextAction: microsoftNextAction,
-          tone: microsoftTone,
-          symbol: "mail.stack.fill",
-          fetchedCount: microsoftFetched,
-          importedCount: microsoftImported,
-          filteredCount: microsoftFiltered,
-          blockedCount: microsoftProblemCount,
-          uncertainCount: microsoftUncertain
-        )
-      ],
-      actionItems: actionItems.sorted { lhs, rhs in
-        if lhs.priority != rhs.priority {
-          return lhs.priority < rhs.priority
-        }
-        return lhs.providerName < rhs.providerName
-      }
+      providers: providerItems,
+      actionItems: sortedActionItems
     )
   }
 

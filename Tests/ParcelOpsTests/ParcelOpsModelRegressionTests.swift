@@ -4150,6 +4150,9 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
 
     XCTAssertEqual(summary.title, "Choose a mailbox provider")
     XCTAssertEqual(summary.recommendedProvider, "Add provider")
+    XCTAssertEqual(summary.activeProvider.providerName, "Mailbox")
+    XCTAssertEqual(summary.activeProvider.title, "Choose a mailbox provider")
+    XCTAssertEqual(summary.activeProvider.tone, "warning")
     XCTAssertEqual(summary.tone, "warning")
     XCTAssertEqual(summary.providers.count, 3)
     XCTAssertTrue(summary.actionItems.contains { $0.title == "Choose a mailbox provider" })
@@ -4313,6 +4316,9 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
 
     XCTAssertEqual(summary.title, "Mailbox intake is quiet")
     XCTAssertEqual(summary.recommendedProvider, "SpaceMail")
+    XCTAssertEqual(summary.activeProvider.providerName, "SpaceMail")
+    XCTAssertEqual(summary.activeProvider.title, "Monitor SpaceMail refreshes")
+    XCTAssertEqual(summary.activeProvider.tone, "success")
     XCTAssertEqual(summary.tone, "success")
     XCTAssertEqual(spaceMail?.statusTitle, "SpaceMail filtering is active")
     XCTAssertEqual(spaceMail?.fetchedCount, 10)
@@ -4451,6 +4457,9 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
 
     XCTAssertEqual(summary.title, "Mailbox setup has blockers")
     XCTAssertEqual(summary.recommendedProvider, "Gmail")
+    XCTAssertEqual(summary.activeProvider.providerName, "Gmail")
+    XCTAssertEqual(summary.activeProvider.title, "Finish Gmail setup")
+    XCTAssertEqual(summary.activeProvider.tone, "warning")
     XCTAssertEqual(summary.tone, "warning")
     XCTAssertEqual(gmail?.statusTitle, "Gmail setup or sign-in blocked")
     XCTAssertEqual(gmail?.blockedCount, 2)
