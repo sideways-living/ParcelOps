@@ -7374,7 +7374,7 @@ struct OperatorSupportSnapshotCard: View {
         ("Linked orders", "\(inboxLinkedOrderCount)", inboxLinkedOrderCount == 0 ? .orange : .green),
         ("Wishlist", "\(store.activeWishlistItemCount)", store.activeWishlistItemCount == 0 ? .secondary : .purple),
         ("Wish orders", "\(linkedWishlistOrderCount)", linkedWishlistOrderCount == 0 ? .secondary : .green),
-        ("Fetched", "\(store.latestMailboxFetchedCount)", latestSpaceMailSummary == nil && latestGmailSummary == nil ? .secondary : .blue),
+        ("Fetched", "\(store.latestMailboxFetchedCount)", latestSpaceMailSummary == nil && latestGmailSummary == nil && latestMicrosoft365Summary == nil ? .secondary : .blue),
         ("Refreshed", "\(store.latestMailboxDuplicateRefreshedCount)", (store.latestMailboxDuplicateRefreshedCount) == 0 ? .secondary : .green),
         ("Filtered", "\(store.latestMailboxFilteredCount)", (store.latestMailboxFilteredCount) == 0 ? .secondary : .teal),
         ("Uncertain", "\(store.latestMailboxUncertainCount)", (store.latestMailboxUncertainCount) == 0 ? .secondary : .orange)
@@ -7800,6 +7800,7 @@ struct OperatorHandoffBriefCard: View {
       + (latestSpaceMailSummary?.pendingUncertainReviewCount ?? 0)
       + (latestSpaceMailSummary?.parserIssueCount ?? 0)
       + (latestGmailSummary?.pendingUncertainReviewCount ?? 0)
+      + (latestMicrosoft365Summary?.pendingUncertainReviewCount ?? 0)
   }
 
   private var tone: Color {

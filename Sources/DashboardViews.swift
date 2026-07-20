@@ -2266,7 +2266,7 @@ struct DashboardView: View {
             NavigationLink {
               MailboxView(store: store)
             } label: {
-              Label(pendingSpaceMailUncertainCount + pendingGmailUncertainReviewCount > 0 ? "Review uncertain mail" : "Open Mailbox Monitor", systemImage: "server.rack")
+              Label(pendingSpaceMailUncertainCount + pendingGmailUncertainReviewCount + pendingMicrosoft365UncertainReviewCount > 0 ? "Review uncertain mail" : "Open Mailbox Monitor", systemImage: "server.rack")
             }
             NavigationLink {
               OperationsWorkbenchView(store: store)
