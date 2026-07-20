@@ -20,6 +20,7 @@ struct OperationsWorkbenchView: View {
   @State private var selectedSource: WorkbenchSource?
   @State private var workbenchSearchText = ""
   @State private var showWorkbenchProviderEvidence = false
+  @State private var developmentStatusFeedbackMessage: String?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var assignees: [String] {
@@ -120,6 +121,55 @@ struct OperationsWorkbenchView: View {
       !providerDrafts.contains(where: { $0.id == draft.id })
     }
     return Array((providerDrafts + otherDrafts).prefix(5))
+  }
+
+  private var developmentStatusTasks: [ReviewTask] {
+    store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .completed
+    }
+  }
+
+  private var developmentStatusHandoffs: [HandoffNote] {
+    store.handoffNotes.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .completed
+    }
+  }
+
+  private var developmentStatusDrafts: [DraftMessage] {
+    store.draftMessages.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .sentLocally
+    }
+  }
+
+  private var developmentStatusFollowUpCount: Int {
+    developmentStatusTasks.count + developmentStatusHandoffs.count + developmentStatusDrafts.count
+  }
+
+  private var developmentStatusWorkbenchTone: Color {
+    if developmentStatusTasks.contains(where: { $0.status == .blocked || $0.priority == .urgent || $0.priority == .high }) { return .orange }
+    if developmentStatusFollowUpCount > 0 { return .teal }
+    return .secondary
+  }
+
+  private var developmentStatusWorkbenchTitle: String {
+    if developmentStatusTasks.contains(where: { $0.status == .blocked }) { return "Development status follow-up is blocked" }
+    if !developmentStatusTasks.isEmpty { return "Development status follow-up is assigned" }
+    if !developmentStatusHandoffs.isEmpty { return "Development status handoff is active" }
+    if !developmentStatusDrafts.isEmpty { return "Development status draft is ready" }
+    return "Development status is not promoted to Workbench"
+  }
+
+  private var developmentStatusWorkbenchDetail: String {
+    if developmentStatusFollowUpCount > 0 {
+      return "Use this when app readiness itself becomes operator work. The checkpoint links to the current status task, handoff, and local draft packet."
+    }
+    return "Create a status task, handoff, or draft only when someone needs to own the current development state. Routine app status stays in Dashboard, Settings, and Audit."
   }
   private var wishlistWorkbenchItems: [WishlistItem] {
     store.wishlistTaskContextItems
@@ -795,6 +845,7 @@ struct OperationsWorkbenchView: View {
           detailWhenBusy: "Clear urgent, blocked, needs-review, and Inbox-created order work before opening advanced record queues."
         )
         releaseCandidateBlockersPanel
+        developmentStatusWorkbenchPanel
         operatorSummary
         resolutionLadderPanel
         workbenchProviderEvidencePanel
@@ -1276,6 +1327,97 @@ struct OperationsWorkbenchView: View {
           .font(.caption2)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var developmentStatusWorkbenchPanel: some View {
+    SettingsPanel(title: "Development status routing", symbol: "checkmark.seal.text.page.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: developmentStatusFollowUpCount > 0 ? "arrow.triangle.branch" : "doc.badge.plus")
+            .font(.title3)
+            .foregroundStyle(developmentStatusWorkbenchTone)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(developmentStatusWorkbenchTitle)
+              .font(.headline)
+            Text(developmentStatusWorkbenchDetail)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(developmentStatusFollowUpCount > 0 ? "\(developmentStatusFollowUpCount) active" : "Optional", color: developmentStatusWorkbenchTone)
+        }
+
+        MetricStrip(items: [
+          ("Task", "\(developmentStatusTasks.count)", developmentStatusTasks.isEmpty ? .secondary : .orange),
+          ("Handoff", "\(developmentStatusHandoffs.count)", developmentStatusHandoffs.isEmpty ? .secondary : .teal),
+          ("Draft", "\(developmentStatusDrafts.count)", developmentStatusDrafts.isEmpty ? .secondary : .blue),
+          ("Workbench", "\(defaultQueueItems.count)", defaultQueueItems.isEmpty ? .green : .orange)
+        ])
+
+        if let task = developmentStatusTasks.first {
+          CompactRow(
+            title: task.title,
+            detail: task.summary,
+            badge: task.priority.rawValue,
+            color: task.priority.color
+          )
+        } else if let handoff = developmentStatusHandoffs.first {
+          CompactRow(
+            title: handoff.title,
+            detail: handoff.summary,
+            badge: handoff.status.rawValue,
+            color: handoff.status.color
+          )
+        } else if let draft = developmentStatusDrafts.first {
+          CompactRow(
+            title: draft.subject,
+            detail: "Local development status packet. Review or copy outside ParcelOps if needed; no outbound email is sent.",
+            badge: draft.status.rawValue,
+            color: draft.status.color
+          )
+        }
+
+        CompactActionRow {
+          Button(developmentStatusTasks.isEmpty ? "Create status task" : "Refresh status task", systemImage: "checklist") {
+            store.createReviewTaskFromDevelopmentStatusCheckpoint()
+            developmentStatusFeedbackMessage = "Development status task refreshed from current local state."
+          }
+          .buttonStyle(.borderedProminent)
+
+          Button(developmentStatusHandoffs.isEmpty ? "Create handoff" : "Refresh handoff", systemImage: "arrow.left.arrow.right.square.fill") {
+            store.createHandoffNoteFromDevelopmentStatusCheckpoint()
+            developmentStatusFeedbackMessage = "Development status handoff refreshed from current local state."
+          }
+          .buttonStyle(.bordered)
+
+          Button(developmentStatusDrafts.isEmpty ? "Create status draft" : "Refresh draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessageFromDevelopmentStatusCheckpoint()
+            developmentStatusFeedbackMessage = "Development status draft refreshed locally. No outbound email was sent."
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Tasks", systemImage: "checklist")
+          }
+          .buttonStyle(.bordered)
+        }
+
+        Text("Local-only boundary: this panel reads existing app state and creates local follow-up records only. It does not run mailbox refreshes, credentials, network calls, orders, notifications, or outbound email.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        if let developmentStatusFeedbackMessage {
+          Label(developmentStatusFeedbackMessage, systemImage: "checkmark.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        }
       }
     }
   }
