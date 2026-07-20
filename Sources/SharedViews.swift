@@ -5959,6 +5959,7 @@ struct MailboxProviderQuickStatusCard: View {
   var showInboxLink = true
   var showSetupLink = true
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @State private var releaseTaskFeedback: String?
 
   private var color: Color {
     color(for: summary.tone)
@@ -6184,6 +6185,29 @@ struct MailboxProviderQuickStatusCard: View {
           }
         }
         .buttonStyle(.bordered)
+      }
+
+      if let store {
+        CompactActionRow {
+          Button("Create/refresh release QA task", systemImage: "checklist") {
+            store.createReviewTaskFromMailboxReleaseReadinessSnapshot()
+            releaseTaskFeedback = "Mailbox release readiness QA task updated. Open Tasks to assign or close it."
+          }
+
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Open Tasks", systemImage: "checklist")
+          }
+        }
+        .buttonStyle(.bordered)
+      }
+
+      if let releaseTaskFeedback {
+        Label(releaseTaskFeedback, systemImage: "checkmark.circle.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.green)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
     .padding(14)
