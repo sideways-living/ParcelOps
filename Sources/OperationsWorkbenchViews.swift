@@ -1093,7 +1093,7 @@ struct OperationsWorkbenchView: View {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 180 : 230), spacing: 10)], alignment: .leading, spacing: 10) {
             ForEach(mailboxProviderWorkbenchBreakdown, id: \.provider) { row in
               HStack(alignment: .top, spacing: 8) {
-                Image(systemName: row.provider == "Gmail" ? "envelope.badge.shield.half.filled" : "server.rack")
+                Image(systemName: mailboxProviderIcon(row.provider))
                   .foregroundStyle(row.color)
                   .frame(width: 18)
                 VStack(alignment: .leading, spacing: 3) {
@@ -1167,6 +1167,17 @@ struct OperationsWorkbenchView: View {
         }
         .buttonStyle(.bordered)
       }
+    }
+  }
+
+  private func mailboxProviderIcon(_ provider: String) -> String {
+    switch provider {
+    case "Gmail":
+      return "envelope.badge.shield.half.filled"
+    case "Microsoft 365":
+      return "mail.stack.fill"
+    default:
+      return "server.rack"
     }
   }
 
