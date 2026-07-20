@@ -2789,6 +2789,19 @@ struct SpaceMailReleaseSnapshotCard: View {
     color(for: snapshot.tone)
   }
 
+  private var activeSourceLines: (source: String, detail: String?, nextAction: String?)? {
+    let lines = snapshot.reportText.components(separatedBy: .newlines)
+    guard let sourceLine = lines.first(where: { $0.hasPrefix("Active intake source: ") }) else {
+      return nil
+    }
+    let source = sourceLine.replacingOccurrences(of: "Active intake source: ", with: "")
+    let detail = lines.first(where: { $0.hasPrefix("Active source detail: ") })?
+      .replacingOccurrences(of: "Active source detail: ", with: "")
+    let nextAction = lines.first(where: { $0.hasPrefix("Active source next action: ") })?
+      .replacingOccurrences(of: "Active source next action: ", with: "")
+    return (source, detail, nextAction)
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .top, spacing: 10) {
@@ -2859,6 +2872,39 @@ struct SpaceMailReleaseSnapshotCard: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+      }
+
+      if let activeSourceLines {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: "point.3.connected.trianglepath.dotted")
+            .foregroundStyle(color)
+            .frame(width: 22)
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Active mailbox path")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            Text(activeSourceLines.source)
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(color)
+              .fixedSize(horizontal: false, vertical: true)
+            if let detail = activeSourceLines.detail, !detail.isEmpty {
+              Text(detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            if let nextAction = activeSourceLines.nextAction, !nextAction.isEmpty {
+              Text("Next: \(nextAction)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(color)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
       }
 
       VStack(alignment: .leading, spacing: 6) {
