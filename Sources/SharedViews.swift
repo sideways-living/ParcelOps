@@ -6189,6 +6189,11 @@ struct MailboxProviderQuickStatusCard: View {
 
       if let store {
         CompactActionRow {
+          Button("Record readiness checkpoint", systemImage: "checkmark.seal.fill") {
+            store.recordMailboxProviderReadinessCheckpoint()
+            releaseTaskFeedback = "Mailbox provider readiness checkpoint recorded in Audit."
+          }
+
           Button("Create/refresh release QA task", systemImage: "checklist") {
             store.createReviewTaskFromMailboxReleaseReadinessSnapshot()
             releaseTaskFeedback = "Mailbox release readiness QA task updated. Open Tasks to assign or close it."
