@@ -1672,6 +1672,12 @@ struct DashboardView: View {
           }
           .buttonStyle(.borderedProminent)
           .help("Records a local Audit snapshot of current app completeness and next work. It does not run refreshes or contact services.")
+          Button("Create status task", systemImage: "checklist") {
+            store.createReviewTaskFromDevelopmentStatusCheckpoint()
+            feedbackMessage = "Development status follow-up task created or refreshed. Check Tasks."
+          }
+          .buttonStyle(.bordered)
+          .help("Creates or refreshes one local follow-up task from current app readiness gaps.")
           NavigationLink {
             dailyRouteDestination(for: recommendedDailySection)
           } label: {
@@ -3494,6 +3500,12 @@ private struct DashboardReleaseCandidateQACard: View {
         Button("Record status checkpoint", systemImage: "list.clipboard.fill") {
           store.recordDevelopmentStatusCheckpoint()
           feedbackMessage = "Development status checkpoint recorded in Audit."
+        }
+        .buttonStyle(.bordered)
+
+        Button("Create status task", systemImage: "checklist") {
+          store.createReviewTaskFromDevelopmentStatusCheckpoint()
+          feedbackMessage = "Development status follow-up task created or refreshed. Check Tasks."
         }
         .buttonStyle(.bordered)
 

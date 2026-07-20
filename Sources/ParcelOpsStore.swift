@@ -15225,6 +15225,110 @@ final class ParcelOpsStore {
     )
   }
 
+  func createReviewTaskFromDevelopmentStatusCheckpoint() {
+    let comparison = mailboxProviderComparisonSummary
+    let gate = mailboxProviderReleaseGateSummary
+    let wishlist = wishlistAgentReadinessSummary
+    let openTaskAndHandoffCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let parserDiagnosticCount = intakeParserDiagnostics.count
+    let incompleteGateLines = gate.gates.filter { !$0.isPassed }.prefix(8).map { gate in
+      "\(gate.title): \(gate.nextAction)"
+    }
+    let providerActionLines = comparison.actionItems.prefix(8).map { item in
+      "\(item.priority). \(item.providerName): \(item.title). \(item.detail)"
+    }
+    let wishlistActionLines = wishlist.items.filter { $0.tone != "success" }.prefix(8).map { item in
+      "\(item.title): \(item.status). Next: \(item.nextAction)"
+    }
+
+    let title: String
+    let priority: TaskPriority
+    var nextActions: [String] = []
+    if mailboxProviderSetupCount == 0 {
+      title = "Finish ParcelOps mailbox provider setup"
+      priority = .high
+      nextActions.append("Configure the active mailbox provider path in Settings or Mailbox Monitor.")
+    } else if mailboxManualRefreshCount == 0 {
+      title = "Prove first ParcelOps live mailbox refresh"
+      priority = .high
+      nextActions.append("Run one explicit read-only mailbox refresh and inspect the refresh summary.")
+    } else if inboxCreatedOrderCount == 0 {
+      title = "Prove ParcelOps Inbox-to-order handoff"
+      priority = .normal
+      nextActions.append("Create or link one clean Inbox row to an order, then confirm Orders, Workbench, Tasks, Dispatch, and Audit show the handoff.")
+    } else if parserDiagnosticCount > 0 || openTaskAndHandoffCount > 0 {
+      title = "Clear ParcelOps MVP follow-up queue"
+      priority = .normal
+      nextActions.append("Review parser diagnostics, open tasks, handoff notes, and release-gate gaps before the next hands-on pass.")
+    } else {
+      title = "Confirm ParcelOps hands-on MVP pass"
+      priority = .low
+      nextActions.append("Run a hands-on pass from Dashboard through Audit and record only real operator friction.")
+    }
+
+    if !providerActionLines.isEmpty {
+      nextActions.append("Provider actions: \(providerActionLines.joined(separator: " | "))")
+    }
+    if !incompleteGateLines.isEmpty {
+      nextActions.append("Release gates: \(incompleteGateLines.joined(separator: " | "))")
+    }
+    if !wishlistActionLines.isEmpty {
+      nextActions.append("Wishlist actions: \(wishlistActionLines.joined(separator: " | "))")
+    }
+
+    let taskSummary = [
+      "Development status follow-up generated from current local state.",
+      "Provider summary: \(comparison.title). \(comparison.detail)",
+      "Recommended provider: \(comparison.recommendedProvider)",
+      "Counts: \(mailboxProviderSetupCount) providers, \(mailboxManualRefreshCount) manual refreshes, \(latestMailboxImportedCount) latest imports, \(latestMailboxFilteredCount) latest filtered, \(latestMailboxUncertainCount) latest uncertain, \(inboxCreatedOrderCount) Inbox-created orders, \(parserDiagnosticCount) parser diagnostics, \(openTaskAndHandoffCount) open task/handoff items, \(activeWishlistItemCount) active Wishlist items.",
+      "Next actions: \(nextActions.joined(separator: "\n"))",
+      "Boundary: This task is local-only. It does not run mailbox refreshes, read credentials, request tokens, call external services, create orders, send email, create notifications, compare retailers, purchase items, or mutate mailbox messages."
+    ].joined(separator: "\n")
+
+    if let existingIndex = reviewTasks.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .completed
+    }) {
+      let beforeDetail = reviewTasks[existingIndex].auditDetail
+      reviewTasks[existingIndex].title = title
+      reviewTasks[existingIndex].summary = taskSummary
+      reviewTasks[existingIndex].priority = priority
+      reviewTasks[existingIndex].dueDate = priority == .high ? "Today" : "Tomorrow"
+      reviewTasks[existingIndex].assignee = "ParcelOps Operations"
+      reviewTasks[existingIndex].reviewState = .needsReview
+      persistReviewTasks()
+      logAudit(
+        action: .edited,
+        entityType: .reviewTask,
+        entityID: reviewTasks[existingIndex].id.uuidString,
+        entityLabel: reviewTasks[existingIndex].title,
+        summary: "Existing development status follow-up task refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(reviewTasks[existingIndex].auditDetail)\nRefreshed from current development status checkpoint. No duplicate task was created."
+      )
+      return
+    }
+
+    let task = ReviewTask(
+      title: title,
+      summary: taskSummary,
+      linkedEntityType: .integration,
+      linkedEntityID: "development-status-checkpoint",
+      priority: priority,
+      dueDate: priority == .high ? "Today" : "Tomorrow",
+      assignee: "ParcelOps Operations",
+      status: .open,
+      createdDate: Self.auditTimestamp(),
+      completedDate: nil,
+      reviewState: .needsReview
+    )
+    addReviewTask(
+      task,
+      summary: "Review task created from development status checkpoint."
+    )
+  }
+
   func createReviewTaskFromMailboxProviderTroubleshooting() {
     let troubleshooting = mailboxProviderTroubleshootingSummary
     let taskPriority: TaskPriority

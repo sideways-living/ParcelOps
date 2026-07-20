@@ -8328,16 +8328,23 @@ struct SettingsView: View {
           ("Audit", "\(store.auditEvents.count)", store.auditEvents.isEmpty ? .secondary : .teal)
         ])
 
-        HStack(alignment: .top, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
           Label("Need a current answer on app completeness?", systemImage: "checkmark.seal.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.teal)
-          Spacer(minLength: 8)
-          Button {
-            store.recordDevelopmentStatusCheckpoint()
-            settingsFeedbackMessage = "Development status checkpoint recorded in Audit."
-          } label: {
-            Label("Record status checkpoint", systemImage: "list.clipboard.fill")
+          CompactActionRow {
+            Button {
+              store.recordDevelopmentStatusCheckpoint()
+              settingsFeedbackMessage = "Development status checkpoint recorded in Audit."
+            } label: {
+              Label("Record status checkpoint", systemImage: "list.clipboard.fill")
+            }
+            Button {
+              store.createReviewTaskFromDevelopmentStatusCheckpoint()
+              settingsFeedbackMessage = "Development status follow-up task created or refreshed."
+            } label: {
+              Label("Create follow-up task", systemImage: "checklist")
+            }
           }
           .buttonStyle(.borderedProminent)
         }
