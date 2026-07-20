@@ -174,7 +174,7 @@ struct CustomerProfilesView: View {
   private var gmailProfileReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox profile evidence",
-      detail: "Open provider release evidence only when profile coverage depends on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when profile coverage depends on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(

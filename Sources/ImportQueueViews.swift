@@ -293,7 +293,7 @@ struct ImportQueueView: View {
 
         CollapsedProviderEvidencePanel(
           title: "Mailbox staging evidence",
-          detail: "Provider setup, source counts, and local-only boundaries for Gmail and Outlook import staging.",
+          detail: "Provider setup, source counts, and local-only boundaries for mailbox providers import staging.",
           symbol: "tray.full.fill"
         ) {
           GmailReleaseBoundaryPanel(

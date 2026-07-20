@@ -116,7 +116,7 @@ struct TrackingView: View {
   private var gmailTrackingReleaseBoundary: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox tracking evidence",
-      detail: "Provider setup, source counts, and local-only boundaries for Gmail and Outlook tracking intake.",
+      detail: "Provider setup, source counts, and local-only boundaries for mailbox providers tracking intake.",
       symbol: "point.3.connected.trianglepath.dotted"
     ) {
       GmailReleaseBoundaryPanel(

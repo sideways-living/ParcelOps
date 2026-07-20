@@ -109,7 +109,7 @@ struct ContactsView: View {
   private var gmailContactReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox contact evidence",
-      detail: "Open provider release evidence only when contact follow-up depends on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when contact follow-up depends on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(

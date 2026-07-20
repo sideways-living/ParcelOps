@@ -159,7 +159,7 @@ struct DestinationAddressesView: View {
   private var gmailAddressReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox destination evidence",
-      detail: "Open provider release evidence only when destination readiness depends on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when destination readiness depends on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(

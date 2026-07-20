@@ -183,7 +183,7 @@ struct DeliveryInstructionsView: View {
   private var gmailInstructionReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox delivery evidence",
-      detail: "Open provider release evidence only when delivery instructions depend on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when delivery instructions depend on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(

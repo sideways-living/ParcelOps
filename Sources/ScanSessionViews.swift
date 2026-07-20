@@ -282,7 +282,7 @@ struct ScanSessionsView: View {
   private var gmailScanReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox scan evidence",
-      detail: "Open provider release evidence only when scan readiness depends on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when scan readiness depends on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(

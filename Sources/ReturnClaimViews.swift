@@ -296,7 +296,7 @@ struct ReturnsClaimsView: View {
   private var gmailReturnClaimReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox return and claim evidence",
-      detail: "Open provider release evidence only when return, refund, or claim work depends on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when return, refund, or claim work depends on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(

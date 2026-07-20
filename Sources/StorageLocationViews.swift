@@ -293,7 +293,7 @@ struct StorageLocationsView: View {
   private var gmailStorageReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox storage evidence",
-      detail: "Open provider release evidence only when storage readiness depends on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when storage readiness depends on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(

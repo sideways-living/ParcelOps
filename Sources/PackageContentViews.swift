@@ -174,7 +174,7 @@ struct PackageContentsView: View {
   private var gmailPackageContentReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox content evidence",
-      detail: "Open provider release evidence only when package content readiness depends on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when package content readiness depends on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(

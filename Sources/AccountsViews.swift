@@ -187,7 +187,7 @@ struct AccountsView: View {
   private var gmailAccountReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox account evidence",
-      detail: "Open provider release evidence only when account placeholder coverage depends on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when account placeholder coverage depends on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(

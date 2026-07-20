@@ -314,7 +314,7 @@ struct CostsBudgetsView: View {
   private var gmailCostReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox cost evidence",
-      detail: "Open provider release evidence only when cost, budget, or reimbursement work depends on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when cost, budget, or reimbursement work depends on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(

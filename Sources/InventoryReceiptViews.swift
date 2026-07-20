@@ -294,7 +294,7 @@ struct InventoryReceiptsView: View {
   private var gmailInventoryReceiptReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox inventory evidence",
-      detail: "Open provider release evidence only when inventory receipt or handoff work depends on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when inventory receipt or handoff work depends on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(

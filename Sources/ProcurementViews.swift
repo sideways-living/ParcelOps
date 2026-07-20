@@ -299,7 +299,7 @@ struct ProcurementView: View {
   private var gmailProcurementReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox procurement evidence",
-      detail: "Open provider release evidence only when procurement work depends on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when procurement work depends on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(

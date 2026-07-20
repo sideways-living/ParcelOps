@@ -298,7 +298,7 @@ struct CustodyChainView: View {
   private var gmailCustodyReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox custody evidence",
-      detail: "Open provider release evidence only when custody work depends on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when custody work depends on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(

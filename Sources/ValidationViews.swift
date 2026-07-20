@@ -173,7 +173,7 @@ struct ValidationView: View {
   private var gmailValidationReleaseBoundary: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox validation evidence",
-      detail: "Provider setup, source counts, and local-only boundaries for Gmail and Outlook validation checks.",
+      detail: "Provider setup, source counts, and local-only boundaries for mailbox providers validation checks.",
       symbol: "checkmark.shield.fill"
     ) {
       GmailReleaseBoundaryPanel(

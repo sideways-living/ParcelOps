@@ -791,7 +791,7 @@ struct InboxView: View {
           VStack(alignment: .leading, spacing: 4) {
             Text(showInboxGmailReleaseEvidence ? "Hide provider release evidence" : "Show provider release evidence")
               .font(.caption.weight(.semibold))
-            Text("Open only when validating Gmail or Outlook setup, classifier review, Inbox handoff, and audit evidence.")
+            Text("Open only when validating SpaceMail, Gmail, or Outlook setup, classifier review, Inbox handoff, and audit evidence.")
               .font(.caption2)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)

@@ -164,7 +164,7 @@ struct VendorProfilesView: View {
   private var gmailVendorReadinessPanel: some View {
     CollapsedProviderEvidencePanel(
       title: "Mailbox vendor evidence",
-      detail: "Open provider release evidence only when vendor profile readiness depends on Gmail or Outlook source trails."
+      detail: "Open provider release evidence only when vendor profile readiness depends on mailbox provider source trails."
     ) {
       VStack(alignment: .leading, spacing: 10) {
         GmailReleaseBoundaryPanel(
