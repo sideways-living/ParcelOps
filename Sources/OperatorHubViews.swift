@@ -333,7 +333,7 @@ struct InboxView: View {
 
   private var inboxSummaryTone: Color {
     if blockedIncomingCount > 0 { return .orange }
-    if readyAcceptanceCount > 0 || !triageItems.isEmpty || uncertainSpaceMailCount + uncertainGmailCount > 0 { return .teal }
+    if readyAcceptanceCount > 0 || !triageItems.isEmpty || uncertainSpaceMailCount + uncertainGmailCount + uncertainMicrosoft365Count > 0 { return .teal }
     if parserIssueCount > 0 { return .orange }
     return .green
   }
@@ -341,7 +341,7 @@ struct InboxView: View {
   private var inboxSummaryTitle: String {
     if blockedIncomingCount > 0 { return "Clear blocked incoming records" }
     if readyAcceptanceCount > 0 { return "Accept or link ready intake" }
-    if uncertainSpaceMailCount + uncertainGmailCount > 0 { return "Review uncertain mailbox messages" }
+    if uncertainSpaceMailCount + uncertainGmailCount + uncertainMicrosoft365Count > 0 { return "Review uncertain mailbox messages" }
     if !triageItems.isEmpty { return "Work the triage queue" }
     if parserIssueCount > 0 { return "Parser diagnostics are available" }
     return "Inbox is clear"
@@ -354,7 +354,7 @@ struct InboxView: View {
     if readyAcceptanceCount > 0 {
       return "Acceptance rows are closest to becoming operational records. Link to an existing order or create a new local order."
     }
-    if uncertainSpaceMailCount + uncertainGmailCount > 0 {
+    if uncertainSpaceMailCount + uncertainGmailCount + uncertainMicrosoft365Count > 0 {
       return "Uncertain mixed-mailbox messages stay out of Inbox until you explicitly import or dismiss them in Mailbox Monitor."
     }
     if !triageItems.isEmpty {

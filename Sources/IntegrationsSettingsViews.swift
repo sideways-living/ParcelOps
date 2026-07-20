@@ -440,7 +440,7 @@ struct IntegrationsView: View {
         VStack(alignment: .leading, spacing: 10) {
           Text("Local source setup")
             .font(isCompact ? .title2.bold() : .title.bold())
-          Text("SpaceMail IMAP and Gmail are the current manual read-only mailbox paths. Shopify, folders, logins, and Outlook / Microsoft 365 remain setup or planning surfaces unless explicitly enabled.")
+          Text("SpaceMail IMAP, Gmail, and Outlook / Microsoft 365 are explicit manual read-only mailbox paths. Shopify, folders, store logins, notifications, and background sync remain planning surfaces.")
             .font(.callout)
             .foregroundStyle(.secondary)
           CompactActionRow {

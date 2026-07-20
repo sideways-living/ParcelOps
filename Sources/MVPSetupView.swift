@@ -660,7 +660,7 @@ struct MVPNextDevelopmentPrioritiesPanel: View {
           )
           priorityBlock(
             title: "3. Harden intake parsing",
-            detail: "Use saved diagnostics, classifier tests, uncertain examples, and local hints to improve real mixed-mailbox intake for SpaceMail and Gmail without external AI or mailbox mutation.",
+            detail: "Use saved diagnostics, classifier tests, uncertain examples, and local hints to improve real mixed-mailbox intake for SpaceMail, Gmail, and Outlook without external AI or mailbox mutation.",
             symbol: "text.magnifyingglass",
             color: .purple
           )
