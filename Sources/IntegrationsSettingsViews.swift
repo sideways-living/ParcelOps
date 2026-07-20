@@ -561,7 +561,7 @@ struct IntegrationsView: View {
             VStack(alignment: .leading, spacing: 8) {
               Label("Choose the mailbox provider path", systemImage: "point.3.connected.trianglepath.dotted")
                 .font(.subheadline.weight(.semibold))
-              Text("Use one provider path per mailbox. SpaceMail/IMAP and Gmail are the practical daily paths; Outlook / Microsoft 365 remains available only when a mailbox is actually hosted there.")
+              Text("Use one provider path per mailbox. SpaceMail/IMAP, Gmail, and Outlook / Microsoft 365 are practical manual paths only when the mailbox is actually hosted by that provider.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -692,7 +692,7 @@ struct IntegrationsView: View {
             MailboxProviderOperatorReadinessStack(
               store: store,
               title: "Provider readiness for setup decisions",
-              detail: "Use this shared summary to choose the current live mailbox path. Open advanced evidence only when setup, release gates, Gmail, SpaceMail, or parser behavior needs investigation.",
+              detail: "Use this shared summary to choose the current live mailbox path. Open advanced evidence only when setup, release gates, SpaceMail, Gmail, Outlook, or parser behavior needs investigation.",
               showHandoffPacket: true
             )
 

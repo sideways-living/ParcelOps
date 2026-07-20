@@ -708,6 +708,7 @@ struct DashboardView: View {
             || note.notes.localizedCaseInsensitiveContains("mailbox")
             || store.spaceMailIMAPConnections.contains { note.linkedEntityID == $0.id.uuidString }
             || store.gmailMailboxConnections.contains { note.linkedEntityID == $0.id.uuidString }
+            || store.microsoft365MailboxConnections.contains { note.linkedEntityID == $0.id.uuidString }
         )
     }
   }
@@ -721,7 +722,7 @@ struct DashboardView: View {
     openMailboxAssignedTasks.count + openMailboxAssignedHandoffs.count
   }
   private var mailboxFollowUpNeedsDashboardAttention: Bool {
-    mailboxAssignedFollowUpCount > 0 || pendingSpaceMailUncertainCount > 0 || pendingGmailUncertainReviewCount > 0
+    mailboxAssignedFollowUpCount > 0 || pendingSpaceMailUncertainCount > 0 || pendingGmailUncertainReviewCount > 0 || pendingMicrosoft365UncertainReviewCount > 0
   }
   private var spaceMailParserSuiteResults: [SpaceMailClassifierTestResult] {
     store.spaceMailIMAPConnections.flatMap(\.classifierTestResults)

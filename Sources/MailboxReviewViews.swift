@@ -769,7 +769,7 @@ struct MailboxView: View {
             SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
             MailboxProviderPostRefreshDisclosure(
               title: "Provider refresh follow-up",
-              detail: "Open this for handoff notes, Gmail/SpaceMail follow-up, and release evidence. The summary above is enough for normal mailbox review.",
+              detail: "Open this for handoff notes, SpaceMail/Gmail/Outlook follow-up, and release evidence. The summary above is enough for normal mailbox review.",
               symbol: "tray.and.arrow.down.fill",
               tone: latestMailboxUncertainCount == 0 && latestMailboxFilteredCount == 0 ? .teal : .orange,
               statusLabel: "Evidence"
@@ -4801,7 +4801,7 @@ struct NeedsReviewView: View {
         if showsForwardedEmails {
           SettingsPanel(title: "Forwarded emails", symbol: "envelope.open.fill") {
             if store.reviewIntakeEmails.isEmpty {
-              MVPEmptyState(title: "No forwarded emails need review", detail: "Order-related messages imported from SpaceMail, Gmail, or simulated intake will appear here until reviewed, linked, ignored, or converted into an order.", symbol: "envelope.open.fill")
+              MVPEmptyState(title: "No forwarded emails need review", detail: "Order-related messages imported from SpaceMail, Gmail, Outlook, or simulated intake will appear here until reviewed, linked, ignored, or converted into an order.", symbol: "envelope.open.fill")
             } else {
               ForEach(store.reviewIntakeEmails) { email in
                 IntakeEmailRow(email: email, store: store, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), destinationAddresses: store.suggestedDestinationAddresses(for: email), deliveryInstructions: store.suggestedDeliveryInstructions(for: email), packageContents: store.suggestedPackageContents(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in

@@ -1617,7 +1617,7 @@ struct MVPDevelopmentProgressPanel: View {
       ("Run one focused QA pass", "Dashboard -> Mailbox Monitor -> Inbox -> Orders -> Workbench -> Dispatch -> Tasks -> Audit.", "checklist.checked"),
       ("Use one known test order", "Keep a single clean intake email as the baseline for parser, order creation, and dispatch handoff checks.", "envelope.open.fill"),
       ("Clear old noise after testing", "Review or ignore obsolete intake/parser rows so progress counts reflect current behaviour.", "trash.slash.fill"),
-      ("Delay new integrations", "Do Gmail/SpaceMail hardening before Shopify, carrier APIs, outbound email, OCR, notifications, or background work.", "pause.circle.fill")
+      ("Delay new integrations", "Harden SpaceMail, Gmail, and Outlook mailbox intake before Shopify, carrier APIs, outbound email, OCR, notifications, or background work.", "pause.circle.fill")
     ]
   }
 
