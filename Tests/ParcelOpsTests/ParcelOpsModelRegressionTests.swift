@@ -5078,6 +5078,9 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     let initialSnapshot = store.mailboxReleaseReadinessSnapshot
     XCTAssertTrue(initialSnapshot.reportText.contains("Release task gate: open task needed"))
     XCTAssertTrue(initialSnapshot.reportText.contains("Open mailbox release readiness tasks: 0"))
+    XCTAssertTrue(initialSnapshot.reportText.contains("Active intake source:"))
+    XCTAssertTrue(initialSnapshot.reportText.contains("Active source detail:"))
+    XCTAssertTrue(initialSnapshot.reportText.contains("Active source next action:"))
     XCTAssertEqual(initialSnapshot.metrics.first { $0.title == "Release task" }?.value, "0")
     XCTAssertEqual(initialSnapshot.metrics.first { $0.title == "Release task" }?.tone, "attention")
 
