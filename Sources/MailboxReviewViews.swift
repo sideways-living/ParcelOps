@@ -504,6 +504,8 @@ struct MailboxView: View {
 
         MailboxReviewStartPanel(store: store)
 
+        IntakeParserRegressionPanel(store: store)
+
         wishlistOrderWatchPanel
 
         advancedMailboxEvidencePanel
@@ -1882,6 +1884,108 @@ private struct MailboxReviewStartPanel: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
     }
+  }
+}
+
+private struct IntakeParserRegressionPanel: View {
+  var store: ParcelOpsStore
+
+  private var results: [IntakeParserRegressionResult] {
+    store.intakeParserRegressionResults
+  }
+
+  private var passed: Int {
+    results.filter(\.passed).count
+  }
+
+  private var failed: [IntakeParserRegressionResult] {
+    results.filter { !$0.passed }
+  }
+
+  private var tone: Color {
+    failed.isEmpty ? .green : .orange
+  }
+
+  var body: some View {
+    SettingsPanel(title: "Intake parser check", symbol: "number.square.fill") {
+      HStack(alignment: .top, spacing: 10) {
+        Image(systemName: failed.isEmpty ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+          .foregroundStyle(tone)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(failed.isEmpty ? "Order and tracking extraction checks pass" : "Parser samples need review")
+            .font(.headline)
+          Text("This local check runs fixed sample subjects and previews through the same parser used by SpaceMail, Gmail, and Outlook intake. It does not fetch mail or import rows.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer()
+        Badge("\(passed)/\(results.count) passed", color: tone)
+      }
+
+      MetricStrip(items: [
+        ("Samples", "\(results.count)", .blue),
+        ("Passed", "\(passed)", failed.isEmpty ? .green : .teal),
+        ("Needs review", "\(failed.count)", failed.isEmpty ? .green : .orange)
+      ])
+
+      CompactActionRow {
+        Button("Log parser check", systemImage: "list.clipboard.fill") {
+          store.logIntakeParserRegressionCheck()
+        }
+        .buttonStyle(.bordered)
+
+        if !failed.isEmpty {
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Open Audit", systemImage: "list.clipboard")
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        ForEach(Array(results.enumerated()), id: \.element.id) { _, result in
+          IntakeParserRegressionResultRow(result: result)
+        }
+      }
+    }
+  }
+}
+
+private struct IntakeParserRegressionResultRow: View {
+  var result: IntakeParserRegressionResult
+
+  private var tone: Color {
+    result.passed ? .green : .orange
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text(result.sampleName)
+          .font(.caption.weight(.semibold))
+        Spacer()
+        Badge(result.status, color: tone)
+      }
+      Text(result.subjectPreview)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      CompactMetadataGrid(minimumWidth: 130) {
+        Badge("Order: \(result.detectedOrderNumber)", color: result.detectedOrderNumber.isPlaceholderValidationValue ? .secondary : .blue)
+        Badge("Tracking: \(result.detectedTrackingNumber)", color: result.detectedTrackingNumber.isPlaceholderValidationValue ? .secondary : .purple)
+        Badge("Merchant: \(result.detectedMerchant)", color: .secondary)
+      }
+      Text(result.detail)
+        .font(.caption2)
+        .foregroundStyle(result.passed ? Color.secondary : Color.orange)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(8)
+    .background(tone.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

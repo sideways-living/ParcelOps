@@ -653,6 +653,26 @@ struct IntakeParserDiagnostic: Identifiable, Hashable {
   var nextStepLabels: [String]
 }
 
+struct IntakeParserRegressionResult: Identifiable, Hashable {
+  var id: String
+  var sampleName: String
+  var subjectPreview: String
+  var expectedOrderNumber: String?
+  var detectedOrderNumber: String
+  var expectedTrackingNumber: String?
+  var detectedTrackingNumber: String
+  var expectedMerchant: String?
+  var detectedMerchant: String
+  var expectedDestination: String?
+  var detectedDestination: String
+  var status: String
+  var detail: String
+
+  var passed: Bool {
+    status.localizedCaseInsensitiveContains("passed")
+  }
+}
+
 struct SpaceMailIMAPFetchResult: Hashable {
   var status: SpaceMailIMAPFetchStatus
   var messages: [FetchedMailboxMessage]

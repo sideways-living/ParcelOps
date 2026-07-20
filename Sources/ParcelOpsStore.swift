@@ -12844,6 +12844,51 @@ final class ParcelOpsStore {
     )
   }
 
+  var intakeParserRegressionResults: [IntakeParserRegressionResult] {
+    intakeParserRegressionSamples().map { sample in
+      let parsed = makeForwardedEmailIntake(from: sample.message)
+      return intakeParserRegressionResult(
+        id: sample.id,
+        sampleName: sample.name,
+        message: sample.message,
+        parsed: parsed,
+        expectedOrderNumber: sample.expectedOrderNumber,
+        expectedTrackingNumber: sample.expectedTrackingNumber,
+        expectedMerchant: sample.expectedMerchant,
+        expectedDestination: sample.expectedDestination
+      )
+    }
+  }
+
+  var intakeParserRegressionPassedCount: Int {
+    intakeParserRegressionResults.filter(\.passed).count
+  }
+
+  func logIntakeParserRegressionCheck() {
+    let results = intakeParserRegressionResults
+    let passed = results.filter(\.passed).count
+    let failed = results.count - passed
+    let detail = results.map { result in
+      [
+        "\(result.sampleName): \(result.status)",
+        "subject \(result.subjectPreview)",
+        "order \(result.detectedOrderNumber)",
+        "tracking \(result.detectedTrackingNumber)",
+        "merchant \(result.detectedMerchant)",
+        "destination \(result.detectedDestination)",
+        result.detail
+      ].joined(separator: " | ")
+    }.joined(separator: "\n")
+    logAudit(
+      action: .evaluated,
+      entityType: .intakeEmail,
+      entityID: "local-intake-parser-regression",
+      entityLabel: "Intake parser regression",
+      summary: "Local intake parser regression checked: \(passed)/\(results.count) passed.",
+      afterDetail: "Passed: \(passed)\nFailed: \(failed)\n\(detail)\nNo mailbox fetch, provider sign-in, password read, token access, external service call, Inbox import, duplicate metadata change, or mailbox mutation occurred."
+    )
+  }
+
   private func intakeParserDiagnostic(for email: ForwardedEmailIntake) -> IntakeParserDiagnostic? {
     let combinedText = "\(email.subject)\n\(email.rawBodyPreview)"
     let reprocessed = reprocessedIntakeEmail(from: email)
@@ -13014,6 +13059,153 @@ final class ParcelOpsStore {
       }
     }
     return "Tracking number needs review"
+  }
+
+  private func intakeParserRegressionSamples() -> [(id: String, name: String, expectedOrderNumber: String?, expectedTrackingNumber: String?, expectedMerchant: String?, expectedDestination: String?, message: FetchedMailboxMessage)] {
+    let mailboxID = UUID(uuidString: "00000000-0000-0000-0000-000000000123") ?? UUID()
+    return [
+      (
+        "clear-order-shipped",
+        "Clear order shipped tracking",
+        "TEST-123",
+        "ABC123",
+        nil,
+        nil,
+        FetchedMailboxMessage(
+          providerMessageID: "local-parser-clear-order-shipped",
+          sender: "orders@example-shop.test",
+          subject: "Order TEST-123 shipped tracking ABC123",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Order TEST-123 shipped tracking ABC123",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
+        "order-number-label",
+        "Labelled order number",
+        "AUS-9981",
+        "1Z999AA10123456784",
+        nil,
+        "Brisbane QLD",
+        FetchedMailboxMessage(
+          providerMessageID: "local-parser-labelled-order",
+          sender: "dispatch@retailer.test",
+          subject: "Your order number AUS-9981 has dispatched",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Tracking number: 1Z999AA10123456784. Deliver to Brisbane QLD.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
+        "refund-with-order",
+        "Refund with order reference",
+        "REF-8821",
+        nil,
+        nil,
+        nil,
+        FetchedMailboxMessage(
+          providerMessageID: "local-parser-refund-order",
+          sender: "support@example-shop.test",
+          subject: "Refund request for order REF-8821",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Customer requested refund for order REF-8821 after delivery issue.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
+        "tracking-only-update",
+        "Tracking-only carrier update",
+        nil,
+        "ZXCV123456789",
+        nil,
+        nil,
+        FetchedMailboxMessage(
+          providerMessageID: "local-parser-tracking-only",
+          sender: "tracking@example-carrier.test",
+          subject: "Tracking update ZXCV123456789",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Shipment tracking number ZXCV123456789 is in transit.",
+          sourceMailboxID: mailboxID
+        )
+      ),
+      (
+        "encoded-subject",
+        "Decoded subject reminder",
+        nil,
+        nil,
+        nil,
+        nil,
+        FetchedMailboxMessage(
+          providerMessageID: "local-parser-marketing-subject",
+          sender: "offers@example-shop.test",
+          subject: "Final Days",
+          receivedDate: Self.auditTimestamp(),
+          plainTextBodyPreview: "Final days to get free delivery. No order or tracking number is present.",
+          sourceMailboxID: mailboxID
+        )
+      )
+    ]
+  }
+
+  private func intakeParserRegressionResult(
+    id: String,
+    sampleName: String,
+    message: FetchedMailboxMessage,
+    parsed: ForwardedEmailIntake,
+    expectedOrderNumber: String?,
+    expectedTrackingNumber: String?,
+    expectedMerchant: String?,
+    expectedDestination: String?
+  ) -> IntakeParserRegressionResult {
+    var failures: [String] = []
+    if let expectedOrderNumber {
+      if parsed.detectedOrderNumber.normalizedValidationKey != expectedOrderNumber.normalizedValidationKey {
+        failures.append("order expected \(expectedOrderNumber), got \(parsed.detectedOrderNumber)")
+      }
+    } else if !parsed.detectedOrderNumber.isPlaceholderValidationValue {
+      failures.append("order should stay empty, got \(parsed.detectedOrderNumber)")
+    }
+
+    if let expectedTrackingNumber {
+      if parsed.detectedTrackingNumber.normalizedValidationKey != expectedTrackingNumber.normalizedValidationKey {
+        failures.append("tracking expected \(expectedTrackingNumber), got \(parsed.detectedTrackingNumber)")
+      }
+    } else if !parsed.detectedTrackingNumber.isPlaceholderValidationValue {
+      failures.append("tracking should stay empty, got \(parsed.detectedTrackingNumber)")
+    }
+
+    if let expectedMerchant,
+       parsed.detectedMerchant.normalizedValidationKey != expectedMerchant.normalizedValidationKey {
+      failures.append("merchant expected \(expectedMerchant), got \(parsed.detectedMerchant)")
+    }
+
+    if let expectedDestination,
+       !parsed.detectedDestinationAddress.localizedCaseInsensitiveContains(expectedDestination) {
+      failures.append("destination expected \(expectedDestination), got \(parsed.detectedDestinationAddress)")
+    }
+
+    let status = failures.isEmpty ? "Passed" : "Needs review"
+    let expectations = [
+      expectedOrderNumber.map { "order \($0)" } ?? "no order expected",
+      expectedTrackingNumber.map { "tracking \($0)" } ?? "no tracking expected",
+      expectedDestination.map { "destination \($0)" } ?? nil
+    ].compactMap(\.self).joined(separator: ", ")
+
+    return IntakeParserRegressionResult(
+      id: id,
+      sampleName: sampleName,
+      subjectPreview: safeAuditPreview(message.subject, limit: 120),
+      expectedOrderNumber: expectedOrderNumber,
+      detectedOrderNumber: parsed.detectedOrderNumber,
+      expectedTrackingNumber: expectedTrackingNumber,
+      detectedTrackingNumber: parsed.detectedTrackingNumber,
+      expectedMerchant: expectedMerchant,
+      detectedMerchant: parsed.detectedMerchant,
+      expectedDestination: expectedDestination,
+      detectedDestination: parsed.detectedDestinationAddress,
+      status: status,
+      detail: failures.isEmpty ? "Expected \(expectations)." : failures.joined(separator: "; ")
+    )
   }
 
   private func detectedDestinationAddress(in text: String) -> String {
