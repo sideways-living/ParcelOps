@@ -320,6 +320,94 @@ final class ParcelOpsModelRegressionTests: XCTestCase {
     })
   }
 
+  func testGmailReleaseSelfCheckPromotesSetupAndSignInBlockers() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let connection = makeGmailConnection(
+      oauthReadinessStatus: "Needs setup",
+      credentialStorageStatus: "GoogleSignIn not connected",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: 0
+    )
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [:]
+    store.auditEvents = []
+    store.reviewTasks = []
+
+    let summary = store.gmailReleaseSelfCheckSummary(for: connection)
+    let releaseBlocker = try XCTUnwrap(store.gmailReleaseBlockerSummary.blockers.first {
+      $0.tone == "warning" || $0.tone == "attention"
+    })
+
+    XCTAssertEqual(summary.verdict, "Gmail release blocked")
+    XCTAssertEqual(summary.tone, "warning")
+    XCTAssertTrue(summary.items.contains { $0.title == "Setup and callback" && !$0.isComplete && $0.tone == "warning" })
+    XCTAssertTrue(summary.items.contains { $0.title == "Google sign-in" && !$0.isComplete && $0.tone == "attention" })
+    XCTAssertTrue(releaseBlocker.source.localizedCaseInsensitiveContains("Gmail"))
+    XCTAssertTrue(releaseBlocker.nextAction.localizedCaseInsensitiveContains("Gmail"))
+  }
+
+  func testGmailReleaseSnapshotLogsTopBlockerWithoutCreatingWork() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let connection = makeGmailConnection(
+      oauthReadinessStatus: "Needs setup",
+      credentialStorageStatus: "GoogleSignIn not connected",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: 0
+    )
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [:]
+    store.auditEvents = []
+    store.reviewTasks = []
+
+    store.recordGmailReleaseReadinessSnapshot()
+
+    XCTAssertTrue(store.reviewTasks.isEmpty)
+    let event = try XCTUnwrap(store.auditEvents.first)
+    XCTAssertEqual(store.auditEvents.count, 1)
+    XCTAssertEqual(event.action, .evaluated)
+    XCTAssertEqual(event.entityType, .gmailMailboxConnection)
+    XCTAssertEqual(event.entityID, connection.id.uuidString)
+    XCTAssertTrue(event.afterDetail?.contains("Top release blocker:") == true)
+    XCTAssertTrue(event.afterDetail?.contains("No Google sign-in, Gmail API request, token access") == true)
+  }
+
+  func testGmailReleaseReadinessTaskIsRefreshedWithoutDuplicates() throws {
+    let store = ParcelOpsStore(repository: InMemoryParcelOpsRepository())
+    let connection = makeGmailConnection(
+      oauthReadinessStatus: "Needs setup",
+      credentialStorageStatus: "GoogleSignIn not connected",
+      fetched: 0,
+      imported: 0,
+      filtered: 0,
+      uncertain: 0
+    )
+    store.gmailMailboxConnections = [connection]
+    store.gmailAuthSessionStates = [:]
+    store.auditEvents = []
+    store.reviewTasks = []
+
+    store.createReviewTaskFromGmailReleaseReadinessSnapshot()
+    store.createReviewTaskFromGmailReleaseReadinessSnapshot()
+
+    let releaseTasks = store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "gmail-release-readiness"
+    }
+    XCTAssertEqual(releaseTasks.count, 1)
+    let task = try XCTUnwrap(releaseTasks.first)
+    XCTAssertEqual(task.priority, .high)
+    XCTAssertEqual(task.assignee, "Mailbox team")
+    XCTAssertTrue(task.summary.contains("Top release blocker:"))
+    XCTAssertTrue(store.auditEvents.contains { event in
+      event.summary == "Existing Gmail release readiness review task refreshed."
+        && event.afterDetail?.contains("No duplicate task was created") == true
+    })
+  }
+
   func testWishlistSellerEvidenceGapsAndScore() {
     let weakOption = WishlistComparisonOption(
       sellerName: "Unknown marketplace seller",
