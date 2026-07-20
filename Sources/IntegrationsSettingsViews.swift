@@ -8345,6 +8345,12 @@ struct SettingsView: View {
             } label: {
               Label("Create follow-up task", systemImage: "checklist")
             }
+            Button {
+              store.createHandoffNoteFromDevelopmentStatusCheckpoint()
+              settingsFeedbackMessage = "Development status handoff note created or refreshed."
+            } label: {
+              Label("Create handoff note", systemImage: "arrow.triangle.branch")
+            }
           }
           .buttonStyle(.borderedProminent)
         }

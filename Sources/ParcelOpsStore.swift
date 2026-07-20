@@ -15329,6 +15329,138 @@ final class ParcelOpsStore {
     )
   }
 
+  func createHandoffNoteFromDevelopmentStatusCheckpoint() {
+    let comparison = mailboxProviderComparisonSummary
+    let gate = mailboxProviderReleaseGateSummary
+    let wishlist = wishlistAgentReadinessSummary
+    let openTaskAndHandoffCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let parserDiagnosticCount = intakeParserDiagnostics.count
+    let incompleteGateLines = gate.gates.filter { !$0.isPassed }.prefix(8).map { gate in
+      "\(gate.title): \(gate.nextAction)"
+    }
+    let providerActionLines = comparison.actionItems.prefix(8).map { item in
+      "\(item.priority). \(item.providerName): \(item.title)"
+    }
+    let wishlistActionLines = wishlist.items.filter { $0.tone != "success" }.prefix(6).map { item in
+      "\(item.title): \(item.status)"
+    }
+
+    let notePriority: TaskPriority
+    let noteTitle: String
+    let noteSummary: String
+    if mailboxProviderSetupCount == 0 || mailboxManualRefreshCount == 0 {
+      notePriority = .high
+      noteTitle = "ParcelOps development handoff needs provider proof"
+      noteSummary = "Core app is built; mailbox provider setup or first live refresh proof is still the main blocker."
+    } else if inboxCreatedOrderCount == 0 {
+      notePriority = .normal
+      noteTitle = "ParcelOps development handoff needs Inbox-to-order proof"
+      noteSummary = "Manual mailbox intake has evidence; next handoff is proving one clean Inbox row becomes an order and downstream workflow."
+    } else if parserDiagnosticCount > 0 || openTaskAndHandoffCount > 0 || !incompleteGateLines.isEmpty {
+      notePriority = .normal
+      noteTitle = "ParcelOps development handoff has follow-up queue"
+      noteSummary = "App is usable for hands-on testing; remaining work is parser, task, handoff, or release-gate cleanup."
+    } else {
+      notePriority = .low
+      noteTitle = "ParcelOps development handoff ready for MVP QA"
+      noteSummary = "Core local workflows, provider status, Inbox-to-order handoff, Tasks, Audit, and Wishlist planning are ready for hands-on MVP QA."
+    }
+
+    let noteDetail = [
+      "Development handoff generated from current local ParcelOps state.",
+      "",
+      "Current status:",
+      noteSummary,
+      "",
+      "Counts:",
+      "- Providers configured: \(mailboxProviderSetupCount)",
+      "- Manual mailbox refreshes: \(mailboxManualRefreshCount)",
+      "- Latest mailbox fetched/imported/filtered/uncertain: \(latestMailboxFetchedCount)/\(latestMailboxImportedCount)/\(latestMailboxFilteredCount)/\(latestMailboxUncertainCount)",
+      "- Inbox-created orders: \(inboxCreatedOrderCount)",
+      "- Parser diagnostics: \(parserDiagnosticCount)",
+      "- Open task and handoff items: \(openTaskAndHandoffCount)",
+      "- Active Wishlist items: \(activeWishlistItemCount)",
+      "",
+      "Provider status:",
+      "\(comparison.title): \(comparison.detail)",
+      "Recommended provider: \(comparison.recommendedProvider)",
+      providerActionLines.isEmpty ? "Provider actions: none promoted." : "Provider actions: \(providerActionLines.joined(separator: " | "))",
+      "",
+      "Release gates:",
+      incompleteGateLines.isEmpty ? "No open release-gate items promoted." : incompleteGateLines.joined(separator: "\n"),
+      "",
+      "Wishlist:",
+      "\(wishlist.title): \(wishlist.verdict)",
+      wishlistActionLines.isEmpty ? "Wishlist actions: none promoted." : "Wishlist actions: \(wishlistActionLines.joined(separator: " | "))",
+      "",
+      "Next operator step:",
+      notePriority == .high
+        ? "Open Settings or Mailbox Monitor, finish provider setup/credential/sign-in, then run one explicit manual read-only refresh."
+        : "Open Dashboard, run the recommended route, then check Tasks and Audit for the current follow-up trail.",
+      "",
+      "Boundary:",
+      "This handoff note is local-only. It does not run mailbox refreshes, read credentials, request tokens, call external services, create orders, send email, create notifications, compare retailers, purchase items, or mutate mailbox messages."
+    ].joined(separator: "\n")
+
+    if let existingIndex = handoffNotes.firstIndex(where: {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .completed
+    }) {
+      let beforeDetail = handoffNotes[existingIndex].auditDetail
+      handoffNotes[existingIndex].title = noteTitle
+      handoffNotes[existingIndex].summary = noteSummary
+      handoffNotes[existingIndex].priority = notePriority
+      handoffNotes[existingIndex].assignee = "ParcelOps Operations"
+      handoffNotes[existingIndex].dueDate = notePriority == .high ? "Today" : "Next shift"
+      handoffNotes[existingIndex].reviewState = .needsReview
+      handoffNotes[existingIndex].notes = noteDetail
+      persistHandoffNotes()
+      logAudit(
+        action: .edited,
+        entityType: .handoffNote,
+        entityID: handoffNotes[existingIndex].id.uuidString,
+        entityLabel: handoffNotes[existingIndex].title,
+        summary: "Existing development status handoff note refreshed.",
+        beforeDetail: beforeDetail,
+        afterDetail: "\(handoffNotes[existingIndex].auditDetail)\nRefreshed from current development status checkpoint. No duplicate handoff note was created."
+      )
+      return
+    }
+
+    let note = HandoffNote(
+      title: noteTitle,
+      summary: noteSummary,
+      linkedEntityType: .integration,
+      linkedEntityID: "development-status-checkpoint",
+      priority: notePriority,
+      assignee: "ParcelOps Operations",
+      createdDate: Self.auditTimestamp(),
+      dueDate: notePriority == .high ? "Today" : "Next shift",
+      status: .open,
+      reviewState: .needsReview,
+      notes: noteDetail
+    )
+    handoffNotes.insert(note, at: 0)
+    persistHandoffNotes()
+    logAudit(
+      action: .created,
+      entityType: .handoffNote,
+      entityID: note.id.uuidString,
+      entityLabel: note.title,
+      summary: "Development status handoff note created locally.",
+      afterDetail: noteDetail
+    )
+    logAudit(
+      action: .linked,
+      entityType: .settings,
+      entityID: "development-status-checkpoint",
+      entityLabel: "Development status checkpoint",
+      summary: "Development status checkpoint linked to a handoff note.",
+      afterDetail: "Handoff note: \(note.title)\n\(noteSummary)"
+    )
+  }
+
   func createReviewTaskFromMailboxProviderTroubleshooting() {
     let troubleshooting = mailboxProviderTroubleshootingSummary
     let taskPriority: TaskPriority

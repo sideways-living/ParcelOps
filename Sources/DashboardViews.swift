@@ -1678,6 +1678,12 @@ struct DashboardView: View {
           }
           .buttonStyle(.bordered)
           .help("Creates or refreshes one local follow-up task from current app readiness gaps.")
+          Button("Create handoff note", systemImage: "arrow.triangle.branch") {
+            store.createHandoffNoteFromDevelopmentStatusCheckpoint()
+            feedbackMessage = "Development status handoff note created or refreshed. Check Handoff Notes."
+          }
+          .buttonStyle(.bordered)
+          .help("Creates or refreshes one local handoff note summarising current app completeness and next work.")
           NavigationLink {
             dailyRouteDestination(for: recommendedDailySection)
           } label: {
@@ -3506,6 +3512,12 @@ private struct DashboardReleaseCandidateQACard: View {
         Button("Create status task", systemImage: "checklist") {
           store.createReviewTaskFromDevelopmentStatusCheckpoint()
           feedbackMessage = "Development status follow-up task created or refreshed. Check Tasks."
+        }
+        .buttonStyle(.bordered)
+
+        Button("Create handoff note", systemImage: "arrow.triangle.branch") {
+          store.createHandoffNoteFromDevelopmentStatusCheckpoint()
+          feedbackMessage = "Development status handoff note created or refreshed. Check Handoff Notes."
         }
         .buttonStyle(.bordered)
 
