@@ -8,6 +8,7 @@ struct CommunicationView: View {
   @State private var selectedReviewState: ReviewState?
   @State private var selectedDraftStatus: DraftMessageStatus?
   @State private var searchText = ""
+  @State private var developmentStatusFeedbackMessage: String?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var searchQuery: String {
@@ -60,6 +61,30 @@ struct CommunicationView: View {
     store.draftMessages.filter { $0.status == .ready }
   }
 
+  private var developmentStatusDrafts: [DraftMessage] {
+    store.draftMessages.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .sentLocally
+    }
+  }
+
+  private var developmentStatusTaskCount: Int {
+    store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .completed
+    }.count
+  }
+
+  private var developmentStatusHandoffCount: Int {
+    store.handoffNotes.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .completed
+    }.count
+  }
+
   private var draftNextActionTitle: String {
     if !readyDrafts.isEmpty { return "Send ready drafts outside ParcelOps" }
     if !store.draftMessagesNeedingReview.isEmpty { return "Review draft follow-up" }
@@ -110,6 +135,7 @@ struct CommunicationView: View {
         .buttonStyle(.bordered)
 
         draftSummaryPanel
+        developmentStatusDraftPanel
         wishlistDraftFocusPanel
         gmailDraftFocusPanel
         inboxDraftCoverage
@@ -237,6 +263,82 @@ struct CommunicationView: View {
         Text("Use this screen to manage local draft state only. ParcelOps does not send outbound email, store SMTP credentials, or contact a mail provider for sending.")
           .font(.caption)
           .foregroundStyle(.secondary)
+      }
+    }
+  }
+
+  private var developmentStatusDraftPanel: some View {
+    SettingsPanel(title: "Development status draft", symbol: "checkmark.seal.text.page.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: developmentStatusDrafts.isEmpty ? "doc.badge.plus" : "envelope.open.fill")
+            .foregroundStyle(developmentStatusDrafts.isEmpty ? Color.secondary : Color.blue)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(developmentStatusDrafts.isEmpty ? "No development status draft is active" : "Development status draft is ready for local review")
+              .font(.headline)
+            Text("Create or refresh the local status packet when you need a concise written summary of current app readiness, provider state, and remaining local-only boundaries.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(developmentStatusDrafts.isEmpty ? "Optional" : "\(developmentStatusDrafts.count) active", color: developmentStatusDrafts.isEmpty ? .secondary : .blue)
+        }
+
+        MetricStrip(items: [
+          ("Draft packet", "\(developmentStatusDrafts.count)", developmentStatusDrafts.isEmpty ? .secondary : .blue),
+          ("Status task", "\(developmentStatusTaskCount)", developmentStatusTaskCount == 0 ? .secondary : .orange),
+          ("Handoff", "\(developmentStatusHandoffCount)", developmentStatusHandoffCount == 0 ? .secondary : .teal),
+          ("Ready drafts", "\(readyDrafts.count)", readyDrafts.isEmpty ? .green : .blue)
+        ])
+
+        ForEach(developmentStatusDrafts.prefix(2)) { draft in
+          CompactRow(
+            title: draft.subject,
+            detail: "Status: \(draft.status.rawValue). Review: \(draft.reviewState.rawValue). This remains local until copied or sent outside ParcelOps.",
+            badge: draft.status.rawValue,
+            color: draft.status.color
+          )
+        }
+
+        CompactActionRow {
+          Button(developmentStatusDrafts.isEmpty ? "Create status draft" : "Refresh status draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessageFromDevelopmentStatusCheckpoint()
+            developmentStatusFeedbackMessage = "Development status draft refreshed locally. ParcelOps did not send email."
+          }
+          .buttonStyle(.borderedProminent)
+
+          Button(developmentStatusTaskCount == 0 ? "Create status task" : "Refresh task", systemImage: "checklist") {
+            store.createReviewTaskFromDevelopmentStatusCheckpoint()
+            developmentStatusFeedbackMessage = "Development status task refreshed from current local state."
+          }
+          .buttonStyle(.bordered)
+
+          Button(developmentStatusHandoffCount == 0 ? "Create handoff" : "Refresh handoff", systemImage: "arrow.left.arrow.right.square.fill") {
+            store.createHandoffNoteFromDevelopmentStatusCheckpoint()
+            developmentStatusFeedbackMessage = "Development status handoff refreshed from current local state."
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Tasks", systemImage: "checklist")
+          }
+          .buttonStyle(.bordered)
+        }
+
+        Text("Local-only boundary: ParcelOps does not send outbound email here. Draft packets are for review, copying, or manual sending outside the app.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        if let developmentStatusFeedbackMessage {
+          Label(developmentStatusFeedbackMessage, systemImage: "checkmark.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        }
       }
     }
   }

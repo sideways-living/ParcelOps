@@ -8,6 +8,7 @@ struct HandoffNotesView: View {
   @State private var selectedStatus: TaskStatus?
   @State private var selectedReviewState: ReviewState?
   @State private var handoffSearchText = ""
+  @State private var developmentStatusFeedbackMessage: String?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var assignees: [String] {
@@ -39,6 +40,30 @@ struct HandoffNotesView: View {
       || selectedStatus != nil
       || selectedReviewState != nil
       || !handoffSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var developmentStatusHandoffNotes: [HandoffNote] {
+    store.handoffNotes.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .completed
+    }
+  }
+
+  private var developmentStatusTaskCount: Int {
+    store.reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .completed
+    }.count
+  }
+
+  private var developmentStatusDraftCount: Int {
+    store.draftMessages.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .sentLocally
+    }.count
   }
 
   var body: some View {
@@ -77,6 +102,7 @@ struct HandoffNotesView: View {
         }
 
         providerHandoffPacketPanel
+        developmentStatusHandoffPanel
         gmailHandoffFocusPanel
         filters
         inboxHandoffCoverage
@@ -207,6 +233,77 @@ struct HandoffNotesView: View {
           }
         }
         .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var developmentStatusHandoffPanel: some View {
+    SettingsPanel(title: "Development status handoff", symbol: "checkmark.seal.text.page.fill") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
+          Image(systemName: developmentStatusHandoffNotes.isEmpty ? "doc.badge.plus" : "arrow.left.arrow.right.square.fill")
+            .foregroundStyle(developmentStatusHandoffNotes.isEmpty ? Color.secondary : Color.teal)
+            .frame(width: 24)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(developmentStatusHandoffNotes.isEmpty ? "No development handoff is active" : "Development handoff is active")
+              .font(.headline)
+            Text("Use this when the next operator needs the current app status, mailbox provider position, Inbox-to-order proof, Wishlist boundary, and local-only limitations in one note.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          Spacer()
+          Badge(developmentStatusHandoffNotes.isEmpty ? "Optional" : "\(developmentStatusHandoffNotes.count) active", color: developmentStatusHandoffNotes.isEmpty ? .secondary : .teal)
+        }
+
+        MetricStrip(items: [
+          ("Handoff", "\(developmentStatusHandoffNotes.count)", developmentStatusHandoffNotes.isEmpty ? .secondary : .teal),
+          ("Status task", "\(developmentStatusTaskCount)", developmentStatusTaskCount == 0 ? .secondary : .orange),
+          ("Status draft", "\(developmentStatusDraftCount)", developmentStatusDraftCount == 0 ? .secondary : .blue),
+          ("All notes", "\(store.handoffNotes.count)", store.handoffNotes.isEmpty ? .secondary : .teal)
+        ])
+
+        ForEach(developmentStatusHandoffNotes.prefix(2)) { note in
+          CompactRow(
+            title: note.title,
+            detail: note.summary,
+            badge: note.status.rawValue,
+            color: note.status.color
+          )
+        }
+
+        CompactActionRow {
+          Button(developmentStatusHandoffNotes.isEmpty ? "Create status handoff" : "Refresh status handoff", systemImage: "arrow.left.arrow.right.square.fill") {
+            store.createHandoffNoteFromDevelopmentStatusCheckpoint()
+            developmentStatusFeedbackMessage = "Development status handoff refreshed from current local state."
+          }
+          .buttonStyle(.borderedProminent)
+
+          Button(developmentStatusTaskCount == 0 ? "Create status task" : "Refresh task", systemImage: "checklist") {
+            store.createReviewTaskFromDevelopmentStatusCheckpoint()
+            developmentStatusFeedbackMessage = "Development status task refreshed from current local state."
+          }
+          .buttonStyle(.bordered)
+
+          Button(developmentStatusDraftCount == 0 ? "Create status draft" : "Refresh draft", systemImage: "envelope.open.fill") {
+            store.createDraftMessageFromDevelopmentStatusCheckpoint()
+            developmentStatusFeedbackMessage = "Development status draft refreshed locally. No outbound email was sent."
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            TasksView(store: store)
+          } label: {
+            Label("Tasks", systemImage: "checklist")
+          }
+          .buttonStyle(.bordered)
+        }
+
+        if let developmentStatusFeedbackMessage {
+          Label(developmentStatusFeedbackMessage, systemImage: "checkmark.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.green)
+        }
       }
     }
   }
