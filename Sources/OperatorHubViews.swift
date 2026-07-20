@@ -3465,7 +3465,7 @@ struct DispatchView: View {
         VStack(alignment: .leading, spacing: 4) {
           Text(showDispatchProviderEvidence ? "Hide advanced dispatch evidence" : "Show advanced dispatch evidence")
             .font(.subheadline.weight(.semibold))
-          Text("Dispatch operators can use the queue and readiness ladder first. Open this only for mailbox handoff diagnostics, Gmail release evidence, or Outlook release evidence.")
+          Text("Dispatch operators can use the queue and readiness ladder first. Open this only for mailbox handoff diagnostics or provider release evidence.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)

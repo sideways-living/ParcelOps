@@ -1625,7 +1625,7 @@ struct OperationsWorkbenchView: View {
         } else {
           MVPEmptyState(
             title: "No Outlook mailbox setup",
-            detail: "Use Outlook / Microsoft 365 only when the active mailbox is Microsoft-hosted. SpaceMail and Gmail remain separate intake paths.",
+            detail: "Use Outlook / Microsoft 365 only when the active mailbox is Microsoft-hosted. Use SpaceMail or Gmail only when they host the active mailbox.",
             symbol: "mail.stack"
           )
         }
@@ -1718,7 +1718,7 @@ struct OperationsWorkbenchView: View {
 
   private var microsoft365WorkbenchDetail: String {
     if store.microsoft365MailboxConnections.isEmpty {
-      return "Add Outlook / Microsoft 365 setup only when the mailbox is Microsoft-hosted. This keeps SpaceMail and Gmail as the primary paths for their own mailbox hosts."
+      return "Add Outlook / Microsoft 365 setup only when the mailbox is Microsoft-hosted. Use SpaceMail or Gmail for their own mailbox hosts."
     }
     if microsoft365ReleaseBlockingCount > 0 {
       return "\(microsoft365ReleaseBlockingCount) Outlook release check\(microsoft365ReleaseBlockingCount == 1 ? "" : "s") still block daily use. Finish OAuth readiness, Mail.Read consent, sign-in, or refresh diagnostics before relying on this provider."

@@ -214,13 +214,13 @@ struct MailboxView: View {
 
   private func microsoft365ProviderNextActionDetail(connected: Bool, setupReady: Bool) -> String {
     guard !store.microsoft365MailboxConnections.isEmpty else {
-      return "Use only for Microsoft-hosted Outlook or Microsoft 365 mailboxes. Keep this secondary when the active mailbox is SpaceMail or Gmail."
+      return "Use only for Microsoft-hosted Outlook or Microsoft 365 mailboxes. Use SpaceMail or Gmail only when they host the active mailbox."
     }
     if !setupReady {
       return "Next: finish tenant, client, redirect, folder, and Mail.Read/User.Read setup notes before sign-in or Graph refresh testing."
     }
     if !connected {
-      return "Next: use the explicit Microsoft sign-in test only for Microsoft-hosted mailboxes. SpaceMail and Gmail remain separate provider paths."
+      return "Next: use the explicit Microsoft sign-in test only for Microsoft-hosted mailboxes. SpaceMail and Gmail remain isolated provider paths."
     }
     return "Next: run manual read-only Graph refresh only when this Outlook / Microsoft 365 mailbox is the active intake source."
   }
@@ -831,7 +831,7 @@ struct MailboxView: View {
         )
 
         SettingsPanel(title: "Outlook / Microsoft 365 setup", symbol: "mail.stack.fill") {
-          Text("Use Outlook / Microsoft 365 when the active mailbox is Microsoft-hosted. Real sign-in and manual Graph refresh remain explicit, read-only, and separate from SpaceMail and Gmail.")
+          Text("Use Outlook / Microsoft 365 when the active mailbox is Microsoft-hosted. Real sign-in and manual Graph refresh remain explicit, read-only, and isolated from SpaceMail and Gmail.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Microsoft365SetupFlowGuide()
@@ -2382,7 +2382,7 @@ private struct MailboxMicrosoft365ReadinessPanel: View {
 
   private var detail: String {
     guard let connection = primaryConnection else {
-      return "Add Outlook / Microsoft 365 setup only for Microsoft-hosted mailboxes. SpaceMail and Gmail remain separate provider paths."
+      return "Add Outlook / Microsoft 365 setup only for Microsoft-hosted mailboxes. Use SpaceMail or Gmail only when they host the active mailbox."
     }
     if !hasOAuthReadiness {
       let missing = readiness?.missingFields.joined(separator: ", ") ?? "tenant, client, redirect, scope, and folder values"

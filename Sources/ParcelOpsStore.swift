@@ -472,8 +472,8 @@ final class ParcelOpsStore {
       microsoftTone = "neutral"
     } else {
       microsoftStatusTitle = "Outlook / Microsoft 365 setup incomplete"
-      microsoftDetail = "Outlook / Microsoft 365 remains an advanced provider path until tenant, client, redirect, scope, and sign-in readiness are complete."
-      microsoftNextAction = "Finish Microsoft 365 readiness or use SpaceMail/Gmail for the active mailbox."
+      microsoftDetail = "Outlook / Microsoft 365 needs tenant, client, redirect, scope, and sign-in readiness before it can be used for a Microsoft-hosted mailbox."
+      microsoftNextAction = "Finish Microsoft 365 readiness, or use the provider that actually hosts the active mailbox."
       microsoftTone = "neutral"
     }
 
@@ -5674,7 +5674,7 @@ final class ParcelOpsStore {
       tone = "warning"
     } else if !readiness.isReady {
       verdict = "Outlook setup incomplete"
-      detail = "\(readiness.statusText). Outlook / Microsoft 365 remains optional unless this is a Microsoft-hosted mailbox."
+      detail = "\(readiness.statusText). Use Outlook / Microsoft 365 only when this is the active Microsoft-hosted mailbox."
       nextAction = "Complete tenant, client, redirect, and scope placeholders before real sign-in."
       tone = "neutral"
     } else if authState.status != .connected && fetchedCount == 0 {
