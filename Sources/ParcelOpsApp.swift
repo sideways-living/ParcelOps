@@ -504,10 +504,7 @@ struct ParcelOpsRootView: View {
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 6)], alignment: .leading, spacing: 6) {
         ForEach(dailyFocusSections) { section in
           let count = attentionCount(for: section) ?? 0
-          Button {
-            selection = section
-            sidebarSearchText = ""
-          } label: {
+          NavigationLink(value: section) {
             HStack(spacing: 5) {
               Image(systemName: section.symbol)
                 .frame(width: 16)
@@ -529,8 +526,10 @@ struct ParcelOpsRootView: View {
             .padding(.vertical, 5)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
           }
-          .buttonStyle(.plain)
           .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+          .simultaneousGesture(TapGesture().onEnded {
+            sidebarSearchText = ""
+          })
         }
       }
     }
