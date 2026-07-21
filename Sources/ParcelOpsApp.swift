@@ -480,7 +480,7 @@ struct ParcelOpsRootView: View {
       .navigationTitle("ParcelOps")
       .searchable(text: $sidebarSearchText, placement: .sidebar, prompt: "Find a screen")
       #if os(macOS)
-      .navigationSplitViewColumnWidth(min: 300, ideal: 340, max: 440)
+      .navigationSplitViewColumnWidth(min: 340, ideal: 380, max: 480)
       #endif
     } detail: {
       content(for: selection)
@@ -495,13 +495,13 @@ struct ParcelOpsRootView: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
 
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 6)], alignment: .leading, spacing: 6) {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 146), spacing: 8)], alignment: .leading, spacing: 8) {
         ForEach(dailyFocusSections) { section in
           let count = attentionCount(for: section) ?? 0
           NavigationLink(value: section) {
             HStack(spacing: 5) {
               Image(systemName: section.symbol)
-                .frame(width: 16)
+                .frame(width: 18)
               Text(section.shortTitle)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -515,7 +515,7 @@ struct ParcelOpsRootView: View {
               }
             }
             .font(.caption.weight(.semibold))
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
             .padding(.horizontal, 7)
             .padding(.vertical, 5)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
@@ -624,24 +624,27 @@ struct ParcelOpsRootView: View {
 
     return NavigationLink(value: section) {
       VStack(alignment: .leading, spacing: 2) {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        HStack(alignment: .top, spacing: 10) {
           Image(systemName: section.symbol)
-            .font(.body)
-            .frame(width: 20, alignment: .center)
+            .font(.body.weight(.semibold))
+            .frame(width: 22, height: 24, alignment: .center)
             .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
           Text(section.title)
             .font(.body)
             .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
           Spacer(minLength: 6)
           if let shortcut = routeShortcut(for: section) {
             Text(shortcut.label)
               .font(.caption2.weight(.semibold))
               .foregroundStyle(.secondary)
+              .padding(.top, 2)
           }
           if let count, count > 0 {
             Badge("\(count)", color: attentionColor(for: section, count: count))
+              .padding(.top, 1)
           }
         }
         if let context {

@@ -9143,7 +9143,7 @@ struct MVPWorkflowGuide: View {
   var detail: String
   var steps: [String]
   var symbol: String = "point.3.connected.trianglepath.dotted"
-  private let stepCardMinHeight: CGFloat = 74
+  private let stepCardHeight: CGFloat = 92
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -9173,9 +9173,9 @@ struct MVPWorkflowGuide: View {
               .font(.caption)
               .foregroundStyle(.secondary)
               .lineLimit(3)
-              .frame(maxWidth: .infinity, minHeight: 48, alignment: .topLeading)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
           }
-          .frame(maxWidth: .infinity, minHeight: stepCardMinHeight, alignment: .topLeading)
+          .frame(maxWidth: .infinity, minHeight: stepCardHeight, maxHeight: stepCardHeight, alignment: .topLeading)
           .padding(10)
           .background(.quinary)
           .clipShape(RoundedRectangle(cornerRadius: 8))
