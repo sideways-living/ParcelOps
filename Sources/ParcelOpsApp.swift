@@ -485,6 +485,9 @@ struct ParcelOpsRootView: View {
       }
       .navigationTitle("ParcelOps")
       .searchable(text: $sidebarSearchText, placement: .sidebar, prompt: "Find a screen")
+      #if os(macOS)
+      .navigationSplitViewColumnWidth(min: 300, ideal: 340, max: 440)
+      #endif
     } detail: {
       content(for: selection)
         .navigationTitle(selection.title)
@@ -498,7 +501,7 @@ struct ParcelOpsRootView: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
 
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 86), spacing: 6)], alignment: .leading, spacing: 6) {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 6)], alignment: .leading, spacing: 6) {
         ForEach(dailyFocusSections) { section in
           let count = attentionCount(for: section) ?? 0
           Button {
@@ -507,9 +510,10 @@ struct ParcelOpsRootView: View {
           } label: {
             HStack(spacing: 5) {
               Image(systemName: section.symbol)
-                .frame(width: 14)
+                .frame(width: 16)
               Text(section.shortTitle)
-                .lineLimit(1)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
               if count > 0 {
                 Text("\(count)")
                   .font(.caption2.weight(.bold))
@@ -543,10 +547,11 @@ struct ParcelOpsRootView: View {
           HStack(spacing: 6) {
             Text("Daily attention")
               .font(.caption.weight(.semibold))
-              .lineLimit(1)
+              .lineLimit(2)
             Badge("\(dailyAttentionCount)", color: dailyAttentionCount == 0 ? .green : .orange)
             Badge(sidebarMVPStatusTitle, color: sidebarMVPStatusColor)
           }
+          .fixedSize(horizontal: false, vertical: true)
 
           Text(dailyAttentionCount == 0 ? sidebarMVPStatusDetail : "Start with Inbox, Orders, Workbench, Dispatch, or Tasks.")
             .font(.caption2)
@@ -624,9 +629,16 @@ struct ParcelOpsRootView: View {
       sidebarSearchText = ""
     } label: {
       VStack(alignment: .leading, spacing: 2) {
-        HStack(spacing: 8) {
-          Label(section.title, systemImage: section.symbol)
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          Image(systemName: section.symbol)
+            .font(.body)
+            .frame(width: 20, alignment: .center)
             .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+          Text(section.title)
+            .font(.body)
+            .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
           Spacer(minLength: 6)
           if let shortcut = routeShortcut(for: section) {
             Text(shortcut.label)
@@ -641,8 +653,11 @@ struct ParcelOpsRootView: View {
           Text(context)
             .font(.caption2)
             .foregroundStyle(.secondary)
+            .padding(.leading, 28)
+            .lineLimit(2)
         }
       }
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
     .buttonStyle(.plain)
   }
