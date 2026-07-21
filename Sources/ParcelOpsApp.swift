@@ -398,7 +398,7 @@ struct ParcelOpsRootView: View {
 
   private var desktopLayout: some View {
     NavigationSplitView {
-      List {
+      List(selection: $selection) {
         if isSearchingSidebar {
           Section("Route Search") {
             if desktopSearchResults.isEmpty {
@@ -621,13 +621,7 @@ struct ParcelOpsRootView: View {
   private func sidebarButton(for section: ParcelSection, context: String? = nil) -> some View {
     let count = attentionCount(for: section)
 
-    return Button {
-      selection = section
-      if ParcelNavigationGroup.secondaryDesktopGroups.flatMap(\.sections).contains(section) {
-        showSecondaryDesktopGroups = true
-      }
-      sidebarSearchText = ""
-    } label: {
+    return NavigationLink(value: section) {
       VStack(alignment: .leading, spacing: 2) {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
           Image(systemName: section.symbol)
@@ -659,7 +653,12 @@ struct ParcelOpsRootView: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .buttonStyle(.plain)
+    .simultaneousGesture(TapGesture().onEnded {
+      if ParcelNavigationGroup.secondaryDesktopGroups.flatMap(\.sections).contains(section) {
+        showSecondaryDesktopGroups = true
+      }
+      sidebarSearchText = ""
+    })
   }
 
   private func attentionCount(for section: ParcelSection) -> Int? {

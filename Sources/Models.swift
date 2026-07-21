@@ -72,7 +72,7 @@ struct OrderMailboxSourceSummary: Identifiable, Hashable {
   }
 }
 
-enum ParcelSection: String, CaseIterable, Identifiable {
+enum ParcelSection: String, CaseIterable, Identifiable, Hashable {
   case dashboard
   case inbox
   case orders
