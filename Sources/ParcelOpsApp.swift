@@ -1,8 +1,24 @@
 import SwiftUI
 
+#if os(macOS)
+import AppKit
+#endif
+
 @main
 struct ParcelOpsApp: App {
+  #if os(macOS)
+  @NSApplicationDelegateAdaptor(ParcelOpsAppDelegate.self) private var appDelegate
+  #endif
+
   var body: some Scene {
+    #if os(macOS)
+    Settings {
+      EmptyView()
+    }
+    .commands {
+      ParcelRouteCommands()
+    }
+    #else
     WindowGroup {
       ParcelOpsRootView()
         .parcelOpsWindowFrame()
@@ -10,8 +26,66 @@ struct ParcelOpsApp: App {
     .commands {
       ParcelRouteCommands()
     }
+    #endif
   }
 }
+
+#if os(macOS)
+final class ParcelOpsAppDelegate: NSObject, NSApplicationDelegate {
+  private var fallbackWindowController: NSWindowController?
+
+  func applicationDidFinishLaunching(_ notification: Notification) {
+    NSApp.setActivationPolicy(.regular)
+    NSApp.unhide(nil)
+    showFallbackWindowIfNeeded()
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+      self?.showFallbackWindowIfNeeded()
+    }
+  }
+
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    if !flag {
+      showFallbackWindowIfNeeded()
+    }
+    return true
+  }
+
+  private func showFallbackWindowIfNeeded() {
+    if let window = fallbackWindowController?.window {
+      window.makeKeyAndOrderFront(nil)
+      window.orderFrontRegardless()
+      NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+      return
+    }
+
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 1280, height: 860),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+      backing: .buffered,
+      defer: false
+    )
+    window.title = "ParcelOps"
+    window.isReleasedWhenClosed = false
+    window.isRestorable = false
+    window.collectionBehavior = [.managed, .fullScreenPrimary]
+    window.center()
+    window.contentViewController = NSHostingController(rootView: ParcelOpsRootView().parcelOpsWindowFrame())
+    window.makeKeyAndOrderFront(nil)
+    window.orderFrontRegardless()
+    NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+    fallbackWindowController = NSWindowController(window: window)
+    fallbackWindowController?.showWindow(nil)
+  }
+
+  func application(_ application: NSApplication, shouldRestoreApplicationState coder: NSCoder) -> Bool {
+    false
+  }
+
+  func application(_ application: NSApplication, shouldSaveApplicationState coder: NSCoder) -> Bool {
+    false
+  }
+}
+#endif
 
 extension View {
   @ViewBuilder
@@ -104,7 +178,6 @@ struct ParcelOpsRootView: View {
 
   private var dailyAttentionCount: Int {
     store.reviewIntakeEmails.count
-      + store.intakeParserDiagnostics.count
       + store.pendingMailboxReviewCount
       + store.importQueueItemsNeedingReview.count
       + store.blockedImportQueueItems.count
@@ -120,18 +193,6 @@ struct ParcelOpsRootView: View {
 
   private var advancedBacklogCount: Int {
     max(store.reviewQueueCount - dailyAttentionCount, 0)
-  }
-
-  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.latestSpaceMailIntakeHealthSummary
-  }
-
-  private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.latestGmailIntakeHealthSummary
-  }
-
-  private var latestMicrosoft365Summary: Microsoft365IntakeHealthSummary? {
-    store.latestMicrosoft365IntakeHealthSummary
   }
 
   private var hasSpaceMailSetup: Bool {
@@ -172,11 +233,11 @@ struct ParcelOpsRootView: View {
   }
 
   private var hasRealMailboxRefreshEvidence: Bool {
-    (latestSpaceMailSummary?.fetchedCount ?? 0) > 0
+    store.spaceMailIMAPConnections.contains { $0.lastRefreshFetchedCount > 0 }
       || store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
-      || (latestGmailSummary?.fetchedCount ?? 0) > 0
+      || store.gmailMailboxConnections.contains { $0.lastRefreshFetchedCount > 0 }
       || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
-      || (latestMicrosoft365Summary?.fetchedCount ?? 0) > 0
+      || store.microsoft365MailboxConnections.contains { $0.lastRefreshFetchedCount > 0 }
       || store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
   }
 
@@ -285,131 +346,148 @@ struct ParcelOpsRootView: View {
   }
 
   var body: some View {
+    rootLayout
+      .tint(.teal)
+      .focusedSceneValue(\.parcelSectionSelection, $selection)
+      .onOpenURL { url in
+        store.handleMicrosoft365AuthCallback(url)
+        store.handleGmailAuthCallback(url)
+      }
+  }
+
+  @ViewBuilder
+  private var rootLayout: some View {
+    #if os(macOS)
+    desktopLayout
+    #else
     GeometryReader { proxy in
       let usePhoneLayout = horizontalSizeClass == .compact || proxy.size.width < 700
 
       if usePhoneLayout {
-        NavigationStack {
-          content(for: selection)
-            .navigationTitle(selection.title)
-        }
-        .safeAreaInset(edge: .bottom) {
-          ExpandableBottomMenu(
-            selection: $selection,
-            isExpanded: $isMoreMenuExpanded,
-            readinessItems: sidebarReadinessItems,
-            mvpStatusTitle: sidebarMVPStatusTitle,
-            mvpStatusColor: sidebarMVPStatusColor,
-            mvpStatusDetail: sidebarMVPStatusDetail,
-            dailyAttentionCount: dailyAttentionCount
-          ) { section in
-            withAnimation(.snappy) {
-              selection = section
-            }
-          } attentionCount: { section in
-            attentionCount(for: section)
-          }
-        }
+        phoneLayout
       } else {
-        NavigationSplitView {
-          List {
-            if isSearchingSidebar {
-              Section("Route Search") {
-                if desktopSearchResults.isEmpty {
-                  Text("No matching ParcelOps screens.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 4)
-                } else {
-                  ForEach(desktopSearchResults) { group in
-                    ForEach(group.sections) { section in
-                      sidebarButton(for: section, context: group.title)
-                    }
-                  }
-                }
-              }
-            } else {
-              Section("Daily Focus") {
-                sidebarDailyFocusSummary
-                  .listRowInsets(EdgeInsets(top: 6, leading: 10, bottom: 8, trailing: 10))
-                  .listRowSeparator(.hidden)
-              }
-
-              Section("Primary Workflow") {
-                ForEach(ParcelNavigationGroup.dailyOperations.sections) { section in
-                  sidebarButton(for: section)
-                }
-              }
-
-              Section {
-                VStack(alignment: .leading, spacing: 8) {
-                  Text("Reference records, setup screens, and detailed review tools are available when needed. Keep this hidden for daily operator work.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                  Button {
-                    withAnimation(.snappy) {
-                      toggleSecondaryDesktopGroups()
-                    }
-                  } label: {
-                    Label(advancedRoutesButtonTitle, systemImage: advancedRoutesButtonSymbol)
-                      .font(.caption.weight(.semibold))
-                  }
-                  .buttonStyle(.bordered)
-
-                  if selectionIsSecondaryDesktopRoute {
-                    Text("An advanced route is currently selected, so the advanced groups stay visible until you return to the daily workflow.")
-                      .font(.caption2)
-                      .foregroundStyle(.secondary)
-                      .fixedSize(horizontal: false, vertical: true)
-                  }
-                }
-                .padding(.vertical, 4)
-              }
-
-              if shouldShowSecondaryDesktopGroups {
-                ForEach(ParcelNavigationGroup.secondaryDesktopGroups) { group in
-                  DisclosureGroup(isExpanded: desktopGroupBinding(for: group)) {
-                    ForEach(group.sections) { section in
-                      sidebarButton(for: section)
-                    }
-                  } label: {
-                    HStack(spacing: 6) {
-                      Text(group.title)
-                      Spacer()
-                      Text("\(group.sections.count)")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.quinary, in: Capsule())
-                    }
-                    .font(.subheadline.weight(.semibold))
-                  }
-                }
-              }
-            }
-
-            Section {
-              sidebarReviewFooter
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-            }
-          }
-          .navigationTitle("ParcelOps")
-          .searchable(text: $sidebarSearchText, placement: .sidebar, prompt: "Find a screen")
-        } detail: {
-          content(for: selection)
-            .navigationTitle(selection.title)
-        }
+        desktopLayout
       }
     }
-    .tint(.teal)
-    .focusedSceneValue(\.parcelSectionSelection, $selection)
-    .onOpenURL { url in
-      store.handleMicrosoft365AuthCallback(url)
-      store.handleGmailAuthCallback(url)
+    #endif
+  }
+
+  private var phoneLayout: some View {
+    NavigationStack {
+      content(for: selection)
+        .navigationTitle(selection.title)
+    }
+    .safeAreaInset(edge: .bottom) {
+      ExpandableBottomMenu(
+        selection: $selection,
+        isExpanded: $isMoreMenuExpanded,
+        readinessItems: sidebarReadinessItems,
+        mvpStatusTitle: sidebarMVPStatusTitle,
+        mvpStatusColor: sidebarMVPStatusColor,
+        mvpStatusDetail: sidebarMVPStatusDetail,
+        dailyAttentionCount: dailyAttentionCount
+      ) { section in
+        withAnimation(.snappy) {
+          selection = section
+        }
+      } attentionCount: { section in
+        attentionCount(for: section)
+      }
+    }
+  }
+
+  private var desktopLayout: some View {
+    NavigationSplitView {
+      List {
+        if isSearchingSidebar {
+          Section("Route Search") {
+            if desktopSearchResults.isEmpty {
+              Text("No matching ParcelOps screens.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 4)
+            } else {
+              ForEach(desktopSearchResults) { group in
+                ForEach(group.sections) { section in
+                  sidebarButton(for: section, context: group.title)
+                }
+              }
+            }
+          }
+        } else {
+          Section("Daily Focus") {
+            sidebarDailyFocusSummary
+              .listRowInsets(EdgeInsets(top: 6, leading: 10, bottom: 8, trailing: 10))
+              .listRowSeparator(.hidden)
+          }
+
+          Section("Primary Workflow") {
+            ForEach(ParcelNavigationGroup.dailyOperations.sections) { section in
+              sidebarButton(for: section)
+            }
+          }
+
+          Section {
+            VStack(alignment: .leading, spacing: 8) {
+              Text("Reference records, setup screens, and detailed review tools are available when needed. Keep this hidden for daily operator work.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+              Button {
+                withAnimation(.snappy) {
+                  toggleSecondaryDesktopGroups()
+                }
+              } label: {
+                Label(advancedRoutesButtonTitle, systemImage: advancedRoutesButtonSymbol)
+                  .font(.caption.weight(.semibold))
+              }
+              .buttonStyle(.bordered)
+
+              if selectionIsSecondaryDesktopRoute {
+                Text("An advanced route is currently selected, so the advanced groups stay visible until you return to the daily workflow.")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+            .padding(.vertical, 4)
+          }
+
+          if shouldShowSecondaryDesktopGroups {
+            ForEach(ParcelNavigationGroup.secondaryDesktopGroups) { group in
+              DisclosureGroup(isExpanded: desktopGroupBinding(for: group)) {
+                ForEach(group.sections) { section in
+                  sidebarButton(for: section)
+                }
+              } label: {
+                HStack(spacing: 6) {
+                  Text(group.title)
+                  Spacer()
+                  Text("\(group.sections.count)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.quinary, in: Capsule())
+                }
+                .font(.subheadline.weight(.semibold))
+              }
+            }
+          }
+        }
+
+        Section {
+          sidebarReviewFooter
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+        }
+      }
+      .navigationTitle("ParcelOps")
+      .searchable(text: $sidebarSearchText, placement: .sidebar, prompt: "Find a screen")
+    } detail: {
+      content(for: selection)
+        .navigationTitle(selection.title)
     }
   }
 
@@ -575,7 +653,6 @@ struct ParcelOpsRootView: View {
       return dailyAttentionCount
     case .inbox:
       return store.reviewIntakeEmails.count
-        + store.intakeParserDiagnostics.count
         + store.pendingMailboxReviewCount
         + store.importQueueItemsNeedingReview.count
         + store.blockedImportQueueItems.count

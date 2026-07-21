@@ -7966,47 +7966,45 @@ final class ParcelOpsStore {
   }
 
   var latestMailboxFetchedCount: Int {
-    (latestSpaceMailIntakeHealthSummary?.fetchedCount ?? 0)
-      + (latestGmailIntakeHealthSummary?.fetchedCount ?? 0)
-      + (latestMicrosoft365IntakeHealthSummary?.fetchedCount ?? 0)
+    spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
+      + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
+      + microsoft365MailboxConnections.reduce(0) { $0 + $1.lastRefreshFetchedCount }
   }
 
   var latestMailboxMaxFetchedCount: Int {
     max(
-      latestSpaceMailIntakeHealthSummary?.fetchedCount ?? 0,
-      latestGmailIntakeHealthSummary?.fetchedCount ?? 0,
-      latestMicrosoft365IntakeHealthSummary?.fetchedCount ?? 0
+      spaceMailIMAPConnections.map(\.lastRefreshFetchedCount).max() ?? 0,
+      gmailMailboxConnections.map(\.lastRefreshFetchedCount).max() ?? 0,
+      microsoft365MailboxConnections.map(\.lastRefreshFetchedCount).max() ?? 0
     )
   }
 
   var latestMailboxImportedCount: Int {
-    (latestSpaceMailIntakeHealthSummary?.importedCount ?? 0)
-      + (latestGmailIntakeHealthSummary?.importedCount ?? 0)
-      + (latestMicrosoft365IntakeHealthSummary?.importedCount ?? 0)
+    spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+      + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
+      + microsoft365MailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount }
   }
 
   var latestMailboxDuplicateCount: Int {
-    (latestSpaceMailIntakeHealthSummary?.duplicateCount ?? 0)
-      + (latestGmailIntakeHealthSummary?.duplicateCount ?? 0)
-      + (latestMicrosoft365IntakeHealthSummary?.duplicateCount ?? 0)
+    spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshDuplicateCount }
+      + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshDuplicateCount }
+      + microsoft365MailboxConnections.reduce(0) { $0 + $1.lastRefreshDuplicateCount }
   }
 
   var latestMailboxDuplicateRefreshedCount: Int {
-    (latestSpaceMailIntakeHealthSummary?.duplicateRefreshedCount ?? 0)
-      + (latestGmailIntakeHealthSummary?.duplicateRefreshedCount ?? 0)
-      + (latestMicrosoft365IntakeHealthSummary?.duplicateRefreshedCount ?? 0)
+    mailboxIngestRecords.filter { $0.status == .duplicateRefreshed }.count
   }
 
   var latestMailboxFilteredCount: Int {
-    (latestSpaceMailIntakeHealthSummary?.filteredCount ?? 0)
-      + (latestGmailIntakeHealthSummary?.filteredCount ?? 0)
-      + (latestMicrosoft365IntakeHealthSummary?.totalFilteredCount ?? 0)
+    spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+      + gmailMailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
+      + microsoft365MailboxConnections.reduce(0) { $0 + $1.lastRefreshFilteredNonOrderCount }
   }
 
   var latestMailboxUncertainCount: Int {
-    (latestSpaceMailIntakeHealthSummary?.totalUncertainCount ?? 0)
-      + (latestGmailIntakeHealthSummary?.totalUncertainCount ?? 0)
-      + (latestMicrosoft365IntakeHealthSummary?.totalUncertainCount ?? 0)
+    spaceMailIMAPConnections.reduce(0) { $0 + $1.lastRefreshUncertainCount }
+      + gmailMailboxConnections.reduce(0) { $0 + ($1.lastRefreshUncertainCount ?? 0) }
+      + microsoft365MailboxConnections.reduce(0) { $0 + $1.lastRefreshUncertainCount }
   }
 
   var latestMailboxCompactRefreshText: String {
@@ -8042,17 +8040,14 @@ final class ParcelOpsStore {
   }
 
   var latestActiveMailboxEvidenceText: String {
-    if let latestMicrosoft365IntakeHealthSummary,
-       latestMicrosoft365IntakeHealthSummary.fetchedCount > 0 || latestMicrosoft365IntakeHealthSummary.importedCount > 0 || latestMicrosoft365IntakeHealthSummary.duplicateCount > 0 {
-      return "Outlook latest: \(latestMicrosoft365IntakeHealthSummary.compactRefreshCountsText)."
+    if let outlook = microsoft365MailboxConnections.first(where: { $0.lastRefreshFetchedCount > 0 || $0.lastRefreshImportedCount > 0 || $0.lastRefreshDuplicateCount > 0 }) {
+      return "Outlook latest: \(outlook.lastRefreshFetchedCount) fetched, \(outlook.lastRefreshImportedCount) imported, \(outlook.lastRefreshDuplicateCount) duplicates."
     }
-    if let latestGmailIntakeHealthSummary,
-       latestGmailIntakeHealthSummary.fetchedCount > 0 || latestGmailIntakeHealthSummary.importedCount > 0 || latestGmailIntakeHealthSummary.filteredCount > 0 {
-      return "Gmail latest: \(latestGmailIntakeHealthSummary.compactRefreshCountsText)."
+    if let gmail = gmailMailboxConnections.first(where: { $0.lastRefreshFetchedCount > 0 || $0.lastRefreshImportedCount > 0 || $0.lastRefreshFilteredNonOrderCount > 0 }) {
+      return "Gmail latest: \(gmail.lastRefreshFetchedCount) fetched, \(gmail.lastRefreshImportedCount) imported, \(gmail.lastRefreshFilteredNonOrderCount) filtered."
     }
-    if let latestSpaceMailIntakeHealthSummary,
-       latestSpaceMailIntakeHealthSummary.fetchedCount > 0 || latestSpaceMailIntakeHealthSummary.importedCount > 0 || latestSpaceMailIntakeHealthSummary.filteredCount > 0 {
-      return "SpaceMail latest: \(latestSpaceMailIntakeHealthSummary.compactRefreshCountsText)."
+    if let spaceMail = spaceMailIMAPConnections.first(where: { $0.lastRefreshFetchedCount > 0 || $0.lastRefreshImportedCount > 0 || $0.lastRefreshFilteredNonOrderCount > 0 }) {
+      return "SpaceMail latest: \(spaceMail.lastRefreshFetchedCount) fetched, \(spaceMail.lastRefreshImportedCount) imported, \(spaceMail.lastRefreshFilteredNonOrderCount) filtered."
     }
     let hasMailboxSetup = !spaceMailIMAPConnections.isEmpty || !gmailMailboxConnections.isEmpty || !microsoft365MailboxConnections.isEmpty
     return hasMailboxSetup ? "Mailbox setup exists, but no useful latest refresh evidence is available." : "No mailbox provider setup yet."
@@ -8071,7 +8066,9 @@ final class ParcelOpsStore {
   }
 
   var hasLatestMailboxFetchEvidence: Bool {
-    latestMailboxFetchedCount > 0
+    spaceMailIMAPConnections.contains { $0.lastRefreshFetchedCount > 0 }
+      || gmailMailboxConnections.contains { $0.lastRefreshFetchedCount > 0 }
+      || microsoft365MailboxConnections.contains { $0.lastRefreshFetchedCount > 0 }
   }
 
   var hasMailboxRefreshEvidence: Bool {

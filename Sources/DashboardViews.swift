@@ -7,6 +7,7 @@ struct DashboardView: View {
   @State private var feedbackMessage: String?
   @State private var showDashboardProviderEvidence = false
   @State private var showDashboardGmailEvidence = false
+  @State private var showDetailedDashboard = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var normalizedDashboardSearch: String {
@@ -50,7 +51,6 @@ struct DashboardView: View {
   private var blockedInboxSourceCount: Int {
     store.blockedImportQueueItems.count
       + store.lowConfidenceImportQueueItems.count
-      + store.intakeParserDiagnostics.filter { $0.severity == .critical || $0.severity == .high }.count
   }
   private var readyAcceptanceOrImportCount: Int {
     store.importQueueItemsNeedingReview.count
@@ -149,18 +149,18 @@ struct DashboardView: View {
     return ("Needed", .orange)
   }
   private var spaceMailHealthAttentionCount: Int {
-    store.spaceMailIntakeHealthSummaries.filter {
-      $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.parserIssueCount > 0 || $0.importedCount > 0
+    store.spaceMailIMAPConnections.filter {
+      $0.lastRefreshImportedCount > 0 || $0.lastRefreshUncertainCount > 0
     }.count
   }
   private var gmailHealthAttentionCount: Int {
-    store.gmailIntakeHealthSummaries.filter {
-      $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.importedCount > 0
+    store.gmailMailboxConnections.filter {
+      $0.lastRefreshImportedCount > 0 || ($0.lastRefreshUncertainCount ?? 0) > 0
     }.count
   }
   private var microsoft365HealthAttentionCount: Int {
-    store.microsoft365IntakeHealthSummaries.filter {
-      $0.tone == "warning" || $0.tone == "attention" || $0.importedCount > 0 || $0.blockedCount > 0
+    store.microsoft365MailboxConnections.filter {
+      $0.lastRefreshImportedCount > 0 || $0.lastRefreshFetchedCount > 0
     }.count
   }
   private var mailboxHealthAttentionCount: Int {
@@ -766,10 +766,19 @@ struct DashboardView: View {
     store.openWorkbenchItems.filter { $0.source == .setupPlaceholder }
   }
   private var setupAttentionCount: Int {
-    setupPlaceholderReviewItems.count
+    store.spaceMailIMAPConnections.filter { $0.reviewState == .needsReview }.count
+      + store.gmailMailboxConnections.filter { $0.reviewState == .needsReview }.count
+      + store.microsoft365MailboxConnections.filter { $0.reviewState == .needsReview }.count
   }
   private var operatorWorkbenchItems: [WorkbenchItem] {
     store.openWorkbenchItems.filter { $0.source != .intakeParser }
+  }
+  private var operatorWorkbenchAttentionCount: Int {
+    store.validationIssues.filter { $0.reviewState == .needsReview }.count
+      + store.reconciliationIssues.filter { $0.reviewState == .needsReview }.count
+      + store.reviewEvidenceAttachments.count
+      + store.handoffNotesNeedingAttention.count
+      + store.reviewTasksNeedingAttention.count
   }
   private var highPriorityOperatorWorkbenchItems: [WorkbenchItem] {
     operatorWorkbenchItems.filter { $0.rank >= 3 }
@@ -835,7 +844,7 @@ struct DashboardView: View {
     return store.wishlistDashboardCardDetail
   }
   private var attentionNowCount: Int {
-    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + highPriorityOperatorWorkbenchItems.count + setupAttentionCount + wishlistDashboardSignalCount
+    incomingAttentionCount + problemOrdersCount + dispatchAttentionCount + taskAttentionCount + operatorWorkbenchAttentionCount + setupAttentionCount + wishlistDashboardSignalCount
   }
   private var advancedBacklogCount: Int {
     max(store.reviewQueueCount - attentionNowCount, 0)
@@ -863,7 +872,7 @@ struct DashboardView: View {
     if incomingAttentionCount > 0 { return .orange }
     if !partialInboxOrderBlockers.isEmpty { return .orange }
     if problemOrdersCount > 0 { return .red }
-    if highPriorityOperatorWorkbenchItems.count > 0 { return .purple }
+    if operatorWorkbenchAttentionCount > 0 { return .purple }
     if reopenedInboxDispatchHandoffCount > 0 { return .purple }
     if dispatchAttentionCount > 0 { return .blue }
     if !wishlistDailyAttentionClear { return .purple }
@@ -881,7 +890,7 @@ struct DashboardView: View {
     if incomingAttentionCount > 0 { return "Start in Inbox" }
     if !partialInboxOrderBlockers.isEmpty { return "Verify source orders" }
     if problemOrdersCount > 0 { return "Start with Orders" }
-    if highPriorityOperatorWorkbenchItems.count > 0 { return "Start in Workbench" }
+    if operatorWorkbenchAttentionCount > 0 { return "Start in Workbench" }
     if reopenedInboxDispatchHandoffCount > 0 { return "Review reopened dispatch handoffs" }
     if dispatchAttentionCount > 0 { return "Start with Dispatch" }
     if !wishlistDailyAttentionClear { return "Review Wishlist purchase readiness" }
@@ -915,8 +924,8 @@ struct DashboardView: View {
     if problemOrdersCount > 0 {
       return "\(problemOrdersCount) order signal\(problemOrdersCount == 1 ? "" : "s") \(problemOrdersCount == 1 ? "needs" : "need") attention from review state, exceptions, tracking warnings, or source-order handoff."
     }
-    if highPriorityOperatorWorkbenchItems.count > 0 {
-      return "\(highPriorityOperatorWorkbenchItems.count) high-priority exception, validation, reconciliation, or operational workbench item\(highPriorityOperatorWorkbenchItems.count == 1 ? " is" : "s are") open."
+    if operatorWorkbenchAttentionCount > 0 {
+      return "\(operatorWorkbenchAttentionCount) exception, validation, reconciliation, or operational workbench signal\(operatorWorkbenchAttentionCount == 1 ? " is" : "s are") open."
     }
     if reopenedInboxDispatchHandoffCount > 0 {
       return "\(reopenedInboxDispatchHandoffCount) Inbox dispatch handoff record\(reopenedInboxDispatchHandoffCount == 1 ? " was" : "s were") reopened. Open Dispatch or the linked order to complete or block \(reopenedInboxDispatchHandoffCount == 1 ? "it" : "them")."
@@ -945,7 +954,7 @@ struct DashboardView: View {
     if incomingAttentionCount > 0 { return .inbox }
     if !partialInboxOrderBlockers.isEmpty { return .orders }
     if problemOrdersCount > 0 { return .orders }
-    if highPriorityOperatorWorkbenchItems.count > 0 { return .workbench }
+    if operatorWorkbenchAttentionCount > 0 { return .workbench }
     if reopenedInboxDispatchHandoffCount > 0 { return .dispatch }
     if dispatchAttentionCount > 0 { return .dispatch }
     if !wishlistDailyAttentionClear { return .wishlist }
@@ -1094,55 +1103,58 @@ struct DashboardView: View {
       VStack(alignment: .leading, spacing: 18) {
         header
         dailyStartDecisionPanel
-        DashboardReleaseReadinessSnapshot(store: store)
-        dashboardDevelopmentFocusPanel
-        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
-        ActiveOperatorQueueFocusCard(store: store)
-        RecentOperatorImprovementsCard()
-        inboxTriageQualityPanel
-        SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
-        dailyFlowCheckpointPanel
-        liveMailboxStatusPanel
-        MVPDevelopmentStatusPanel(store: store)
-        MVPWorkflowGuide(
-          title: "Daily operator path",
-          detail: "Use these screens in order for the current manual mailbox workflow. SpaceMail, Gmail, and Outlook / Microsoft 365 are the manual read-only live intake paths.",
-          steps: [
-            "Run or review the latest manual mailbox refresh.",
-            "Triage imported intake and decide on uncertain mixed-mailbox messages.",
-            "Create or link an order from confirmed intake.",
-            "Clear Workbench, Tasks, and Dispatch follow-up for that order.",
-            "Check Audit and Settings when you need traceability or setup context."
-          ],
-          symbol: "map.fill"
-        )
-        MVPReadinessCallout(store: store)
-        OperatorSupportSnapshotCard(store: store, detail: "Current support snapshot for the daily operator workflow.")
-        OperatorTestSessionChecklistCard(store: store, detail: "Run this checklist when validating the current operator flow.")
-        OperatorHandoffBriefCard(store: store, detail: "Current handoff notes for the next operator or test session.")
-        dashboardProviderEvidencePanel
-        OperatorMVPReadinessCard(store: store)
-        LocalDataHygieneSummaryCard(
-          store: store,
-          title: "Testing data hygiene",
-          detail: "Use this before judging the app by old mailbox/parser test data. It points to noisy local records without changing them."
-        )
-        MVPHandsOnDashboardStatus(store: store)
-        LocalDemoWorkflowStatusCard(store: store)
-        DashboardReleaseCandidateQACard(store: store)
-        FirstLiveMailboxTestCard(store: store)
-        spaceMailParserQAPanel
-        spaceMailFollowUpPanel
-        dailyOperatorStart
+        dashboardDetailTogglePanel
 
-        VStack(alignment: .leading, spacing: 6) {
-          Text("Detailed local analytics")
-            .font(.title2.bold())
-          Text("Broader local record summaries remain available below for deeper review.")
-            .foregroundStyle(.secondary)
-        }
+        if showDetailedDashboard {
+          DashboardReleaseReadinessSnapshot(store: store)
+          dashboardDevelopmentFocusPanel
+          MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
+          ActiveOperatorQueueFocusCard(store: store)
+          RecentOperatorImprovementsCard()
+          inboxTriageQualityPanel
+          SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
+          dailyFlowCheckpointPanel
+          liveMailboxStatusPanel
+          MVPDevelopmentStatusPanel(store: store)
+          MVPWorkflowGuide(
+            title: "Daily operator path",
+            detail: "Use these screens in order for the current manual mailbox workflow. SpaceMail, Gmail, and Outlook / Microsoft 365 are the manual read-only live intake paths.",
+            steps: [
+              "Run or review the latest manual mailbox refresh.",
+              "Triage imported intake and decide on uncertain mixed-mailbox messages.",
+              "Create or link an order from confirmed intake.",
+              "Clear Workbench, Tasks, and Dispatch follow-up for that order.",
+              "Check Audit and Settings when you need traceability or setup context."
+            ],
+            symbol: "map.fill"
+          )
+          MVPReadinessCallout(store: store)
+          OperatorSupportSnapshotCard(store: store, detail: "Current support snapshot for the daily operator workflow.")
+          OperatorTestSessionChecklistCard(store: store, detail: "Run this checklist when validating the current operator flow.")
+          OperatorHandoffBriefCard(store: store, detail: "Current handoff notes for the next operator or test session.")
+          dashboardProviderEvidencePanel
+          OperatorMVPReadinessCard(store: store)
+          LocalDataHygieneSummaryCard(
+            store: store,
+            title: "Testing data hygiene",
+            detail: "Use this before judging the app by old mailbox/parser test data. It points to noisy local records without changing them."
+          )
+          MVPHandsOnDashboardStatus(store: store)
+          LocalDemoWorkflowStatusCard(store: store)
+          DashboardReleaseCandidateQACard(store: store)
+          FirstLiveMailboxTestCard(store: store)
+          spaceMailParserQAPanel
+          spaceMailFollowUpPanel
+          dailyOperatorStart
 
-        AnalyticsSection(title: "Operations", symbol: "shippingbox.fill") {
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Detailed local analytics")
+              .font(.title2.bold())
+            Text("Broader local record summaries remain available below for deeper review.")
+              .foregroundStyle(.secondary)
+          }
+
+          AnalyticsSection(title: "Operations", symbol: "shippingbox.fill") {
           LazyVGrid(columns: metricColumns, spacing: 12) {
             NavigationLink {
               OrdersView(store: store)
@@ -1520,6 +1532,7 @@ struct DashboardView: View {
         AnalyticsSection(title: "Recent activity", symbol: "list.clipboard.fill") {
           CompactAuditList(events: store.recentAuditEvents, store: store)
         }
+        }
       }
       .padding(isCompact ? 14 : 24)
     }
@@ -1578,6 +1591,37 @@ struct DashboardView: View {
           .font(.caption2)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private var dashboardDetailTogglePanel: some View {
+    SettingsPanel(title: "Detailed dashboard", symbol: "speedometer") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text(showDetailedDashboard ? "Detailed readiness and analytics are visible." : "Detailed readiness and analytics are hidden until requested so the app can open quickly.")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        CompactActionRow {
+          Button(showDetailedDashboard ? "Hide detailed dashboard" : "Show detailed dashboard", systemImage: showDetailedDashboard ? "eye.slash" : "chart.bar.doc.horizontal") {
+            showDetailedDashboard.toggle()
+          }
+          .buttonStyle(.bordered)
+
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            Label("Mailbox Monitor", systemImage: "server.rack")
+          }
+
+          NavigationLink {
+            AuditView(store: store)
+          } label: {
+            Label("Audit", systemImage: "list.clipboard.fill")
+          }
+        }
+        .buttonStyle(.bordered)
       }
     }
   }
@@ -2684,14 +2728,6 @@ private struct DashboardActionFeedbackPanel: View {
 private struct DashboardReleaseReadinessSnapshot: View {
   var store: ParcelOpsStore
 
-  private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
-    store.latestSpaceMailIntakeHealthSummary
-  }
-
-  private var latestGmailSummary: GmailIntakeHealthSummary? {
-    store.latestGmailIntakeHealthSummary
-  }
-
   private var hasMailboxSetup: Bool {
     store.hasMailboxProviderSetup
   }
@@ -2724,9 +2760,8 @@ private struct DashboardReleaseReadinessSnapshot: View {
 
   private var openCleanupCount: Int {
     store.reviewIntakeEmails.count
-      + store.intakeParserDiagnostics.count
       + uncertainMailboxCount
-      + store.openWorkbenchItems.count
+      + store.pendingMailboxFilteredReviewCount
       + store.reviewTasksNeedingAttention.count
       + store.handoffNotesNeedingAttention.count
       + store.blockedShipmentManifests.count

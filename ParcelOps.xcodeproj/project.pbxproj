@@ -55,7 +55,7 @@
 		CD2C6FA9B9FE2F0B958E31D9 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A084ECE57E308E8C34C3F62C /* GoogleSignIn */; };
 		CFA7684757F5D0289CA35AFA /* OperatorHubViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5776053ED5DCD32056445106 /* OperatorHubViews.swift */; };
 		D8150475F4C6FA3D8F987127 /* StorageLocationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F255E833C8D83405F1F68811 /* StorageLocationViews.swift */; };
-		DAE7239984848CE91DB2AA99 /* ParcelOps Widget Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CB1F5A8248E44B2F201E49CC /* ParcelOps Widget Extension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		DAE7239984848CE91DB2AA99 /* ParcelOps Widget Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CB1F5A8248E44B2F201E49CC /* ParcelOps Widget Extension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		DD6E5C8C97CB124E859ED49A /* CustomerProfileViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21CE4C0D73EFE6A4C77667E6 /* CustomerProfileViews.swift */; };
 		E060980AFC6F9459D7D1B9E2 /* ContactsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BFA5EEA942D1C8E375F1F8F /* ContactsViews.swift */; };
 		E79CF578136295FA735A1AE9 /* TimelineViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF611A7ECFF96B0BA513594A /* TimelineViews.swift */; };
@@ -156,7 +156,7 @@
 		C507D85BF101AE2844CD3CDB /* ParcelOps Watch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ParcelOps Watch.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		C6089D9A2399AD2D84048E51 /* ShipmentManifestViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShipmentManifestViews.swift; sourceTree = "<group>"; };
 		C7AB9F271170DD68B00CAD9C /* ReconciliationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReconciliationViews.swift; sourceTree = "<group>"; };
-		CAF3A15F042E2C123A948632 /* ParcelOps.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ParcelOps.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CAF3A15F042E2C123A948632 /* ParcelOps.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ParcelOps.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CB1F5A8248E44B2F201E49CC /* ParcelOps Widget Extension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = "ParcelOps Widget Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		CCFDC100E4D09EFA74EF440F /* AuditViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuditViews.swift; sourceTree = "<group>"; };
 		CF6E4AB0D91F13028C85CC39 /* Repositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repositories.swift; sourceTree = "<group>"; };
@@ -399,8 +399,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = AA1890A89201244A41BD5A05 /* Build configuration list for PBXProject "ParcelOps" */;
 			developmentRegion = en;
@@ -539,9 +537,7 @@
 /* Begin PBXTargetDependency section */
 		4333B56F74FB8CEE379E1B65 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			platformFilters = (
-				ios,
-			);
+			platformFilter = ios;
 			target = 6E26421399CF4A15ECFA2AD3 /* ParcelOps Widget Extension */;
 			targetProxy = 3B6C4FF67925B18A0E03171F /* PBXContainerItemProxy */;
 		};
@@ -574,12 +570,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
-				INFOPLIST_FILE = App/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
+					CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+					CODE_SIGN_IDENTITY = "iPhone Developer";
+					DEVELOPMENT_TEAM = 567HFA65LS;
+					ENABLE_DEBUG_DYLIB = NO;
+					INFOPLIST_FILE = App/Info.plist;
+					LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.bitrig.parcelops;
 				SDKROOT = auto;
@@ -787,12 +786,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
-				INFOPLIST_FILE = App/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
+					CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+					CODE_SIGN_IDENTITY = "iPhone Developer";
+					DEVELOPMENT_TEAM = 567HFA65LS;
+					ENABLE_DEBUG_DYLIB = NO;
+					INFOPLIST_FILE = App/Info.plist;
+					LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.bitrig.parcelops;
 				SDKROOT = auto;
