@@ -1,24 +1,8 @@
 import SwiftUI
 
-#if os(macOS)
-import AppKit
-#endif
-
 @main
 struct ParcelOpsApp: App {
-  #if os(macOS)
-  @NSApplicationDelegateAdaptor(ParcelOpsAppDelegate.self) private var appDelegate
-  #endif
-
   var body: some Scene {
-    #if os(macOS)
-    Settings {
-      EmptyView()
-    }
-    .commands {
-      ParcelRouteCommands()
-    }
-    #else
     WindowGroup {
       ParcelOpsRootView()
         .parcelOpsWindowFrame()
@@ -26,66 +10,13 @@ struct ParcelOpsApp: App {
     .commands {
       ParcelRouteCommands()
     }
+    #if os(macOS)
+    Settings {
+      EmptyView()
+    }
     #endif
   }
 }
-
-#if os(macOS)
-final class ParcelOpsAppDelegate: NSObject, NSApplicationDelegate {
-  private var fallbackWindowController: NSWindowController?
-
-  func applicationDidFinishLaunching(_ notification: Notification) {
-    NSApp.setActivationPolicy(.regular)
-    NSApp.unhide(nil)
-    showFallbackWindowIfNeeded()
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-      self?.showFallbackWindowIfNeeded()
-    }
-  }
-
-  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-    if !flag {
-      showFallbackWindowIfNeeded()
-    }
-    return true
-  }
-
-  private func showFallbackWindowIfNeeded() {
-    if let window = fallbackWindowController?.window {
-      window.makeKeyAndOrderFront(nil)
-      window.orderFrontRegardless()
-      NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-      return
-    }
-
-    let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 1280, height: 860),
-      styleMask: [.titled, .closable, .miniaturizable, .resizable],
-      backing: .buffered,
-      defer: false
-    )
-    window.title = "ParcelOps"
-    window.isReleasedWhenClosed = false
-    window.isRestorable = false
-    window.collectionBehavior = [.managed, .fullScreenPrimary]
-    window.center()
-    window.contentViewController = NSHostingController(rootView: ParcelOpsRootView().parcelOpsWindowFrame())
-    window.makeKeyAndOrderFront(nil)
-    window.orderFrontRegardless()
-    NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-    fallbackWindowController = NSWindowController(window: window)
-    fallbackWindowController?.showWindow(nil)
-  }
-
-  func application(_ application: NSApplication, shouldRestoreApplicationState coder: NSCoder) -> Bool {
-    false
-  }
-
-  func application(_ application: NSApplication, shouldSaveApplicationState coder: NSCoder) -> Bool {
-    false
-  }
-}
-#endif
 
 extension View {
   @ViewBuilder
