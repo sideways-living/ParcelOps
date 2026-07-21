@@ -426,29 +426,33 @@ struct ParcelOpsRootView: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
 
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 146), spacing: 8)], alignment: .leading, spacing: 8) {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: 8)], alignment: .leading, spacing: 8) {
         ForEach(dailyFocusSections) { section in
           let count = attentionCount(for: section) ?? 0
           NavigationLink(value: section) {
-            HStack(spacing: 5) {
-              Image(systemName: section.symbol)
-                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 6) {
+              HStack(alignment: .top, spacing: 6) {
+                Image(systemName: section.symbol)
+                  .frame(width: 18, height: 18)
+                Spacer(minLength: 4)
+                if count > 0 {
+                  Text("\(count)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(attentionColor(for: section, count: count), in: Capsule())
+                }
+              }
+
               Text(section.shortTitle)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
-              if count > 0 {
-                Text("\(count)")
-                  .font(.caption2.weight(.bold))
-                  .foregroundStyle(.white)
-                  .padding(.horizontal, 5)
-                  .padding(.vertical, 1)
-                  .background(attentionColor(for: section, count: count), in: Capsule())
-              }
             }
             .font(.caption.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 64, maxHeight: 64, alignment: .topLeading)
             .padding(.horizontal, 7)
-            .padding(.vertical, 5)
+            .padding(.vertical, 7)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
           }
           .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
@@ -484,13 +488,14 @@ struct ParcelOpsRootView: View {
         }
       }
 
-      HStack(spacing: 6) {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 74), spacing: 6)], alignment: .leading, spacing: 6) {
         ForEach(sidebarReadinessItems, id: \.title) { item in
-          Image(systemName: item.isReady ? "checkmark.circle.fill" : "circle")
+          Label(item.title, systemImage: item.isReady ? "checkmark.circle.fill" : "circle")
+            .font(.caption2.weight(.semibold))
             .foregroundStyle(item.isReady ? .green : .secondary)
+            .lineLimit(1)
             .help(item.title)
         }
-        Spacer(minLength: 4)
         Text("Advanced \(advancedBacklogCount)")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.secondary)
