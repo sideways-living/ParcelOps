@@ -104,49 +104,37 @@ private struct ParcelRouteShortcut {
   var modifiers: EventModifiers = .command
 }
 
-private struct ParcelSectionSelectionFocusedValueKey: FocusedValueKey {
-  typealias Value = Binding<ParcelSection>
+private extension Notification.Name {
+  static let parcelRouteRequested = Notification.Name("ParcelOps.routeRequested")
 }
 
-private extension FocusedValues {
-  var parcelSectionSelection: Binding<ParcelSection>? {
-    get { self[ParcelSectionSelectionFocusedValueKey.self] }
-    set { self[ParcelSectionSelectionFocusedValueKey.self] = newValue }
+private enum ParcelRouteRequest {
+  static func post(_ section: ParcelSection) {
+    NotificationCenter.default.post(name: .parcelRouteRequested, object: section.rawValue)
   }
 }
 
 private struct ParcelRouteCommands: Commands {
-  @FocusedBinding(\.parcelSectionSelection) private var selection
-
   var body: some Commands {
     CommandMenu("Navigate") {
-      Button("Dashboard") { selection = .dashboard }
+      Button("Dashboard") { ParcelRouteRequest.post(.dashboard) }
         .keyboardShortcut("1", modifiers: .command)
-        .disabled(selection == nil)
-      Button("Inbox") { selection = .inbox }
+      Button("Inbox") { ParcelRouteRequest.post(.inbox) }
         .keyboardShortcut("2", modifiers: .command)
-        .disabled(selection == nil)
-      Button("Orders") { selection = .orders }
+      Button("Orders") { ParcelRouteRequest.post(.orders) }
         .keyboardShortcut("3", modifiers: .command)
-        .disabled(selection == nil)
-      Button("Workbench") { selection = .workbench }
+      Button("Workbench") { ParcelRouteRequest.post(.workbench) }
         .keyboardShortcut("4", modifiers: .command)
-        .disabled(selection == nil)
-      Button("Dispatch") { selection = .dispatch }
+      Button("Dispatch") { ParcelRouteRequest.post(.dispatch) }
         .keyboardShortcut("5", modifiers: .command)
-        .disabled(selection == nil)
-      Button("Tasks") { selection = .tasks }
+      Button("Tasks") { ParcelRouteRequest.post(.tasks) }
         .keyboardShortcut("6", modifiers: .command)
-        .disabled(selection == nil)
-      Button("Wishlist") { selection = .wishlist }
+      Button("Wishlist") { ParcelRouteRequest.post(.wishlist) }
         .keyboardShortcut("7", modifiers: .command)
-        .disabled(selection == nil)
-      Button("Audit") { selection = .audit }
+      Button("Audit") { ParcelRouteRequest.post(.audit) }
         .keyboardShortcut("8", modifiers: .command)
-        .disabled(selection == nil)
-      Button("Settings") { selection = .settings }
+      Button("Settings") { ParcelRouteRequest.post(.settings) }
         .keyboardShortcut("9", modifiers: .command)
-        .disabled(selection == nil)
     }
   }
 }
@@ -348,7 +336,13 @@ struct ParcelOpsRootView: View {
   var body: some View {
     rootLayout
       .tint(.teal)
-      .focusedSceneValue(\.parcelSectionSelection, $selection)
+      .onReceive(NotificationCenter.default.publisher(for: .parcelRouteRequested)) { notification in
+        guard
+          let rawValue = notification.object as? String,
+          let section = ParcelSection(rawValue: rawValue)
+        else { return }
+        route(to: section)
+      }
       .onOpenURL { url in
         store.handleMicrosoft365AuthCallback(url)
         store.handleGmailAuthCallback(url)
@@ -594,7 +588,7 @@ struct ParcelOpsRootView: View {
 
   private func toggleSecondaryDesktopGroups() {
     if selectionIsSecondaryDesktopRoute {
-      selection = .dashboard
+      route(to: .dashboard)
       showSecondaryDesktopGroups = false
       expandedDesktopGroupIDs.removeAll()
     } else {
@@ -602,6 +596,14 @@ struct ParcelOpsRootView: View {
       if !showSecondaryDesktopGroups {
         expandedDesktopGroupIDs.removeAll()
       }
+    }
+  }
+
+  private func route(to section: ParcelSection) {
+    selection = section
+    sidebarSearchText = ""
+    if ParcelNavigationGroup.secondaryDesktopGroups.flatMap(\.sections).contains(section) {
+      showSecondaryDesktopGroups = true
     }
   }
 
