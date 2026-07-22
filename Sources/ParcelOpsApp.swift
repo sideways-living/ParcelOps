@@ -174,17 +174,17 @@ struct ParcelOpsRootView: View {
   }
 
   private var dailyAttentionCount: Int {
-    store.reviewIntakeEmails.count
+    store.reviewIntakeEmailCount
       + store.pendingMailboxReviewCount
-      + store.importQueueItemsNeedingReview.count
-      + store.blockedImportQueueItems.count
-      + store.acceptanceRecordsNeedingReview.count
-      + store.reviewOrders.count
-      + store.blockedShipmentManifests.count
-      + store.blockedDispatchChecklists.count
-      + store.reviewTasksNeedingAttention.count
-      + store.handoffNotesNeedingAttention.count
-      + store.draftMessagesNeedingReview.count
+      + store.importQueueReviewCount
+      + store.blockedImportQueueItemCount
+      + store.acceptanceRecordReviewCount
+      + store.reviewOrderCount
+      + store.blockedShipmentManifestCount
+      + store.blockedDispatchChecklistCount
+      + store.reviewTaskAttentionCount
+      + store.handoffNoteAttentionCount
+      + store.draftMessageReviewCount
       + wishlistAttentionCount
   }
 
@@ -800,31 +800,31 @@ struct ParcelOpsRootView: View {
     case .dashboard:
       return dailyAttentionCount
     case .inbox:
-      return store.reviewIntakeEmails.count
+      return store.reviewIntakeEmailCount
         + store.pendingMailboxReviewCount
-        + store.importQueueItemsNeedingReview.count
-        + store.blockedImportQueueItems.count
-        + store.acceptanceRecordsNeedingReview.count
+        + store.importQueueReviewCount
+        + store.blockedImportQueueItemCount
+        + store.acceptanceRecordReviewCount
     case .orders:
-      return store.reviewOrders.count
-        + store.orders.filter { $0.status == .exception }.count
+      return store.reviewOrderCount
+        + store.exceptionOrderCount
         + store.trackingWarningCount
         + store.criticalTrackingCount
     case .workbench:
-      return store.highPriorityWorkbenchItems.count
+      return store.highPriorityWorkbenchItemCount
     case .dispatch:
-      return store.blockedShipmentManifests.count
-        + store.undispatchedShipmentManifests.count
-        + store.blockedDispatchChecklists.count
-        + store.incompleteDispatchChecklists.count
+      return store.blockedShipmentManifestCount
+        + store.undispatchedShipmentManifestCount
+        + store.blockedDispatchChecklistCount
+        + store.incompleteDispatchChecklistCount
     case .tasks:
-      return store.reviewTasksNeedingAttention.count
-        + store.handoffNotesNeedingAttention.count
-        + store.draftMessagesNeedingReview.count
+      return store.reviewTaskAttentionCount
+        + store.handoffNoteAttentionCount
+        + store.draftMessageReviewCount
     case .wishlist:
       return wishlistAttentionCount
     case .communication:
-      return store.draftMessagesNeedingReview.count
+      return store.draftMessageReviewCount
     case .review:
       return dailyAttentionCount
     default:

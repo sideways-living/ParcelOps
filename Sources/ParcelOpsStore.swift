@@ -306,8 +306,20 @@ final class ParcelOpsStore {
     orders.filter { $0.status == .exception || $0.reviewState == .needsReview }.count
   }
 
+  var exceptionOrderCount: Int {
+    orders.reduce(0) { count, order in
+      count + (order.status == .exception ? 1 : 0)
+    }
+  }
+
   var reviewOrders: [TrackedOrder] {
     orders.filter { $0.status == .exception || $0.reviewState != .accepted }
+  }
+
+  var reviewOrderCount: Int {
+    orders.reduce(0) { count, order in
+      count + ((order.status == .exception || order.reviewState != .accepted) ? 1 : 0)
+    }
   }
 
   var reviewMailEvents: [MailEvent] {
@@ -316,6 +328,12 @@ final class ParcelOpsStore {
 
   var reviewIntakeEmails: [ForwardedEmailIntake] {
     intakeEmails.filter { $0.reviewState == .needsReview }
+  }
+
+  var reviewIntakeEmailCount: Int {
+    intakeEmails.reduce(0) { count, email in
+      count + (email.reviewState == .needsReview ? 1 : 0)
+    }
   }
 
   var intakeParserDiagnostics: [IntakeParserDiagnostic] {
@@ -5935,6 +5953,12 @@ final class ParcelOpsStore {
     }
   }
 
+  var reviewTaskAttentionCount: Int {
+    reviewTasks.reduce(0) { count, task in
+      count + (task.status != .completed && (task.priority == .high || task.priority == .urgent || task.reviewState != .accepted || task.isLocallyOverdue) ? 1 : 0)
+    }
+  }
+
   var overdueOpenReviewTasks: [ReviewTask] {
     openReviewTasks.filter(\.isLocallyOverdue)
   }
@@ -5961,6 +5985,17 @@ final class ParcelOpsStore {
 
   var handoffNotesNeedingAttention: [HandoffNote] {
     Array(Set(overdueHandoffNotes + highPriorityHandoffNotes + handoffNotesNeedingReview + openHandoffNotes.filter { $0.status == .open }))
+  }
+
+  var handoffNoteAttentionCount: Int {
+    handoffNotes.reduce(0) { count, note in
+      let needsAttention = note.isLocallyOverdue
+        || note.priority == .high
+        || note.priority == .urgent
+        || note.reviewState != .accepted
+        || note.status == .open
+      return count + (needsAttention ? 1 : 0)
+    }
   }
 
   var policiesNeedingReview: [SLAPolicy] {
@@ -6009,6 +6044,14 @@ final class ParcelOpsStore {
     draftMessages.filter {
       (isActiveWishlistDraft($0) || isMailboxProviderDraft($0))
         && ($0.reviewState != .accepted || $0.status == .draft || $0.status == .reopened)
+    }
+  }
+
+  var draftMessageReviewCount: Int {
+    draftMessages.reduce(0) { count, draft in
+      let needsReview = (isActiveWishlistDraft(draft) || isMailboxProviderDraft(draft))
+        && (draft.reviewState != .accepted || draft.status == .draft || draft.status == .reopened)
+      return count + (needsReview ? 1 : 0)
     }
   }
 
@@ -6358,8 +6401,21 @@ final class ParcelOpsStore {
     shipmentManifestRecords.filter { $0.dispatchStatus == .blockedNeedsReview }
   }
 
+  var blockedShipmentManifestCount: Int {
+    shipmentManifestRecords.reduce(0) { count, record in
+      count + (record.dispatchStatus == .blockedNeedsReview ? 1 : 0)
+    }
+  }
+
   var undispatchedShipmentManifests: [ShipmentManifestRecord] {
     shipmentManifestRecords.filter { $0.dispatchStatus == .draft || $0.dispatchStatus == .prepared || $0.dispatchStatus == .reopened }
+  }
+
+  var undispatchedShipmentManifestCount: Int {
+    shipmentManifestRecords.reduce(0) { count, record in
+      let isUndispatched = record.dispatchStatus == .draft || record.dispatchStatus == .prepared || record.dispatchStatus == .reopened
+      return count + (isUndispatched ? 1 : 0)
+    }
   }
 
   var highRiskShipmentManifests: [ShipmentManifestRecord] {
@@ -6390,8 +6446,21 @@ final class ParcelOpsStore {
     dispatchReadinessChecklists.filter { $0.checklistStatus == .blockedNeedsReview }
   }
 
+  var blockedDispatchChecklistCount: Int {
+    dispatchReadinessChecklists.reduce(0) { count, checklist in
+      count + (checklist.checklistStatus == .blockedNeedsReview ? 1 : 0)
+    }
+  }
+
   var incompleteDispatchChecklists: [DispatchReadinessChecklist] {
     dispatchReadinessChecklists.filter { $0.checklistStatus == .draft || $0.checklistStatus == .ready || $0.checklistStatus == .reopened }
+  }
+
+  var incompleteDispatchChecklistCount: Int {
+    dispatchReadinessChecklists.reduce(0) { count, checklist in
+      let isIncomplete = checklist.checklistStatus == .draft || checklist.checklistStatus == .ready || checklist.checklistStatus == .reopened
+      return count + (isIncomplete ? 1 : 0)
+    }
   }
 
   var highRiskDispatchChecklists: [DispatchReadinessChecklist] {
@@ -6450,12 +6519,25 @@ final class ParcelOpsStore {
     importQueueItems.filter { $0.reviewState != .accepted || $0.importStatus == .staged || $0.importStatus == .reopened }
   }
 
+  var importQueueReviewCount: Int {
+    importQueueItems.reduce(0) { count, item in
+      let needsReview = item.reviewState != .accepted || item.importStatus == .staged || item.importStatus == .reopened
+      return count + (needsReview ? 1 : 0)
+    }
+  }
+
   var lowConfidenceImportQueueItems: [ImportQueueItem] {
     importQueueItems.filter { $0.confidenceScore < 70 }
   }
 
   var blockedImportQueueItems: [ImportQueueItem] {
     importQueueItems.filter { $0.importStatus == .blocked }
+  }
+
+  var blockedImportQueueItemCount: Int {
+    importQueueItems.reduce(0) { count, item in
+      count + (item.importStatus == .blocked ? 1 : 0)
+    }
   }
 
   var acceptanceCandidates: [AcceptanceCandidate] {
@@ -6512,6 +6594,13 @@ final class ParcelOpsStore {
   var acceptanceRecordsNeedingReview: [AcceptanceRecord] {
     acceptanceRecords.filter { record in
       record.reviewState != .accepted || record.decision == .ready || record.decision == .blocked || record.decision == .reopened
+    }
+  }
+
+  var acceptanceRecordReviewCount: Int {
+    acceptanceRecords.reduce(0) { count, record in
+      let needsReview = record.reviewState != .accepted || record.decision == .ready || record.decision == .blocked || record.decision == .reopened
+      return count + (needsReview ? 1 : 0)
     }
   }
 
@@ -6647,6 +6736,12 @@ final class ParcelOpsStore {
 
   var highPriorityWorkbenchItems: [WorkbenchItem] {
     workbenchItems.filter { $0.rank >= 3 }
+  }
+
+  var highPriorityWorkbenchItemCount: Int {
+    workbenchItems.reduce(0) { count, item in
+      count + (item.rank >= 3 ? 1 : 0)
+    }
   }
 
   var workbenchItemsNeedingReview: [WorkbenchItem] {
