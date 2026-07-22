@@ -188,10 +188,6 @@ struct ParcelOpsRootView: View {
       + wishlistAttentionCount
   }
 
-  private var advancedBacklogCount: Int {
-    max(store.reviewQueueCount - dailyAttentionCount, 0)
-  }
-
   private var hasSpaceMailSetup: Bool {
     !store.spaceMailIMAPConnections.isEmpty
   }
@@ -646,10 +642,11 @@ struct ParcelOpsRootView: View {
             .fixedSize(horizontal: false, vertical: true)
             .help(item.title)
         }
-        Text("Advanced \(advancedBacklogCount)")
+        Label("Advanced routes", systemImage: shouldShowSecondaryDesktopGroups ? "sidebar.left" : "ellipsis.circle")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.secondary)
-          .lineLimit(1)
+          .lineLimit(2)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
