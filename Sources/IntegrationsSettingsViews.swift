@@ -7585,6 +7585,7 @@ struct SettingsView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var settingsSearchText = ""
   @State private var settingsFeedbackMessage: String?
+  @State private var showAdvancedSettingsSections = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var providerStatusGridColumns: [GridItem] {
@@ -8965,6 +8966,24 @@ struct SettingsView: View {
           OperatorSupportSnapshotCard(store: store, title: "Setup support snapshot", detail: "Current mailbox, credential, source trail, and audit readiness.")
         }
 
+        SettingsPanel(title: "Advanced setup sections", symbol: "slider.horizontal.3") {
+          VStack(alignment: .leading, spacing: 10) {
+            Text(showAdvancedSettingsSections ? "Advanced setup and planning sections are visible." : "Advanced setup and planning sections are hidden so Settings opens faster. Use search or show them when changing planning-only controls.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            CompactActionRow {
+              Button(showAdvancedSettingsSections ? "Hide advanced sections" : "Show advanced sections", systemImage: showAdvancedSettingsSections ? "eye.slash" : "slider.horizontal.3") {
+                showAdvancedSettingsSections.toggle()
+              }
+              .buttonStyle(.bordered)
+              Badge(showAdvancedSettingsSections ? "Advanced visible" : "Advanced hidden", color: showAdvancedSettingsSections ? .teal : .secondary)
+            }
+          }
+        }
+
+        if showAdvancedSettingsSections || !normalizedSettingsSearch.isEmpty {
         if showsLocalOnlyStatus {
           MVPWorkflowGuide(
             title: "Before connecting live systems",
@@ -9113,6 +9132,7 @@ struct SettingsView: View {
           if let settingsFeedbackMessage {
             SettingsActionFeedbackPanel(message: settingsFeedbackMessage)
           }
+        }
         }
         }
       }
