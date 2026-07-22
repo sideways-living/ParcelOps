@@ -5,6 +5,7 @@ struct OrdersView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var showOrderProviderEvidence = false
   @State private var showOrderDetailSections = false
+  @State private var showAllOrderQueueRows = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var hasActiveOrderFilters: Bool {
@@ -22,6 +23,12 @@ struct OrdersView: View {
         }
         return first.sortPriority > second.sortPriority
       }
+  }
+  private var displayedOrderItems: [OrderQueueItem] {
+    showAllOrderQueueRows || hasActiveOrderFilters ? orderItems : Array(orderItems.prefix(32))
+  }
+  private var hiddenDisplayedOrderCount: Int {
+    max(orderItems.count - displayedOrderItems.count, 0)
   }
   private var inboxCreatedOrderItems: [OrderQueueItem] {
     store.inboxCreatedOrders
@@ -252,7 +259,24 @@ struct OrdersView: View {
             if orderItems.isEmpty {
               MVPEmptyState(title: "No orders match this queue", detail: "Clear the status filter or search text, or add a manual order to start the local order workflow.", symbol: "shippingbox.fill", actionTitle: "Add order", action: store.createManualOrderPlaceholder)
             } else {
-              ForEach(orderItems) { item in
+              if hiddenDisplayedOrderCount > 0 {
+                CompactActionRow {
+                  Label("Showing first \(displayedOrderItems.count) priority orders", systemImage: "speedometer")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                  Badge("\(hiddenDisplayedOrderCount) older hidden", color: .secondary)
+                  Button(showAllOrderQueueRows ? "Show first 32" : "Show all \(orderItems.count)", systemImage: showAllOrderQueueRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                    showAllOrderQueueRows.toggle()
+                  }
+                  .buttonStyle(.bordered)
+                }
+                Text("Search and status filters still scan every local order. The default queue is capped so Orders opens quickly with accumulated test data.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+
+              ForEach(displayedOrderItems) { item in
                 OrderQueueRow(item: item, store: store)
               }
             }
