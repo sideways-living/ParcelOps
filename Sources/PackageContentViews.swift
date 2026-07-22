@@ -43,8 +43,7 @@ struct PackageContentsView: View {
   }
 
   private var displayedContents: [PackageContentRecord] {
-    guard !showAllPackageContents && !hasActiveFilters else { return filteredContents }
-    return Array(filteredContents.prefix(48))
+    showAllPackageContents ? filteredContents : Array(filteredContents.prefix(48))
   }
 
   private var hiddenDisplayedContentCount: Int {

@@ -44,8 +44,7 @@ struct CustodyChainView: View {
   }
 
   private var displayedRecords: [CustodyRecord] {
-    guard !showAllCustodyRecords && !hasActiveFilters else { return filteredRecords }
-    return Array(filteredRecords.prefix(48))
+    showAllCustodyRecords ? filteredRecords : Array(filteredRecords.prefix(48))
   }
 
   private var hiddenDisplayedRecordCount: Int {

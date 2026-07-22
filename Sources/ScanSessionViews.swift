@@ -36,8 +36,7 @@ struct ScanSessionsView: View {
   }
 
   private var displayedRecords: [ScanSessionRecord] {
-    guard !showAllScanSessions && !hasActiveFilters else { return filteredRecords }
-    return Array(filteredRecords.prefix(48))
+    showAllScanSessions ? filteredRecords : Array(filteredRecords.prefix(48))
   }
 
   private var hiddenDisplayedRecordCount: Int {

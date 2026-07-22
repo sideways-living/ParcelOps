@@ -45,8 +45,7 @@ struct ContactsView: View {
   }
 
   private var displayedContacts: [ContactDirectoryEntry] {
-    guard !showAllContacts && !hasActiveFilters else { return filteredContacts }
-    return Array(filteredContacts.prefix(48))
+    showAllContacts ? filteredContacts : Array(filteredContacts.prefix(48))
   }
 
   private var hiddenDisplayedContactCount: Int {

@@ -972,8 +972,7 @@ struct WishlistView: View {
   }
 
   private var displayedWishlistItems: [WishlistItem] {
-    guard !showAllWishlistRows && !hasActiveFilters else { return filteredItems }
-    return Array(filteredItems.prefix(32))
+    showAllWishlistRows ? filteredItems : Array(filteredItems.prefix(32))
   }
 
   private var hiddenDisplayedWishlistCount: Int {

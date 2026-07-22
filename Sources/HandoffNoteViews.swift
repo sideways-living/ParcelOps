@@ -44,8 +44,7 @@ struct HandoffNotesView: View {
   }
 
   private var displayedNotes: [HandoffNote] {
-    guard !showAllHandoffNotes && !hasActiveFilters else { return filteredNotes }
-    return Array(filteredNotes.prefix(32))
+    showAllHandoffNotes ? filteredNotes : Array(filteredNotes.prefix(32))
   }
 
   private var hiddenDisplayedNoteCount: Int {

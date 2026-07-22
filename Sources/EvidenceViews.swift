@@ -31,8 +31,7 @@ struct EvidenceView: View {
   }
 
   private var displayedAttachments: [EvidenceAttachment] {
-    guard !showAllEvidenceAttachments && !hasActiveFilters else { return filteredAttachments }
-    return Array(filteredAttachments.prefix(48))
+    showAllEvidenceAttachments ? filteredAttachments : Array(filteredAttachments.prefix(48))
   }
 
   private var hiddenDisplayedAttachmentCount: Int {

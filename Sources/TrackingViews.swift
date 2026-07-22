@@ -39,8 +39,7 @@ struct TrackingView: View {
   }
 
   private var displayedEvents: [CarrierTrackingEvent] {
-    guard !showAllTrackingEvents && !hasActiveFilters else { return filteredEvents }
-    return Array(filteredEvents.prefix(48))
+    showAllTrackingEvents ? filteredEvents : Array(filteredEvents.prefix(48))
   }
 
   private var hiddenDisplayedEventCount: Int {

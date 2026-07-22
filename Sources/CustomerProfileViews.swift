@@ -43,8 +43,7 @@ struct CustomerProfilesView: View {
   }
 
   private var displayedProfiles: [CustomerRecipientProfile] {
-    guard !showAllCustomerProfiles && !hasActiveFilters else { return filteredProfiles }
-    return Array(filteredProfiles.prefix(48))
+    showAllCustomerProfiles ? filteredProfiles : Array(filteredProfiles.prefix(48))
   }
 
   private var hiddenDisplayedProfileCount: Int {

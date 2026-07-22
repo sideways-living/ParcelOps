@@ -38,8 +38,7 @@ struct LabelReferencesView: View {
   }
 
   private var displayedRecords: [LabelReferenceRecord] {
-    guard !showAllLabelReferences && !hasActiveFilters else { return filteredRecords }
-    return Array(filteredRecords.prefix(48))
+    showAllLabelReferences ? filteredRecords : Array(filteredRecords.prefix(48))
   }
 
   private var hiddenDisplayedRecordCount: Int {

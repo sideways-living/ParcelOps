@@ -46,8 +46,7 @@ struct ReturnsClaimsView: View {
   }
 
   private var displayedClaims: [ReturnClaimRecord] {
-    guard !showAllReturnClaims && !hasActiveFilters else { return filteredClaims }
-    return Array(filteredClaims.prefix(48))
+    showAllReturnClaims ? filteredClaims : Array(filteredClaims.prefix(48))
   }
 
   private var hiddenDisplayedClaimCount: Int {

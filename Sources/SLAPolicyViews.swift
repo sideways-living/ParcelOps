@@ -38,8 +38,7 @@ struct SLAPoliciesView: View {
   }
 
   private var displayedPolicies: [SLAPolicy] {
-    guard !showAllSLAPolicies && !hasActiveFilters else { return filteredPolicies }
-    return Array(filteredPolicies.prefix(48))
+    showAllSLAPolicies ? filteredPolicies : Array(filteredPolicies.prefix(48))
   }
 
   private var hiddenDisplayedPolicyCount: Int {

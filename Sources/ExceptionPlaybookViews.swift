@@ -40,8 +40,7 @@ struct ExceptionPlaybooksView: View {
   }
 
   private var displayedPlaybooks: [ExceptionPlaybook] {
-    guard !showAllExceptionPlaybooks && !hasActiveFilters else { return filteredPlaybooks }
-    return Array(filteredPlaybooks.prefix(48))
+    showAllExceptionPlaybooks ? filteredPlaybooks : Array(filteredPlaybooks.prefix(48))
   }
 
   private var hiddenDisplayedPlaybookCount: Int {

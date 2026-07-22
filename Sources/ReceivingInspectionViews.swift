@@ -46,8 +46,7 @@ struct ReceivingInspectionsView: View {
   }
 
   private var displayedInspections: [ReceivingInspectionRecord] {
-    guard !showAllReceivingInspections && !hasActiveFilters else { return filteredInspections }
-    return Array(filteredInspections.prefix(48))
+    showAllReceivingInspections ? filteredInspections : Array(filteredInspections.prefix(48))
   }
 
   private var hiddenDisplayedInspectionCount: Int {

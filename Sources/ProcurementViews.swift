@@ -49,8 +49,7 @@ struct ProcurementView: View {
   }
 
   private var displayedRequests: [ProcurementRequest] {
-    guard !showAllProcurementRequests && !hasActiveFilters else { return filteredRequests }
-    return Array(filteredRequests.prefix(48))
+    showAllProcurementRequests ? filteredRequests : Array(filteredRequests.prefix(48))
   }
 
   private var hiddenDisplayedRequestCount: Int {

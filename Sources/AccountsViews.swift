@@ -48,8 +48,7 @@ struct AccountsView: View {
   }
 
   private var displayedAccounts: [AccountCredentialRecord] {
-    guard !showAllAccounts && !hasActiveFilters else { return filteredAccounts }
-    return Array(filteredAccounts.prefix(48))
+    showAllAccounts ? filteredAccounts : Array(filteredAccounts.prefix(48))
   }
 
   private var hiddenDisplayedAccountCount: Int {

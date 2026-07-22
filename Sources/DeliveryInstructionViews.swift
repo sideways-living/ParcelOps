@@ -47,8 +47,7 @@ struct DeliveryInstructionsView: View {
   }
 
   private var displayedInstructions: [DeliveryInstructionRecord] {
-    guard !showAllDeliveryInstructions && !hasActiveFilters else { return filteredInstructions }
-    return Array(filteredInstructions.prefix(48))
+    showAllDeliveryInstructions ? filteredInstructions : Array(filteredInstructions.prefix(48))
   }
 
   private var hiddenDisplayedInstructionCount: Int {

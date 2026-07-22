@@ -43,8 +43,7 @@ struct InventoryReceiptsView: View {
   }
 
   private var displayedReceipts: [InventoryReceiptRecord] {
-    guard !showAllInventoryReceipts && !hasActiveFilters else { return filteredReceipts }
-    return Array(filteredReceipts.prefix(48))
+    showAllInventoryReceipts ? filteredReceipts : Array(filteredReceipts.prefix(48))
   }
 
   private var hiddenDisplayedReceiptCount: Int {

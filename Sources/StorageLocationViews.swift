@@ -46,8 +46,7 @@ struct StorageLocationsView: View {
   }
 
   private var displayedLocations: [StorageLocationRecord] {
-    guard !showAllStorageLocations && !hasActiveFilters else { return filteredLocations }
-    return Array(filteredLocations.prefix(48))
+    showAllStorageLocations ? filteredLocations : Array(filteredLocations.prefix(48))
   }
 
   private var hiddenDisplayedLocationCount: Int {

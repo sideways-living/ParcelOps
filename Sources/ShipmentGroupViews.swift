@@ -37,8 +37,7 @@ struct ShipmentGroupsView: View {
   }
 
   private var displayedGroups: [ShipmentGroup] {
-    guard !showAllShipmentGroups && !hasActiveFilters else { return filteredGroups }
-    return Array(filteredGroups.prefix(48))
+    showAllShipmentGroups ? filteredGroups : Array(filteredGroups.prefix(48))
   }
 
   private var hiddenDisplayedGroupCount: Int {

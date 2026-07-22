@@ -40,8 +40,7 @@ struct ReconciliationView: View {
   }
 
   private var displayedIssues: [ReconciliationIssue] {
-    guard !showAllReconciliationIssues && !hasActiveFilters else { return filteredIssues }
-    return Array(filteredIssues.prefix(48))
+    showAllReconciliationIssues ? filteredIssues : Array(filteredIssues.prefix(48))
   }
 
   private var hiddenDisplayedIssueCount: Int {

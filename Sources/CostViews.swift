@@ -49,8 +49,7 @@ struct CostsBudgetsView: View {
   }
 
   private var displayedCosts: [CostRecord] {
-    guard !showAllCostRecords && !hasActiveFilters else { return filteredCosts }
-    return Array(filteredCosts.prefix(48))
+    showAllCostRecords ? filteredCosts : Array(filteredCosts.prefix(48))
   }
 
   private var hiddenDisplayedCostCount: Int {

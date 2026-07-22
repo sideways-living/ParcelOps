@@ -37,8 +37,7 @@ struct ValidationView: View {
   }
 
   private var displayedIssues: [ValidationIssue] {
-    guard !showAllValidationIssues && !hasActiveFilters else { return filteredIssues }
-    return Array(filteredIssues.prefix(48))
+    showAllValidationIssues ? filteredIssues : Array(filteredIssues.prefix(48))
   }
 
   private var hiddenDisplayedIssueCount: Int {

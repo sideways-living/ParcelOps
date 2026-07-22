@@ -56,7 +56,7 @@ struct CommunicationView: View {
   }
 
   private var displayedTemplates: [CommunicationTemplate] {
-    showAllTemplateRows || hasActiveFilters ? filteredTemplates : Array(filteredTemplates.prefix(24))
+    showAllTemplateRows ? filteredTemplates : Array(filteredTemplates.prefix(24))
   }
 
   private var hiddenDisplayedTemplateCount: Int {
@@ -64,7 +64,7 @@ struct CommunicationView: View {
   }
 
   private var displayedDrafts: [DraftMessage] {
-    showAllDraftRows || hasActiveFilters ? filteredDrafts : Array(filteredDrafts.prefix(32))
+    showAllDraftRows ? filteredDrafts : Array(filteredDrafts.prefix(32))
   }
 
   private var hiddenDisplayedDraftCount: Int {

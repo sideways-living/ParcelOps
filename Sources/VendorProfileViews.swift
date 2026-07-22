@@ -41,8 +41,7 @@ struct VendorProfilesView: View {
   }
 
   private var displayedProfiles: [VendorProfile] {
-    guard !showAllVendorProfiles && !hasActiveFilters else { return filteredProfiles }
-    return Array(filteredProfiles.prefix(48))
+    showAllVendorProfiles ? filteredProfiles : Array(filteredProfiles.prefix(48))
   }
 
   private var hiddenDisplayedProfileCount: Int {

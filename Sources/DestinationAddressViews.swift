@@ -47,8 +47,7 @@ struct DestinationAddressesView: View {
   }
 
   private var displayedAddresses: [DestinationAddressRecord] {
-    guard !showAllDestinationAddresses && !hasActiveFilters else { return filteredAddresses }
-    return Array(filteredAddresses.prefix(48))
+    showAllDestinationAddresses ? filteredAddresses : Array(filteredAddresses.prefix(48))
   }
 
   private var hiddenDisplayedAddressCount: Int {
