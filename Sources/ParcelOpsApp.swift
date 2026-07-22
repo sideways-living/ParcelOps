@@ -188,59 +188,20 @@ struct ParcelOpsRootView: View {
       + wishlistAttentionCount
   }
 
-  private var hasSpaceMailSetup: Bool {
-    !store.spaceMailIMAPConnections.isEmpty
-  }
-
-  private var hasGmailSetup: Bool {
-    !store.gmailMailboxConnections.isEmpty
-  }
-
-  private var hasMicrosoft365Setup: Bool {
-    !store.microsoft365MailboxConnections.isEmpty
-  }
-
   private var hasLiveMailboxSetup: Bool {
-    hasSpaceMailSetup || hasGmailSetup || hasMicrosoft365Setup
-  }
-
-  private var hasSpaceMailCredentialReference: Bool {
-    store.spaceMailIMAPConnections.contains {
-      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
-        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
-    }
-  }
-
-  private var hasGmailConnectedAuth: Bool {
-    store.hasGmailConnectedAuth
-  }
-
-  private var hasMicrosoft365ConnectedAuth: Bool {
-    store.microsoft365MailboxConnections.contains {
-      store.microsoft365AuthSessionState(for: $0).status == .connected
-    }
+    store.hasMailboxProviderSetup
   }
 
   private var hasLiveMailboxCredentialOrAuth: Bool {
-    hasSpaceMailCredentialReference || hasGmailConnectedAuth || hasMicrosoft365ConnectedAuth
+    store.hasMailboxCredentialOrAuthReadiness
   }
 
   private var hasRealMailboxRefreshEvidence: Bool {
-    store.spaceMailIMAPConnections.contains { $0.lastRefreshFetchedCount > 0 }
-      || store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
-      || store.gmailMailboxConnections.contains { $0.lastRefreshFetchedCount > 0 }
-      || store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
-      || store.microsoft365MailboxConnections.contains { $0.lastRefreshFetchedCount > 0 }
-      || store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    store.hasMailboxRefreshEvidence
   }
 
   private var hasInboxOrderHandoff: Bool {
-    let linkedOrderIDs = Set(store.intakeEmails.compactMap(\.linkedOrderID))
-    return store.orders.contains { order in
-      linkedOrderIDs.contains(order.id)
-        || order.source == .forwardedMailbox
-        || order.checkedMailbox == "manual-import"
-    }
+    store.hasInboxOrderHandoff
   }
 
   private var mvpReadinessSignalCount: Int {

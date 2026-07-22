@@ -7049,6 +7049,15 @@ final class ParcelOpsStore {
     inboxCreatedOrders.count
   }
 
+  var hasInboxOrderHandoff: Bool {
+    let linkedOrderIDs = Set(intakeEmails.compactMap(\.linkedOrderID))
+    return orders.contains { order in
+      linkedOrderIDs.contains(order.id)
+        || order.source == .forwardedMailbox
+        || order.checkedMailbox == "manual-import"
+    }
+  }
+
   var intakeLinkedOrders: [TrackedOrder] {
     orders.filter { !linkedIntakeEmails(for: $0).isEmpty }
   }
