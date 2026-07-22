@@ -9,6 +9,8 @@ struct CommunicationView: View {
   @State private var selectedDraftStatus: DraftMessageStatus?
   @State private var searchText = ""
   @State private var developmentStatusFeedbackMessage: String?
+  @State private var showAllTemplateRows = false
+  @State private var showAllDraftRows = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var searchQuery: String {
@@ -51,6 +53,22 @@ struct CommunicationView: View {
       || selectedEntityType != nil
       || selectedReviewState != nil
       || (selectedMode == .drafts && selectedDraftStatus != nil)
+  }
+
+  private var displayedTemplates: [CommunicationTemplate] {
+    showAllTemplateRows || hasActiveFilters ? filteredTemplates : Array(filteredTemplates.prefix(24))
+  }
+
+  private var hiddenDisplayedTemplateCount: Int {
+    max(filteredTemplates.count - displayedTemplates.count, 0)
+  }
+
+  private var displayedDrafts: [DraftMessage] {
+    showAllDraftRows || hasActiveFilters ? filteredDrafts : Array(filteredDrafts.prefix(32))
+  }
+
+  private var hiddenDisplayedDraftCount: Int {
+    max(filteredDrafts.count - displayedDrafts.count, 0)
   }
 
   private var openDrafts: [DraftMessage] {
@@ -157,12 +175,28 @@ struct CommunicationView: View {
               if hasActiveFilters {
                 Badge("\(baseFilteredTemplates.count) after filters", color: .blue)
               }
+              if hiddenDisplayedTemplateCount > 0 {
+                Badge("\(hiddenDisplayedTemplateCount) not rendered", color: .secondary)
+              }
               Spacer()
+              if hiddenDisplayedTemplateCount > 0 {
+                Button(showAllTemplateRows ? "Show first 24" : "Show all", systemImage: showAllTemplateRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  showAllTemplateRows.toggle()
+                }
+                .buttonStyle(.bordered)
+              }
               Button("Add template", systemImage: "plus", action: store.addCommunicationTemplatePlaceholder)
                 .buttonStyle(.borderedProminent)
             }
 
-            ForEach(filteredTemplates) { template in
+            if hiddenDisplayedTemplateCount > 0 {
+              Label("Showing the first \(displayedTemplates.count) templates by default. Filters and search still scan every local template.", systemImage: "speedometer")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ForEach(displayedTemplates) { template in
               CommunicationTemplateRow(template: template, store: store) { updatedTemplate in
                 store.updateCommunicationTemplate(updatedTemplate)
               } onToggle: {
@@ -200,12 +234,28 @@ struct CommunicationView: View {
               if hasActiveFilters {
                 Badge("\(baseFilteredDrafts.count) after filters", color: .blue)
               }
+              if hiddenDisplayedDraftCount > 0 {
+                Badge("\(hiddenDisplayedDraftCount) not rendered", color: .secondary)
+              }
               Spacer()
+              if hiddenDisplayedDraftCount > 0 {
+                Button(showAllDraftRows ? "Show first 32" : "Show all", systemImage: showAllDraftRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  showAllDraftRows.toggle()
+                }
+                .buttonStyle(.bordered)
+              }
               Button("Add draft", systemImage: "plus", action: store.addDraftMessagePlaceholder)
                 .buttonStyle(.borderedProminent)
             }
 
-            ForEach(filteredDrafts) { draft in
+            if hiddenDisplayedDraftCount > 0 {
+              Label("Showing the first \(displayedDrafts.count) drafts by default. Filters and search still scan every local draft.", systemImage: "speedometer")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ForEach(displayedDrafts) { draft in
               DraftMessageRow(draft: draft, store: store, linkedOrder: linkedOrder(for: draft), inboxOrders: inboxOrders(for: draft), destinationAddresses: store.suggestedDestinationAddresses(for: draft), deliveryInstructions: store.suggestedDeliveryInstructions(for: draft), packageContents: store.suggestedPackageContents(for: draft)) { updatedDraft in
                 store.updateDraftMessage(updatedDraft)
               } onReady: {
