@@ -8,6 +8,7 @@ struct ReconciliationView: View {
   @State private var selectedTargetType: ReconciliationEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var reconciliationSearchText = ""
+  @State private var showAllReconciliationIssues = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -38,8 +39,14 @@ struct ReconciliationView: View {
       || !reconciliationSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedIssues: [ReconciliationIssue] {
+    guard !showAllReconciliationIssues && !hasActiveFilters else { return filteredIssues }
+    return Array(filteredIssues.prefix(48))
+  }
 
-
+  private var hiddenDisplayedIssueCount: Int {
+    max(filteredIssues.count - displayedIssues.count, 0)
+  }
 
   private var sourceOrdersWithSourceTrail: [TrackedOrder] {
     store.operatorSourceOrdersWithSourceTrail(includeWishlist: true)
@@ -136,7 +143,25 @@ struct ReconciliationView: View {
         if filteredIssues.isEmpty {
           MVPEmptyState(title: "No reconciliation issues match this view", detail: hasActiveFilters ? "Clear search or filters to return to unresolved local mismatches." : "Reconciliation issues appear here when local intake, acceptance, orders, tracking, or validation values disagree.", symbol: "arrow.triangle.2.circlepath", actionTitle: hasActiveFilters ? "Clear filters" : nil, action: hasActiveFilters ? clearFilters : nil)
         } else {
-          ForEach(store.groupedReconciliationIssues(filteredIssues)) { group in
+          if hiddenDisplayedIssueCount > 0 {
+            CompactActionRow {
+              Label("Showing first \(displayedIssues.count) reconciliation issues", systemImage: "speedometer")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              Badge("\(hiddenDisplayedIssueCount) older hidden", color: .secondary)
+              Button(showAllReconciliationIssues ? "Show first 48" : "Show all \(filteredIssues.count)", systemImage: showAllReconciliationIssues ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                withAnimation(.snappy) {
+                  showAllReconciliationIssues.toggle()
+                }
+              }
+              .buttonStyle(.bordered)
+            }
+            Text("Search and filters still scan every local reconciliation issue. The default grouped feed is capped so this screen opens quickly with accumulated test data.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          ForEach(store.groupedReconciliationIssues(displayedIssues)) { group in
             SettingsPanel(title: group.issueType.rawValue, symbol: group.issueType.symbol) {
               ForEach(group.issues) { issue in
                 ReconciliationIssueRow(

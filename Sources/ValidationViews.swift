@@ -7,6 +7,7 @@ struct ValidationView: View {
   @State private var statusFilter: ValidationStatus?
   @State private var reviewFilter: ReviewState?
   @State private var validationSearchText = ""
+  @State private var showAllValidationIssues = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -35,8 +36,14 @@ struct ValidationView: View {
       || !validationSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedIssues: [ValidationIssue] {
+    guard !showAllValidationIssues && !hasActiveFilters else { return filteredIssues }
+    return Array(filteredIssues.prefix(48))
+  }
 
-
+  private var hiddenDisplayedIssueCount: Int {
+    max(filteredIssues.count - displayedIssues.count, 0)
+  }
 
   private var sourceOrdersWithSourceTrail: [TrackedOrder] {
     store.operatorSourceOrdersWithSourceTrail(includeWishlist: true)
@@ -132,7 +139,25 @@ struct ValidationView: View {
         if filteredIssues.isEmpty {
           MVPEmptyState(title: "No validation issues match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local validation issues." : "Validation issues appear here when local intake, order, tracking, and profile checks need attention.", symbol: "checkmark.shield.fill", actionTitle: hasActiveFilters ? "Clear filters" : nil, action: hasActiveFilters ? clearFilters : nil)
         } else {
-          ForEach(store.groupedValidationIssues(filteredIssues)) { group in
+          if hiddenDisplayedIssueCount > 0 {
+            CompactActionRow {
+              Label("Showing first \(displayedIssues.count) validation issues", systemImage: "speedometer")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              Badge("\(hiddenDisplayedIssueCount) older hidden", color: .secondary)
+              Button(showAllValidationIssues ? "Show first 48" : "Show all \(filteredIssues.count)", systemImage: showAllValidationIssues ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                withAnimation(.snappy) {
+                  showAllValidationIssues.toggle()
+                }
+              }
+              .buttonStyle(.bordered)
+            }
+            Text("Search and filters still scan every local validation issue. The default grouped feed is capped so this screen opens quickly with accumulated test data.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          ForEach(store.groupedValidationIssues(displayedIssues)) { group in
             SettingsPanel(title: group.severity.rawValue, symbol: group.severity.symbol) {
               ForEach(group.issues) { issue in
                 ValidationIssueRow(issue: issue, store: store, linkedOrder: linkedOrder(for: issue), shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue), customerProfiles: store.suggestedCustomerProfiles(for: issue), destinationAddresses: store.suggestedDestinationAddresses(for: issue), deliveryInstructions: store.suggestedDeliveryInstructions(for: issue), packageContents: store.suggestedPackageContents(for: issue)) {
