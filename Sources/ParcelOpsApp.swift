@@ -629,6 +629,7 @@ struct ParcelOpsRootView: View {
   private func route(to section: ParcelSection) {
     selection = section
     sidebarSearchText = ""
+    isMoreMenuExpanded = false
     if ParcelNavigationGroup.secondaryDesktopGroups.flatMap(\.sections).contains(section) {
       showSecondaryDesktopGroups = true
     }
@@ -997,6 +998,7 @@ struct ExpandableBottomMenu: View {
                     ForEach(group.sections) { section in
                       CompactMenuRouteButton(section: section, badgeCount: attentionCount(section), isSelected: selection == section) {
                         routeSearchText = ""
+                        isExpanded = false
                         onSelect(section)
                       }
                     }
