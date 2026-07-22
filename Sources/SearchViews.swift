@@ -6,6 +6,8 @@ struct SearchView: View {
   @State private var queryText = ""
   @State private var selectedEntityType: SearchEntityType?
   @State private var selectedReviewState: ReviewState?
+  @State private var showAllSearchResults = false
+  private let searchResultLimit = 24
 
 
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
@@ -56,6 +58,14 @@ struct SearchView: View {
       entityTypeFilter: selectedEntityType,
       reviewStateFilter: selectedReviewState
     )
+  }
+
+  private var totalSearchResultCount: Int {
+    resultGroups.reduce(0) { $0 + $1.results.count }
+  }
+
+  private func displayedSearchResults(_ results: [SearchResult]) -> [SearchResult] {
+    showAllSearchResults ? results : Array(results.prefix(searchResultLimit))
   }
 
   private var sortedSavedFilters: [SavedFilter] {
@@ -139,6 +149,24 @@ struct SearchView: View {
             Text("No matching local records.")
               .foregroundStyle(.secondary)
           } else {
+            CompactActionRow {
+              Text("\(totalSearchResultCount) matching records")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              if totalSearchResultCount > searchResultLimit {
+                Button(showAllSearchResults ? "Use capped groups" : "Show all results", systemImage: showAllSearchResults ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllSearchResults.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+            if totalSearchResultCount > searchResultLimit {
+              Text(showAllSearchResults ? "All matching search rows are visible." : "Search scans all local records, but each group renders the first \(searchResultLimit) rows by default so the screen remains responsive.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
             VStack(alignment: .leading, spacing: 16) {
               ForEach(resultGroups) { group in
                 VStack(alignment: .leading, spacing: 10) {
@@ -150,7 +178,7 @@ struct SearchView: View {
                   }
 
                   VStack(spacing: 8) {
-                    ForEach(group.results) { result in
+                    ForEach(displayedSearchResults(group.results)) { result in
                       SearchResultRow(result: result, store: store)
                     }
                   }

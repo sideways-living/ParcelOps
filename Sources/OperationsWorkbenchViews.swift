@@ -21,8 +21,10 @@ struct OperationsWorkbenchView: View {
   @State private var workbenchSearchText = ""
   @State private var showWorkbenchProviderEvidence = false
   @State private var showWorkbenchContextSections = false
+  @State private var showAllWorkbenchRows = false
   @State private var developmentStatusFeedbackMessage: String?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  private let workbenchSectionLimit = 16
 
   private var assignees: [String] {
     Array(Set(store.workbenchItems.map(\.assignee).filter { !$0.isEmpty })).sorted()
@@ -96,6 +98,17 @@ struct OperationsWorkbenchView: View {
 
   private var shouldShowWorkbenchContextSections: Bool {
     showWorkbenchContextSections || hasActiveFilters
+  }
+
+  private var hiddenWorkbenchRowCount: Int {
+    guard !showAllWorkbenchRows else { return 0 }
+    return operatorSections.reduce(0) { total, group in
+      total + max(group.items.count - workbenchSectionLimit, 0)
+    }
+  }
+
+  private func visibleWorkbenchItems(_ items: [WorkbenchItem]) -> [WorkbenchItem] {
+    showAllWorkbenchRows ? items : Array(items.prefix(workbenchSectionLimit))
   }
 
   private var inboxCreatedOrders: [TrackedOrder] {
@@ -2517,9 +2530,30 @@ struct OperationsWorkbenchView: View {
             Text(sectionDetail(for: group.title))
               .font(.caption)
               .foregroundStyle(.secondary)
-            ForEach(group.items) { item in
+            if group.items.count > workbenchSectionLimit {
+              CompactActionRow {
+                Label(showAllWorkbenchRows ? "All rows visible" : "Showing first \(workbenchSectionLimit)", systemImage: showAllWorkbenchRows ? "rectangle.expand.vertical" : "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(max(group.items.count - workbenchSectionLimit, 0)) hidden", color: .secondary)
+              }
+            }
+            ForEach(visibleWorkbenchItems(group.items)) { item in
               workbenchRow(for: item)
             }
+          }
+        }
+        if hiddenWorkbenchRowCount > 0 || showAllWorkbenchRows {
+          CompactActionRow {
+            Label(showAllWorkbenchRows ? "All workbench queue rows are visible" : "\(hiddenWorkbenchRowCount) lower-priority rows hidden", systemImage: showAllWorkbenchRows ? "rectangle.expand.vertical" : "speedometer")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            Button(showAllWorkbenchRows ? "Use capped groups" : "Show all workbench rows", systemImage: showAllWorkbenchRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+              withAnimation(.snappy) {
+                showAllWorkbenchRows.toggle()
+              }
+            }
+            .buttonStyle(.bordered)
           }
         }
       }
