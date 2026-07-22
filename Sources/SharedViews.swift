@@ -8904,8 +8904,9 @@ struct PrimaryRouteShortcutGuideCard: View {
     ("⌘4", "Workbench", "Exceptions", "rectangle.stack.badge.person.crop.fill", .purple),
     ("⌘5", "Dispatch", "Outbound queue", "paperplane.fill", .green),
     ("⌘6", "Tasks", "Follow-up work", "checklist", .indigo),
-    ("⌘7", "Audit", "Local history", "list.clipboard.fill", .cyan),
-    ("⌘8", "Settings", "Setup and sources", "gearshape.fill", .secondary)
+    ("⌘7", "Wishlist", "Purchase planning", "star.square.fill", .pink),
+    ("⌘8", "Audit", "Local history", "list.clipboard.fill", .cyan),
+    ("⌘9", "Settings", "Setup and sources", "gearshape.fill", .secondary)
   ]
 
   var body: some View {
