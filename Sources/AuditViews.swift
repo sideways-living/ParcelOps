@@ -7,6 +7,7 @@ struct AuditView: View {
   @State private var selectedEntityType: AuditEntityType?
   @State private var showTechnicalDiagnostics = false
   @State private var showAuditProviderEvidence = false
+  @State private var showExtendedAuditSections = false
   @State private var developmentStatusFeedbackMessage: String?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -33,6 +34,14 @@ struct AuditView: View {
       let matchesEntity = selectedEntityType == nil || event.entityType == selectedEntityType
       return matchesAction && matchesEntity && event.isTechnicalMailboxDiagnostic
     }.count
+  }
+
+  private var hasActiveAuditFilters: Bool {
+    !normalizedAuditSearch.isEmpty || selectedAction != nil || selectedEntityType != nil
+  }
+
+  private var shouldShowExtendedAuditSections: Bool {
+    showExtendedAuditSections || hasActiveAuditFilters
   }
 
   private var visibleActivityEvents: [AuditEvent] {
@@ -642,9 +651,6 @@ struct AuditView: View {
         header
 
         auditNextCheckPanel
-        mailboxProviderReleaseGateAuditPanel
-        auditEvidenceChecklistPanel
-        developmentStatusAuditPanel
 
         MVPWorkflowGuide(
           title: "Audit workflow",
@@ -657,45 +663,86 @@ struct AuditView: View {
           symbol: "list.clipboard.fill"
         )
 
-        SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
-        SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
-        GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
-        Microsoft365RefreshTrendCard(summary: store.microsoft365RefreshTrendSummary)
-        spaceMailAuditOutcomePanel
-
-        inboxSourceTrailAuditPanel
-
-        inboxDispatchHandoffTrailPanel
-        wishlistHandoffSanityAuditPanel
+        extendedAuditSectionsPanel
 
         activityFeed
 
-        SettingsPanel(title: "Detailed audit log", symbol: "line.3.horizontal.decrease.circle.fill") {
-          Text("Filter local audit history for a specific action or record type. Technical mailbox diagnostics stay hidden here too unless Show technical diagnostics is enabled.")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-
-          filterBar
-
-          if hiddenFilteredTechnicalDiagnosticCount > 0 && !showTechnicalDiagnostics {
-            Label("\(hiddenFilteredTechnicalDiagnosticCount) matching technical diagnostics are hidden. Turn on Show technical diagnostics in the activity feed when investigating parser, duplicate, or mailbox internals.", systemImage: "eye.slash")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
-          }
-
-          if filteredEvents.isEmpty {
-            MVPEmptyState(title: "No operator audit events match this view", detail: hiddenFilteredTechnicalDiagnosticCount > 0 && !showTechnicalDiagnostics ? "Matching technical diagnostics are hidden. Enable Show technical diagnostics to inspect parser, duplicate, or mailbox internals." : "Clear filters or perform a local action such as creating a task, reviewing intake, or updating dispatch readiness.", symbol: "list.clipboard.fill")
-          } else {
-            ForEach(filteredEvents.prefix(30)) { event in
-              AuditEventRow(event: event) {
-                store.createReviewTask(from: event)
-              }
-            }
-          }
+        if shouldShowExtendedAuditSections {
+          auditDiagnosticSections
+          detailedAuditLog
         }
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+  }
+
+  private var extendedAuditSectionsPanel: some View {
+    SettingsPanel(title: "Audit detail sections", symbol: "line.3.horizontal.decrease.circle.fill") {
+      Text(shouldShowExtendedAuditSections ? "Extended evidence panels and the detailed filtered log are visible." : "Audit opens with the recent operator feed first. Open extended sections when you need provider evidence, source trails, or the detailed filtered log.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      MetricStrip(items: [
+        ("Recent", "\(recentEvents.count)", recentEvents.isEmpty ? .secondary : .blue),
+        ("Workflow", "\(workflowEvents.count)", workflowEvents.isEmpty ? .secondary : .teal),
+        ("Changes", "\(recordChangeEvents.count)", recordChangeEvents.isEmpty ? .secondary : .orange),
+        ("Hidden technical", "\(showTechnicalDiagnostics ? 0 : hiddenTechnicalDiagnosticCount)", showTechnicalDiagnostics || hiddenTechnicalDiagnosticCount == 0 ? .secondary : .orange)
+      ])
+
+      CompactActionRow {
+        Button(shouldShowExtendedAuditSections ? "Hide extended sections" : "Show extended sections", systemImage: shouldShowExtendedAuditSections ? "chevron.up.circle" : "chevron.down.circle") {
+          showExtendedAuditSections.toggle()
+        }
+        .buttonStyle(.bordered)
+
+        if hasActiveAuditFilters && !showExtendedAuditSections {
+          Badge("Filters active", color: .orange)
+        }
+      }
+    }
+  }
+
+  private var auditDiagnosticSections: some View {
+    Group {
+      mailboxProviderReleaseGateAuditPanel
+      auditEvidenceChecklistPanel
+      developmentStatusAuditPanel
+      SpaceMailQACheckCard(summary: store.spaceMailQACheckSummary)
+      SpaceMailRefreshTrendCard(summary: store.spaceMailRefreshTrendSummary)
+      GmailRefreshTrendCard(summary: store.gmailRefreshTrendSummary)
+      Microsoft365RefreshTrendCard(summary: store.microsoft365RefreshTrendSummary)
+      spaceMailAuditOutcomePanel
+      inboxSourceTrailAuditPanel
+      inboxDispatchHandoffTrailPanel
+      wishlistHandoffSanityAuditPanel
+    }
+  }
+
+  private var detailedAuditLog: some View {
+    SettingsPanel(title: "Detailed audit log", symbol: "line.3.horizontal.decrease.circle.fill") {
+      Text("Filter local audit history for a specific action or record type. Technical mailbox diagnostics stay hidden here too unless Show technical diagnostics is enabled.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+
+      filterBar
+
+      if hiddenFilteredTechnicalDiagnosticCount > 0 && !showTechnicalDiagnostics {
+        Label("\(hiddenFilteredTechnicalDiagnosticCount) matching technical diagnostics are hidden. Turn on Show technical diagnostics in the activity feed when investigating parser, duplicate, or mailbox internals.", systemImage: "eye.slash")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      if filteredEvents.isEmpty {
+        MVPEmptyState(title: "No operator audit events match this view", detail: hiddenFilteredTechnicalDiagnosticCount > 0 && !showTechnicalDiagnostics ? "Matching technical diagnostics are hidden. Enable Show technical diagnostics to inspect parser, duplicate, or mailbox internals." : "Clear filters or perform a local action such as creating a task, reviewing intake, or updating dispatch readiness.", symbol: "list.clipboard.fill")
+      } else {
+        ForEach(filteredEvents.prefix(30)) { event in
+          AuditEventRow(event: event) {
+            store.createReviewTask(from: event)
+          }
+        }
+      }
     }
   }
 
