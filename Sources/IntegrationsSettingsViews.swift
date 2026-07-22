@@ -2474,7 +2474,7 @@ struct GmailMailboxConnectionRow: View {
             Button("Task all uncertain", systemImage: "checklist", action: onCreateTasksForAllUncertain)
             Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
           }
-          ForEach(messages) { message in
+          ForEach(Array(messages.prefix(6))) { message in
             VStack(alignment: .leading, spacing: 6) {
               HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -2529,6 +2529,12 @@ struct GmailMailboxConnectionRow: View {
             .padding(8)
             .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           }
+          if messages.count > 6 {
+            Text("\(messages.count - 6) more uncertain Gmail previews are held locally. Use the bulk task or dismiss actions above to keep the review list manageable.")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
         }
         .padding(10)
         .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
@@ -2546,7 +2552,7 @@ struct GmailMailboxConnectionRow: View {
           CompactActionRow {
             Button("Dismiss all filtered", systemImage: "line.3.horizontal.decrease.circle", role: .destructive, action: onDismissAllFiltered)
           }
-          ForEach(messages) { message in
+          ForEach(Array(messages.prefix(6))) { message in
             VStack(alignment: .leading, spacing: 6) {
               HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -2604,6 +2610,12 @@ struct GmailMailboxConnectionRow: View {
             }
             .padding(8)
             .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+          }
+          if messages.count > 6 {
+            Text("\(messages.count - 6) more filtered Gmail examples are stored as safe previews. Dismiss filtered examples after spot-checking or import only the ones that are real order mail.")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
           }
         }
         .padding(10)
@@ -6581,7 +6593,7 @@ struct SpaceMailIMAPConnectionRow: View {
       CompactActionRow {
         Button("Dismiss all uncertain", systemImage: "xmark.circle", role: .destructive, action: onDismissAllUncertain)
       }
-      ForEach(connection.uncertainMessages) { message in
+      ForEach(Array(connection.uncertainMessages.prefix(6))) { message in
         VStack(alignment: .leading, spacing: 6) {
           HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
@@ -6628,6 +6640,12 @@ struct SpaceMailIMAPConnectionRow: View {
         .padding(8)
         .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
       }
+      if connection.uncertainMessages.count > 6 {
+        Text("\(connection.uncertainMessages.count - 6) more uncertain SpaceMail previews are held locally. Use the bulk dismiss action after review, or add hints from the visible examples first.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -6645,7 +6663,7 @@ struct SpaceMailIMAPConnectionRow: View {
       CompactActionRow {
         Button("Dismiss all filtered", systemImage: "xmark.circle", role: .destructive, action: onDismissAllFiltered)
       }
-      ForEach(connection.filteredMessages) { message in
+      ForEach(Array(connection.filteredMessages.prefix(6))) { message in
         VStack(alignment: .leading, spacing: 6) {
           HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
@@ -6694,6 +6712,12 @@ struct SpaceMailIMAPConnectionRow: View {
         }
         .padding(8)
         .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+      }
+      if connection.filteredMessages.count > 6 {
+        Text("\(connection.filteredMessages.count - 6) more filtered SpaceMail examples are stored as safe previews. Import or promote only when the classifier was too strict; otherwise dismiss after spot-checking.")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
     .padding(10)
