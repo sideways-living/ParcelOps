@@ -13611,6 +13611,7 @@ struct WishlistView: View {
 
   private var wishlistResearchRequestsPanel: some View {
     let requests = store.activeWishlistResearchRequests
+    let displayedRequests = Array(requests.prefix(24))
     let openRequests = requests.filter { $0.reviewState != .accepted }
     let blockedRequests = requests.filter { $0.requestStatus.localizedCaseInsensitiveContains("blocked") }
     let readyRequests = requests.filter(\.isAgentBriefReady)
@@ -13667,7 +13668,7 @@ struct WishlistView: View {
           )
         } else {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 240 : 340), spacing: 10)], spacing: 10) {
-            ForEach(requests) { request in
+            ForEach(displayedRequests) { request in
               WishlistResearchRequestRow(request: request) {
                 store.markWishlistResearchRequestReviewed(request)
               } onBlock: {
@@ -13687,6 +13688,12 @@ struct WishlistView: View {
                 store.removeWishlistResearchRequest(request)
               }
             }
+          }
+          if requests.count > displayedRequests.count {
+            Text("\(requests.count - displayedRequests.count) more research briefs are available in Wishlist. Search or filter the main Wishlist list before expanding follow-up work.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
           }
         }
 
@@ -16150,6 +16157,10 @@ private struct WishlistPastedComparisonResultEditor: View {
   @State private var draft = WishlistPastedComparisonResultDraft()
   var onSave: (WishlistItem, WishlistPastedComparisonResultDraft) -> Void
 
+  private var visibleItems: [WishlistItem] {
+    Array(items.prefix(80))
+  }
+
   private var selectedItem: WishlistItem? {
     guard let itemID = draft.itemID else { return nil }
     return items.first { $0.id == itemID }
@@ -16165,8 +16176,13 @@ private struct WishlistPastedComparisonResultEditor: View {
         } else {
           Picker("Item", selection: $draft.itemID) {
             Text("Choose item").tag(Optional<UUID>.none)
-            ForEach(items) { item in
+            ForEach(visibleItems) { item in
               Text(item.itemName).tag(Optional(item.id))
+            }
+            if items.count > visibleItems.count {
+              Text("\(items.count - visibleItems.count) more active items available in Wishlist")
+                .tag(Optional<UUID>.none)
+                .disabled(true)
             }
           }
         }
