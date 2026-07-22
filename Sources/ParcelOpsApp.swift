@@ -290,37 +290,7 @@ struct ParcelOpsRootView: View {
   }
 
   private var wishlistAttentionCount: Int {
-    store.wishlistItems.filter { item in
-      guard store.isActiveWishlistItem(item) else { return false }
-      let options = item.comparisonOptions ?? []
-      let snapshots = store.wishlistPriceSnapshots(for: item)
-      let preferred = item.preferredOptionID.flatMap { preferredID in
-        options.first { $0.id == preferredID }
-      }
-      let hasSnapshotGaps = snapshots.contains { snapshot in
-        let searchable = [
-          snapshot.estimatedAUDTotal,
-          snapshot.postageCost,
-          snapshot.postageTime,
-          snapshot.availabilityStatus,
-          snapshot.trustSignal
-        ].joined(separator: " ").localizedLowercase
-        return snapshot.reviewState != .accepted
-          || searchable.contains("pending")
-          || searchable.contains("confirm")
-          || searchable.contains("unknown")
-          || searchable.contains("missing")
-          || searchable.contains("review")
-      }
-      return options.isEmpty
-        || snapshots.isEmpty
-        || hasSnapshotGaps
-        || preferred == nil
-        || preferred?.operatorSellerEvidenceGaps.isEmpty == false
-        || (preferred?.operatorSellerMatrixScore ?? 0) < 65
-        || item.purchaseDecision?.reviewState == .needsReview
-        || item.purchaseHandoff?.linkedOrderID == nil && item.purchaseHandoff != nil
-    }.count
+    store.wishlistDailyAttentionCount
   }
 
   private func routeShortcut(for section: ParcelSection) -> ParcelRouteShortcut? {
