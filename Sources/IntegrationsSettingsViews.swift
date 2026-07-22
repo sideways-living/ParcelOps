@@ -7587,6 +7587,16 @@ struct SettingsView: View {
   @State private var settingsFeedbackMessage: String?
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var providerStatusGridColumns: [GridItem] {
+    let count = isCompact ? 2 : 3
+    return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+  }
+  private var providerStatusCardHeight: CGFloat { isCompact ? 150 : 138 }
+  private var setupCompletionGridColumns: [GridItem] {
+    let count = isCompact ? 2 : 3
+    return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+  }
+  private var setupCompletionCardHeight: CGFloat { isCompact ? 144 : 132 }
   private var hasSpaceMailSetup: Bool { !store.spaceMailIMAPConnections.isEmpty }
   private var hasSpaceMailCredentialReference: Bool {
     store.spaceMailIMAPConnections.contains {
@@ -8608,7 +8618,7 @@ struct SettingsView: View {
           ("Filtered", "\(latestManualMailboxFilteredCount)", latestManualMailboxFilteredCount == 0 ? .secondary : .teal)
         ])
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 180 : 250), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: providerStatusGridColumns, alignment: .leading, spacing: 10) {
           ForEach(mailboxProviderStatusRows, id: \.title) { row in
             VStack(alignment: .leading, spacing: 8) {
               HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -8630,7 +8640,7 @@ struct SettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
             }
             .padding(10)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: providerStatusCardHeight, maxHeight: providerStatusCardHeight, alignment: .topLeading)
             .background(row.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
           }
@@ -8666,7 +8676,7 @@ struct SettingsView: View {
           Badge("\(setupCompletionCompleteCount)/\(setupCompletionItems.count)", color: setupCompletionBlockerCount == 0 ? .green : .orange)
         }
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 160 : 215), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: setupCompletionGridColumns, alignment: .leading, spacing: 10) {
           ForEach(setupCompletionItems, id: \.title) { item in
             VStack(alignment: .leading, spacing: 8) {
               HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -8687,7 +8697,7 @@ struct SettingsView: View {
                 .foregroundStyle(item.color)
             }
             .padding(10)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: setupCompletionCardHeight, maxHeight: setupCompletionCardHeight, alignment: .topLeading)
             .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           }
         }
