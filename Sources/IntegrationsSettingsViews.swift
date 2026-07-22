@@ -7005,7 +7005,7 @@ struct SpaceMailIMAPConnectionEditor: View {
         .background(.background)
         .overlay(Divider(), alignment: .top)
       }
-      .frame(minWidth: 460, idealWidth: 620, maxWidth: 740, minHeight: 320, idealHeight: 600)
+      .frame(minWidth: 460, idealWidth: 620, maxWidth: 740, minHeight: 320, idealHeight: 560, maxHeight: 620)
       .navigationTitle("SpaceMail IMAP")
     }
   }
@@ -7121,7 +7121,7 @@ struct Microsoft365MailboxConnectionEditor: View {
         .background(.background)
         .overlay(Divider(), alignment: .top)
       }
-      .frame(minWidth: 480, idealWidth: 640, maxWidth: 760, minHeight: 320, idealHeight: 680)
+      .frame(minWidth: 480, idealWidth: 640, maxWidth: 760, minHeight: 320, idealHeight: 580, maxHeight: 640)
       .navigationTitle("Outlook / Microsoft 365 mailbox")
     }
   }
