@@ -7663,10 +7663,7 @@ struct OperatorTestSessionChecklistCard: View {
     let hasMicrosoft365Refresh = latestMicrosoft365Summary.map { $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.duplicateRefreshedCount > 0 || $0.blockedCount > 0 || $0.lastRefreshDate != "Never" } ?? false
     let hasMicrosoft365Auth = store.microsoft365MailboxConnections.contains { store.microsoft365AuthSessionState(for: $0).status == .connected }
     let hasAnyProviderCredentialOrAuth = hasCredential || hasGmailAuth || hasMicrosoft365Auth
-    let dispatchWorkCount = store.blockedShipmentManifests.count
-      + store.undispatchedShipmentManifests.count
-      + store.blockedDispatchChecklists.count
-      + store.incompleteDispatchChecklists.count
+    let dispatchWorkCount = store.activeDispatchFollowUpCount
     let hasActionQueue = openTasksCount > 0 || !store.openWorkbenchItems.isEmpty || dispatchWorkCount > 0
 
     return [
@@ -7867,12 +7864,7 @@ struct OperatorHandoffBriefCard: View {
   }
 
   private var dispatchFollowUpCount: Int {
-    store.blockedShipmentManifests.count
-      + store.undispatchedShipmentManifests.count
-      + store.blockedDispatchChecklists.count
-      + store.incompleteDispatchChecklists.count
-      + store.dispatchChecklistsNeedingReview.count
-      + store.shipmentManifestsNeedingReview.count
+    store.dispatchFollowUpAndReviewCount
   }
 
   private var activeWishlistItems: [WishlistItem] {
@@ -8721,7 +8713,7 @@ struct ActiveOperatorQueueFocusCard: View {
   }
 
   private var blockedDispatchCount: Int {
-    store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count
+    store.blockedDispatchWorkCount
   }
 
   private var activeQueueCount: Int {

@@ -3046,7 +3046,7 @@ struct DispatchView: View {
   }
 
   private var blockedDispatchCount: Int {
-    store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count
+    store.blockedDispatchWorkCount
   }
 
   private var readyDispatchCount: Int {

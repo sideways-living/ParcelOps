@@ -7413,8 +7413,7 @@ struct SettingsReleaseCandidateCard: View {
       + store.intakeParserDiagnostics.count
       + store.openWorkbenchItems.count
       + store.reviewTasksNeedingAttention.count
-      + store.blockedShipmentManifests.count
-      + store.blockedDispatchChecklists.count
+      + store.blockedDispatchWorkCount
   }
 
   private var tone: Color {
@@ -7705,8 +7704,7 @@ struct SettingsView: View {
       + store.intakeParserDiagnostics.count
       + store.openWorkbenchItems.count
       + store.taskAndHandoffAttentionCount
-      + store.blockedShipmentManifests.count
-      + store.blockedDispatchChecklists.count
+      + store.blockedDispatchWorkCount
   }
 
   private var setupPlanningPlaceholderCount: Int {

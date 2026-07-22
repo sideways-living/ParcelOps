@@ -611,8 +611,7 @@ struct OperationsWorkbenchView: View {
       + store.blockedImportQueueItems.count
       + store.acceptanceRecordsNeedingReview.count
       + store.reviewOrders.count
-      + store.blockedShipmentManifests.count
-      + store.blockedDispatchChecklists.count
+      + store.blockedDispatchWorkCount
       + store.taskHandoffAndDraftAttentionCount
       + store.highPriorityWorkbenchItems.count
       + setupPlaceholderReviewItems.count
@@ -640,7 +639,7 @@ struct OperationsWorkbenchView: View {
   }
 
   private var releaseDispatchBlockerCount: Int {
-    store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count + reopenedInboxDispatchHandoffCount + inboxDispatchReadinessOrders.count
+    store.blockedDispatchWorkCount + reopenedInboxDispatchHandoffCount + inboxDispatchReadinessOrders.count
   }
 
   private var releaseTaskBlockerCount: Int {
@@ -991,7 +990,7 @@ struct OperationsWorkbenchView: View {
       + store.acceptanceRecordsNeedingReview.count
     let mailboxReviewCount = store.pendingMailboxReviewCount + store.intakeParserDiagnostics.count
     let orderCount = inboxCreatedOrders.count + partialInboxOrderBlockers.count
-    let dispatchCount = reopenedInboxDispatchHandoffCount + inboxDispatchReadinessOrders.count + store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count
+    let dispatchCount = reopenedInboxDispatchHandoffCount + inboxDispatchReadinessOrders.count + store.blockedDispatchWorkCount
     let taskCount = store.taskAndHandoffAttentionCount + draftFollowUpItems.count
     let auditCount = store.auditEvents.filter { event in
       event.summary.localizedCaseInsensitiveContains("SpaceMail")

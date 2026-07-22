@@ -623,7 +623,7 @@ struct DashboardView: View {
     reopenedInboxDispatchManifests.count + reopenedInboxDispatchChecklists.count
   }
   private var dispatchAttentionCount: Int {
-    store.blockedShipmentManifests.count + store.undispatchedShipmentManifests.count + store.blockedDispatchChecklists.count + store.incompleteDispatchChecklists.count + inboxDispatchGapOrders.count + inboxDispatchSetupPendingOrders.count + partialInboxOrderBlockers.count + reopenedInboxDispatchHandoffCount
+    store.activeDispatchFollowUpCount + inboxDispatchGapOrders.count + inboxDispatchSetupPendingOrders.count + partialInboxOrderBlockers.count + reopenedInboxDispatchHandoffCount
   }
   private var taskAttentionCount: Int {
     store.taskHandoffAndDraftAttentionCount
@@ -2612,14 +2612,14 @@ struct DashboardView: View {
         if dashboardMatches("dispatch readiness", "dispatch", "manifest", "readiness", "blocked", "undispatched", "reopened") {
           AnalyticsSection(title: "Dispatch readiness", symbol: "shippingbox.and.arrow.backward.fill") {
             MetricStrip(items: [
-              ("Blocked", "\(store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count)", .red),
+              ("Blocked", "\(store.blockedDispatchWorkCount)", .red),
               ("Reopened", "\(reopenedInboxDispatchHandoffCount)", reopenedInboxDispatchHandoffCount == 0 ? .green : .purple),
               ("Verify first", "\(partialInboxOrderBlockers.count)", partialInboxOrderBlockers.isEmpty ? .green : .orange),
               ("Inbox gaps", "\(inboxDispatchGapOrders.count)", inboxDispatchGapOrders.isEmpty ? .green : .purple),
               ("Inbox setup", "\(inboxDispatchSetupPendingOrders.count)", inboxDispatchSetupPendingOrders.isEmpty ? .green : .teal),
               ("Undispatched", "\(store.undispatchedShipmentManifests.count)", .blue),
               ("Incomplete", "\(store.incompleteDispatchChecklists.count)", .orange),
-              ("Review", "\(store.shipmentManifestsNeedingReview.count + store.dispatchChecklistsNeedingReview.count)", .purple)
+              ("Review", "\(store.dispatchReviewWorkCount)", .purple)
             ])
             CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)), store: store)
             CompactReopenedInboxDispatchHandoffList(manifests: Array(reopenedInboxDispatchManifests.prefix(3)), checklists: Array(reopenedInboxDispatchChecklists.prefix(3)), store: store)
@@ -2749,8 +2749,7 @@ private struct DashboardReleaseReadinessSnapshot: View {
       + uncertainMailboxCount
       + store.pendingMailboxFilteredReviewCount
       + store.taskAndHandoffAttentionCount
-      + store.blockedShipmentManifests.count
-      + store.blockedDispatchChecklists.count
+      + store.blockedDispatchWorkCount
   }
 
   private var readyCount: Int {
@@ -3066,7 +3065,7 @@ struct MVPHandsOnDashboardStatus: View {
   }
 
   private var blockedDailyCount: Int {
-    store.blockedWorkbenchItems.count + store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count
+    store.blockedWorkbenchItems.count + store.blockedDispatchWorkCount
   }
 
   private var tone: Color {

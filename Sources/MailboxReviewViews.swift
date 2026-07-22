@@ -4256,8 +4256,7 @@ struct NeedsReviewView: View {
       + store.reviewEvidenceAttachments.count
       + store.reviewCarrierTrackingEvents.count
       + store.taskHandoffAndDraftAttentionCount
-      + store.blockedShipmentManifests.count
-      + store.blockedDispatchChecklists.count
+      + store.blockedDispatchWorkCount
       + (mailboxProviderNeedsReview ? 1 : 0)
       + gmailReleaseBlockingCount
       + gmailReleaseAttentionCount

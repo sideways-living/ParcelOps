@@ -1324,8 +1324,7 @@ struct MVPCompletionRoadmapPanel: View {
     store.reviewIntakeEmails.count
       + store.openWorkbenchItems.count
       + store.taskAndHandoffAttentionCount
-      + store.blockedShipmentManifests.count
-      + store.blockedDispatchChecklists.count
+      + store.blockedDispatchWorkCount
   }
 
   private var hasAuditTrail: Bool {
@@ -1550,8 +1549,7 @@ struct MVPDevelopmentProgressPanel: View {
       + store.pendingMailboxReviewCount
       + store.openWorkbenchItems.count
       + store.taskAndHandoffAttentionCount
-      + store.blockedShipmentManifests.count
-      + store.blockedDispatchChecklists.count
+      + store.blockedDispatchWorkCount
   }
 
   private var completedFoundationCount: Int {

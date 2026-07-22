@@ -6602,6 +6602,22 @@ final class ParcelOpsStore {
     preparedShipmentManifestCount + readyDispatchChecklistCount
   }
 
+  var blockedDispatchWorkCount: Int {
+    blockedShipmentManifestCount + blockedDispatchChecklistCount
+  }
+
+  var activeDispatchFollowUpCount: Int {
+    blockedDispatchWorkCount + undispatchedShipmentManifestCount + incompleteDispatchChecklistCount
+  }
+
+  var dispatchReviewWorkCount: Int {
+    shipmentManifestsNeedingReview.count + dispatchChecklistsNeedingReview.count
+  }
+
+  var dispatchFollowUpAndReviewCount: Int {
+    activeDispatchFollowUpCount + dispatchReviewWorkCount
+  }
+
   var reopenedInboxDispatchHandoffCount: Int {
     shipmentManifestRecords.reduce(0) { count, record in
       count + (record.isInboxHandoffSetup && record.dispatchStatus == .reopened ? 1 : 0)
