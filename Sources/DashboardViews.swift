@@ -1043,6 +1043,15 @@ struct DashboardView: View {
     ]
   }
 
+  private var dailyFlowCheckpointColumns: [GridItem] {
+    let count = isCompact ? 2 : 3
+    return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+  }
+
+  private var dailyFlowCheckpointCardHeight: CGFloat {
+    isCompact ? 132 : 122
+  }
+
   private var dailyFlowClearCount: Int {
     dailyFlowCheckpointItems.filter { item in
       item.count == 0 || item.title == "Audit"
@@ -1561,7 +1570,7 @@ struct DashboardView: View {
           Badge("\(dailyFlowClearCount)/\(dailyFlowCheckpointItems.count)", color: dailyFlowClearCount == dailyFlowCheckpointItems.count ? .green : .orange)
         }
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 160 : 215), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: dailyFlowCheckpointColumns, alignment: .leading, spacing: 10) {
           ForEach(dailyFlowCheckpointItems, id: \.title) { item in
             VStack(alignment: .leading, spacing: 8) {
               HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -1585,7 +1594,7 @@ struct DashboardView: View {
                 .foregroundStyle(item.color)
             }
             .padding(10)
-            .frame(maxWidth: .infinity, minHeight: isCompact ? 124 : 118, maxHeight: isCompact ? 124 : 118, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: dailyFlowCheckpointCardHeight, maxHeight: dailyFlowCheckpointCardHeight, alignment: .topLeading)
             .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           }
         }
@@ -3057,6 +3066,7 @@ struct MVPReadinessCallout: View {
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
   }
+
 }
 
 struct MVPHandsOnDashboardStatus: View {
