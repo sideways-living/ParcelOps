@@ -3539,6 +3539,7 @@ struct ReviewTasksDetailView: View {
   @State private var selectedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedAssignee: String?
   @State private var selectedReviewState: ReviewState?
+  @State private var showAllReviewTaskRows = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var assignees: [String] {
@@ -3554,6 +3555,22 @@ struct ReviewTasksDetailView: View {
       let matchesReview = selectedReviewState == nil || task.reviewState == selectedReviewState
       return matchesStatus && matchesPriority && matchesEntity && matchesAssignee && matchesReview
     }
+  }
+
+  private var hasActiveReviewTaskFilters: Bool {
+    selectedStatus != nil
+      || selectedPriority != nil
+      || selectedEntityType != nil
+      || selectedAssignee != nil
+      || selectedReviewState != nil
+  }
+
+  private var displayedReviewTasks: [ReviewTask] {
+    showAllReviewTaskRows || hasActiveReviewTaskFilters ? filteredTasks : Array(filteredTasks.prefix(32))
+  }
+
+  private var hiddenDisplayedReviewTaskCount: Int {
+    max(filteredTasks.count - displayedReviewTasks.count, 0)
   }
 
   var body: some View {
@@ -3600,6 +3617,12 @@ struct ReviewTasksDetailView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
             Spacer()
+            if hiddenDisplayedReviewTaskCount > 0 {
+              Button(showAllReviewTaskRows ? "Show first 32" : "Show all", systemImage: showAllReviewTaskRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                showAllReviewTaskRows.toggle()
+              }
+              .buttonStyle(.bordered)
+            }
             Button("Add task", systemImage: "plus", action: store.addReviewTaskPlaceholder)
               .buttonStyle(.borderedProminent)
           }
@@ -3607,7 +3630,14 @@ struct ReviewTasksDetailView: View {
           if filteredTasks.isEmpty {
             MVPEmptyState(title: "No tasks match this view", detail: "Clear filters or add a local task to test follow-up ownership.", symbol: "checklist", actionTitle: "Add task", action: store.addReviewTaskPlaceholder)
           } else {
-            ForEach(filteredTasks) { task in
+            if hiddenDisplayedReviewTaskCount > 0 {
+              Label("Showing the first \(displayedReviewTasks.count) tasks by default so this detailed view stays responsive. Filters still scan every local task.", systemImage: "speedometer")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ForEach(displayedReviewTasks) { task in
               ReviewTaskRow(task: task, store: store, linkedOrder: linkedOrder(for: task), matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task), customerProfiles: store.suggestedCustomerProfiles(for: task), destinationAddresses: store.suggestedDestinationAddresses(for: task), deliveryInstructions: store.suggestedDeliveryInstructions(for: task), packageContents: store.suggestedPackageContents(for: task)) { updatedTask in
                 store.updateReviewTask(updatedTask)
               } onComplete: {
