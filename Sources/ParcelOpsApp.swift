@@ -39,6 +39,7 @@ struct ParcelOpsApp: App {
 #if os(macOS)
 final class ParcelOpsAppDelegate: NSObject, NSApplicationDelegate {
   private var fallbackWindowController: NSWindowController?
+  private var isCheckingForMainWindow = false
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     openMainWindowIfNeeded()
@@ -56,22 +57,17 @@ final class ParcelOpsAppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func openMainWindowIfNeeded() {
+    guard !isCheckingForMainWindow else { return }
+    isCheckingForMainWindow = true
+
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+      defer { self.isCheckingForMainWindow = false }
       let hasVisibleParcelWindow = NSApp.windows.contains { window in
         window.isVisible && !window.title.localizedCaseInsensitiveContains("settings")
       }
       guard !hasVisibleParcelWindow else { return }
 
-      NSApp.sendAction(Selector(("newWindow:")), to: nil, from: nil)
-      NSApp.activate(ignoringOtherApps: true)
-
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-        guard
-          let self,
-          !NSApp.windows.contains(where: { $0.isVisible && !$0.title.localizedCaseInsensitiveContains("settings") })
-        else { return }
-        self.openFallbackWindow()
-      }
+      self.openFallbackWindow()
     }
   }
 
