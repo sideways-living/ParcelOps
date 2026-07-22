@@ -7,6 +7,7 @@ struct TasksView: View {
   @State private var queueSearchText = ""
   @State private var mvpFeedbackMessage: String?
   @State private var showTasksProviderEvidence = false
+  @State private var showTaskContextSections = false
 
   private var queueItems: [TaskQueueItem] {
     let tasks = store.activeWishlistReviewTasks.map(TaskQueueItem.task)
@@ -630,34 +631,78 @@ struct TasksView: View {
     return store.orders.first { $0.id == orderID }
   }
 
+  private var hasActiveTaskFilters: Bool {
+    !queueSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var shouldShowTaskContextSections: Bool {
+    showTaskContextSections || hasActiveTaskFilters
+  }
+
   var body: some View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 16) {
         header
         OperatorHandoffBriefCard(store: store, detail: "Summarize open follow-up before handing work to the next operator.")
-        tasksProviderEvidencePanel
         taskNextActionPanel
-        taskResolutionLadderPanel
-        taskScopePanel
-        developmentStatusFollowUpPanel
-        wishlistTaskContextPanel
-        mailboxIntakeTaskReadinessPanel
-        inboxParserTaskContextPanel
-        gmailTaskContextPanel
-        mvpValidationPanel
-        mailboxProviderTaskPanel
-        gmailAssignedFollowUpPanel
-        outlookAssignedFollowUpPanel
-        spaceMailTaskEscalationPanel
-        spaceMailAssignedFollowUpPanel
-        draftFollowUpPanel
-        mvpFollowUpPanel
+        taskContextSectionsPanel
         taskQueuePanel
+        if shouldShowTaskContextSections {
+          taskSupportingContextSections
+        }
         detailRoutes
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  private var taskContextSectionsPanel: some View {
+    SettingsPanel(title: "Task context sections", symbol: "line.3.horizontal.decrease.circle.fill") {
+      Text(shouldShowTaskContextSections ? "Supporting task context, provider evidence, draft follow-up, and release checks are visible." : "Tasks opens with the next action and assigned queue first. Open context sections only when you need provider evidence, parser routing, drafts, release checks, Wishlist follow-up, or mailbox diagnostics.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      MetricStrip(items: [
+        ("Queue", "\(queueItems.count)", queueItems.isEmpty ? .green : .orange),
+        ("Drafts", "\(draftFollowUpItems.count)", draftFollowUpItems.isEmpty ? .green : .blue),
+        ("Mailbox", "\(mailboxWarningCount + mailboxUncertainCount + mailboxFilteredCount)", mailboxWarningCount + mailboxUncertainCount + mailboxFilteredCount == 0 ? .green : .orange),
+        ("Wishlist", "\(wishlistTaskActionCount)", wishlistTaskActionCount == 0 ? .green : .purple),
+        ("MVP", "\(mvpFollowUpItems.count)", mvpFollowUpItems.isEmpty ? .green : .indigo)
+      ])
+
+      CompactActionRow {
+        Button(shouldShowTaskContextSections ? "Hide context sections" : "Show context sections", systemImage: shouldShowTaskContextSections ? "chevron.up.circle" : "chevron.down.circle") {
+          showTaskContextSections.toggle()
+        }
+        .buttonStyle(.bordered)
+
+        if hasActiveTaskFilters && !showTaskContextSections {
+          Badge("Search active", color: .orange)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var taskSupportingContextSections: some View {
+    tasksProviderEvidencePanel
+    taskResolutionLadderPanel
+    taskScopePanel
+    developmentStatusFollowUpPanel
+    wishlistTaskContextPanel
+    mailboxIntakeTaskReadinessPanel
+    inboxParserTaskContextPanel
+    gmailTaskContextPanel
+    mvpValidationPanel
+    mailboxProviderTaskPanel
+    gmailAssignedFollowUpPanel
+    outlookAssignedFollowUpPanel
+    spaceMailTaskEscalationPanel
+    spaceMailAssignedFollowUpPanel
+    draftFollowUpPanel
+    mvpFollowUpPanel
   }
 
   private var tasksProviderEvidencePanel: some View {
