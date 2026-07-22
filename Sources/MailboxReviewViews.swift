@@ -4166,7 +4166,9 @@ struct NeedsReviewView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var showAdvancedBacklog = false
+  @State private var showAllNeedsReviewRows = false
   @State private var reviewSearchText = ""
+  private let needsReviewSectionLimit = 12
 
   private var normalizedReviewSearch: String {
     reviewSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -4176,6 +4178,10 @@ struct NeedsReviewView: View {
     let query = normalizedReviewSearch
     guard !query.isEmpty else { return true }
     return terms.joined(separator: " ").lowercased().contains(query)
+  }
+
+  private func visibleNeedsReviewItems<T>(_ items: [T]) -> [T] {
+    showAllNeedsReviewRows ? items : Array(items.prefix(needsReviewSectionLimit))
   }
 
   private var showsInboxOrderHandoff: Bool { matchesReviewSection("inbox", "created", "order", "handoff", "import queue", "acceptance") }
@@ -4353,6 +4359,20 @@ struct NeedsReviewView: View {
             }
 
             Text("This narrows the primary Needs Review sections only. Advanced backlog records remain under the disclosure below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            CompactActionRow {
+              Label(showAllNeedsReviewRows ? "Showing all visible review rows" : "Showing first \(needsReviewSectionLimit) rows per section", systemImage: showAllNeedsReviewRows ? "rectangle.expand.vertical" : "speedometer")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              Button(showAllNeedsReviewRows ? "Use capped lists" : "Show all visible rows", systemImage: showAllNeedsReviewRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                withAnimation(.snappy) {
+                  showAllNeedsReviewRows.toggle()
+                }
+              }
+              .buttonStyle(.bordered)
+            }
+            Text("Lists are capped by default so this screen opens quickly. Search, dashboard counts, and detailed record screens still use the full local data set.")
               .font(.caption)
               .foregroundStyle(.secondary)
             if !store.intakeParserDiagnostics.isEmpty && normalizedReviewSearch.isEmpty {
@@ -4540,7 +4560,7 @@ struct NeedsReviewView: View {
             if groups.isEmpty {
               MVPEmptyState(title: "No shipment groups need review", detail: "High-risk or review-needed shipment groups will appear here when they affect the daily queue.", symbol: "shippingbox.and.arrow.backward.fill")
             } else {
-              ForEach(groups) { group in
+              ForEach(visibleNeedsReviewItems(groups)) { group in
                 ShipmentGroupRow(group: group, importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group), customerProfiles: store.suggestedCustomerProfiles(for: group), destinationAddresses: store.suggestedDestinationAddresses(for: group), deliveryInstructions: store.suggestedDeliveryInstructions(for: group), packageContents: store.suggestedPackageContents(for: group)) { updatedGroup in
                   store.updateShipmentGroup(updatedGroup)
                 } onReviewed: {
@@ -4635,7 +4655,7 @@ struct NeedsReviewView: View {
             if store.reviewOrders.isEmpty {
               MVPEmptyState(title: "No orders need review", detail: "Review-needed orders, exceptions, and tracking issue matches will appear here.", symbol: "shippingbox.fill")
             } else {
-              ForEach(store.reviewOrders) { order in
+              ForEach(visibleNeedsReviewItems(store.reviewOrders)) { order in
                 ReviewOrderRow(order: order) { updatedOrder in
                   store.updateOrder(updatedOrder)
                 } onClear: {
@@ -4657,7 +4677,7 @@ struct NeedsReviewView: View {
             if store.reviewMailEvents.isEmpty {
               MVPEmptyState(title: "No mailbox events need review", detail: "Mailbox events that match orders or require local follow-up will appear here.", symbol: "envelope.badge.fill")
             } else {
-              ForEach(store.reviewMailEvents) { event in
+              ForEach(visibleNeedsReviewItems(store.reviewMailEvents)) { event in
                 ReviewMailEventRow(event: event) {
                   store.clearIssue(for: event.matchedOrder)
                 } onDiscard: {
@@ -4945,7 +4965,7 @@ struct NeedsReviewView: View {
             if store.reviewIntakeEmails.isEmpty {
               MVPEmptyState(title: "No forwarded emails need review", detail: "Order-related messages imported from SpaceMail, Gmail, Outlook, or simulated intake will appear here until reviewed, linked, ignored, or converted into an order.", symbol: "envelope.open.fill")
             } else {
-              ForEach(store.reviewIntakeEmails) { email in
+              ForEach(visibleNeedsReviewItems(store.reviewIntakeEmails)) { email in
                 IntakeEmailRow(email: email, store: store, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), destinationAddresses: store.suggestedDestinationAddresses(for: email), deliveryInstructions: store.suggestedDeliveryInstructions(for: email), packageContents: store.suggestedPackageContents(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
                   store.updateIntakeEmail(updatedEmail)
                 } onLinkOrder: { order in
@@ -4993,7 +5013,7 @@ struct NeedsReviewView: View {
             if store.reviewEvidenceAttachments.isEmpty {
               MVPEmptyState(title: "No evidence needs review", detail: "Local evidence placeholders linked to intake, orders, tracking, or claims will appear here when review is required.", symbol: "paperclip")
             } else {
-              ForEach(store.reviewEvidenceAttachments) { attachment in
+              ForEach(visibleNeedsReviewItems(store.reviewEvidenceAttachments)) { attachment in
                 EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment), destinationAddresses: store.suggestedDestinationAddresses(for: attachment), deliveryInstructions: store.suggestedDeliveryInstructions(for: attachment), packageContents: store.suggestedPackageContents(for: attachment)) {
                   store.markEvidenceReviewed(attachment)
                 } onRemove: {
@@ -5015,7 +5035,7 @@ struct NeedsReviewView: View {
             if store.reviewCarrierTrackingEvents.isEmpty {
               MVPEmptyState(title: "No tracking events need review", detail: "Critical or watch-level local tracking events will appear here when they require follow-up.", symbol: "location.fill.viewfinder")
             } else {
-              ForEach(store.reviewCarrierTrackingEvents) { event in
+              ForEach(visibleNeedsReviewItems(store.reviewCarrierTrackingEvents)) { event in
                 TrackingEventRow(event: event, store: store, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), deliveryInstructions: store.suggestedDeliveryInstructions(for: event), packageContents: store.suggestedPackageContents(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
                   store.markTrackingEventReviewed(event)
                 } onRemove: {
@@ -5045,7 +5065,7 @@ struct NeedsReviewView: View {
             if store.reviewTasksNeedingAttention.isEmpty {
               MVPEmptyState(title: "No task escalations need review", detail: "Open, overdue, blocked, or review-needed follow-up tasks will appear here.", symbol: "checklist")
             } else {
-              ForEach(store.reviewTasksNeedingAttention) { task in
+              ForEach(visibleNeedsReviewItems(store.reviewTasksNeedingAttention)) { task in
                 ReviewTaskRow(task: task, matchingPolicies: store.policies(for: task.linkedEntityType), shipmentGroups: store.suggestedShipmentGroups(for: task), handoffNotes: store.handoffNotes(for: task), customerProfiles: store.suggestedCustomerProfiles(for: task), destinationAddresses: store.suggestedDestinationAddresses(for: task), deliveryInstructions: store.suggestedDeliveryInstructions(for: task), packageContents: store.suggestedPackageContents(for: task)) { updatedTask in
                   store.updateReviewTask(updatedTask)
                 } onComplete: {
@@ -5071,7 +5091,7 @@ struct NeedsReviewView: View {
             if store.handoffNotesNeedingAttention.isEmpty {
               MVPEmptyState(title: "No handoff notes need attention", detail: "Open, overdue, blocked, or review-needed shift handoff notes will appear here.", symbol: "arrow.left.arrow.right.square.fill")
             } else {
-              ForEach(store.handoffNotesNeedingAttention) { note in
+              ForEach(visibleNeedsReviewItems(store.handoffNotesNeedingAttention)) { note in
                 HandoffNoteRow(note: note, customerProfiles: store.suggestedCustomerProfiles(for: note), destinationAddresses: store.suggestedDestinationAddresses(for: note), deliveryInstructions: store.suggestedDeliveryInstructions(for: note), packageContents: store.suggestedPackageContents(for: note)) { updatedNote in
                   store.updateHandoffNote(updatedNote)
                 } onAcknowledge: {
@@ -5097,7 +5117,7 @@ struct NeedsReviewView: View {
         DisclosureGroup(isExpanded: $showAdvancedBacklog) {
           VStack(alignment: .leading, spacing: 14) {
             SettingsPanel(title: "SLA policies", symbol: "timer") {
-              ForEach(store.policiesNeedingReview) { policy in
+              ForEach(visibleNeedsReviewItems(store.policiesNeedingReview)) { policy in
                 SLAPolicyRow(policy: policy, destinationAddresses: store.suggestedDestinationAddresses(for: policy), deliveryInstructions: store.suggestedDeliveryInstructions(for: policy), packageContents: store.suggestedPackageContents(for: policy)) { updatedPolicy in
                   store.updateSLAPolicy(updatedPolicy)
                 } onToggle: {
@@ -5117,9 +5137,9 @@ struct NeedsReviewView: View {
             }
 
             SettingsPanel(title: "Exception playbooks", symbol: "book.closed.fill") {
-              ForEach(Array(Set(store.playbooksNeedingReview + store.enabledHighPriorityPlaybooks)).sorted { lhs, rhs in
+              ForEach(visibleNeedsReviewItems(Array(Set(store.playbooksNeedingReview + store.enabledHighPriorityPlaybooks)).sorted { lhs, rhs in
                 lhs.priority.rawValue > rhs.priority.rawValue
-              }) { playbook in
+              })) { playbook in
                 ExceptionPlaybookRow(playbook: playbook, handoffNotes: store.handoffNotes(for: playbook), destinationAddresses: store.suggestedDestinationAddresses(for: playbook), deliveryInstructions: store.suggestedDeliveryInstructions(for: playbook), packageContents: store.suggestedPackageContents(for: playbook)) { updatedPlaybook in
                   store.updateExceptionPlaybook(updatedPlaybook)
                 } onToggle: {
@@ -5137,7 +5157,7 @@ struct NeedsReviewView: View {
             }
 
             SettingsPanel(title: "Contacts", symbol: "person.crop.circle.badge.checkmark") {
-              ForEach(store.contactsNeedingReview) { contact in
+              ForEach(visibleNeedsReviewItems(store.contactsNeedingReview)) { contact in
                 ContactDirectoryRow(contact: contact, destinationAddresses: store.suggestedDestinationAddresses(for: contact), deliveryInstructions: store.suggestedDeliveryInstructions(for: contact), packageContents: store.suggestedPackageContents(for: contact)) { updatedContact in
                   store.updateContactDirectoryEntry(updatedContact)
                 } onToggle: {
@@ -5153,7 +5173,7 @@ struct NeedsReviewView: View {
             }
 
         SettingsPanel(title: "Customer profiles", symbol: "person.text.rectangle.fill") {
-          ForEach(Array(Set(store.customerProfilesNeedingReview + store.customerRecipientProfiles.filter { !$0.isEnabled }))) { profile in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.customerProfilesNeedingReview + store.customerRecipientProfiles.filter { !$0.isEnabled })))) { profile in
             CustomerProfileRow(profile: profile) { updatedProfile in
               store.updateCustomerRecipientProfile(updatedProfile)
             } onToggle: {
@@ -5171,7 +5191,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Destination addresses", symbol: "mappin.and.ellipse") {
-          ForEach(Array(Set(store.destinationAddressesNeedingReview + store.highRiskDestinationAddresses + store.destinationAddresses.filter { !$0.isEnabled }))) { address in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.destinationAddressesNeedingReview + store.highRiskDestinationAddresses + store.destinationAddresses.filter { !$0.isEnabled })))) { address in
             DestinationAddressRow(address: address, customerProfiles: store.customerRecipientProfiles) { updatedAddress in
               store.updateDestinationAddress(updatedAddress)
             } onToggle: {
@@ -5189,7 +5209,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Delivery instructions", symbol: "signpost.right.and.left.fill") {
-          ForEach(Array(Set(store.deliveryInstructionsNeedingReview + store.highRiskDeliveryInstructions + store.deliveryInstructions.filter { !$0.isEnabled } + store.deliveryInstructionsWithAccessConstraints.filter { $0.reviewState != .accepted }))) { instruction in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.deliveryInstructionsNeedingReview + store.highRiskDeliveryInstructions + store.deliveryInstructions.filter { !$0.isEnabled } + store.deliveryInstructionsWithAccessConstraints.filter { $0.reviewState != .accepted })))) { instruction in
             DeliveryInstructionRow(
               instruction: instruction,
               destinationAddress: store.destinationAddresses.first { $0.id == instruction.destinationAddressID },
@@ -5211,7 +5231,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Package contents", symbol: "shippingbox.circle.fill") {
-          ForEach(Array(Set(store.packageContentsNeedingReview + store.unverifiedPackageContents + store.packageContentDiscrepancies + store.highRiskPackageContents + store.highValuePackageContents))) { content in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.packageContentsNeedingReview + store.unverifiedPackageContents + store.packageContentDiscrepancies + store.highRiskPackageContents + store.highValuePackageContents)))) { content in
             PackageContentRow(content: content, custodyRecords: store.suggestedCustodyRecords(for: content)) { updatedContent in
               store.updatePackageContent(updatedContent)
             } onVerified: {
@@ -5231,7 +5251,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Costs & budgets", symbol: "creditcard.and.123") {
-          ForEach(Array(Set(store.costRecordsNeedingReview + store.disputedCostRecords + store.unreimbursedCostRecords + store.unapprovedCostRecords + store.highRiskCostRecords + store.missingBudgetCodeCostRecords))) { cost in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.costRecordsNeedingReview + store.disputedCostRecords + store.unreimbursedCostRecords + store.unapprovedCostRecords + store.highRiskCostRecords + store.missingBudgetCodeCostRecords)))) { cost in
             CostRecordRow(cost: cost) { updatedCost in
               store.updateCostRecord(updatedCost)
             } onApproved: {
@@ -5253,7 +5273,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Returns & claims", symbol: "arrow.uturn.backward.square.fill") {
-          ForEach(Array(Set(store.returnClaimsNeedingReview + store.disputedReturnClaims + store.unresolvedReturnClaims + store.overdueReturnClaims + store.highRiskReturnClaims + store.returnClaimsMissingEvidence))) { claim in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.returnClaimsNeedingReview + store.disputedReturnClaims + store.unresolvedReturnClaims + store.overdueReturnClaims + store.highRiskReturnClaims + store.returnClaimsMissingEvidence)))) { claim in
             ReturnClaimRow(claim: claim, custodyRecords: store.suggestedCustodyRecords(for: claim), labelReferences: store.suggestedLabelReferenceRecords(for: claim), scanSessions: store.suggestedScanSessionRecords(for: claim)) { updatedClaim in
               store.updateReturnClaim(updatedClaim)
             } onSubmitted: {
@@ -5277,7 +5297,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Procurement", symbol: "cart.badge.plus") {
-          ForEach(Array(Set(store.procurementRequestsNeedingReview + store.unapprovedProcurementRequests + store.rejectedProcurementRequests + store.notYetOrderedProcurementRequests + store.overdueProcurementRequests + store.highRiskProcurementRequests + store.missingBudgetCodeProcurementRequests))) { request in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.procurementRequestsNeedingReview + store.unapprovedProcurementRequests + store.rejectedProcurementRequests + store.notYetOrderedProcurementRequests + store.overdueProcurementRequests + store.highRiskProcurementRequests + store.missingBudgetCodeProcurementRequests)))) { request in
             ProcurementRequestRow(request: request, custodyRecords: store.suggestedCustodyRecords(for: request), labelReferences: store.suggestedLabelReferenceRecords(for: request), scanSessions: store.suggestedScanSessionRecords(for: request)) { updatedRequest in
               store.updateProcurementRequest(updatedRequest)
             } onApproved: {
@@ -5301,7 +5321,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Receiving inspections", symbol: "checklist.checked") {
-          ForEach(Array(Set(store.receivingInspectionsNeedingReview + store.blockedReceivingInspections + store.unresolvedInspectionDiscrepancies + store.highRiskReceivingInspections + store.overdueReceivingInspections + store.quantityMismatchReceivingInspections))) { inspection in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.receivingInspectionsNeedingReview + store.blockedReceivingInspections + store.unresolvedInspectionDiscrepancies + store.highRiskReceivingInspections + store.overdueReceivingInspections + store.quantityMismatchReceivingInspections)))) { inspection in
             ReceivingInspectionRow(inspection: inspection, custodyRecords: store.suggestedCustodyRecords(for: inspection)) { updatedInspection in
               store.updateReceivingInspection(updatedInspection)
             } onInspected: {
@@ -5325,7 +5345,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Inventory receipts", symbol: "archivebox.fill") {
-          ForEach(Array(Set(store.inventoryReceiptsNeedingReview + store.rejectedInventoryReceipts + store.partiallyAcceptedInventoryReceipts + store.highRiskInventoryReceipts + store.unassignedInventoryReceipts + store.inventoryReceiptsMissingStorage))) { receipt in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.inventoryReceiptsNeedingReview + store.rejectedInventoryReceipts + store.partiallyAcceptedInventoryReceipts + store.highRiskInventoryReceipts + store.unassignedInventoryReceipts + store.inventoryReceiptsMissingStorage)))) { receipt in
             InventoryReceiptRow(receipt: receipt, custodyRecords: store.suggestedCustodyRecords(for: receipt)) { updatedReceipt in
               store.updateInventoryReceipt(updatedReceipt)
             } onStocked: {
@@ -5349,7 +5369,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Storage locations", symbol: "cabinet.fill") {
-          ForEach(Array(Set(store.storageLocationsNeedingReview + store.disabledStorageLocations + store.highRiskStorageLocations + store.storageLocationsMissingCodes + store.storageLocationsWithAccessNotes + store.storageLocationsWithCapacityWarnings))) { location in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.storageLocationsNeedingReview + store.disabledStorageLocations + store.highRiskStorageLocations + store.storageLocationsMissingCodes + store.storageLocationsWithAccessNotes + store.storageLocationsWithCapacityWarnings)))) { location in
             StorageLocationRow(location: location, custodyRecords: store.suggestedCustodyRecords(for: location)) { updatedLocation in
               store.updateStorageLocation(updatedLocation)
             } onToggle: {
@@ -5367,7 +5387,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Custody chain", symbol: "person.badge.shield.checkmark.fill") {
-          ForEach(Array(Set(store.custodyRecordsNeedingReview + store.disputedCustodyRecords + store.openCustodyTransfers + store.overdueCustodyRecords + store.highRiskCustodyRecords + store.custodyRecordsMissingCustodians + store.custodyRecordsMissingLocations))) { record in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.custodyRecordsNeedingReview + store.disputedCustodyRecords + store.openCustodyTransfers + store.overdueCustodyRecords + store.highRiskCustodyRecords + store.custodyRecordsMissingCustodians + store.custodyRecordsMissingLocations)))) { record in
             CustodyRecordRow(record: record, labelReferences: store.suggestedLabelReferenceRecords(for: record)) { updatedRecord in
               store.updateCustodyRecord(updatedRecord)
             } onTransferred: {
@@ -5391,7 +5411,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Label references", symbol: "barcode.viewfinder") {
-          ForEach(Array(Set(store.labelReferencesNeedingReview + store.invalidLabelReferences + store.unverifiedLabelReferences + store.highRiskLabelReferences + store.labelReferencesMissingValues + store.labelReferencesMissingLinkedRecords))) { record in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.labelReferencesNeedingReview + store.invalidLabelReferences + store.unverifiedLabelReferences + store.highRiskLabelReferences + store.labelReferencesMissingValues + store.labelReferencesMissingLinkedRecords)))) { record in
             LabelReferenceRow(record: record, scanSessions: store.suggestedScanSessionRecords(for: record)) { updatedRecord in
               store.updateLabelReferenceRecord(updatedRecord)
             } onPrinted: {
@@ -5413,7 +5433,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Scan sessions", symbol: "qrcode.viewfinder") {
-          ForEach(Array(Set(store.scanSessionsNeedingReview + store.mismatchScanSessions + store.incompleteScanSessions + store.highRiskScanSessions + store.scanSessionsMissingCapturedValues + store.scanSessionsMissingLabelReferences))) { record in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.scanSessionsNeedingReview + store.mismatchScanSessions + store.incompleteScanSessions + store.highRiskScanSessions + store.scanSessionsMissingCapturedValues + store.scanSessionsMissingLabelReferences)))) { record in
             ScanSessionRow(record: record) { updatedRecord in
               store.updateScanSessionRecord(updatedRecord)
             } onMatched: {
@@ -5437,7 +5457,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Shipment manifests", symbol: "list.bullet.clipboard.fill") {
-          ForEach(Array(Set(store.shipmentManifestsNeedingReview + store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests + store.shipmentManifestsMissingIncludedOrders + store.shipmentManifestsMissingHandoffLocation + store.shipmentManifestsWithIncompleteScans))) { record in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.shipmentManifestsNeedingReview + store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests + store.shipmentManifestsMissingIncludedOrders + store.shipmentManifestsMissingHandoffLocation + store.shipmentManifestsWithIncompleteScans)))) { record in
             ShipmentManifestRow(record: record, store: store, linkedOrders: linkedOrders(for: record)) { updatedRecord in
               store.updateShipmentManifestRecord(updatedRecord)
             } onPrepared: {
@@ -5463,7 +5483,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Dispatch readiness", symbol: "checkmark.rectangle.stack.fill") {
-          ForEach(Array(Set(store.dispatchChecklistsNeedingReview + store.blockedDispatchChecklists + store.incompleteDispatchChecklists + store.highRiskDispatchChecklists + store.dispatchChecklistsMissingRequirements + store.dispatchChecklistsLinkedToBlockedManifests))) { checklist in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.dispatchChecklistsNeedingReview + store.blockedDispatchChecklists + store.incompleteDispatchChecklists + store.highRiskDispatchChecklists + store.dispatchChecklistsMissingRequirements + store.dispatchChecklistsLinkedToBlockedManifests)))) { checklist in
             DispatchReadinessRow(checklist: checklist, store: store, linkedOrders: linkedOrders(for: checklist)) { updatedChecklist in
               store.updateDispatchReadinessChecklist(updatedChecklist)
             } onReady: {
@@ -5487,7 +5507,7 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Accounts", symbol: "key.horizontal.fill") {
-          ForEach(store.accountRecordsNeedingReview) { account in
+          ForEach(visibleNeedsReviewItems(store.accountRecordsNeedingReview)) { account in
             AccountCredentialRow(account: account, contacts: store.contactDirectoryEntries, destinationAddresses: store.suggestedDestinationAddresses(for: account), deliveryInstructions: store.suggestedDeliveryInstructions(for: account), packageContents: store.suggestedPackageContents(for: account)) { updatedAccount in
               store.updateAccountCredentialRecord(updatedAccount)
             } onToggle: {
@@ -5507,9 +5527,9 @@ struct NeedsReviewView: View {
         }
 
         SettingsPanel(title: "Vendor profiles", symbol: "building.2.crop.circle.fill") {
-          ForEach(Array(Set(store.vendorProfilesNeedingReview + store.highRiskEnabledVendorProfiles)).sorted { lhs, rhs in
+          ForEach(visibleNeedsReviewItems(Array(Set(store.vendorProfilesNeedingReview + store.highRiskEnabledVendorProfiles)).sorted { lhs, rhs in
             lhs.riskLevel.riskRank > rhs.riskLevel.riskRank
-          }) { profile in
+          })) { profile in
             VendorProfileRow(profile: profile, contacts: store.contactDirectoryEntries, accounts: store.accountCredentialRecords, destinationAddresses: store.suggestedDestinationAddresses(for: profile), deliveryInstructions: store.suggestedDeliveryInstructions(for: profile), packageContents: store.suggestedPackageContents(for: profile)) { updatedProfile in
               store.updateVendorProfile(updatedProfile)
             } onToggle: {
