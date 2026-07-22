@@ -83,27 +83,15 @@ struct AuditView: View {
   }
 
   private var developmentStatusTaskCount: Int {
-    store.reviewTasks.filter {
-      $0.linkedEntityType == .integration &&
-      $0.linkedEntityID == "development-status-checkpoint" &&
-      $0.status != .completed
-    }.count
+    store.developmentStatusTaskCount
   }
 
   private var developmentStatusHandoffCount: Int {
-    store.handoffNotes.filter {
-      $0.linkedEntityType == .integration &&
-      $0.linkedEntityID == "development-status-checkpoint" &&
-      $0.status != .completed
-    }.count
+    store.developmentStatusHandoffCount
   }
 
   private var developmentStatusDraftCount: Int {
-    store.draftMessages.filter {
-      $0.linkedEntityType == .integration &&
-      $0.linkedEntityID == "development-status-checkpoint" &&
-      $0.status != .sentLocally
-    }.count
+    store.developmentStatusDraftCount
   }
 
   private var inboxOrderHandoffEvents: [AuditEvent] {

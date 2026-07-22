@@ -6049,6 +6049,46 @@ final class ParcelOpsStore {
     }
   }
 
+  var developmentStatusLinkedTasks: [ReviewTask] {
+    reviewTasks.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .completed
+    }
+  }
+
+  var developmentStatusLinkedHandoffs: [HandoffNote] {
+    handoffNotes.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .completed
+    }
+  }
+
+  var developmentStatusLinkedDrafts: [DraftMessage] {
+    draftMessages.filter {
+      $0.linkedEntityType == .integration
+        && $0.linkedEntityID == "development-status-checkpoint"
+        && $0.status != .sentLocally
+    }
+  }
+
+  var developmentStatusTaskCount: Int {
+    developmentStatusLinkedTasks.count
+  }
+
+  var developmentStatusHandoffCount: Int {
+    developmentStatusLinkedHandoffs.count
+  }
+
+  var developmentStatusDraftCount: Int {
+    developmentStatusLinkedDrafts.count
+  }
+
+  var developmentStatusFollowUpCount: Int {
+    developmentStatusTaskCount + developmentStatusHandoffCount + developmentStatusDraftCount
+  }
+
   var policiesNeedingReview: [SLAPolicy] {
     slaPolicies.filter { $0.reviewState != .accepted }
   }
