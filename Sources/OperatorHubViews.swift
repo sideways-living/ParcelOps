@@ -678,22 +678,26 @@ struct InboxView: View {
 
           LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 145 : 170), spacing: 8)], alignment: .leading, spacing: 8) {
             ForEach(dailyFlowSteps, id: \.title) { step in
-              HStack(alignment: .top, spacing: 8) {
-                Image(systemName: step.isComplete ? "checkmark.circle.fill" : step.symbol)
-                  .foregroundStyle(step.color)
-                  .frame(width: 18)
-                VStack(alignment: .leading, spacing: 2) {
+              VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                  Image(systemName: step.isComplete ? "checkmark.circle.fill" : step.symbol)
+                    .foregroundStyle(step.color)
+                    .frame(width: 18, height: 18)
                   Text(step.title)
                     .font(.caption.weight(.semibold))
-                  Text(step.detail)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
+                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
+                Text(step.detail)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(3)
+                  .fixedSize(horizontal: false, vertical: true)
+                  .frame(maxWidth: .infinity, alignment: .topLeading)
               }
               .padding(8)
-              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .frame(maxWidth: .infinity, minHeight: isCompact ? 108 : 104, maxHeight: isCompact ? 108 : 104, alignment: .topLeading)
               .background(step.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
           }
