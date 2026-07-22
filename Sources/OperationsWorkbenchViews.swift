@@ -1041,7 +1041,7 @@ struct OperationsWorkbenchView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 170 : 220), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: resolutionLadderGridColumns, alignment: .leading, spacing: 10) {
           ForEach(resolutionLadderItems, id: \.title) { item in
             VStack(alignment: .leading, spacing: 8) {
               HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -1060,7 +1060,7 @@ struct OperationsWorkbenchView: View {
                 .foregroundStyle(item.color)
             }
             .padding(10)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: resolutionLadderCardHeight, maxHeight: resolutionLadderCardHeight, alignment: .topLeading)
             .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           }
         }
@@ -1071,6 +1071,15 @@ struct OperationsWorkbenchView: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
+  }
+
+  private var resolutionLadderGridColumns: [GridItem] {
+    let count = horizontalSizeClass == .compact ? 2 : 3
+    return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+  }
+
+  private var resolutionLadderCardHeight: CGFloat {
+    horizontalSizeClass == .compact ? 138 : 128
   }
 
   private var operatorSummary: some View {

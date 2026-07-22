@@ -569,7 +569,7 @@ struct OrdersView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 160 : 215), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: orderReadinessGridColumns, alignment: .leading, spacing: 10) {
           ForEach(orderReadinessItems, id: \.title) { item in
             VStack(alignment: .leading, spacing: 8) {
               HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -588,12 +588,21 @@ struct OrdersView: View {
                 .foregroundStyle(item.color)
             }
             .padding(10)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: orderReadinessCardHeight, maxHeight: orderReadinessCardHeight, alignment: .topLeading)
             .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           }
         }
       }
     }
+  }
+
+  private var orderReadinessGridColumns: [GridItem] {
+    let count = isCompact ? 2 : 3
+    return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+  }
+
+  private var orderReadinessCardHeight: CGFloat {
+    isCompact ? 138 : 128
   }
 
   private var orderNextActionPanel: some View {
