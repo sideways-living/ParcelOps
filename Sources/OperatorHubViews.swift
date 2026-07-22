@@ -12,6 +12,7 @@ struct InboxView: View {
   @State private var showInboxProviderEvidence = false
   @State private var showInboxGmailReleaseEvidence = false
   @State private var showInboxContextSections = false
+  @State private var showFullMailboxHealthHistory = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
 
@@ -213,6 +214,24 @@ struct InboxView: View {
 
   private var latestMailboxUncertainCount: Int {
     store.latestMailboxUncertainCount
+  }
+
+  private var displayedSpaceMailHealthSummaries: [SpaceMailIntakeHealthSummary] {
+    showFullMailboxHealthHistory ? store.spaceMailIntakeHealthSummaries : Array(store.spaceMailIntakeHealthSummaries.prefix(4))
+  }
+
+  private var displayedGmailHealthSummaries: [GmailIntakeHealthSummary] {
+    showFullMailboxHealthHistory ? store.gmailIntakeHealthSummaries : Array(store.gmailIntakeHealthSummaries.prefix(4))
+  }
+
+  private var displayedMicrosoft365HealthSummaries: [Microsoft365IntakeHealthSummary] {
+    showFullMailboxHealthHistory ? store.microsoft365IntakeHealthSummaries : Array(store.microsoft365IntakeHealthSummaries.prefix(4))
+  }
+
+  private var hiddenMailboxHealthSummaryCount: Int {
+    max(store.spaceMailIntakeHealthSummaries.count - displayedSpaceMailHealthSummaries.count, 0)
+      + max(store.gmailIntakeHealthSummaries.count - displayedGmailHealthSummaries.count, 0)
+      + max(store.microsoft365IntakeHealthSummaries.count - displayedMicrosoft365HealthSummaries.count, 0)
   }
 
   private var pendingFilteredGmailReviewCount: Int {
@@ -1261,18 +1280,31 @@ struct InboxView: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
-          ForEach(store.spaceMailIntakeHealthSummaries) { summary in
+          if hiddenMailboxHealthSummaryCount > 0 {
+            CompactActionRow {
+              Label("Showing recent provider refresh rows", systemImage: "speedometer")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              Badge("\(hiddenMailboxHealthSummaryCount) older hidden", color: .secondary)
+              Button(showFullMailboxHealthHistory ? "Show recent" : "Show all history", systemImage: showFullMailboxHealthHistory ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                showFullMailboxHealthHistory.toggle()
+              }
+              .buttonStyle(.bordered)
+            }
+          }
+
+          ForEach(displayedSpaceMailHealthSummaries) { summary in
             InboxMailboxHealthRow(summary: summary)
           }
 
-          ForEach(store.gmailIntakeHealthSummaries) { summary in
+          ForEach(displayedGmailHealthSummaries) { summary in
             InboxGmailHealthRow(
               summary: summary,
               reasonBreakdown: store.gmailMailboxConnections.first { $0.id == summary.connectionID }?.lastRefreshReasonBreakdown ?? []
             )
           }
 
-          ForEach(store.microsoft365IntakeHealthSummaries) { summary in
+          ForEach(displayedMicrosoft365HealthSummaries) { summary in
             InboxOutlookHealthRow(summary: summary)
           }
         }

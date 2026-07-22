@@ -9,6 +9,8 @@ struct MailboxView: View {
   @State private var showAdvancedMailboxEvidence = false
   @State private var showProviderSetupDetails = false
   @State private var showMailboxReviewTools = false
+  @State private var showAllDetectedIntakeEmails = false
+  @State private var showAllMailboxEvents = false
 
   private var normalizedIntakeSearch: String {
     intakeSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -20,6 +22,18 @@ struct MailboxView: View {
       let isActionable = email.reviewState != .reviewed && email.reviewState != .ignored
       return matchesSearch && (showResolvedIntakeEmails || !normalizedIntakeSearch.isEmpty || isActionable)
     }
+  }
+
+  private var displayedIntakeEmails: [ForwardedEmailIntake] {
+    showAllDetectedIntakeEmails || !normalizedIntakeSearch.isEmpty ? visibleIntakeEmails : Array(visibleIntakeEmails.prefix(24))
+  }
+
+  private var hiddenDisplayedIntakeCount: Int {
+    max(visibleIntakeEmails.count - displayedIntakeEmails.count, 0)
+  }
+
+  private var displayedMailEvents: [MailEvent] {
+    showAllMailboxEvents ? store.mailEvents : Array(store.mailEvents.prefix(24))
   }
 
   private var visibleReviewIntakeCount: Int {
@@ -1064,6 +1078,9 @@ struct MailboxView: View {
 
               Badge("\(visibleIntakeEmails.count) shown", color: visibleIntakeEmails.isEmpty ? .orange : .blue)
               Badge("\(visibleReviewIntakeCount) need review", color: visibleReviewIntakeCount == 0 ? .green : .orange)
+              if hiddenDisplayedIntakeCount > 0 {
+                Badge("\(hiddenDisplayedIntakeCount) not rendered", color: .secondary)
+              }
               if hiddenResolvedIntakeCount > 0 {
                 Badge("\(hiddenResolvedIntakeCount) resolved hidden", color: .secondary)
               }
@@ -1075,13 +1092,24 @@ struct MailboxView: View {
               }
               .buttonStyle(.bordered)
               Badge("\(store.reviewIntakeEmails.count) need review", color: .orange)
+              if hiddenDisplayedIntakeCount > 0 {
+                Button(showAllDetectedIntakeEmails ? "Show first 24" : "Show all \(visibleIntakeEmails.count)", systemImage: showAllDetectedIntakeEmails ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  showAllDetectedIntakeEmails.toggle()
+                }
+                .buttonStyle(.bordered)
+              }
             }
 
             if visibleIntakeEmails.isEmpty {
               MVPEmptyState(title: showResolvedIntakeEmails ? "No detected emails match" : "No actionable intake emails match", detail: hiddenResolvedIntakeCount > 0 ? "Reviewed and ignored rows are hidden from the default queue. Search for a known subject or turn on Show resolved to inspect them." : "Clear the intake search or try a broader term such as order, tracking, sender, merchant, destination, or review state.", symbol: "magnifyingglass")
+            } else if hiddenDisplayedIntakeCount > 0 {
+              Label("Showing the first \(displayedIntakeEmails.count) matching intake rows to keep Mailbox Monitor responsive. Search narrows the full local dataset; Show all renders every match when needed.", systemImage: "speedometer")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
 
-            ForEach(visibleIntakeEmails) { email in
+            ForEach(displayedIntakeEmails) { email in
               IntakeEmailRow(email: email, store: store, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), destinationAddresses: store.suggestedDestinationAddresses(for: email), deliveryInstructions: store.suggestedDeliveryInstructions(for: email), packageContents: store.suggestedPackageContents(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
                 store.updateIntakeEmail(updatedEmail)
               } onLinkOrder: { order in
@@ -1126,7 +1154,22 @@ struct MailboxView: View {
 
   private var mailboxEventsPanel: some View {
     SettingsPanel(title: "Mailbox events", symbol: "envelope.badge.fill") {
-      ForEach(store.mailEvents) { event in
+      CompactActionRow {
+        Badge("\(store.mailEvents.count) stored", color: store.mailEvents.isEmpty ? .secondary : .blue)
+        if store.mailEvents.count > displayedMailEvents.count {
+          Button(showAllMailboxEvents ? "Show first 24" : "Show all", systemImage: showAllMailboxEvents ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+            showAllMailboxEvents.toggle()
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+      if store.mailEvents.count > displayedMailEvents.count {
+        Text("Mailbox events are capped on the default view so the monitor opens quickly. Expand only when inspecting historical mail activity.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      ForEach(displayedMailEvents) { event in
         MailEventRow(event: event)
       }
     }
