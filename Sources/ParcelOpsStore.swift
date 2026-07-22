@@ -322,6 +322,12 @@ final class ParcelOpsStore {
     }
   }
 
+  var orderReviewStatePendingCount: Int {
+    orders.reduce(0) { count, order in
+      count + (order.reviewState != .accepted ? 1 : 0)
+    }
+  }
+
   var reviewMailEvents: [MailEvent] {
     mailEvents.filter { $0.severity != .info || $0.reviewState != .accepted }
   }
@@ -6463,6 +6469,12 @@ final class ParcelOpsStore {
     }
   }
 
+  var preparedShipmentManifestCount: Int {
+    shipmentManifestRecords.reduce(0) { count, record in
+      count + (record.dispatchStatus == .prepared ? 1 : 0)
+    }
+  }
+
   var highRiskShipmentManifests: [ShipmentManifestRecord] {
     shipmentManifestRecords.filter { $0.riskLevel == .high || $0.riskLevel == .critical }
   }
@@ -6505,6 +6517,24 @@ final class ParcelOpsStore {
     dispatchReadinessChecklists.reduce(0) { count, checklist in
       let isIncomplete = checklist.checklistStatus == .draft || checklist.checklistStatus == .ready || checklist.checklistStatus == .reopened
       return count + (isIncomplete ? 1 : 0)
+    }
+  }
+
+  var readyDispatchChecklistCount: Int {
+    dispatchReadinessChecklists.reduce(0) { count, checklist in
+      count + (checklist.checklistStatus == .ready ? 1 : 0)
+    }
+  }
+
+  var readyDispatchWorkCount: Int {
+    preparedShipmentManifestCount + readyDispatchChecklistCount
+  }
+
+  var reopenedInboxDispatchHandoffCount: Int {
+    shipmentManifestRecords.reduce(0) { count, record in
+      count + (record.isInboxHandoffSetup && record.dispatchStatus == .reopened ? 1 : 0)
+    } + dispatchReadinessChecklists.reduce(0) { count, checklist in
+      count + (checklist.isInboxHandoffSetup && checklist.checklistStatus == .reopened ? 1 : 0)
     }
   }
 

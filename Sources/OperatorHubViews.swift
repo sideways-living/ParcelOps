@@ -3067,8 +3067,7 @@ struct DispatchView: View {
   }
 
   private var readyDispatchCount: Int {
-    store.shipmentManifestRecords.filter { $0.dispatchStatus == .prepared }.count
-      + store.dispatchReadinessChecklists.filter { $0.checklistStatus == .ready }.count
+    store.readyDispatchWorkCount
   }
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
@@ -3182,8 +3181,7 @@ struct DispatchView: View {
   }
 
   private var reopenedInboxDispatchHandoffCount: Int {
-    store.shipmentManifestRecords.filter { $0.isInboxHandoffSetup && $0.dispatchStatus == .reopened }.count
-      + store.dispatchReadinessChecklists.filter { $0.isInboxHandoffSetup && $0.checklistStatus == .reopened }.count
+    store.reopenedInboxDispatchHandoffCount
   }
 
   private var openDispatchCount: Int {

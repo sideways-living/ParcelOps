@@ -458,11 +458,11 @@ struct OrdersView: View {
 
       MetricStrip(items: [
         ("Queue", "\(orderItems.count)", .blue),
-        ("Active", "\(store.orders.filter { $0.status != .delivered }.count)", .teal),
-        ("Review", "\(store.orders.filter { $0.reviewState != .accepted }.count)", .orange),
+        ("Active", "\(store.activeCount)", .teal),
+        ("Review", "\(store.orderReviewStatePendingCount)", .orange),
         ("From Inbox", "\(store.inboxCreatedOrderCount)", .purple),
-        ("Exceptions", "\(store.orders.filter { $0.status == .exception }.count)", .red),
-        ("Delivered", "\(store.orders.filter { $0.status == .delivered }.count)", .green)
+        ("Exceptions", "\(store.exceptionOrderCount)", .red),
+        ("Delivered", "\(store.deliveredCount)", .green)
       ])
     }
   }
