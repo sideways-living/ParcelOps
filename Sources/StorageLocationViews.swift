@@ -10,6 +10,7 @@ struct StorageLocationsView: View {
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var locationSearchText = ""
+  @State private var showAllStorageLocations = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -44,6 +45,15 @@ struct StorageLocationsView: View {
       || !locationSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedLocations: [StorageLocationRecord] {
+    guard !showAllStorageLocations && !hasActiveFilters else { return filteredLocations }
+    return Array(filteredLocations.prefix(48))
+  }
+
+  private var hiddenDisplayedLocationCount: Int {
+    max(filteredLocations.count - displayedLocations.count, 0)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -68,7 +78,25 @@ struct StorageLocationsView: View {
           if filteredLocations.isEmpty {
             MVPEmptyState(title: "No storage locations match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local storage locations." : "Add a local storage location to track bins, cages, shelves, desks, lockers, capacity, access notes, and handoff areas.", symbol: "cabinet.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add location", action: hasActiveFilters ? clearFilters : store.addStorageLocationPlaceholder)
           } else {
-            ForEach(filteredLocations) { location in
+            if hiddenDisplayedLocationCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedLocations.count) storage locations", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedLocationCount) older hidden", color: .secondary)
+                Button(showAllStorageLocations ? "Show first 48" : "Show all \(filteredLocations.count)", systemImage: showAllStorageLocations ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllStorageLocations.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local storage location. The default list is capped so Storage Locations opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedLocations) { location in
               StorageLocationRow(location: location, store: store, linkedOrder: linkedOrder(for: location), custodyRecords: store.suggestedCustodyRecords(for: location), labelReferences: store.suggestedLabelReferenceRecords(for: location), scanSessions: store.suggestedScanSessionRecords(for: location), shipmentManifests: store.suggestedShipmentManifestRecords(for: location), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: location)) { updatedLocation in
                 store.updateStorageLocation(updatedLocation)
               } onToggle: {

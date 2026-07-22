@@ -9,6 +9,7 @@ struct InventoryReceiptsView: View {
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var receiptSearchText = ""
+  @State private var showAllInventoryReceipts = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -41,6 +42,15 @@ struct InventoryReceiptsView: View {
       || !receiptSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedReceipts: [InventoryReceiptRecord] {
+    guard !showAllInventoryReceipts && !hasActiveFilters else { return filteredReceipts }
+    return Array(filteredReceipts.prefix(48))
+  }
+
+  private var hiddenDisplayedReceiptCount: Int {
+    max(filteredReceipts.count - displayedReceipts.count, 0)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -65,7 +75,25 @@ struct InventoryReceiptsView: View {
           if filteredReceipts.isEmpty {
             MVPEmptyState(title: "No inventory receipts match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local inventory receipts." : "Add an inventory receipt to track received stock, accepted/rejected quantities, storage, and handoff status.", symbol: "archivebox.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add receipt", action: hasActiveFilters ? clearFilters : store.addInventoryReceiptPlaceholder)
           } else {
-            ForEach(filteredReceipts) { receipt in
+            if hiddenDisplayedReceiptCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedReceipts.count) inventory receipts", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedReceiptCount) older hidden", color: .secondary)
+                Button(showAllInventoryReceipts ? "Show first 48" : "Show all \(filteredReceipts.count)", systemImage: showAllInventoryReceipts ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllInventoryReceipts.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local inventory receipt. The default list is capped so Inventory Receipts opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedReceipts) { receipt in
               InventoryReceiptRow(receipt: receipt, store: store, linkedOrder: linkedOrder(for: receipt), storageLocations: store.suggestedStorageLocations(for: receipt), custodyRecords: store.suggestedCustodyRecords(for: receipt), labelReferences: store.suggestedLabelReferenceRecords(for: receipt), scanSessions: store.suggestedScanSessionRecords(for: receipt), shipmentManifests: store.suggestedShipmentManifestRecords(for: receipt), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: receipt)) { updatedReceipt in
                 store.updateInventoryReceipt(updatedReceipt)
               } onStocked: {

@@ -10,6 +10,7 @@ struct CustodyChainView: View {
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var custodySearchText = ""
+  @State private var showAllCustodyRecords = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -42,6 +43,15 @@ struct CustodyChainView: View {
       || !custodySearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedRecords: [CustodyRecord] {
+    guard !showAllCustodyRecords && !hasActiveFilters else { return filteredRecords }
+    return Array(filteredRecords.prefix(48))
+  }
+
+  private var hiddenDisplayedRecordCount: Int {
+    max(filteredRecords.count - displayedRecords.count, 0)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -66,7 +76,25 @@ struct CustodyChainView: View {
           if filteredRecords.isEmpty {
             MVPEmptyState(title: "No custody records match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local custody records." : "Add a local custody record to track possession, transfer, return, and dispute ownership.", symbol: "person.badge.shield.checkmark.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add custody", action: hasActiveFilters ? clearFilters : store.addCustodyRecordPlaceholder)
           } else {
-            ForEach(filteredRecords) { record in
+            if hiddenDisplayedRecordCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedRecords.count) custody records", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedRecordCount) older hidden", color: .secondary)
+                Button(showAllCustodyRecords ? "Show first 48" : "Show all \(filteredRecords.count)", systemImage: showAllCustodyRecords ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllCustodyRecords.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local custody record. The default list is capped so Custody Chain opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedRecords) { record in
               CustodyRecordRow(record: record, store: store, linkedOrder: linkedOrder(for: record), labelReferences: store.suggestedLabelReferenceRecords(for: record), scanSessions: store.suggestedScanSessionRecords(for: record), shipmentManifests: store.suggestedShipmentManifestRecords(for: record), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
                 store.updateCustodyRecord(updatedRecord)
               } onTransferred: {

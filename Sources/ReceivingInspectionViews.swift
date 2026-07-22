@@ -10,6 +10,7 @@ struct ReceivingInspectionsView: View {
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var inspectionSearchText = ""
+  @State private var showAllReceivingInspections = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -44,6 +45,15 @@ struct ReceivingInspectionsView: View {
       || !inspectionSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedInspections: [ReceivingInspectionRecord] {
+    guard !showAllReceivingInspections && !hasActiveFilters else { return filteredInspections }
+    return Array(filteredInspections.prefix(48))
+  }
+
+  private var hiddenDisplayedInspectionCount: Int {
+    max(filteredInspections.count - displayedInspections.count, 0)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -68,7 +78,25 @@ struct ReceivingInspectionsView: View {
           if filteredInspections.isEmpty {
             MVPEmptyState(title: "No receiving inspections match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local receiving inspection records." : "Add a receiving inspection to track item condition, quantity checks, discrepancies, and receiving follow-up.", symbol: "checklist.checked", actionTitle: hasActiveFilters ? "Clear filters" : "Add inspection", action: hasActiveFilters ? clearFilters : store.addReceivingInspectionPlaceholder)
           } else {
-            ForEach(filteredInspections) { inspection in
+            if hiddenDisplayedInspectionCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedInspections.count) inspections", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedInspectionCount) older hidden", color: .secondary)
+                Button(showAllReceivingInspections ? "Show first 48" : "Show all \(filteredInspections.count)", systemImage: showAllReceivingInspections ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllReceivingInspections.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local receiving inspection. The default list is capped so Receiving Inspections opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedInspections) { inspection in
               ReceivingInspectionRow(inspection: inspection, store: store, linkedOrder: linkedOrder(for: inspection), inventoryReceipts: store.suggestedInventoryReceipts(for: inspection), storageLocations: store.suggestedStorageLocations(for: inspection), custodyRecords: store.suggestedCustodyRecords(for: inspection), labelReferences: store.suggestedLabelReferenceRecords(for: inspection), scanSessions: store.suggestedScanSessionRecords(for: inspection), shipmentManifests: store.suggestedShipmentManifestRecords(for: inspection), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: inspection)) { updatedInspection in
                 store.updateReceivingInspection(updatedInspection)
               } onInspected: {
