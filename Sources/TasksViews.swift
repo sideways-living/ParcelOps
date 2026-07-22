@@ -522,6 +522,22 @@ struct TasksView: View {
     }
   }
 
+  private var displayedDraftFollowUpItems: [DraftMessage] {
+    Array(visibleDraftFollowUpItems.prefix(6))
+  }
+
+  private var displayedQueueItems: [TaskQueueItem] {
+    Array(visibleQueueItems.prefix(16))
+  }
+
+  private var hiddenDraftFollowUpCount: Int {
+    max(visibleDraftFollowUpItems.count - displayedDraftFollowUpItems.count, 0)
+  }
+
+  private var hiddenQueueItemCount: Int {
+    max(visibleQueueItems.count - displayedQueueItems.count, 0)
+  }
+
   private var mvpFollowUpItems: [TaskQueueItem] {
     queueItems.filter(\.isMVPFollowUp)
   }
@@ -2311,8 +2327,13 @@ struct TasksView: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
-          ForEach(visibleDraftFollowUpItems) { draft in
+          ForEach(displayedDraftFollowUpItems) { draft in
             TaskDraftFollowUpRow(draft: draft, store: store)
+          }
+          if hiddenDraftFollowUpCount > 0 {
+            Text("\(hiddenDraftFollowUpCount) more draft follow-ups are available in Drafts & Templates.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
 
           NavigationLink {
@@ -2361,7 +2382,7 @@ struct TasksView: View {
         FilterControlGrid {
           TextField("Search tasks and handoffs", text: $queueSearchText)
             .textFieldStyle(.roundedBorder)
-          Badge("\(visibleQueueItems.count + visibleDraftFollowUpItems.count) shown", color: visibleQueueItems.isEmpty && visibleDraftFollowUpItems.isEmpty ? .orange : .blue)
+          Badge("\(visibleQueueItems.count + visibleDraftFollowUpItems.count) matched", color: visibleQueueItems.isEmpty && visibleDraftFollowUpItems.isEmpty ? .orange : .blue)
           if !queueSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Button("Clear search", systemImage: "xmark.circle") {
               queueSearchText = ""
@@ -2379,8 +2400,13 @@ struct TasksView: View {
             action: store.addReviewTaskPlaceholder
           )
         } else {
-          ForEach(visibleQueueItems.prefix(16)) { item in
+          ForEach(displayedQueueItems) { item in
             TaskQueueRow(item: item, store: store)
+          }
+          if hiddenQueueItemCount > 0 {
+            Text("\(hiddenQueueItemCount) more queue items are available in the detailed Review Tasks and Handoff Notes views.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
       }
