@@ -4311,11 +4311,8 @@ struct NeedsReviewView: View {
   }
 
   private var inboxCreatedOrders: [TrackedOrder] {
-    Array(
-      store.orders
-        .filter { $0.isInboxCreatedLocalOrder && $0.reviewState != .accepted }
-        .prefix(8)
-    )
+    store.orders
+      .filter { $0.isInboxCreatedLocalOrder && $0.reviewState != .accepted }
   }
 
   private var operatorWorkbenchItems: [WorkbenchItem] {
@@ -4472,7 +4469,7 @@ struct NeedsReviewView: View {
             Text("Orders created from Inbox, Import Queue, Acceptance Review, or Wishlist source context stay in Needs Review until tracking, destination, ownership, and dispatch setup are confirmed.")
               .font(.callout)
               .foregroundStyle(.secondary)
-            ForEach(inboxCreatedOrders) { order in
+            ForEach(visibleNeedsReviewItems(inboxCreatedOrders)) { order in
               NeedsReviewInboxOrderRow(order: order, store: store)
             }
           }
@@ -4483,7 +4480,7 @@ struct NeedsReviewView: View {
             Text("Drafts created from Inbox, Orders, Tasks, Workbench, and Dispatch stay in primary review until they are ready, sent locally, or reopened for editing. ParcelOps does not send outbound email.")
               .font(.callout)
               .foregroundStyle(.secondary)
-            ForEach(store.draftMessagesNeedingReview.prefix(8)) { draft in
+            ForEach(visibleNeedsReviewItems(store.draftMessagesNeedingReview)) { draft in
               DraftMessageRow(
                 draft: draft,
                 store: store,
@@ -4513,7 +4510,7 @@ struct NeedsReviewView: View {
             if highPriorityOperatorWorkbenchItems.isEmpty {
               MVPEmptyState(title: "No urgent workbench review", detail: "Blocked intake, exception, validation, reconciliation, and high-risk operational items will appear here.", symbol: "rectangle.stack.badge.person.crop.fill")
             } else {
-              ForEach(Array(highPriorityOperatorWorkbenchItems.prefix(8))) { item in
+              ForEach(visibleNeedsReviewItems(highPriorityOperatorWorkbenchItems)) { item in
                 WorkbenchItemRow(item: item, customerProfiles: store.suggestedCustomerProfiles(for: item), destinationAddresses: store.suggestedDestinationAddresses(for: item), deliveryInstructions: store.suggestedDeliveryInstructions(for: item), packageContents: store.suggestedPackageContents(for: item), receivingInspections: store.suggestedReceivingInspections(for: item), inventoryReceipts: store.suggestedInventoryReceipts(for: item), storageLocations: store.suggestedStorageLocations(for: item), custodyRecords: store.suggestedCustodyRecords(for: item), labelReferences: store.suggestedLabelReferenceRecords(for: item), scanSessions: store.suggestedScanSessionRecords(for: item), shipmentManifests: store.suggestedShipmentManifestRecords(for: item), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: item)) {
                   store.createReviewTask(from: item)
                 } onCreateDraft: {
@@ -4531,7 +4528,7 @@ struct NeedsReviewView: View {
             if store.timelineWatchlist.isEmpty {
               MVPEmptyState(title: "No timeline watchlist items", detail: "Critical local activity and watchlist events will appear here when they need operator review.", symbol: "clock.badge.exclamationmark.fill")
             } else {
-              ForEach(Array(store.timelineWatchlist.prefix(8))) { activity in
+              ForEach(visibleNeedsReviewItems(store.timelineWatchlist)) { activity in
                 TimelineActivityRow(activity: activity, store: store, linkedOrder: linkedOrder(for: activity), shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
                   store.createReviewTask(from: activity)
                 } onCreateDraft: {
@@ -4547,7 +4544,7 @@ struct NeedsReviewView: View {
             if store.highSeverityValidationIssues.isEmpty {
               MVPEmptyState(title: "No high-severity validation issues", detail: "Missing links, invalid fields, and blocked validation records will appear here when they affect daily work.", symbol: "checkmark.seal.fill")
             } else {
-              ForEach(Array(store.highSeverityValidationIssues.prefix(8))) { issue in
+              ForEach(visibleNeedsReviewItems(store.highSeverityValidationIssues)) { issue in
                 ValidationIssueRow(issue: issue, store: store, linkedOrder: linkedOrder(for: issue), shipmentGroups: store.suggestedShipmentGroups(for: issue), importQueueItems: store.importQueueItems(for: issue), acceptanceRecords: store.acceptanceRecords(for: issue), playbooks: store.suggestedPlaybooks(for: issue), handoffNotes: store.handoffNotes(for: issue), customerProfiles: store.suggestedCustomerProfiles(for: issue), destinationAddresses: store.suggestedDestinationAddresses(for: issue), deliveryInstructions: store.suggestedDeliveryInstructions(for: issue), packageContents: store.suggestedPackageContents(for: issue)) {
                   store.createReviewTask(from: issue)
                 } onCreateDraft: {
@@ -4563,7 +4560,7 @@ struct NeedsReviewView: View {
             if store.highSeverityReconciliationIssues.isEmpty {
               MVPEmptyState(title: "No high-severity reconciliation issues", detail: "Duplicate, mismatch, and blocked reconciliation problems will appear here when they need operator action.", symbol: "arrow.triangle.2.circlepath.circle.fill")
             } else {
-              ForEach(Array(store.highSeverityReconciliationIssues.prefix(8))) { issue in
+              ForEach(visibleNeedsReviewItems(store.highSeverityReconciliationIssues)) { issue in
                 ReconciliationIssueRow(
                   issue: issue,
                   store: store,
@@ -4617,13 +4614,13 @@ struct NeedsReviewView: View {
 
         if showsAcceptanceReview {
           SettingsPanel(title: "Acceptance review", symbol: "checkmark.rectangle.stack.fill") {
-            let candidates = Array(store.acceptanceCandidates.filter { candidate in
+            let candidates = store.acceptanceCandidates.filter { candidate in
               candidate.reviewState == .needsReview || candidate.decision == .blocked || candidate.decision == .reopened
-            }.prefix(8))
+            }
             if candidates.isEmpty {
               MVPEmptyState(title: "No acceptance records need review", detail: "Blocked, reopened, or review-needed acceptance candidates will appear here.", symbol: "checkmark.rectangle.stack.fill")
             } else {
-              ForEach(candidates) { candidate in
+              ForEach(visibleNeedsReviewItems(candidates)) { candidate in
                 AcceptanceCandidateRow(
                   candidate: candidate,
                   store: store,
@@ -4655,11 +4652,11 @@ struct NeedsReviewView: View {
 
         if showsImportQueue {
           SettingsPanel(title: "Import queue", symbol: "tray.and.arrow.down.fill") {
-            let importItems = Array(Set(store.blockedImportQueueItems + store.lowConfidenceImportQueueItems + store.importQueueItemsNeedingReview)).prefix(8)
+            let importItems = Array(Set(store.blockedImportQueueItems + store.lowConfidenceImportQueueItems + store.importQueueItemsNeedingReview))
             if importItems.isEmpty {
               MVPEmptyState(title: "No import queue items need review", detail: "Blocked, low-confidence, or review-needed staged imports will appear here.", symbol: "tray.and.arrow.down.fill")
             } else {
-              ForEach(Array(importItems)) { item in
+              ForEach(visibleNeedsReviewItems(importItems)) { item in
                 ImportQueueItemRow(
                   item: item,
                   store: store,
