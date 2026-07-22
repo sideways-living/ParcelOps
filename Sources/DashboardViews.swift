@@ -626,9 +626,7 @@ struct DashboardView: View {
     store.blockedShipmentManifests.count + store.undispatchedShipmentManifests.count + store.blockedDispatchChecklists.count + store.incompleteDispatchChecklists.count + inboxDispatchGapOrders.count + inboxDispatchSetupPendingOrders.count + partialInboxOrderBlockers.count + reopenedInboxDispatchHandoffCount
   }
   private var taskAttentionCount: Int {
-    store.reviewTasksNeedingAttention.count
-      + store.handoffNotesNeedingAttention.count
-      + store.draftMessagesNeedingReview.count
+    store.taskHandoffAndDraftAttentionCount
   }
   private var openMailboxAssignedTasks: [ReviewTask] {
     store.reviewTasks.filter { task in
@@ -2750,8 +2748,7 @@ private struct DashboardReleaseReadinessSnapshot: View {
     store.reviewIntakeEmails.count
       + uncertainMailboxCount
       + store.pendingMailboxFilteredReviewCount
-      + store.reviewTasksNeedingAttention.count
-      + store.handoffNotesNeedingAttention.count
+      + store.taskAndHandoffAttentionCount
       + store.blockedShipmentManifests.count
       + store.blockedDispatchChecklists.count
   }

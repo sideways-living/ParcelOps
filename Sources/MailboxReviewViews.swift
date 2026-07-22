@@ -4255,9 +4255,7 @@ struct NeedsReviewView: View {
       + store.reviewIntakeEmails.count
       + store.reviewEvidenceAttachments.count
       + store.reviewCarrierTrackingEvents.count
-      + store.reviewTasksNeedingAttention.count
-      + store.handoffNotesNeedingAttention.count
-      + store.draftMessagesNeedingReview.count
+      + store.taskHandoffAndDraftAttentionCount
       + store.blockedShipmentManifests.count
       + store.blockedDispatchChecklists.count
       + (mailboxProviderNeedsReview ? 1 : 0)

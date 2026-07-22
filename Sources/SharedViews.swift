@@ -7434,8 +7434,7 @@ struct OperatorSupportSnapshotCard: View {
       + store.acceptanceRecordsNeedingReview.count
       + store.reviewOrders.count
       + store.openWorkbenchItems.count
-      + store.reviewTasksNeedingAttention.count
-      + store.handoffNotesNeedingAttention.count
+      + store.taskAndHandoffAttentionCount
   }
 
   private var credentialReady: Bool {
@@ -7616,7 +7615,7 @@ struct OperatorTestSessionChecklistCard: View {
   }
 
   private var openTasksCount: Int {
-    store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count
+    store.taskAndHandoffAttentionCount
   }
 
   private var activeWishlistItems: [WishlistItem] {
@@ -7864,7 +7863,7 @@ struct OperatorHandoffBriefCard: View {
   }
 
   private var taskFollowUpCount: Int {
-    store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count + store.draftMessagesNeedingReview.count
+    store.taskHandoffAndDraftAttentionCount
   }
 
   private var dispatchFollowUpCount: Int {
@@ -8718,7 +8717,7 @@ struct ActiveOperatorQueueFocusCard: View {
   }
 
   private var activeTaskCount: Int {
-    store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count
+    store.taskAndHandoffAttentionCount
   }
 
   private var blockedDispatchCount: Int {

@@ -613,9 +613,7 @@ struct OperationsWorkbenchView: View {
       + store.reviewOrders.count
       + store.blockedShipmentManifests.count
       + store.blockedDispatchChecklists.count
-      + store.reviewTasksNeedingAttention.count
-      + store.handoffNotesNeedingAttention.count
-      + store.draftMessagesNeedingReview.count
+      + store.taskHandoffAndDraftAttentionCount
       + store.highPriorityWorkbenchItems.count
       + setupPlaceholderReviewItems.count
       + reopenedInboxDispatchHandoffCount
@@ -646,7 +644,7 @@ struct OperationsWorkbenchView: View {
   }
 
   private var releaseTaskBlockerCount: Int {
-    store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count + draftFollowUpItems.count
+    store.taskAndHandoffAttentionCount + draftFollowUpItems.count
   }
 
   private var releaseCleanupSignalCount: Int {
@@ -994,7 +992,7 @@ struct OperationsWorkbenchView: View {
     let mailboxReviewCount = store.pendingMailboxReviewCount + store.intakeParserDiagnostics.count
     let orderCount = inboxCreatedOrders.count + partialInboxOrderBlockers.count
     let dispatchCount = reopenedInboxDispatchHandoffCount + inboxDispatchReadinessOrders.count + store.blockedShipmentManifests.count + store.blockedDispatchChecklists.count
-    let taskCount = store.reviewTasksNeedingAttention.count + store.handoffNotesNeedingAttention.count + draftFollowUpItems.count
+    let taskCount = store.taskAndHandoffAttentionCount + draftFollowUpItems.count
     let auditCount = store.auditEvents.filter { event in
       event.summary.localizedCaseInsensitiveContains("SpaceMail")
         || event.summary.localizedCaseInsensitiveContains("Inbox")

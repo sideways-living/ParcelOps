@@ -1323,8 +1323,7 @@ struct MVPCompletionRoadmapPanel: View {
   private var openOperatorWorkCount: Int {
     store.reviewIntakeEmails.count
       + store.openWorkbenchItems.count
-      + store.reviewTasksNeedingAttention.count
-      + store.handoffNotesNeedingAttention.count
+      + store.taskAndHandoffAttentionCount
       + store.blockedShipmentManifests.count
       + store.blockedDispatchChecklists.count
   }
@@ -1550,8 +1549,7 @@ struct MVPDevelopmentProgressPanel: View {
       + store.intakeParserDiagnostics.count
       + store.pendingMailboxReviewCount
       + store.openWorkbenchItems.count
-      + store.reviewTasksNeedingAttention.count
-      + store.handoffNotesNeedingAttention.count
+      + store.taskAndHandoffAttentionCount
       + store.blockedShipmentManifests.count
       + store.blockedDispatchChecklists.count
   }

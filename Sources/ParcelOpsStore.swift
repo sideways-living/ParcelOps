@@ -1381,7 +1381,7 @@ final class ParcelOpsStore {
     let openInboxCount = reviewIntakeEmails.count
     let linkedOrderCount = Set(intakeEmails.compactMap(\.linkedOrderID)).count
     let inboxOrderCount = inboxCreatedOrders.count
-    let openTaskCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let openTaskCount = taskAndHandoffAttentionCount
     let releaseQATaskIDs = [
       "spacemail-release-snapshot",
       "gmail-release-readiness",
@@ -2038,7 +2038,7 @@ final class ParcelOpsStore {
     let openInboxCount = reviewIntakeEmails.count
     let linkedOrderCount = Set(intakeEmails.compactMap(\.linkedOrderID)).count
     let inboxCreatedOrderCount = inboxCreatedOrders.count
-    let openTaskHandoffCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let openTaskHandoffCount = taskAndHandoffAttentionCount
     let releaseGateTasks = reviewTasks.filter {
       $0.linkedEntityType == .integration
         && $0.linkedEntityID == "mailbox-provider-release-gate"
@@ -4584,7 +4584,7 @@ final class ParcelOpsStore {
     let parserIssueCount = intakeParserDiagnostics.count
     let linkedOrderCount = intakeEmails.filter { $0.linkedOrderID != nil }.count
     let inboxCreatedOrderCount = inboxCreatedOrders.count
-    let openTaskCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let openTaskCount = taskAndHandoffAttentionCount
     let latestRunHasAction = timeline.entries.contains { $0.tone == "attention" }
 
     let decisions = [
@@ -5967,7 +5967,7 @@ final class ParcelOpsStore {
   }
 
   var reviewQueueCount: Int {
-    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + intakeParserDiagnostics.count + spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count } + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + procurementRequestsNeedingReview.count + unapprovedProcurementRequests.count + rejectedProcurementRequests.count + notYetOrderedProcurementRequests.count + overdueProcurementRequests.count + highRiskProcurementRequests.count + missingBudgetCodeProcurementRequests.count + receivingInspectionsNeedingReview.count + blockedReceivingInspections.count + unresolvedInspectionDiscrepancies.count + highRiskReceivingInspections.count + overdueReceivingInspections.count + quantityMismatchReceivingInspections.count + inventoryReceiptsNeedingReview.count + rejectedInventoryReceipts.count + partiallyAcceptedInventoryReceipts.count + highRiskInventoryReceipts.count + unassignedInventoryReceipts.count + inventoryReceiptsMissingStorage.count + storageLocationsNeedingReview.count + disabledStorageLocations.count + highRiskStorageLocations.count + storageLocationsMissingCodes.count + storageLocationsWithAccessNotes.count + storageLocationsWithCapacityWarnings.count + custodyRecordsNeedingReview.count + disputedCustodyRecords.count + openCustodyTransfers.count + overdueCustodyRecords.count + highRiskCustodyRecords.count + custodyRecordsMissingCustodians.count + custodyRecordsMissingLocations.count + labelReferencesNeedingReview.count + invalidLabelReferences.count + unverifiedLabelReferences.count + highRiskLabelReferences.count + labelReferencesMissingValues.count + labelReferencesMissingLinkedRecords.count + scanSessionsNeedingReview.count + mismatchScanSessions.count + incompleteScanSessions.count + highRiskScanSessions.count + scanSessionsMissingCapturedValues.count + scanSessionsMissingLabelReferences.count + shipmentManifestsNeedingReview.count + blockedShipmentManifests.count + undispatchedShipmentManifests.count + highRiskShipmentManifests.count + shipmentManifestsMissingIncludedOrders.count + shipmentManifestsMissingHandoffLocation.count + shipmentManifestsWithIncompleteScans.count + dispatchChecklistsNeedingReview.count + blockedDispatchChecklists.count + incompleteDispatchChecklists.count + highRiskDispatchChecklists.count + dispatchChecklistsMissingRequirements.count + dispatchChecklistsLinkedToBlockedManifests.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
+    reviewOrders.count + reviewMailEvents.count + reviewIntakeEmails.count + intakeParserDiagnostics.count + spaceMailIMAPConnections.reduce(0) { $0 + $1.uncertainMessages.count } + reviewEvidenceAttachments.count + reviewCarrierTrackingEvents.count + taskAndHandoffAttentionCount + policiesNeedingReview.count + playbooksNeedingReview.count + enabledHighPriorityPlaybooks.count + draftMessagesNeedingReview.count + contactsNeedingReview.count + customerProfilesNeedingReview.count + disabledCustomerProfileCount + destinationAddressesNeedingReview.count + disabledDestinationAddressCount + highRiskDestinationAddresses.count + deliveryInstructionsNeedingReview.count + disabledDeliveryInstructionCount + highRiskDeliveryInstructions.count + deliveryInstructionsWithAccessConstraints.count + packageContentsNeedingReview.count + unverifiedPackageContents.count + packageContentDiscrepancies.count + highRiskPackageContents.count + highValuePackageContents.count + costRecordsNeedingReview.count + disputedCostRecords.count + unreimbursedCostRecords.count + unapprovedCostRecords.count + highRiskCostRecords.count + missingBudgetCodeCostRecords.count + returnClaimsNeedingReview.count + disputedReturnClaims.count + unresolvedReturnClaims.count + overdueReturnClaims.count + highRiskReturnClaims.count + returnClaimsMissingEvidence.count + procurementRequestsNeedingReview.count + unapprovedProcurementRequests.count + rejectedProcurementRequests.count + notYetOrderedProcurementRequests.count + overdueProcurementRequests.count + highRiskProcurementRequests.count + missingBudgetCodeProcurementRequests.count + receivingInspectionsNeedingReview.count + blockedReceivingInspections.count + unresolvedInspectionDiscrepancies.count + highRiskReceivingInspections.count + overdueReceivingInspections.count + quantityMismatchReceivingInspections.count + inventoryReceiptsNeedingReview.count + rejectedInventoryReceipts.count + partiallyAcceptedInventoryReceipts.count + highRiskInventoryReceipts.count + unassignedInventoryReceipts.count + inventoryReceiptsMissingStorage.count + storageLocationsNeedingReview.count + disabledStorageLocations.count + highRiskStorageLocations.count + storageLocationsMissingCodes.count + storageLocationsWithAccessNotes.count + storageLocationsWithCapacityWarnings.count + custodyRecordsNeedingReview.count + disputedCustodyRecords.count + openCustodyTransfers.count + overdueCustodyRecords.count + highRiskCustodyRecords.count + custodyRecordsMissingCustodians.count + custodyRecordsMissingLocations.count + labelReferencesNeedingReview.count + invalidLabelReferences.count + unverifiedLabelReferences.count + highRiskLabelReferences.count + labelReferencesMissingValues.count + labelReferencesMissingLinkedRecords.count + scanSessionsNeedingReview.count + mismatchScanSessions.count + incompleteScanSessions.count + highRiskScanSessions.count + scanSessionsMissingCapturedValues.count + scanSessionsMissingLabelReferences.count + shipmentManifestsNeedingReview.count + blockedShipmentManifests.count + undispatchedShipmentManifests.count + highRiskShipmentManifests.count + shipmentManifestsMissingIncludedOrders.count + shipmentManifestsMissingHandoffLocation.count + shipmentManifestsWithIncompleteScans.count + dispatchChecklistsNeedingReview.count + blockedDispatchChecklists.count + incompleteDispatchChecklists.count + highRiskDispatchChecklists.count + dispatchChecklistsMissingRequirements.count + dispatchChecklistsLinkedToBlockedManifests.count + accountRecordsNeedingReview.count + vendorProfilesNeedingReview.count + highRiskEnabledVendorProfiles.count + shipmentGroupsNeedingReview.count + highRiskShipmentGroups.count + importQueueItemsNeedingReview.count + blockedImportQueueItems.count + acceptanceRecordsNeedingReview.count + highSeverityReconciliationIssues.count + highSeverityValidationIssues.count
   }
 
   var reviewEvidenceAttachments: [EvidenceAttachment] {
@@ -6055,6 +6055,14 @@ final class ParcelOpsStore {
         || note.status == .open
       return count + (needsAttention ? 1 : 0)
     }
+  }
+
+  var taskAndHandoffAttentionCount: Int {
+    reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+  }
+
+  var taskHandoffAndDraftAttentionCount: Int {
+    taskAndHandoffAttentionCount + draftMessagesNeedingReview.count
   }
 
   var developmentStatusLinkedTasks: [ReviewTask] {
@@ -15073,7 +15081,7 @@ final class ParcelOpsStore {
     let refreshLine = latestSpaceMail.map {
       "Latest SpaceMail refresh: \($0.compactRefreshCountsText)."
     } ?? "Latest SpaceMail refresh: no summary available."
-    let handoffLine = "Current handoff: \(inboxCreatedOrders.count) Inbox-created orders, \(Set(intakeEmails.compactMap(\.linkedOrderID)).count) linked intake sources, \(openWorkbenchItems.count) open Workbench items, \(reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count) task/handoff items."
+    let handoffLine = "Current handoff: \(inboxCreatedOrders.count) Inbox-created orders, \(Set(intakeEmails.compactMap(\.linkedOrderID)).count) linked intake sources, \(openWorkbenchItems.count) open Workbench items, \(taskAndHandoffAttentionCount) task/handoff items."
     let summaryLines = [
       readiness.verdict,
       readiness.detail,
@@ -15522,7 +15530,7 @@ final class ParcelOpsStore {
     let gate = mailboxProviderReleaseGateSummary
     let wishlist = wishlistAgentReadinessSummary
     let latestTimeline = mailboxRunTimelineSummary
-    let openTaskAndHandoffCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let openTaskAndHandoffCount = taskAndHandoffAttentionCount
     let parserDiagnosticCount = intakeParserDiagnostics.count
     let operatorOrderCount = operatorSourceOrderCount
     let inboxOrderCount = inboxCreatedOrderCount
@@ -15631,7 +15639,7 @@ final class ParcelOpsStore {
     let comparison = mailboxProviderComparisonSummary
     let gate = mailboxProviderReleaseGateSummary
     let wishlist = wishlistAgentReadinessSummary
-    let openTaskAndHandoffCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let openTaskAndHandoffCount = taskAndHandoffAttentionCount
     let parserDiagnosticCount = intakeParserDiagnostics.count
     let incompleteGateLines = gate.gates.filter { !$0.isPassed }.prefix(8).map { gate in
       "\(gate.title): \(gate.nextAction)"
@@ -15735,7 +15743,7 @@ final class ParcelOpsStore {
     let comparison = mailboxProviderComparisonSummary
     let gate = mailboxProviderReleaseGateSummary
     let wishlist = wishlistAgentReadinessSummary
-    let openTaskAndHandoffCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let openTaskAndHandoffCount = taskAndHandoffAttentionCount
     let parserDiagnosticCount = intakeParserDiagnostics.count
     let incompleteGateLines = gate.gates.filter { !$0.isPassed }.prefix(8).map { gate in
       "\(gate.title): \(gate.nextAction)"
@@ -15867,7 +15875,7 @@ final class ParcelOpsStore {
     let comparison = mailboxProviderComparisonSummary
     let gate = mailboxProviderReleaseGateSummary
     let wishlist = wishlistAgentReadinessSummary
-    let openTaskAndHandoffCount = reviewTasksNeedingAttention.count + handoffNotesNeedingAttention.count
+    let openTaskAndHandoffCount = taskAndHandoffAttentionCount
     let parserDiagnosticCount = intakeParserDiagnostics.count
     let incompleteGateLines = gate.gates.filter { !$0.isPassed }.prefix(8).map { gate in
       "- \(gate.title): \(gate.nextAction)"

@@ -7704,8 +7704,7 @@ struct SettingsView: View {
     store.reviewIntakeEmails.count
       + store.intakeParserDiagnostics.count
       + store.openWorkbenchItems.count
-      + store.reviewTasksNeedingAttention.count
-      + store.handoffNotesNeedingAttention.count
+      + store.taskAndHandoffAttentionCount
       + store.blockedShipmentManifests.count
       + store.blockedDispatchChecklists.count
   }
