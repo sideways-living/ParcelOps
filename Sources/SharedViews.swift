@@ -9138,7 +9138,7 @@ struct MVPWorkflowGuide: View {
     return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
   }
   private var stepCardHeight: CGFloat {
-    horizontalSizeClass == .compact ? 108 : 98
+    horizontalSizeClass == .compact ? 124 : 112
   }
 
   var body: some View {
@@ -9169,6 +9169,7 @@ struct MVPWorkflowGuide: View {
               .font(.caption)
               .foregroundStyle(.secondary)
               .lineLimit(3)
+              .minimumScaleFactor(0.86)
               .frame(maxWidth: .infinity, alignment: .topLeading)
           }
           .frame(maxWidth: .infinity, minHeight: stepCardHeight, maxHeight: stepCardHeight, alignment: .topLeading)

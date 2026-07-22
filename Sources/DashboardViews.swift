@@ -1004,7 +1004,7 @@ struct DashboardView: View {
   }
 
   private var dailyFlowCheckpointCardHeight: CGFloat {
-    isCompact ? 132 : 122
+    isCompact ? 148 : 136
   }
 
   private var dailyFlowClearCount: Int {
@@ -1532,6 +1532,8 @@ struct DashboardView: View {
                 Label(item.title, systemImage: item.symbol)
                   .font(.caption.weight(.semibold))
                   .foregroundStyle(item.color)
+                  .lineLimit(2)
+                  .minimumScaleFactor(0.82)
                 Spacer()
                 Badge(item.title == "Audit" ? "\(item.count)" : (item.count == 0 ? "Clear" : "\(item.count)"), color: item.color)
               }

@@ -155,7 +155,7 @@ struct ParcelOpsRootView: View {
   @State private var sidebarSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-  private let desktopSidebarWidth: CGFloat = 560
+  private let desktopSidebarWidth: CGFloat = 440
 
   private var isSearchingSidebar: Bool {
     !sidebarSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -451,7 +451,7 @@ struct ParcelOpsRootView: View {
 
       sidebarReviewFooter
     }
-    .frame(minWidth: 340, idealWidth: desktopSidebarWidth, maxWidth: desktopSidebarWidth)
+    .frame(width: desktopSidebarWidth)
     .background(.bar)
   }
 
@@ -471,7 +471,7 @@ struct ParcelOpsRootView: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
 
-      LazyVGrid(columns: [GridItem(.flexible(), spacing: 8)], alignment: .leading, spacing: 8) {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 186), spacing: 8)], alignment: .leading, spacing: 8) {
         ForEach(dailyFocusSections) { section in
           let count = attentionCount(for: section) ?? 0
           Button {
@@ -506,7 +506,7 @@ struct ParcelOpsRootView: View {
               }
             }
             .font(.caption.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 76, maxHeight: 76, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: 92, maxHeight: 92, alignment: .topLeading)
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
@@ -682,6 +682,7 @@ struct ParcelOpsRootView: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(Rectangle())
       .padding(.horizontal, 12)
       .padding(.vertical, 10)
       .background(selection == section ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8))
