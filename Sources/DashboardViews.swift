@@ -126,23 +126,8 @@ struct DashboardView: View {
     if refreshCount > 0 { return ("Review", .orange) }
     return ("Needed", .orange)
   }
-  private var spaceMailHealthAttentionCount: Int {
-    store.spaceMailIMAPConnections.filter {
-      $0.lastRefreshImportedCount > 0 || $0.lastRefreshUncertainCount > 0
-    }.count
-  }
-  private var gmailHealthAttentionCount: Int {
-    store.gmailMailboxConnections.filter {
-      $0.lastRefreshImportedCount > 0 || ($0.lastRefreshUncertainCount ?? 0) > 0
-    }.count
-  }
-  private var microsoft365HealthAttentionCount: Int {
-    store.microsoft365MailboxConnections.filter {
-      $0.lastRefreshImportedCount > 0 || $0.lastRefreshFetchedCount > 0
-    }.count
-  }
   private var mailboxHealthAttentionCount: Int {
-    spaceMailHealthAttentionCount + gmailHealthAttentionCount + microsoft365HealthAttentionCount
+    store.dashboardMailboxRefreshAttentionCount
   }
   private var mailboxDiagnosticDrafts: [DraftMessage] {
     store.mailboxProviderDraftMessagesNeedingReview
@@ -212,7 +197,7 @@ struct DashboardView: View {
     return readiness.detailText
   }
   private var gmailSetupBlockerCount: Int {
-    store.gmailMailboxConnections.filter { !store.gmailOAuthReadinessSummary(for: $0).isReady }.count
+    store.gmailSetupBlockerCount
   }
   private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {
     store.gmailMailboxConnections.map { store.gmailReleaseSelfCheckSummary(for: $0) }
@@ -570,13 +555,9 @@ struct DashboardView: View {
     ]
 
     if hasMicrosoft365Setup {
-      let signedInCount = store.microsoft365MailboxConnections.filter {
-        store.microsoft365AuthSessionState(for: $0).status == .connected
-      }.count
-      let readyCount = store.microsoft365MailboxConnections.filter {
-        store.microsoft365OAuthReadinessSummary(for: $0).isReady
-      }.count
-      let refreshedCount = store.microsoft365MailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+      let signedInCount = store.microsoft365ConnectedAuthCount
+      let readyCount = store.microsoft365ReadySetupCount
+      let refreshedCount = store.microsoft365ManualRefreshCount
       let value: String
       let detail: String
       if refreshedCount > 0 {
@@ -744,9 +725,7 @@ struct DashboardView: View {
     store.openWorkbenchItems.filter { $0.source == .setupPlaceholder }
   }
   private var setupAttentionCount: Int {
-    store.spaceMailIMAPConnections.filter { $0.reviewState == .needsReview }.count
-      + store.gmailMailboxConnections.filter { $0.reviewState == .needsReview }.count
-      + store.microsoft365MailboxConnections.filter { $0.reviewState == .needsReview }.count
+    store.mailboxSetupReviewCount
   }
   private var operatorWorkbenchItems: [WorkbenchItem] {
     store.openWorkbenchItems.filter { $0.source != .intakeParser }
@@ -2121,8 +2100,8 @@ struct DashboardView: View {
               ("Outlook release", "\(microsoft365ReleaseBlockerCount)", microsoft365ReleaseBlockerCount > 0 ? (microsoft365ReleaseWarningCount > 0 ? .red : .orange) : .green),
               ("Graph blockers", "\(microsoft365GraphBlockerCount)", microsoft365GraphBlockerCount > 0 ? .orange : .green),
               ("Setups", "\(store.microsoft365MailboxConnections.count)", .purple),
-              ("Signed in", "\(store.microsoft365MailboxConnections.filter { store.microsoft365AuthSessionState(for: $0).status == .connected }.count)", hasMicrosoft365ConnectedAuth ? .green : .orange),
-              ("Manual refresh", "\(store.microsoft365MailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count)", hasMicrosoft365ManualRefreshEvidence ? .teal : .secondary),
+              ("Signed in", "\(store.microsoft365ConnectedAuthCount)", hasMicrosoft365ConnectedAuth ? .green : .orange),
+              ("Manual refresh", "\(store.microsoft365ManualRefreshCount)", hasMicrosoft365ManualRefreshEvidence ? .teal : .secondary),
               ("Uncertain", "\(pendingMicrosoft365UncertainReviewCount)", pendingMicrosoft365UncertainReviewCount > 0 ? .orange : .secondary),
               ("Filtered", "\(pendingMicrosoft365FilteredReviewCount)", pendingMicrosoft365FilteredReviewCount > 0 ? .teal : .secondary)
             ])

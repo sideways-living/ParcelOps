@@ -1037,12 +1037,8 @@ struct InboxView: View {
     }
 
     if !store.microsoft365MailboxConnections.isEmpty {
-      let signedInCount = store.microsoft365MailboxConnections.filter {
-        store.microsoft365AuthSessionState(for: $0).status == .connected
-      }.count
-      let readyCount = store.microsoft365MailboxConnections.filter {
-        store.microsoft365OAuthReadinessSummary(for: $0).isReady
-      }.count
+      let signedInCount = store.microsoft365ConnectedAuthCount
+      let readyCount = store.microsoft365ReadySetupCount
       rows.append((
         "Microsoft 365",
         signedInCount > 0
@@ -3144,12 +3140,8 @@ struct DispatchView: View {
     }
 
     if !store.microsoft365MailboxConnections.isEmpty {
-      let signedInCount = store.microsoft365MailboxConnections.filter {
-        store.microsoft365AuthSessionState(for: $0).status == .connected
-      }.count
-      let readyCount = store.microsoft365MailboxConnections.filter {
-        store.microsoft365OAuthReadinessSummary(for: $0).isReady
-      }.count
+      let signedInCount = store.microsoft365ConnectedAuthCount
+      let readyCount = store.microsoft365ReadySetupCount
       rows.append((
         "Microsoft 365",
         signedInCount > 0 ? "Signed in" : readyCount > 0 ? "Sign-in needed" : "Setup needed",
@@ -3538,7 +3530,7 @@ struct DispatchView: View {
       title: "Outlook dispatch readiness",
       lead: "Outlook release checks are mailbox-provider readiness. They should create Dispatch work only after Outlook imports a real Inbox row and that row is created or linked as an order.",
       sourceMetricTitle: "Outlook imported",
-      sourceCount: store.microsoft365MailboxConnections.reduce(0) { $0 + $1.lastRefreshImportedCount },
+      sourceCount: store.microsoft365LastRefreshImportedCount,
       boundaryDetail: "Local-only boundary: this panel does not start Microsoft sign-in, request tokens, fetch Graph messages, store token values, create dispatch records automatically, or mutate mailbox messages."
     )
   }

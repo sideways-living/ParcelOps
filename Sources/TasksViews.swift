@@ -323,15 +323,15 @@ struct TasksView: View {
   }
 
   private var gmailReadySetupCount: Int {
-    store.gmailMailboxConnections.filter { store.gmailOAuthReadinessSummary(for: $0).isReady }.count
+    store.gmailReadySetupCount
   }
 
   private var gmailConnectedAuthCount: Int {
-    store.gmailMailboxConnections.filter { store.gmailAuthSessionState(for: $0).status == .connected }.count
+    store.gmailConnectedAuthCount
   }
 
   private var gmailManualRefreshCount: Int {
-    store.gmailMailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
+    store.gmailManualRefreshCount
   }
 
   private var gmailReleaseSelfChecks: [GmailReleaseSelfCheckSummary] {

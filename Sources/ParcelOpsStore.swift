@@ -8297,15 +8297,81 @@ final class ParcelOpsStore {
     }
   }
 
+  var gmailReadySetupCount: Int {
+    gmailMailboxConnections.reduce(0) { count, connection in
+      count + (gmailOAuthReadinessSummary(for: connection).isReady ? 1 : 0)
+    }
+  }
+
+  var gmailSetupBlockerCount: Int {
+    max(gmailMailboxConnections.count - gmailReadySetupCount, 0)
+  }
+
+  var gmailConnectedAuthCount: Int {
+    gmailMailboxConnections.reduce(0) { count, connection in
+      count + (gmailAuthSessionState(for: connection).status == .connected ? 1 : 0)
+    }
+  }
+
+  var gmailManualRefreshCount: Int {
+    gmailMailboxConnections.reduce(0) { count, connection in
+      count + (connection.lastManualRefreshDate != "Never" ? 1 : 0)
+    }
+  }
+
   var hasMicrosoft365ConnectedAuth: Bool {
     microsoft365MailboxConnections.contains { connection in
       microsoft365AuthSessionState(for: connection).status == .connected
     }
   }
 
+  var microsoft365ConnectedAuthCount: Int {
+    microsoft365MailboxConnections.reduce(0) { count, connection in
+      count + (microsoft365AuthSessionState(for: connection).status == .connected ? 1 : 0)
+    }
+  }
+
   var hasMicrosoft365ReadySetup: Bool {
     microsoft365MailboxConnections.contains { connection in
       microsoft365OAuthReadinessSummary(for: connection).isReady
+    }
+  }
+
+  var microsoft365ReadySetupCount: Int {
+    microsoft365MailboxConnections.reduce(0) { count, connection in
+      count + (microsoft365OAuthReadinessSummary(for: connection).isReady ? 1 : 0)
+    }
+  }
+
+  var microsoft365ManualRefreshCount: Int {
+    microsoft365MailboxConnections.reduce(0) { count, connection in
+      count + (connection.lastManualRefreshDate != "Never" ? 1 : 0)
+    }
+  }
+
+  var microsoft365LastRefreshImportedCount: Int {
+    microsoft365MailboxConnections.reduce(0) { count, connection in
+      count + connection.lastRefreshImportedCount
+    }
+  }
+
+  var dashboardMailboxRefreshAttentionCount: Int {
+    spaceMailIMAPConnections.reduce(0) { count, connection in
+      count + ((connection.lastRefreshImportedCount > 0 || connection.lastRefreshUncertainCount > 0) ? 1 : 0)
+    } + gmailMailboxConnections.reduce(0) { count, connection in
+      count + ((connection.lastRefreshImportedCount > 0 || (connection.lastRefreshUncertainCount ?? 0) > 0) ? 1 : 0)
+    } + microsoft365MailboxConnections.reduce(0) { count, connection in
+      count + ((connection.lastRefreshImportedCount > 0 || connection.lastRefreshFetchedCount > 0) ? 1 : 0)
+    }
+  }
+
+  var mailboxSetupReviewCount: Int {
+    spaceMailIMAPConnections.reduce(0) { count, connection in
+      count + (connection.reviewState == .needsReview ? 1 : 0)
+    } + gmailMailboxConnections.reduce(0) { count, connection in
+      count + (connection.reviewState == .needsReview ? 1 : 0)
+    } + microsoft365MailboxConnections.reduce(0) { count, connection in
+      count + (connection.reviewState == .needsReview ? 1 : 0)
     }
   }
 
