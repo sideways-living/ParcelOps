@@ -3841,11 +3841,14 @@ struct IntakeEmailRow: View {
           .buttonStyle(.bordered)
 
         Menu {
-          ForEach(orders) { order in
+          ForEach(Array(orders.prefix(40))) { order in
             Button("\(order.orderNumber) • \(order.store)") {
               onLinkOrder(order)
               feedbackMessage = "Intake linked to \(order.orderNumber). Check Orders."
             }
+          }
+          if orders.count > 40 {
+            Text("\(orders.count - 40) more orders available in Orders")
           }
         } label: {
           Label("Link order", systemImage: "link")

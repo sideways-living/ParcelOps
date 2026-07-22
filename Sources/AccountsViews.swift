@@ -859,8 +859,13 @@ struct AccountCredentialEditView: View {
           TextField("Organisation", text: $draft.organisation)
           Picker("Linked contact", selection: linkedContactBinding) {
             Text("No linked contact").tag(nil as UUID?)
-            ForEach(contacts) { contact in
+            ForEach(Array(contacts.prefix(80))) { contact in
               Text("\(contact.name) • \(contact.organisation)").tag(contact.id as UUID?)
+            }
+            if contacts.count > 80 {
+              Text("\(contacts.count - 80) more contacts available in Contacts")
+                .tag(nil as UUID?)
+                .disabled(true)
             }
           }
           TextField("Login URL", text: $draft.loginURL)

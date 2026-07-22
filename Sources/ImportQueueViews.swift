@@ -667,19 +667,25 @@ struct ImportQueueItemRow: View {
         .buttonStyle(.bordered)
 
         Menu("Link order", systemImage: "link") {
-          ForEach(orders) { order in
+          ForEach(Array(orders.prefix(40))) { order in
             Button("\(order.orderNumber) • \(order.store)") {
               onLinkOrder(order)
               feedbackMessage = "Import linked to \(order.orderNumber). Check Orders."
             }
           }
+          if orders.count > 40 {
+            Text("\(orders.count - 40) more orders available in Orders")
+          }
         }
         Menu("Link group", systemImage: "shippingbox.and.arrow.backward.fill") {
-          ForEach(shipmentGroups) { group in
+          ForEach(Array(shipmentGroups.prefix(40))) { group in
             Button(group.groupName) {
               onLinkShipmentGroup(group)
               feedbackMessage = "Import linked to shipment group. Check linked context."
             }
+          }
+          if shipmentGroups.count > 40 {
+            Text("\(shipmentGroups.count - 40) more groups available in Shipment Groups")
           }
         }
         Button("Order", systemImage: "shippingbox.fill") {

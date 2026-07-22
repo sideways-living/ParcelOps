@@ -782,14 +782,24 @@ struct VendorProfileEditView: View {
         Section("Defaults") {
           Picker("Default contact", selection: $draft.defaultContactID) {
             Text("No default contact").tag(nil as UUID?)
-            ForEach(contacts) { contact in
+            ForEach(Array(contacts.prefix(80))) { contact in
               Text("\(contact.name) • \(contact.organisation)").tag(contact.id as UUID?)
+            }
+            if contacts.count > 80 {
+              Text("\(contacts.count - 80) more contacts available in Contacts")
+                .tag(nil as UUID?)
+                .disabled(true)
             }
           }
           Picker("Default account", selection: $draft.defaultAccountID) {
             Text("No default account").tag(nil as UUID?)
-            ForEach(accounts) { account in
+            ForEach(Array(accounts.prefix(80))) { account in
               Text("\(account.accountName) • \(account.organisation)").tag(account.id as UUID?)
+            }
+            if accounts.count > 80 {
+              Text("\(accounts.count - 80) more accounts available in Accounts")
+                .tag(nil as UUID?)
+                .disabled(true)
             }
           }
           Picker("Preferred channel", selection: $draft.preferredChannel) {
