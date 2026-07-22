@@ -389,14 +389,44 @@ struct ParcelOpsRootView: View {
   }
 
   private var desktopLayout: some View {
-    NavigationSplitView {
-      List(selection: $selection) {
+    HStack(spacing: 0) {
+      desktopSidebar
+
+      Divider()
+
+      content(for: selection)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+  }
+
+  private var desktopSidebar: some View {
+    VStack(spacing: 0) {
+      VStack(alignment: .leading, spacing: 10) {
+        HStack(alignment: .firstTextBaseline) {
+          Text("ParcelOps")
+            .font(.title3.weight(.bold))
+          Spacer()
+          Badge("\(dailyAttentionCount)", color: dailyAttentionCount == 0 ? .green : .orange)
+        }
+
+        TextField("Find a screen", text: $sidebarSearchText)
+          .textFieldStyle(.roundedBorder)
+      }
+      .padding(.horizontal, 18)
+      .padding(.top, 18)
+      .padding(.bottom, 12)
+
+      Divider()
+
+      ScrollView {
+        LazyVStack(alignment: .leading, spacing: 14) {
         if isSearchingSidebar {
-          Section("Route Search") {
+          sidebarSectionHeader("Route Search")
             if desktopSearchResults.isEmpty {
               Text("No matching ParcelOps screens.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .padding(.horizontal, 18)
                 .padding(.vertical, 4)
             } else {
               ForEach(desktopSearchResults) { group in
@@ -405,21 +435,21 @@ struct ParcelOpsRootView: View {
                 }
               }
             }
-          }
         } else {
-          Section("Daily Focus") {
+          VStack(alignment: .leading, spacing: 8) {
+            sidebarSectionHeader("Daily Focus")
             sidebarDailyFocusSummary
-              .listRowInsets(EdgeInsets(top: 6, leading: 10, bottom: 8, trailing: 10))
-              .listRowSeparator(.hidden)
+              .padding(.horizontal, 18)
           }
 
-          Section("Primary Workflow") {
+          VStack(alignment: .leading, spacing: 6) {
+            sidebarSectionHeader("Primary Workflow")
             ForEach(ParcelNavigationGroup.dailyOperations.sections) { section in
               sidebarButton(for: section)
             }
           }
 
-          Section {
+          VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 8) {
               Text("Reference records, setup screens, and detailed review tools are available when needed. Keep this hidden for daily operator work.")
                 .font(.caption)
@@ -443,6 +473,7 @@ struct ParcelOpsRootView: View {
                   .fixedSize(horizontal: false, vertical: true)
               }
             }
+            .padding(.horizontal, 18)
             .padding(.vertical, 4)
           }
 
@@ -465,25 +496,29 @@ struct ParcelOpsRootView: View {
                 }
                 .font(.subheadline.weight(.semibold))
               }
+              .padding(.horizontal, 18)
             }
           }
         }
-
-        Section {
-          sidebarReviewFooter
-            .listRowInsets(EdgeInsets())
-            .listRowSeparator(.hidden)
         }
       }
-      .navigationTitle("ParcelOps")
-      .searchable(text: $sidebarSearchText, placement: .sidebar, prompt: "Find a screen")
-      #if os(macOS)
-      .navigationSplitViewColumnWidth(min: 340, ideal: 380, max: 480)
-      #endif
-    } detail: {
-      content(for: selection)
-        .navigationTitle(selection.title)
+      .scrollIndicators(.visible)
+
+      Divider()
+
+      sidebarReviewFooter
     }
+    .frame(width: 380)
+    .background(.bar)
+  }
+
+  private func sidebarSectionHeader(_ title: String) -> some View {
+    Text(title)
+      .font(.caption.weight(.semibold))
+      .foregroundStyle(.secondary)
+      .textCase(.uppercase)
+      .padding(.horizontal, 18)
+      .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private var sidebarDailyFocusSummary: some View {
@@ -496,7 +531,9 @@ struct ParcelOpsRootView: View {
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: 8)], alignment: .leading, spacing: 8) {
         ForEach(dailyFocusSections) { section in
           let count = attentionCount(for: section) ?? 0
-          NavigationLink(value: section) {
+          Button {
+            route(to: section)
+          } label: {
             VStack(alignment: .leading, spacing: 6) {
               HStack(alignment: .top, spacing: 6) {
                 Image(systemName: section.symbol)
@@ -522,10 +559,8 @@ struct ParcelOpsRootView: View {
             .padding(.vertical, 7)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
           }
+          .buttonStyle(.plain)
           .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
-          .simultaneousGesture(TapGesture().onEnded {
-            sidebarSearchText = ""
-          })
         }
       }
     }
@@ -625,7 +660,9 @@ struct ParcelOpsRootView: View {
   private func sidebarButton(for section: ParcelSection, context: String? = nil) -> some View {
     let count = attentionCount(for: section)
 
-    return NavigationLink(value: section) {
+    return Button {
+      route(to: section)
+    } label: {
       VStack(alignment: .leading, spacing: 2) {
         HStack(alignment: .top, spacing: 10) {
           Image(systemName: section.symbol)
@@ -659,13 +696,12 @@ struct ParcelOpsRootView: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.horizontal, 12)
+      .padding(.vertical, 7)
+      .background(selection == section ? Color.accentColor.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
     }
-    .simultaneousGesture(TapGesture().onEnded {
-      if ParcelNavigationGroup.secondaryDesktopGroups.flatMap(\.sections).contains(section) {
-        showSecondaryDesktopGroups = true
-      }
-      sidebarSearchText = ""
-    })
+    .buttonStyle(.plain)
+    .padding(.horizontal, 6)
   }
 
   private func attentionCount(for section: ParcelSection) -> Int? {
