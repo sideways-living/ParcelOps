@@ -835,6 +835,6 @@ struct DispatchReadinessEditView: View {
         }
       }
     }
-    .frame(minWidth: 660, minHeight: 700)
+    .frame(minWidth: 500, idealWidth: 640, maxWidth: 760, minHeight: 360, idealHeight: 580, maxHeight: 640)
   }
 }

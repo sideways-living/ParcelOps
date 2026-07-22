@@ -3889,7 +3889,7 @@ struct ReviewTaskEditView: View {
         }
       }
       #if os(macOS)
-      .frame(minWidth: 560, minHeight: 620)
+      .frame(minWidth: 480, idealWidth: 600, maxWidth: 720, minHeight: 340, idealHeight: 540, maxHeight: 620)
       #endif
     }
   }
