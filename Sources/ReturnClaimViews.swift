@@ -10,6 +10,7 @@ struct ReturnsClaimsView: View {
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var claimSearchText = ""
+  @State private var showAllReturnClaims = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -44,6 +45,15 @@ struct ReturnsClaimsView: View {
       || !claimSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedClaims: [ReturnClaimRecord] {
+    guard !showAllReturnClaims && !hasActiveFilters else { return filteredClaims }
+    return Array(filteredClaims.prefix(48))
+  }
+
+  private var hiddenDisplayedClaimCount: Int {
+    max(filteredClaims.count - displayedClaims.count, 0)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -68,7 +78,25 @@ struct ReturnsClaimsView: View {
           if filteredClaims.isEmpty {
             MVPEmptyState(title: "No returns or claims match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local return and claim records." : "Add a local return or claim to track refund, replacement, missing item, damage, evidence, and carrier claim work.", symbol: "arrow.uturn.backward.square.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add claim", action: hasActiveFilters ? clearFilters : store.addReturnClaimPlaceholder)
           } else {
-            ForEach(filteredClaims) { claim in
+            if hiddenDisplayedClaimCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedClaims.count) return/claim records", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedClaimCount) older hidden", color: .secondary)
+                Button(showAllReturnClaims ? "Show first 48" : "Show all \(filteredClaims.count)", systemImage: showAllReturnClaims ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllReturnClaims.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local return or claim. The default list is capped so Returns & Claims opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedClaims) { claim in
               ReturnClaimRow(claim: claim, store: store, linkedOrder: linkedOrder(for: claim), procurementRequests: store.suggestedProcurementRequests(for: claim), receivingInspections: store.suggestedReceivingInspections(for: claim), inventoryReceipts: store.suggestedInventoryReceipts(for: claim), storageLocations: store.suggestedStorageLocations(for: claim), custodyRecords: store.suggestedCustodyRecords(for: claim), labelReferences: store.suggestedLabelReferenceRecords(for: claim), scanSessions: store.suggestedScanSessionRecords(for: claim), shipmentManifests: store.suggestedShipmentManifestRecords(for: claim), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: claim)) { updatedClaim in
                 store.updateReturnClaim(updatedClaim)
               } onSubmitted: {

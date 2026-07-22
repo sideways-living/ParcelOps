@@ -11,6 +11,7 @@ struct ProcurementView: View {
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var procurementSearchText = ""
+  @State private var showAllProcurementRequests = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -47,6 +48,15 @@ struct ProcurementView: View {
       || !procurementSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedRequests: [ProcurementRequest] {
+    guard !showAllProcurementRequests && !hasActiveFilters else { return filteredRequests }
+    return Array(filteredRequests.prefix(48))
+  }
+
+  private var hiddenDisplayedRequestCount: Int {
+    max(filteredRequests.count - displayedRequests.count, 0)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -71,7 +81,25 @@ struct ProcurementView: View {
           if filteredRequests.isEmpty {
             MVPEmptyState(title: "No procurement requests match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local procurement requests." : "Add a local procurement request to track approval, buyer assignment, ordering, receiving, and budget follow-up.", symbol: "cart.badge.plus", actionTitle: hasActiveFilters ? "Clear filters" : "Add request", action: hasActiveFilters ? clearFilters : store.addProcurementRequestPlaceholder)
           } else {
-            ForEach(filteredRequests) { request in
+            if hiddenDisplayedRequestCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedRequests.count) procurement requests", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedRequestCount) older hidden", color: .secondary)
+                Button(showAllProcurementRequests ? "Show first 48" : "Show all \(filteredRequests.count)", systemImage: showAllProcurementRequests ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllProcurementRequests.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local procurement request. The default list is capped so Procurement opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedRequests) { request in
               ProcurementRequestRow(request: request, store: store, linkedOrder: linkedOrder(for: request), receivingInspections: store.suggestedReceivingInspections(for: request), inventoryReceipts: store.suggestedInventoryReceipts(for: request), storageLocations: store.suggestedStorageLocations(for: request), custodyRecords: store.suggestedCustodyRecords(for: request), labelReferences: store.suggestedLabelReferenceRecords(for: request), scanSessions: store.suggestedScanSessionRecords(for: request), shipmentManifests: store.suggestedShipmentManifestRecords(for: request), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: request)) { updatedRequest in
                 store.updateProcurementRequest(updatedRequest)
               } onApproved: {

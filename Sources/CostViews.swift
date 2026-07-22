@@ -11,6 +11,7 @@ struct CostsBudgetsView: View {
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var costSearchText = ""
+  @State private var showAllCostRecords = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -47,6 +48,15 @@ struct CostsBudgetsView: View {
       || !costSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedCosts: [CostRecord] {
+    guard !showAllCostRecords && !hasActiveFilters else { return filteredCosts }
+    return Array(filteredCosts.prefix(48))
+  }
+
+  private var hiddenDisplayedCostCount: Int {
+    max(filteredCosts.count - displayedCosts.count, 0)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -71,7 +81,25 @@ struct CostsBudgetsView: View {
           if filteredCosts.isEmpty {
             MVPEmptyState(title: "No costs match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local cost and budget records." : "Add a local cost record to track approvals, reimbursements, budget codes, evidence, and claims.", symbol: "creditcard.and.123", actionTitle: hasActiveFilters ? "Clear filters" : "Add cost", action: hasActiveFilters ? clearFilters : store.addCostRecordPlaceholder)
           } else {
-            ForEach(filteredCosts) { cost in
+            if hiddenDisplayedCostCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedCosts.count) cost records", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedCostCount) older hidden", color: .secondary)
+                Button(showAllCostRecords ? "Show first 48" : "Show all \(filteredCosts.count)", systemImage: showAllCostRecords ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllCostRecords.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local cost record. The default list is capped so Costs & Budgets opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedCosts) { cost in
               CostRecordRow(cost: cost, store: store, linkedOrder: linkedOrder(for: cost), returnClaims: store.suggestedReturnClaims(for: cost), procurementRequests: store.suggestedProcurementRequests(for: cost)) { updatedCost in
                 store.updateCostRecord(updatedCost)
               } onApproved: {
