@@ -676,7 +676,7 @@ struct InboxView: View {
             Badge("\(dailyFlowCompleteCount)/\(dailyFlowSteps.count)", color: dailyFlowCompleteCount == dailyFlowSteps.count ? .green : .orange)
           }
 
-          LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 145 : 170), spacing: 8)], alignment: .leading, spacing: 8) {
+          LazyVGrid(columns: dailyFlowGridColumns, alignment: .leading, spacing: 8) {
             ForEach(dailyFlowSteps, id: \.title) { step in
               VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top, spacing: 8) {
@@ -697,7 +697,7 @@ struct InboxView: View {
                   .frame(maxWidth: .infinity, alignment: .topLeading)
               }
               .padding(8)
-              .frame(maxWidth: .infinity, minHeight: isCompact ? 108 : 104, maxHeight: isCompact ? 108 : 104, alignment: .topLeading)
+              .frame(maxWidth: .infinity, minHeight: dailyFlowCardHeight, maxHeight: dailyFlowCardHeight, alignment: .topLeading)
               .background(step.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
           }
@@ -744,6 +744,15 @@ struct InboxView: View {
         .buttonStyle(.bordered)
       }
     }
+  }
+
+  private var dailyFlowGridColumns: [GridItem] {
+    let count = isCompact ? 2 : 3
+    return Array(repeating: GridItem(.flexible(), spacing: 8), count: count)
+  }
+
+  private var dailyFlowCardHeight: CGFloat {
+    isCompact ? 122 : 116
   }
 
   private var mailboxProviderReleaseGatePanel: some View {

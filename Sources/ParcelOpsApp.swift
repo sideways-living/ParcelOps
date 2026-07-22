@@ -45,10 +45,6 @@ final class ParcelOpsAppDelegate: NSObject, NSApplicationDelegate {
     openMainWindowIfNeeded()
   }
 
-  func applicationDidBecomeActive(_ notification: Notification) {
-    openMainWindowIfNeeded()
-  }
-
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
     if !flag {
       openMainWindowIfNeeded()
@@ -392,9 +388,7 @@ struct ParcelOpsRootView: View {
         mvpStatusDetail: sidebarMVPStatusDetail,
         dailyAttentionCount: dailyAttentionCount
       ) { section in
-        withAnimation(.snappy) {
-          selection = section
-        }
+        route(to: section)
       } attentionCount: { section in
         attentionCount(for: section)
       }
@@ -432,9 +426,9 @@ struct ParcelOpsRootView: View {
       Divider()
 
       ScrollView {
-        LazyVStack(alignment: .leading, spacing: 14) {
-        if isSearchingSidebar {
-          sidebarSectionHeader("Route Search")
+        LazyVStack(alignment: .leading, spacing: 16) {
+          if isSearchingSidebar {
+            sidebarSectionHeader("Route Search")
             if desktopSearchResults.isEmpty {
               Text("No matching ParcelOps screens.")
                 .font(.caption)
@@ -448,71 +442,73 @@ struct ParcelOpsRootView: View {
                 }
               }
             }
-        } else {
-          VStack(alignment: .leading, spacing: 8) {
-            sidebarSectionHeader("Daily Focus")
-            sidebarDailyFocusSummary
-              .padding(.horizontal, 18)
-          }
-
-          VStack(alignment: .leading, spacing: 6) {
-            sidebarSectionHeader("Primary Workflow")
-            ForEach(ParcelNavigationGroup.dailyOperations.sections) { section in
-              sidebarButton(for: section)
-            }
-          }
-
-          VStack(alignment: .leading, spacing: 8) {
+          } else {
             VStack(alignment: .leading, spacing: 8) {
-              Text("Reference records, setup screens, and detailed review tools are available when needed. Keep this hidden for daily operator work.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+              sidebarSectionHeader("Daily Focus")
+              sidebarDailyFocusSummary
+                .padding(.horizontal, 18)
+            }
 
-              Button {
-                withAnimation(.snappy) {
-                  toggleSecondaryDesktopGroups()
-                }
-              } label: {
-                Label(advancedRoutesButtonTitle, systemImage: advancedRoutesButtonSymbol)
-                  .font(.caption.weight(.semibold))
+            VStack(alignment: .leading, spacing: 6) {
+              sidebarSectionHeader("Primary Workflow")
+              ForEach(ParcelNavigationGroup.dailyOperations.sections) { section in
+                sidebarButton(for: section)
               }
-              .buttonStyle(.bordered)
+            }
 
-              if selectionIsSecondaryDesktopRoute {
-                Text("An advanced route is currently selected, so the advanced groups stay visible until you return to the daily workflow.")
-                  .font(.caption2)
+            VStack(alignment: .leading, spacing: 8) {
+              sidebarSectionHeader("Reference Records")
+
+              VStack(alignment: .leading, spacing: 8) {
+                Text("Setup screens, detailed review tools, and supporting records stay secondary unless you need diagnostics.")
+                  .font(.caption)
                   .foregroundStyle(.secondary)
                   .fixedSize(horizontal: false, vertical: true)
-              }
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 4)
-          }
 
-          if shouldShowSecondaryDesktopGroups {
-            ForEach(ParcelNavigationGroup.secondaryDesktopGroups) { group in
-              DisclosureGroup(isExpanded: desktopGroupBinding(for: group)) {
-                ForEach(group.sections) { section in
-                  sidebarButton(for: section)
+                Button {
+                  withAnimation(.snappy) {
+                    toggleSecondaryDesktopGroups()
+                  }
+                } label: {
+                  Label(advancedRoutesButtonTitle, systemImage: advancedRoutesButtonSymbol)
+                    .font(.caption.weight(.semibold))
                 }
-              } label: {
-                HStack(spacing: 6) {
-                  Text(group.title)
-                  Spacer()
-                  Text("\(group.sections.count)")
-                    .font(.caption2.weight(.semibold))
+                .buttonStyle(.bordered)
+
+                if selectionIsSecondaryDesktopRoute {
+                  Text("An advanced route is selected, so these groups remain visible until you return to the daily workflow.")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.quinary, in: Capsule())
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                .font(.subheadline.weight(.semibold))
               }
               .padding(.horizontal, 18)
+              .padding(.vertical, 4)
+            }
+
+            if shouldShowSecondaryDesktopGroups {
+              ForEach(ParcelNavigationGroup.secondaryDesktopGroups) { group in
+                DisclosureGroup(isExpanded: desktopGroupBinding(for: group)) {
+                  ForEach(group.sections) { section in
+                    sidebarButton(for: section)
+                  }
+                } label: {
+                  HStack(spacing: 6) {
+                    Text(group.title)
+                    Spacer()
+                    Text("\(group.sections.count)")
+                      .font(.caption2.weight(.semibold))
+                      .foregroundStyle(.secondary)
+                      .padding(.horizontal, 6)
+                      .padding(.vertical, 2)
+                      .background(.quinary, in: Capsule())
+                  }
+                  .font(.subheadline.weight(.semibold))
+                }
+                .padding(.horizontal, 18)
+              }
             }
           }
-        }
         }
       }
       .scrollIndicators(.visible)
@@ -521,7 +517,7 @@ struct ParcelOpsRootView: View {
 
       sidebarReviewFooter
     }
-    .frame(width: 420)
+    .frame(width: 460)
     .background(.bar)
   }
 
@@ -541,7 +537,7 @@ struct ParcelOpsRootView: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
 
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: 8)], alignment: .leading, spacing: 8) {
+      LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), alignment: .leading, spacing: 8) {
         ForEach(dailyFocusSections) { section in
           let count = attentionCount(for: section) ?? 0
           Button {
@@ -565,9 +561,10 @@ struct ParcelOpsRootView: View {
               Text(section.shortTitle)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .font(.caption.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 64, maxHeight: 64, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: 72, maxHeight: 72, alignment: .topLeading)
             .padding(.horizontal, 7)
             .padding(.vertical, 7)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
@@ -688,12 +685,13 @@ struct ParcelOpsRootView: View {
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
-          Spacer(minLength: 6)
+          Spacer(minLength: 8)
           if let shortcut = routeShortcut(for: section) {
             Text(shortcut.label)
               .font(.caption2.weight(.semibold))
               .foregroundStyle(.secondary)
               .padding(.top, 2)
+              .frame(minWidth: 24, alignment: .trailing)
           }
           if let count, count > 0 {
             Badge("\(count)", color: attentionColor(for: section, count: count))
