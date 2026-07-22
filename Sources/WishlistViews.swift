@@ -902,6 +902,8 @@ struct WishlistView: View {
   @State private var selectedSource: WishlistSource?
   @State private var selectedStatus: String?
   @State private var selectedWorkflowFocus: WishlistWorkflowFocus = .all
+  @State private var showAllWishlistRows = false
+  @State private var showAllDeletedWishlistRows = false
   @State private var showDetailedWishlistWorkflow = false
   @State private var editingCaptureCandidate: WishlistCaptureCandidate?
   @State private var showManualWishlistItemForm = false
@@ -967,6 +969,24 @@ struct WishlistView: View {
       || selectedWorkflowFocus != .all
       || showClosedItems
       || !wishlistSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var displayedWishlistItems: [WishlistItem] {
+    guard !showAllWishlistRows && !hasActiveFilters else { return filteredItems }
+    return Array(filteredItems.prefix(32))
+  }
+
+  private var hiddenDisplayedWishlistCount: Int {
+    max(filteredItems.count - displayedWishlistItems.count, 0)
+  }
+
+  private var displayedDeletedWishlistItems: [WishlistItem] {
+    guard !showAllDeletedWishlistRows else { return store.deletedWishlistItems }
+    return Array(store.deletedWishlistItems.prefix(24))
+  }
+
+  private var hiddenDeletedWishlistCount: Int {
+    max(store.deletedWishlistItems.count - displayedDeletedWishlistItems.count, 0)
   }
 
   private var wishlistPurchaseStatePanel: some View {
@@ -1921,7 +1941,25 @@ struct WishlistView: View {
           if filteredItems.isEmpty {
             MVPEmptyState(title: "No wishlist items match this view", detail: hasActiveFilters ? "Clear search or filters to return to all active wishlist items." : "Add a manual wishlist item or use a placeholder capture action to test wishlist-to-order handoff.", symbol: "star.square.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Manual item", action: hasActiveFilters ? clearFilters : openManualWishlistItemForm)
           } else {
-            ForEach(filteredItems) { item in
+            if hiddenDisplayedWishlistCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedWishlistItems.count) wishlist items", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedWishlistCount) older hidden", color: .secondary)
+                Button(showAllWishlistRows ? "Show first 32" : "Show all \(filteredItems.count)", systemImage: showAllWishlistRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllWishlistRows.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search, filters, and workflow focus still scan every local wishlist item. The default list is capped so Wishlist opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedWishlistItems) { item in
               WishlistItemRow(
                 item: item,
                 linkedOrder: item.purchaseHandoff?.linkedOrderID.flatMap { orderID in
@@ -2087,7 +2125,21 @@ struct WishlistView: View {
             Text("Deleted wishlist items are retained for 90 days before permanent removal.")
               .font(.caption)
               .foregroundStyle(.secondary)
-            ForEach(store.deletedWishlistItems) { item in
+            if hiddenDeletedWishlistCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedDeletedWishlistItems.count) deleted items", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDeletedWishlistCount) older hidden", color: .secondary)
+                Button(showAllDeletedWishlistRows ? "Show first 24" : "Show all \(store.deletedWishlistItems.count)", systemImage: showAllDeletedWishlistRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllDeletedWishlistRows.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+            ForEach(displayedDeletedWishlistItems) { item in
               WishlistItemRow(item: item, isDeleted: true) {
                 store.restoreWishlistItem(item)
               } onLink: {

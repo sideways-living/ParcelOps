@@ -8,6 +8,7 @@ struct HandoffNotesView: View {
   @State private var selectedStatus: TaskStatus?
   @State private var selectedReviewState: ReviewState?
   @State private var handoffSearchText = ""
+  @State private var showAllHandoffNotes = false
   @State private var developmentStatusFeedbackMessage: String?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -40,6 +41,15 @@ struct HandoffNotesView: View {
       || selectedStatus != nil
       || selectedReviewState != nil
       || !handoffSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var displayedNotes: [HandoffNote] {
+    guard !showAllHandoffNotes && !hasActiveFilters else { return filteredNotes }
+    return Array(filteredNotes.prefix(32))
+  }
+
+  private var hiddenDisplayedNoteCount: Int {
+    max(filteredNotes.count - displayedNotes.count, 0)
   }
 
   private var developmentStatusHandoffNotes: [HandoffNote] {
@@ -123,7 +133,25 @@ struct HandoffNotesView: View {
           if filteredNotes.isEmpty {
             MVPEmptyState(title: "No handoff notes match this view", detail: hasActiveFilters ? "Clear search or filters to return to open local handoff notes." : "Add a local handoff note when a shift, team, or operator needs continuity on an order or exception.", symbol: "arrow.left.arrow.right.square.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add note", action: hasActiveFilters ? clearFilters : store.addHandoffNotePlaceholder)
           } else {
-            ForEach(filteredNotes) { note in
+            if hiddenDisplayedNoteCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedNotes.count) handoff notes", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedNoteCount) older hidden", color: .secondary)
+                Button(showAllHandoffNotes ? "Show first 32" : "Show all \(filteredNotes.count)", systemImage: showAllHandoffNotes ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllHandoffNotes.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local handoff note. The default view is capped so this screen opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedNotes) { note in
               HandoffNoteRow(note: note, store: store, linkedOrder: linkedOrder(for: note), customerProfiles: store.suggestedCustomerProfiles(for: note), destinationAddresses: store.suggestedDestinationAddresses(for: note), deliveryInstructions: store.suggestedDeliveryInstructions(for: note), packageContents: store.suggestedPackageContents(for: note)) { updatedNote in
                 store.updateHandoffNote(updatedNote)
               } onAcknowledge: {
