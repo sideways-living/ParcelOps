@@ -83,6 +83,11 @@ struct MailboxView: View {
     store.latestMailboxUncertainCount
   }
 
+  private var providerStepColumns: [GridItem] {
+    let count = horizontalSizeClass == .compact ? 2 : 4
+    return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+  }
+
   private var mailboxProviderDecision: (title: String, detail: String, color: Color) {
     let hasSpaceMailRefresh = latestSpaceMailSummary.map {
       $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0
@@ -406,7 +411,7 @@ struct MailboxView: View {
           .buttonStyle(.bordered)
         }
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: providerStepColumns, alignment: .leading, spacing: 10) {
           MailboxProviderStepCard(number: "1", title: "Confirm provider", detail: "Use SpaceMail for IMAP mailboxes, Gmail for Google-hosted mailboxes, and Outlook for Microsoft-hosted mailboxes.")
           MailboxProviderStepCard(number: "2", title: "Run manual refresh", detail: "Refresh is explicit and read-only. No background mailbox watching starts here.")
           MailboxProviderStepCard(number: "3", title: "Review results", detail: "Imported rows go to Inbox; uncertain and filtered previews stay out until reviewed.")
@@ -1260,7 +1265,7 @@ private struct MailboxProviderStepCard: View {
       }
     }
     .padding(10)
-    .frame(maxWidth: .infinity, alignment: .leading)
+    .frame(maxWidth: .infinity, minHeight: 104, maxHeight: 104, alignment: .topLeading)
     .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
   }
 }

@@ -9141,7 +9141,14 @@ struct MVPWorkflowGuide: View {
   var detail: String
   var steps: [String]
   var symbol: String = "point.3.connected.trianglepath.dotted"
-  private let stepCardHeight: CGFloat = 92
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  private var stepGridColumns: [GridItem] {
+    let count = horizontalSizeClass == .compact ? 2 : 3
+    return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+  }
+  private var stepCardHeight: CGFloat {
+    horizontalSizeClass == .compact ? 108 : 98
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -9158,7 +9165,7 @@ struct MVPWorkflowGuide: View {
         }
       }
 
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 10)], alignment: .leading, spacing: 10) {
+      LazyVGrid(columns: stepGridColumns, alignment: .leading, spacing: 10) {
         ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
           HStack(alignment: .top, spacing: 8) {
             Text("\(index + 1)")
