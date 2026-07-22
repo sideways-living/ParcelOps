@@ -11,6 +11,7 @@ struct InboxView: View {
   @State private var providerReleaseGateFeedbackMessage: String?
   @State private var showInboxProviderEvidence = false
   @State private var showInboxGmailReleaseEvidence = false
+  @State private var showInboxContextSections = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
 
@@ -67,6 +68,16 @@ struct InboxView: View {
 
   private var hasActiveTriageFilters: Bool {
     triageGroupFilter != .all || triageSourceFilter != .all || triageQualityFilter != .all
+  }
+
+  private var hasActiveInboxFilters: Bool {
+    hasActiveTriageFilters
+      || !triageSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      || showParserDiagnosticsInTriage
+  }
+
+  private var shouldShowInboxContextSections: Bool {
+    showInboxContextSections || hasActiveInboxFilters
   }
 
   private var visibleTriageGroups: [InboxTriageGroupBucket] {
@@ -371,24 +382,60 @@ struct InboxView: View {
       LazyVStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
         header
         inboxSummaryPanel
-        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store, showInboxLink: false)
-        mailboxProviderNextStepPanel
-        mailboxProviderReleaseGatePanel
-        inboxProviderEvidencePanel
-        SpaceMailPrimaryStatusStrip(store: store)
-        SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
-        SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
-        InboxSpaceMailDecisionGuide(store: store, showParserDiagnosticsInTriage: $showParserDiagnosticsInTriage)
-        mailboxHealthPanel
-        missingOrderDiagnosticPanel
-        wishlistPurchaseReadinessPanel
-        wishlistOrderWatchPanel
+        inboxContextSectionsPanel
         triagePanel
+        if shouldShowInboxContextSections {
+          inboxSupportingContextSections
+        }
         detailRoutes
       }
       .padding(isCompact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  private var inboxContextSectionsPanel: some View {
+    SettingsPanel(title: "Inbox context sections", symbol: "line.3.horizontal.decrease.circle.fill") {
+      Text(shouldShowInboxContextSections ? "Provider health, parser diagnostics, mixed-mailbox decisions, and Wishlist order watch context are visible." : "Inbox opens with the daily triage queue first. Open context sections when you need mailbox provider health, parser diagnostics, mixed-mailbox decisions, or Wishlist order watch context.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      MetricStrip(items: [
+        ("Triage", "\(triageItems.count)", triageItems.isEmpty ? .green : .teal),
+        ("Visible", "\(visibleTriageItems.count)", visibleTriageItems.isEmpty ? .secondary : .blue),
+        ("Uncertain", "\(uncertainSpaceMailCount + uncertainGmailCount + uncertainMicrosoft365Count)", uncertainSpaceMailCount + uncertainGmailCount + uncertainMicrosoft365Count == 0 ? .green : .orange),
+        ("Filtered", "\(filteredSpaceMailCount + pendingFilteredGmailReviewCount + store.pendingMicrosoft365FilteredReviewCount)", filteredSpaceMailCount + pendingFilteredGmailReviewCount + store.pendingMicrosoft365FilteredReviewCount == 0 ? .secondary : .teal),
+        ("Parser", "\(parserIssueCount)", parserIssueCount == 0 ? .green : .purple)
+      ])
+
+      CompactActionRow {
+        Button(shouldShowInboxContextSections ? "Hide context sections" : "Show context sections", systemImage: shouldShowInboxContextSections ? "chevron.up.circle" : "chevron.down.circle") {
+          showInboxContextSections.toggle()
+        }
+        .buttonStyle(.bordered)
+
+        if hasActiveInboxFilters && !showInboxContextSections {
+          Badge("Filters active", color: .orange)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var inboxSupportingContextSections: some View {
+    MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store, showInboxLink: false)
+    mailboxProviderNextStepPanel
+    mailboxProviderReleaseGatePanel
+    inboxProviderEvidencePanel
+    SpaceMailPrimaryStatusStrip(store: store)
+    SpaceMailMVPReadinessCard(summary: store.liveMailboxMVPReadinessSummary, showChecklist: false)
+    SpaceMailQACheckCard(summary: store.mailboxIntakeQualitySummary)
+    InboxSpaceMailDecisionGuide(store: store, showParserDiagnosticsInTriage: $showParserDiagnosticsInTriage)
+    mailboxHealthPanel
+    missingOrderDiagnosticPanel
+    wishlistPurchaseReadinessPanel
+    wishlistOrderWatchPanel
   }
 
   private var wishlistOrderWatchItems: [WishlistItem] {
@@ -2906,6 +2953,7 @@ struct DispatchView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var dispatchSearchText = ""
   @State private var showDispatchProviderEvidence = false
+  @State private var showDispatchContextSections = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var dispatchItems: [DispatchQueueItem] {
@@ -2969,6 +3017,14 @@ struct DispatchView: View {
         order.latestStatus
       ].joined(separator: " ").localizedLowercase.contains(query)
     }
+  }
+
+  private var hasActiveDispatchFilters: Bool {
+    !dispatchSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var shouldShowDispatchContextSections: Bool {
+    showDispatchContextSections || hasActiveDispatchFilters
   }
 
   private var inboxDispatchSetupOrders: [TrackedOrder] {
@@ -3179,16 +3235,52 @@ struct DispatchView: View {
       LazyVStack(alignment: .leading, spacing: isCompact ? 14 : 18) {
         header
         dispatchSummaryPanel
-        MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
-        dispatchProviderEvidencePanel
-        dispatchReadinessLadderPanel
-        inboxDispatchSetupPanel
+        dispatchContextSectionsPanel
         dispatchQueuePanel
+        if shouldShowDispatchContextSections {
+          dispatchSupportingContextSections
+        }
         detailRoutes
       }
       .padding(isCompact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  private var dispatchContextSectionsPanel: some View {
+    SettingsPanel(title: "Dispatch context sections", symbol: "line.3.horizontal.decrease.circle.fill") {
+      Text(shouldShowDispatchContextSections ? "Provider status, readiness ladder, and Inbox-created order dispatch setup are visible." : "Dispatch opens with the outbound queue first. Open context sections when you need provider status, readiness rules, or Inbox-created order setup guidance.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      MetricStrip(items: [
+        ("Queue", "\(dispatchItems.count)", dispatchItems.isEmpty ? .green : .orange),
+        ("Visible", "\(visibleDispatchItems.count)", visibleDispatchItems.isEmpty ? .secondary : .blue),
+        ("Blocked", "\(blockedDispatchCount)", blockedDispatchCount == 0 ? .green : .red),
+        ("Ready", "\(readyDispatchCount)", readyDispatchCount == 0 ? .secondary : .green),
+        ("Setup", "\(inboxDispatchSetupOrders.count)", inboxDispatchSetupOrders.isEmpty ? .green : .teal)
+      ])
+
+      CompactActionRow {
+        Button(shouldShowDispatchContextSections ? "Hide context sections" : "Show context sections", systemImage: shouldShowDispatchContextSections ? "chevron.up.circle" : "chevron.down.circle") {
+          showDispatchContextSections.toggle()
+        }
+        .buttonStyle(.bordered)
+
+        if hasActiveDispatchFilters && !showDispatchContextSections {
+          Badge("Search active", color: .orange)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var dispatchSupportingContextSections: some View {
+    MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
+    dispatchProviderEvidencePanel
+    dispatchReadinessLadderPanel
+    inboxDispatchSetupPanel
   }
 
   private var dispatchReadinessItems: [(title: String, detail: String, count: Int, destination: String, symbol: String, color: Color)] {
