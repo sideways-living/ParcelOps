@@ -8,6 +8,7 @@ struct DashboardView: View {
   @State private var showDashboardProviderEvidence = false
   @State private var showDashboardGmailEvidence = false
   @State private var showDetailedDashboard = false
+  @State private var showDailyDashboardSections = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var normalizedDashboardSearch: String {
@@ -2564,6 +2565,24 @@ struct DashboardView: View {
         }
       }
 
+      SettingsPanel(title: "Daily detail sections", symbol: "rectangle.stack.fill") {
+        VStack(alignment: .leading, spacing: 10) {
+          Text(showDailyDashboardSections ? "Detailed daily sections are visible." : "Detailed daily sections are hidden so the Dashboard opens faster.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          CompactActionRow {
+            Button(showDailyDashboardSections ? "Hide daily detail" : "Show daily detail", systemImage: showDailyDashboardSections ? "eye.slash" : "rectangle.stack.fill") {
+              showDailyDashboardSections.toggle()
+            }
+            .buttonStyle(.bordered)
+            Badge("\(visibleDashboardMatchCount) areas", color: visibleDashboardMatchCount == 0 ? .orange : .teal)
+          }
+        }
+      }
+
+      if showDailyDashboardSections || !normalizedDashboardSearch.isEmpty {
       LazyVGrid(columns: sectionColumns, alignment: .leading, spacing: 14) {
         if dashboardMatches("incoming order intake", "inbox", "mailbox", "spacemail", "gmail", "google", "outlook", "microsoft", "parser", "import", "acceptance") {
           AnalyticsSection(title: "Incoming order intake", symbol: "tray.full.fill") {
@@ -2683,6 +2702,7 @@ struct DashboardView: View {
             CompactAuditList(events: store.recentAuditEvents, store: store)
           }
         }
+      }
       }
     }
   }
