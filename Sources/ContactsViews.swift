@@ -9,6 +9,7 @@ struct ContactsView: View {
   @State private var selectedChannel: CommunicationChannel?
   @State private var selectedReviewState: ReviewState?
   @State private var contactSearchText = ""
+  @State private var showAllContacts = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var organisations: [String] {
@@ -43,6 +44,15 @@ struct ContactsView: View {
       || !contactSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedContacts: [ContactDirectoryEntry] {
+    guard !showAllContacts && !hasActiveFilters else { return filteredContacts }
+    return Array(filteredContacts.prefix(48))
+  }
+
+  private var hiddenDisplayedContactCount: Int {
+    max(filteredContacts.count - displayedContacts.count, 0)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -73,7 +83,25 @@ struct ContactsView: View {
           if filteredContacts.isEmpty {
             MVPEmptyState(title: "No contacts match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local contacts." : "Add a local contact to keep supplier, carrier, store, and internal follow-up details close to operational records.", symbol: "person.crop.circle.badge.checkmark", actionTitle: hasActiveFilters ? "Clear filters" : "Add contact", action: hasActiveFilters ? clearFilters : store.addContactDirectoryEntryPlaceholder)
           } else {
-            ForEach(filteredContacts) { contact in
+            if hiddenDisplayedContactCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedContacts.count) contacts", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedContactCount) older hidden", color: .secondary)
+                Button(showAllContacts ? "Show first 48" : "Show all \(filteredContacts.count)", systemImage: showAllContacts ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllContacts.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local contact. The default list is capped so Contacts opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedContacts) { contact in
               ContactDirectoryRow(contact: contact, store: store, linkedOrder: linkedOrder(for: contact), inboxOrders: inboxOrders(for: contact), suggestedAccounts: store.suggestedAccounts(for: contact), suggestedProfiles: store.suggestedVendorProfiles(for: contact), destinationAddresses: store.suggestedDestinationAddresses(for: contact), deliveryInstructions: store.suggestedDeliveryInstructions(for: contact), packageContents: store.suggestedPackageContents(for: contact)) { updatedContact in
                 store.updateContactDirectoryEntry(updatedContact)
               } onToggle: {

@@ -8,6 +8,7 @@ struct CustomerProfilesView: View {
   @State private var selectedDeliveryPreference: DeliveryPreference?
   @State private var selectedReviewState: ReviewState?
   @State private var profileSearchText = ""
+  @State private var showAllCustomerProfiles = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var organisationTeams: [String] {
@@ -39,6 +40,15 @@ struct CustomerProfilesView: View {
       || selectedDeliveryPreference != nil
       || selectedReviewState != nil
       || !profileSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var displayedProfiles: [CustomerRecipientProfile] {
+    guard !showAllCustomerProfiles && !hasActiveFilters else { return filteredProfiles }
+    return Array(filteredProfiles.prefix(48))
+  }
+
+  private var hiddenDisplayedProfileCount: Int {
+    max(filteredProfiles.count - displayedProfiles.count, 0)
   }
 
   private var gmailProfileSourceCount: Int {
@@ -77,7 +87,25 @@ struct CustomerProfilesView: View {
           if filteredProfiles.isEmpty {
             MVPEmptyState(title: "No customer profiles match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local customer and recipient profiles." : "Add a local customer or recipient profile to reuse email, destination, team, and delivery preference details.", symbol: "person.text.rectangle.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add profile", action: hasActiveFilters ? clearFilters : store.addCustomerRecipientProfilePlaceholder)
           } else {
-            ForEach(filteredProfiles) { profile in
+            if hiddenDisplayedProfileCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedProfiles.count) profiles", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedProfileCount) older hidden", color: .secondary)
+                Button(showAllCustomerProfiles ? "Show first 48" : "Show all \(filteredProfiles.count)", systemImage: showAllCustomerProfiles ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllCustomerProfiles.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local customer profile. The default list is capped so Customer Profiles opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedProfiles) { profile in
               CustomerProfileRow(profile: profile, store: store, inboxOrders: inboxOrders(for: profile), destinationAddresses: store.suggestedDestinationAddresses(for: profile), deliveryInstructions: store.suggestedDeliveryInstructions(for: profile), packageContents: store.suggestedPackageContents(for: profile)) { updatedProfile in
                 store.updateCustomerRecipientProfile(updatedProfile)
               } onToggle: {

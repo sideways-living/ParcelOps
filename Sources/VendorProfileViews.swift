@@ -9,6 +9,7 @@ struct VendorProfilesView: View {
   @State private var selectedChannel: CommunicationChannel?
   @State private var selectedReviewState: ReviewState?
   @State private var profileSearchText = ""
+  @State private var showAllVendorProfiles = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var baseFilteredProfiles: [VendorProfile] {
@@ -37,6 +38,15 @@ struct VendorProfilesView: View {
       || selectedChannel != nil
       || selectedReviewState != nil
       || !profileSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var displayedProfiles: [VendorProfile] {
+    guard !showAllVendorProfiles && !hasActiveFilters else { return filteredProfiles }
+    return Array(filteredProfiles.prefix(48))
+  }
+
+  private var hiddenDisplayedProfileCount: Int {
+    max(filteredProfiles.count - displayedProfiles.count, 0)
   }
 
   private var gmailVendorSourceCount: Int {
@@ -81,7 +91,25 @@ struct VendorProfilesView: View {
           if filteredProfiles.isEmpty {
             MVPEmptyState(title: "No vendor profiles match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local vendor profiles." : "Add a local profile to group vendor, carrier, store, supplier, and internal team context.", symbol: "building.2.crop.circle.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add profile", action: hasActiveFilters ? clearFilters : store.addVendorProfilePlaceholder)
           } else {
-            ForEach(filteredProfiles) { profile in
+            if hiddenDisplayedProfileCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedProfiles.count) profiles", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedProfileCount) older hidden", color: .secondary)
+                Button(showAllVendorProfiles ? "Show first 48" : "Show all \(filteredProfiles.count)", systemImage: showAllVendorProfiles ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllVendorProfiles.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local vendor profile. The default list is capped so Vendor Profiles opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedProfiles) { profile in
               VendorProfileRow(profile: profile, store: store, inboxOrders: inboxOrders(for: profile), contacts: store.contactDirectoryEntries, accounts: store.accountCredentialRecords, destinationAddresses: store.suggestedDestinationAddresses(for: profile), deliveryInstructions: store.suggestedDeliveryInstructions(for: profile), packageContents: store.suggestedPackageContents(for: profile)) { updatedProfile in
                 store.updateVendorProfile(updatedProfile)
               } onToggle: {

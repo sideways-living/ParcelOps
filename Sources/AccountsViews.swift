@@ -10,6 +10,7 @@ struct AccountsView: View {
   @State private var selectedMFAStatus: MFAStatus?
   @State private var selectedReviewState: ReviewState?
   @State private var accountSearchText = ""
+  @State private var showAllAccounts = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var organisations: [String] {
@@ -44,6 +45,15 @@ struct AccountsView: View {
       || selectedMFAStatus != nil
       || selectedReviewState != nil
       || !accountSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var displayedAccounts: [AccountCredentialRecord] {
+    guard !showAllAccounts && !hasActiveFilters else { return filteredAccounts }
+    return Array(filteredAccounts.prefix(48))
+  }
+
+  private var hiddenDisplayedAccountCount: Int {
+    max(filteredAccounts.count - displayedAccounts.count, 0)
   }
 
   private var gmailAccountSourceCount: Int {
@@ -88,7 +98,25 @@ struct AccountsView: View {
           if filteredAccounts.isEmpty {
             MVPEmptyState(title: "No account placeholders match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local account placeholders." : "Add a local account placeholder to track review status and setup notes without storing secrets.", symbol: "key.horizontal.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add account", action: hasActiveFilters ? clearFilters : store.addAccountCredentialRecordPlaceholder)
           } else {
-            ForEach(filteredAccounts) { account in
+            if hiddenDisplayedAccountCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedAccounts.count) accounts", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedAccountCount) older hidden", color: .secondary)
+                Button(showAllAccounts ? "Show first 48" : "Show all \(filteredAccounts.count)", systemImage: showAllAccounts ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllAccounts.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local account placeholder. The default list is capped so Accounts opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedAccounts) { account in
               AccountCredentialRow(account: account, store: store, linkedOrder: linkedOrder(for: account), inboxOrders: inboxOrders(for: account), contacts: store.contactDirectoryEntries, suggestedProfiles: store.suggestedVendorProfiles(for: account), destinationAddresses: store.suggestedDestinationAddresses(for: account), deliveryInstructions: store.suggestedDeliveryInstructions(for: account), packageContents: store.suggestedPackageContents(for: account)) { updatedAccount in
                 store.updateAccountCredentialRecord(updatedAccount)
               } onToggle: {
