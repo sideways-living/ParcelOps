@@ -3911,10 +3911,7 @@ struct MetricStrip: View {
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var columns: [GridItem] {
-    if isCompact {
-      return [GridItem(.adaptive(minimum: 116), spacing: 8)]
-    }
-    return Array(repeating: GridItem(.flexible()), count: max(items.count, 1))
+    [GridItem(.adaptive(minimum: isCompact ? 116 : 128), spacing: 8)]
   }
 
   var body: some View {
@@ -3924,6 +3921,8 @@ struct MetricStrip: View {
           Text(item.1)
             .font(.title3.bold())
             .foregroundStyle(item.2)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
           Text(item.0)
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -3931,7 +3930,7 @@ struct MetricStrip: View {
             .minimumScaleFactor(0.8)
         }
         .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
         .background(.background)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
