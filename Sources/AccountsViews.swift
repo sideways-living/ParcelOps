@@ -663,7 +663,8 @@ struct AccountCredentialRow: View {
           Label("Linked profiles", systemImage: "building.2.crop.circle.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
-          ForEach(suggestedProfiles) { profile in
+          let displayedSuggestedProfiles = Array(suggestedProfiles.prefix(3))
+          ForEach(displayedSuggestedProfiles) { profile in
             VendorProfileSuggestionRow(profile: profile) {
               onTaskFromProfile(profile)
               feedbackMessage = "Follow-up task created from linked profile. Check Tasks."
@@ -671,6 +672,11 @@ struct AccountCredentialRow: View {
               onDraftFromProfile(profile)
               feedbackMessage = "Draft created from linked profile. Check Drafts."
             }
+          }
+          if suggestedProfiles.count > displayedSuggestedProfiles.count {
+            Text("\(suggestedProfiles.count - displayedSuggestedProfiles.count) more linked profiles hidden for this account.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
       }
