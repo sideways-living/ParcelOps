@@ -25,7 +25,7 @@ struct MailboxView: View {
   }
 
   private var displayedIntakeEmails: [ForwardedEmailIntake] {
-    showAllDetectedIntakeEmails || !normalizedIntakeSearch.isEmpty ? visibleIntakeEmails : Array(visibleIntakeEmails.prefix(24))
+    showAllDetectedIntakeEmails ? visibleIntakeEmails : Array(visibleIntakeEmails.prefix(24))
   }
 
   private var hiddenDisplayedIntakeCount: Int {
@@ -1110,7 +1110,20 @@ struct MailboxView: View {
             }
 
             ForEach(displayedIntakeEmails) { email in
-              IntakeEmailRow(email: email, store: store, orders: store.orders, evidenceAttachments: store.evidence(for: .intakeEmail, linkedEntityID: email.id), suggestedContacts: store.suggestedContacts(for: email), suggestedAccounts: store.suggestedAccounts(for: email), suggestedProfiles: store.suggestedVendorProfiles(for: email), customerProfiles: store.suggestedCustomerProfiles(for: email), destinationAddresses: store.suggestedDestinationAddresses(for: email), deliveryInstructions: store.suggestedDeliveryInstructions(for: email), packageContents: store.suggestedPackageContents(for: email), shipmentGroups: store.suggestedShipmentGroups(for: email)) { updatedEmail in
+              IntakeEmailRow(
+                email: email,
+                store: store,
+                orders: store.orders,
+                evidenceAttachments: Array(store.evidence(for: .intakeEmail, linkedEntityID: email.id).prefix(3)),
+                suggestedContacts: Array(store.suggestedContacts(for: email).prefix(3)),
+                suggestedAccounts: Array(store.suggestedAccounts(for: email).prefix(3)),
+                suggestedProfiles: Array(store.suggestedVendorProfiles(for: email).prefix(3)),
+                customerProfiles: Array(store.suggestedCustomerProfiles(for: email).prefix(3)),
+                destinationAddresses: Array(store.suggestedDestinationAddresses(for: email).prefix(3)),
+                deliveryInstructions: Array(store.suggestedDeliveryInstructions(for: email).prefix(3)),
+                packageContents: Array(store.suggestedPackageContents(for: email).prefix(3)),
+                shipmentGroups: Array(store.suggestedShipmentGroups(for: email).prefix(3))
+              ) { updatedEmail in
                 store.updateIntakeEmail(updatedEmail)
               } onLinkOrder: { order in
                 store.linkIntakeEmail(email, to: order)
