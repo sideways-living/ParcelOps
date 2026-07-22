@@ -404,9 +404,12 @@ struct ParcelOpsRootView: View {
 
       Divider()
 
-      content(for: selection)
-        .id(selection)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      NavigationStack {
+        content(for: selection)
+          .id(selection)
+          .navigationTitle(selection.title)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
   }
 
