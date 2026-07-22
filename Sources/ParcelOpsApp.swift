@@ -155,6 +155,8 @@ struct ParcelOpsRootView: View {
   @State private var sidebarSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+  private let desktopSidebarWidth: CGFloat = 520
+
   private var isSearchingSidebar: Bool {
     !sidebarSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
@@ -519,7 +521,7 @@ struct ParcelOpsRootView: View {
 
       sidebarReviewFooter
     }
-    .frame(width: 460)
+    .frame(width: desktopSidebarWidth)
     .background(.bar)
   }
 
@@ -548,12 +550,13 @@ struct ParcelOpsRootView: View {
             HStack(alignment: .top, spacing: 10) {
               Image(systemName: section.symbol)
                 .font(.body.weight(.semibold))
-                .frame(width: 22, height: 24)
+                .frame(width: 24, height: 28)
 
               VStack(alignment: .leading, spacing: 3) {
                 Text(section.title)
-                  .font(.caption.weight(.semibold))
-                  .lineLimit(1)
+                  .font(.caption.weight(.bold))
+                  .lineLimit(2)
+                  .fixedSize(horizontal: false, vertical: true)
                 Text(sidebarDailyFocusDetail(for: section, count: count))
                   .font(.caption2)
                   .foregroundStyle(.secondary)
@@ -573,9 +576,9 @@ struct ParcelOpsRootView: View {
               }
             }
             .font(.caption.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 62, maxHeight: 62, alignment: .topLeading)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 76, maxHeight: 76, alignment: .topLeading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
           }
           .buttonStyle(.plain)
@@ -631,12 +634,13 @@ struct ParcelOpsRootView: View {
         }
       }
 
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 74), spacing: 6)], alignment: .leading, spacing: 6) {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 6)], alignment: .leading, spacing: 6) {
         ForEach(sidebarReadinessItems, id: \.title) { item in
           Label(item.title, systemImage: item.isReady ? "checkmark.circle.fill" : "circle")
             .font(.caption2.weight(.semibold))
             .foregroundStyle(item.isReady ? .green : .secondary)
-            .lineLimit(1)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
             .help(item.title)
         }
         Text("Advanced \(advancedBacklogCount)")
@@ -707,11 +711,11 @@ struct ParcelOpsRootView: View {
       VStack(alignment: .leading, spacing: 2) {
         HStack(alignment: .top, spacing: 10) {
           Image(systemName: section.symbol)
-            .font(.body.weight(.semibold))
-            .frame(width: 22, height: 24, alignment: .center)
+            .font(.body.weight(.bold))
+            .frame(width: 24, height: 26, alignment: .center)
             .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
           Text(section.title)
-            .font(.body)
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
@@ -739,8 +743,8 @@ struct ParcelOpsRootView: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.horizontal, 12)
-      .padding(.vertical, 7)
-      .background(selection == section ? Color.accentColor.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+      .padding(.vertical, 9)
+      .background(selection == section ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8))
     }
     .buttonStyle(.plain)
     .padding(.horizontal, 6)
