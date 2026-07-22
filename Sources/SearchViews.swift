@@ -7,7 +7,9 @@ struct SearchView: View {
   @State private var selectedEntityType: SearchEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var showAllSearchResults = false
+  @State private var showAllSavedFilters = false
   private let searchResultLimit = 24
+  private let savedFilterLimit = 12
 
 
   private var inboxCreatedOrdersWithSourceTrail: [TrackedOrder] {
@@ -77,6 +79,10 @@ struct SearchView: View {
     }
   }
 
+  private var displayedSavedFilters: [SavedFilter] {
+    showAllSavedFilters ? sortedSavedFilters : Array(sortedSavedFilters.prefix(savedFilterLimit))
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
@@ -128,8 +134,29 @@ struct SearchView: View {
             Text("No saved filters yet.")
               .foregroundStyle(.secondary)
           } else {
+            CompactActionRow {
+              Text("\(sortedSavedFilters.count) saved filters")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+              if sortedSavedFilters.count > savedFilterLimit {
+                Button(showAllSavedFilters ? "Show fewer" : "Show all filters", systemImage: showAllSavedFilters ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllSavedFilters.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+            }
+
+            if sortedSavedFilters.count > savedFilterLimit && !showAllSavedFilters {
+              Text("\(sortedSavedFilters.count - savedFilterLimit) older filters are hidden to keep Search responsive. Pinned filters remain first.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
             VStack(spacing: 10) {
-              ForEach(sortedSavedFilters) { filter in
+              ForEach(displayedSavedFilters) { filter in
                 SavedFilterRow(filter: filter) {
                   apply(filter)
                 } onTogglePin: {
@@ -178,8 +205,16 @@ struct SearchView: View {
                   }
 
                   VStack(spacing: 8) {
-                    ForEach(displayedSearchResults(group.results)) { result in
+                    let displayedResults = displayedSearchResults(group.results)
+                    ForEach(displayedResults) { result in
                       SearchResultRow(result: result, store: store)
+                    }
+                    if !showAllSearchResults && group.results.count > displayedResults.count {
+                      Text("\(group.results.count - displayedResults.count) more \(group.entityType.rawValue.lowercased()) results hidden in this group. Use Show all results only when you need the full list.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 2)
                     }
                   }
                 }
