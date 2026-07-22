@@ -15,6 +15,7 @@ struct InboxView: View {
   @State private var showFullMailboxHealthHistory = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var inboxTriageVisibleLimit: Int { isCompact ? 16 : 24 }
 
   private var triageItems: [InboxTriageItem] {
     let acceptanceItems = store.acceptanceRecordsNeedingReview.compactMap { record in
@@ -41,7 +42,7 @@ struct InboxView: View {
       }
   }
 
-  private var visibleTriageItems: [InboxTriageItem] {
+  private var filteredTriageItems: [InboxTriageItem] {
     let query = triageSearchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
     let filteredItems = triageItems.filter { item in
       triageGroupFilter.matches(item)
@@ -65,6 +66,14 @@ struct InboxView: View {
         item.triageGroup.rawValue
       ].joined(separator: " ").localizedLowercase.contains(query)
     }
+  }
+
+  private var visibleTriageItems: [InboxTriageItem] {
+    Array(filteredTriageItems.prefix(inboxTriageVisibleLimit))
+  }
+
+  private var hiddenTriageItemCount: Int {
+    max(filteredTriageItems.count - visibleTriageItems.count, 0)
   }
 
   private var hasActiveTriageFilters: Bool {
@@ -1238,6 +1247,18 @@ struct InboxView: View {
             symbol: "checkmark.seal.fill"
           )
         } else {
+          if hiddenTriageItemCount > 0 {
+            CompactActionRow {
+              Label("Showing first \(visibleTriageItems.count) matched rows", systemImage: "speedometer")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              Badge("\(hiddenTriageItemCount) hidden", color: .secondary)
+              Text("Use search or filters to narrow the queue before opening detailed records.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
           if parserIssueCount > 0 && !showParserDiagnosticsInTriage {
             Label("\(parserIssueCount) parser checks are hidden from this primary queue. Turn on parser diagnostics when you need reprocess/task actions, or use Mailbox Monitor for detailed parser review.", systemImage: "text.magnifyingglass")
               .font(.caption)
