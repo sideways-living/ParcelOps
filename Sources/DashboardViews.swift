@@ -2639,7 +2639,7 @@ struct DashboardView: View {
               ("Drafts", "\(store.draftMessagesNeedingReview.count)", store.draftMessagesNeedingReview.isEmpty ? .green : .purple),
               ("Provider drafts", "\(mailboxDiagnosticDrafts.count)", mailboxDiagnosticDrafts.isEmpty ? .green : .orange),
               ("Overdue", "\(store.overdueOpenReviewTasks.count + store.overdueHandoffNotes.count)", .red),
-              ("High", "\(store.highPriorityHandoffNotes.count + store.reviewTasks.filter { $0.priority == .high || $0.priority == .urgent }.count)", .red)
+              ("High", "\(store.highPriorityHandoffNotes.count + store.highPriorityOpenReviewTaskCount)", .red)
             ])
             CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(3)), store: store)
             CompactHandoffNoteList(notes: Array(store.handoffNotesNeedingAttention.prefix(3)), store: store)

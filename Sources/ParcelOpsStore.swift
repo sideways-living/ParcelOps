@@ -6018,6 +6018,14 @@ final class ParcelOpsStore {
     openReviewTasks.filter { $0.priority == .urgent }
   }
 
+  var highPriorityOpenReviewTasks: [ReviewTask] {
+    openReviewTasks.filter { $0.priority == .high || $0.priority == .urgent }
+  }
+
+  var highPriorityOpenReviewTaskCount: Int {
+    highPriorityOpenReviewTasks.count
+  }
+
   var openHandoffNotes: [HandoffNote] {
     handoffNotes.filter { $0.status != .completed }
   }
