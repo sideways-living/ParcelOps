@@ -38,8 +38,7 @@ struct ShipmentManifestsView: View {
   }
 
   private var displayedRecords: [ShipmentManifestRecord] {
-    guard !showAllShipmentManifests && !hasActiveFilters else { return filteredRecords }
-    return Array(filteredRecords.prefix(48))
+    showAllShipmentManifests ? filteredRecords : Array(filteredRecords.prefix(48))
   }
 
   private var hiddenDisplayedRecordCount: Int {
@@ -111,7 +110,7 @@ struct ShipmentManifestsView: View {
                 }
                 .buttonStyle(.bordered)
               }
-              Text("Search and filters still scan every local shipment manifest. The default list is capped so Shipment Manifests opens quickly with accumulated test data.")
+              Text("Search and filters still scan every local shipment manifest. Rendering stays capped until you choose Show all, so Shipment Manifests opens quickly with accumulated test data.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

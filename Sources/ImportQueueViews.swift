@@ -37,8 +37,7 @@ struct ImportQueueView: View {
   }
 
   private var displayedItems: [ImportQueueItem] {
-    guard !showAllImportItems && !hasActiveFilters else { return filteredItems }
-    return Array(filteredItems.prefix(48))
+    showAllImportItems ? filteredItems : Array(filteredItems.prefix(48))
   }
 
   private var hiddenDisplayedItemCount: Int {
@@ -192,7 +191,7 @@ struct ImportQueueView: View {
                 }
                 .buttonStyle(.bordered)
               }
-              Text("Search and filters still scan every staged import. The default list is capped so Import Queue opens quickly with accumulated test data.")
+              Text("Search and filters still scan every staged import. Rendering stays capped until you choose Show all, so Import Queue opens quickly with accumulated test data.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

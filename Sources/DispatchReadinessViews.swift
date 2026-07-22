@@ -36,8 +36,7 @@ struct DispatchReadinessView: View {
   }
 
   private var displayedChecklists: [DispatchReadinessChecklist] {
-    guard !showAllDispatchChecklists && !hasActiveFilters else { return filteredChecklists }
-    return Array(filteredChecklists.prefix(48))
+    showAllDispatchChecklists ? filteredChecklists : Array(filteredChecklists.prefix(48))
   }
 
   private var hiddenDisplayedChecklistCount: Int {
@@ -110,7 +109,7 @@ struct DispatchReadinessView: View {
                 }
                 .buttonStyle(.bordered)
               }
-              Text("Search and filters still scan every local dispatch checklist. The default list is capped so Dispatch Readiness opens quickly with accumulated test data.")
+              Text("Search and filters still scan every local dispatch checklist. Rendering stays capped until you choose Show all, so Dispatch Readiness opens quickly with accumulated test data.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
