@@ -2231,8 +2231,14 @@ struct OrderDetailView: View {
 
         Panel(title: "Full contact history", symbol: "tray.full.fill") {
           VStack(spacing: 10) {
-            ForEach(order.contactHistory) { event in
+            ForEach(Array(order.contactHistory.prefix(timelineSectionLimit))) { event in
               ContactHistoryRow(event: event)
+            }
+            if order.contactHistory.count > timelineSectionLimit {
+              Text("\(order.contactHistory.count - timelineSectionLimit) more contact history entries are available in Timeline.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
           }
         }
@@ -2396,7 +2402,8 @@ struct OrderDetailView: View {
   }
 
   private func inboxSourceTrail(_ order: TrackedOrder) -> some View {
-    let emails = store.linkedIntakeEmails(for: order)
+    let allEmails = store.linkedIntakeEmails(for: order)
+    let emails = Array(allEmails.prefix(inlineSectionLimit))
     let imports = store.importQueueItems(for: order)
     let acceptance = store.acceptanceRecords(for: order)
     let wishlistItems = store.activeWishlistItemsLinked(to: order)
@@ -2410,7 +2417,7 @@ struct OrderDetailView: View {
           .foregroundStyle(.secondary)
 
         CompactMetadataGrid(minimumWidth: 140) {
-          Badge("\(emails.count) intake emails", color: emails.isEmpty ? .secondary : .teal)
+          Badge("\(allEmails.count) intake emails", color: allEmails.isEmpty ? .secondary : .teal)
           Badge("\(imports.count) import items", color: imports.isEmpty ? .secondary : .blue)
           Badge("\(acceptance.count) acceptance records", color: acceptance.isEmpty ? .secondary : .purple)
           Badge("\(wishlistItems.count) active wishlist", color: wishlistItems.isEmpty ? .secondary : .pink)
@@ -2424,13 +2431,18 @@ struct OrderDetailView: View {
             Text("Mailbox provider sources")
               .font(.caption.weight(.semibold))
               .foregroundStyle(.secondary)
-            ForEach(mailboxSources) { source in
+            ForEach(Array(mailboxSources.prefix(inlineSectionLimit))) { source in
               OrderMailboxSourceSummaryRow(source: source)
+            }
+            if mailboxSources.count > inlineSectionLimit {
+              Text("\(mailboxSources.count - inlineSectionLimit) more mailbox source summaries are available in Mailbox Monitor.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
           }
         }
 
-        if emails.isEmpty && imports.isEmpty && acceptance.isEmpty && wishlistItems.isEmpty && closedWishlistItems.isEmpty {
+        if allEmails.isEmpty && imports.isEmpty && acceptance.isEmpty && wishlistItems.isEmpty && closedWishlistItems.isEmpty {
           MVPEmptyState(
             title: "No source records matched",
             detail: "This order still looks Inbox-created, but no linked intake, import, acceptance, or Wishlist handoff records matched the current order number.",
@@ -2442,7 +2454,7 @@ struct OrderDetailView: View {
               Text("Wishlist handoff")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-              ForEach(wishlistItems) { item in
+              ForEach(Array(wishlistItems.prefix(inlineSectionLimit))) { item in
                 OrderWishlistSourceRow(item: item, store: store) {
                   store.createReviewTask(from: item)
                   feedbackMessage = "Wishlist follow-up task created locally from order source trail. No retailer, payment, browser, mailbox, or external service was contacted."
@@ -2453,6 +2465,11 @@ struct OrderDetailView: View {
                   feedbackMessage = message
                 }
               }
+              if wishlistItems.count > inlineSectionLimit {
+                Text("\(wishlistItems.count - inlineSectionLimit) more active Wishlist links are available in Wishlist.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
             }
           }
 
@@ -2461,14 +2478,25 @@ struct OrderDetailView: View {
               Text("Closed Wishlist history")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-              ForEach(closedWishlistItems) { item in
+              ForEach(Array(closedWishlistItems.prefix(inlineSectionLimit))) { item in
                 OrderClosedWishlistSourceRow(item: item)
+              }
+              if closedWishlistItems.count > inlineSectionLimit {
+                Text("\(closedWishlistItems.count - inlineSectionLimit) more closed Wishlist links are available in Wishlist.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
               }
             }
           }
 
           ForEach(emails) { email in
             OrderIntakeSourceRow(email: email, store: store)
+          }
+          if allEmails.count > inlineSectionLimit {
+            Text("\(allEmails.count - inlineSectionLimit) more linked intake emails are available in Mailbox Monitor.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .frame(maxWidth: .infinity, alignment: .leading)
           }
 
           if !imports.isEmpty {
