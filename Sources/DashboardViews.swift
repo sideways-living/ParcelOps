@@ -68,46 +68,37 @@ struct DashboardView: View {
     return "No current intake row is asking for parser correction, order creation, import acceptance, or linked-order review."
   }
   private var hasSpaceMailSetup: Bool {
-    !store.spaceMailIMAPConnections.isEmpty
+    store.hasSpaceMailSetup
   }
   private var hasSpaceMailCredentialReference: Bool {
-    store.spaceMailIMAPConnections.contains {
-      $0.credentialStorageStatus.localizedCaseInsensitiveContains("available")
-        || $0.credentialStorageStatus.localizedCaseInsensitiveContains("ready")
-    }
+    store.hasSpaceMailCredentialReadiness
   }
   private var hasSpaceMailManualRefreshEvidence: Bool {
-    store.spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+    store.hasSpaceMailManualRefreshEvidence
   }
   private var hasGmailSetup: Bool {
-    !store.gmailMailboxConnections.isEmpty
+    store.hasGmailSetup
   }
   private var hasGmailConnectedAuth: Bool {
     store.hasGmailConnectedAuth
   }
   private var hasGmailManualRefreshEvidence: Bool {
-    store.gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    store.hasGmailManualRefreshEvidence
   }
   private var hasMicrosoft365Setup: Bool {
-    !store.microsoft365MailboxConnections.isEmpty
+    store.hasMicrosoft365Setup
   }
   private var hasMicrosoft365ConnectedAuth: Bool {
-    store.microsoft365MailboxConnections.contains {
-      store.microsoft365AuthSessionState(for: $0).status == .connected
-    }
+    store.hasMicrosoft365ConnectedAuth
   }
   private var hasMicrosoft365ReadySetup: Bool {
-    store.microsoft365MailboxConnections.contains {
-      store.microsoft365OAuthReadinessSummary(for: $0).isReady
-    }
+    store.hasMicrosoft365ReadySetup
   }
   private var hasMicrosoft365ManualRefreshEvidence: Bool {
-    store.microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+    store.hasMicrosoft365ManualRefreshEvidence
   }
   private var hasReadyMailboxProviderPath: Bool {
-    (hasSpaceMailSetup && hasSpaceMailCredentialReference && hasSpaceMailManualRefreshEvidence)
-      || (hasGmailSetup && hasGmailConnectedAuth && hasGmailManualRefreshEvidence)
-      || (hasMicrosoft365Setup && hasMicrosoft365ConnectedAuth && hasMicrosoft365ManualRefreshEvidence)
+    store.hasReadyMailboxProviderPath
   }
   private var dashboardMailboxSetupMetric: (value: String, color: Color) {
     let setupCount = [hasSpaceMailSetup, hasGmailSetup, hasMicrosoft365Setup].filter { $0 }.count

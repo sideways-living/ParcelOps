@@ -8238,6 +8238,30 @@ final class ParcelOpsStore {
       || microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
   }
 
+  var hasSpaceMailSetup: Bool {
+    !spaceMailIMAPConnections.isEmpty
+  }
+
+  var hasGmailSetup: Bool {
+    !gmailMailboxConnections.isEmpty
+  }
+
+  var hasMicrosoft365Setup: Bool {
+    !microsoft365MailboxConnections.isEmpty
+  }
+
+  var hasSpaceMailManualRefreshEvidence: Bool {
+    spaceMailIMAPConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  var hasGmailManualRefreshEvidence: Bool {
+    gmailMailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
+  var hasMicrosoft365ManualRefreshEvidence: Bool {
+    microsoft365MailboxConnections.contains { $0.lastManualRefreshDate != "Never" }
+  }
+
   var mailboxManualRefreshCount: Int {
     spaceMailIMAPConnections.filter { $0.lastManualRefreshDate != "Never" }.count
       + gmailMailboxConnections.filter { $0.lastManualRefreshDate != "Never" }.count
@@ -8273,10 +8297,26 @@ final class ParcelOpsStore {
     }
   }
 
-  var hasMailboxCredentialOrAuthReadiness: Bool {
-    hasSpaceMailCredentialReadiness || hasGmailConnectedAuth || microsoft365MailboxConnections.contains {
-      microsoft365AuthSessionState(for: $0).status == .connected
+  var hasMicrosoft365ConnectedAuth: Bool {
+    microsoft365MailboxConnections.contains { connection in
+      microsoft365AuthSessionState(for: connection).status == .connected
     }
+  }
+
+  var hasMicrosoft365ReadySetup: Bool {
+    microsoft365MailboxConnections.contains { connection in
+      microsoft365OAuthReadinessSummary(for: connection).isReady
+    }
+  }
+
+  var hasReadyMailboxProviderPath: Bool {
+    (hasSpaceMailSetup && hasSpaceMailCredentialReadiness && hasSpaceMailManualRefreshEvidence)
+      || (hasGmailSetup && hasGmailConnectedAuth && hasGmailManualRefreshEvidence)
+      || (hasMicrosoft365Setup && hasMicrosoft365ConnectedAuth && hasMicrosoft365ManualRefreshEvidence)
+  }
+
+  var hasMailboxCredentialOrAuthReadiness: Bool {
+    hasSpaceMailCredentialReadiness || hasGmailConnectedAuth || hasMicrosoft365ConnectedAuth
   }
 
   var mailboxProviderSetupCount: Int {
