@@ -720,6 +720,7 @@ struct InboxView: View {
                   Text(step.title)
                     .font(.caption.weight(.semibold))
                     .lineLimit(2)
+                    .minimumScaleFactor(0.86)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
@@ -727,6 +728,7 @@ struct InboxView: View {
                   .font(.caption2)
                   .foregroundStyle(.secondary)
                   .lineLimit(3)
+                  .minimumScaleFactor(0.86)
                   .fixedSize(horizontal: false, vertical: true)
                   .frame(maxWidth: .infinity, alignment: .topLeading)
               }
@@ -786,7 +788,7 @@ struct InboxView: View {
   }
 
   private var dailyFlowCardHeight: CGFloat {
-    isCompact ? 122 : 116
+    isCompact ? 142 : 132
   }
 
   private var mailboxProviderReleaseGatePanel: some View {
