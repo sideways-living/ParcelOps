@@ -129,31 +129,19 @@ struct OperationsWorkbenchView: View {
   }
 
   private var developmentStatusTasks: [ReviewTask] {
-    store.reviewTasks.filter {
-      $0.linkedEntityType == .integration
-        && $0.linkedEntityID == "development-status-checkpoint"
-        && $0.status != .completed
-    }
+    store.developmentStatusLinkedTasks
   }
 
   private var developmentStatusHandoffs: [HandoffNote] {
-    store.handoffNotes.filter {
-      $0.linkedEntityType == .integration
-        && $0.linkedEntityID == "development-status-checkpoint"
-        && $0.status != .completed
-    }
+    store.developmentStatusLinkedHandoffs
   }
 
   private var developmentStatusDrafts: [DraftMessage] {
-    store.draftMessages.filter {
-      $0.linkedEntityType == .integration
-        && $0.linkedEntityID == "development-status-checkpoint"
-        && $0.status != .sentLocally
-    }
+    store.developmentStatusLinkedDrafts
   }
 
   private var developmentStatusFollowUpCount: Int {
-    developmentStatusTasks.count + developmentStatusHandoffs.count + developmentStatusDrafts.count
+    store.developmentStatusFollowUpCount
   }
 
   private var developmentStatusWorkbenchTone: Color {
