@@ -8274,6 +8274,14 @@ final class ParcelOpsStore {
       + microsoft365MailboxConnections.reduce(0) { $0 + $1.lastRefreshUncertainCount }
   }
 
+  var latestMailboxFullCountsText: String {
+    "\(latestMailboxFetchedCount)/\(latestMailboxImportedCount)/\(latestMailboxDuplicateCount)/\(latestMailboxFilteredCount)/\(latestMailboxUncertainCount)"
+  }
+
+  var latestMailboxOperatorCountsText: String {
+    "\(latestMailboxFetchedCount)/\(latestMailboxImportedCount)/\(latestMailboxFilteredCount)/\(latestMailboxUncertainCount)"
+  }
+
   var latestMailboxCompactRefreshText: String {
     let spaceLine = latestSpaceMailIntakeHealthSummary.map {
       "SpaceMail \($0.compactRefreshCountsText)"
@@ -15599,7 +15607,7 @@ final class ParcelOpsStore {
       "Linked intake sources: \(intakeLinkedOrderCount)",
       "Mailbox providers configured: \(mailboxProviderSetupCount)",
       "Manual mailbox refreshes: \(mailboxManualRefreshCount)",
-      "Latest mailbox fetched/imported/duplicates/filtered/uncertain: \(latestMailboxFetchedCount)/\(latestMailboxImportedCount)/\(latestMailboxDuplicateCount)/\(latestMailboxFilteredCount)/\(latestMailboxUncertainCount)",
+      "Latest mailbox fetched/imported/duplicates/filtered/uncertain: \(latestMailboxFullCountsText)",
       "Open task and handoff items: \(openTaskAndHandoffCount)",
       "Parser diagnostics: \(parserDiagnosticCount)",
       "Wishlist active items: \(activeWishlistItemCount)",
@@ -15801,7 +15809,7 @@ final class ParcelOpsStore {
       "Counts:",
       "- Providers configured: \(mailboxProviderSetupCount)",
       "- Manual mailbox refreshes: \(mailboxManualRefreshCount)",
-      "- Latest mailbox fetched/imported/filtered/uncertain: \(latestMailboxFetchedCount)/\(latestMailboxImportedCount)/\(latestMailboxFilteredCount)/\(latestMailboxUncertainCount)",
+      "- Latest mailbox fetched/imported/filtered/uncertain: \(latestMailboxOperatorCountsText)",
       "- Inbox-created orders: \(inboxCreatedOrderCount)",
       "- Parser diagnostics: \(parserDiagnosticCount)",
       "- Open task and handoff items: \(openTaskAndHandoffCount)",
@@ -15930,7 +15938,7 @@ final class ParcelOpsStore {
       "Current counts:",
       "- Providers configured: \(mailboxProviderSetupCount)",
       "- Manual mailbox refreshes: \(mailboxManualRefreshCount)",
-      "- Latest mailbox fetched/imported/filtered/uncertain: \(latestMailboxFetchedCount)/\(latestMailboxImportedCount)/\(latestMailboxFilteredCount)/\(latestMailboxUncertainCount)",
+      "- Latest mailbox fetched/imported/filtered/uncertain: \(latestMailboxOperatorCountsText)",
       "- Inbox-created orders: \(inboxCreatedOrderCount)",
       "- Parser diagnostics: \(parserDiagnosticCount)",
       "- Open task and handoff items: \(openTaskAndHandoffCount)",
