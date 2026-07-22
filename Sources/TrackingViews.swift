@@ -674,7 +674,8 @@ struct TrackingEventRow: View {
             PackageContentStrip(contents: packageContents)
           }
 
-          ForEach(relatedTasks()) { task in
+          let relatedTaskRows = Array(relatedTasks().prefix(3))
+          ForEach(relatedTaskRows) { task in
             HStack(spacing: 8) {
               Badge(task.isLocallyOverdue ? "Overdue" : task.priority.rawValue, color: task.isLocallyOverdue ? .red : task.priority.color)
               Text("Task due \(task.dueDate) with \(task.assignee)")
@@ -682,20 +683,37 @@ struct TrackingEventRow: View {
                 .foregroundStyle(.secondary)
             }
           }
+          if relatedTasks().count > relatedTaskRows.count {
+            Text("\(relatedTasks().count - relatedTaskRows.count) more related tasks hidden for this tracking event.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
 
-          ForEach(suggestedContacts) { contact in
+          let displayedSuggestedContacts = Array(suggestedContacts.prefix(3))
+          ForEach(displayedSuggestedContacts) { contact in
             ContactSuggestionRow(contact: contact) {
               onDraftFromContact(contact)
             }
           }
+          if suggestedContacts.count > displayedSuggestedContacts.count {
+            Text("\(suggestedContacts.count - displayedSuggestedContacts.count) more suggested contacts hidden for this tracking event.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
 
-          ForEach(suggestedProfiles) { profile in
+          let displayedSuggestedProfiles = Array(suggestedProfiles.prefix(3))
+          ForEach(displayedSuggestedProfiles) { profile in
             VendorProfileSuggestionRow(profile: profile) {
               onTaskFromProfile(profile)
             } onCreateDraft: {
               onDraftFromProfile(profile)
         }
       }
+          if suggestedProfiles.count > displayedSuggestedProfiles.count {
+            Text("\(suggestedProfiles.count - displayedSuggestedProfiles.count) more suggested vendor profiles hidden for this tracking event.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
 
       if !customerProfiles.isEmpty {
         CustomerProfileStrip(profiles: customerProfiles)
