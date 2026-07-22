@@ -24,30 +24,16 @@ struct DashboardView: View {
     store.reviewIntakeEmails.count + mailboxHealthAttentionCount + store.importQueueItemsNeedingReview.count + store.blockedImportQueueItems.count + store.acceptanceRecordsNeedingReview.count
   }
   private var weakInboxParseCount: Int {
-    store.reviewIntakeEmails.filter { email in
-      email.detectedOrderNumber.isPlaceholderValidationValue
-        || email.detectedTrackingNumber.isPlaceholderValidationValue
-    }.count
+    store.weakReviewIntakeParseCount
   }
   private var partialInboxParseCount: Int {
-    store.reviewIntakeEmails.filter { email in
-      !email.detectedOrderNumber.isPlaceholderValidationValue
-        && !email.detectedTrackingNumber.isPlaceholderValidationValue
-        && (
-          email.detectedMerchant.isPlaceholderValidationValue
-            || email.detectedDestinationAddress.isPlaceholderValidationValue
-        )
-    }.count
+    store.partialReviewIntakeParseCount
   }
   private var readyInboxLinkCount: Int {
-    store.reviewIntakeEmails.filter { email in
-      email.linkedOrderID == nil
-        && !email.detectedOrderNumber.isPlaceholderValidationValue
-        && !email.detectedTrackingNumber.isPlaceholderValidationValue
-    }.count
+    store.readyReviewIntakeLinkCount
   }
   private var linkedInboxIntakeCount: Int {
-    store.reviewIntakeEmails.filter { $0.linkedOrderID != nil }.count
+    store.linkedReviewIntakeCount
   }
   private var blockedInboxSourceCount: Int {
     store.blockedImportQueueItems.count
@@ -3097,10 +3083,7 @@ struct MVPHandsOnDashboardStatus: View {
   var store: ParcelOpsStore
 
   private var clearIntakeCount: Int {
-    store.reviewIntakeEmails.filter { email in
-      !email.detectedOrderNumber.isPlaceholderValidationValue
-        && !email.detectedTrackingNumber.isPlaceholderValidationValue
-    }.count
+    store.clearReviewIntakeParseCount
   }
 
   private var inboxCreatedOrdersCount: Int {

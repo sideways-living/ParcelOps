@@ -351,22 +351,15 @@ struct TasksView: View {
   }
 
   private var weakInboxParseCount: Int {
-    store.reviewIntakeEmails.filter { email in
-      email.detectedOrderNumber.isPlaceholderValidationValue
-        || email.detectedTrackingNumber.isPlaceholderValidationValue
-    }.count
+    store.weakReviewIntakeParseCount
   }
 
   private var readyInboxLinkCount: Int {
-    store.reviewIntakeEmails.filter { email in
-      email.linkedOrderID == nil
-        && !email.detectedOrderNumber.isPlaceholderValidationValue
-        && !email.detectedTrackingNumber.isPlaceholderValidationValue
-    }.count
+    store.readyReviewIntakeLinkCount
   }
 
   private var linkedInboxIntakeCount: Int {
-    store.reviewIntakeEmails.filter { $0.linkedOrderID != nil }.count
+    store.linkedReviewIntakeCount
   }
 
   private var mailboxFetchedCount: Int {

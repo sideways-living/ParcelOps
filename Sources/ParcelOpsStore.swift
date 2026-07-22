@@ -336,6 +336,51 @@ final class ParcelOpsStore {
     }
   }
 
+  var weakReviewIntakeParseCount: Int {
+    intakeEmails.reduce(0) { count, email in
+      guard email.reviewState == .needsReview else { return count }
+      let isWeakParse = email.detectedOrderNumber.isPlaceholderValidationValue
+        || email.detectedTrackingNumber.isPlaceholderValidationValue
+      return count + (isWeakParse ? 1 : 0)
+    }
+  }
+
+  var partialReviewIntakeParseCount: Int {
+    intakeEmails.reduce(0) { count, email in
+      guard email.reviewState == .needsReview else { return count }
+      let hasOrderAndTracking = !email.detectedOrderNumber.isPlaceholderValidationValue
+        && !email.detectedTrackingNumber.isPlaceholderValidationValue
+      let hasPartialContext = email.detectedMerchant.isPlaceholderValidationValue
+        || email.detectedDestinationAddress.isPlaceholderValidationValue
+      return count + (hasOrderAndTracking && hasPartialContext ? 1 : 0)
+    }
+  }
+
+  var readyReviewIntakeLinkCount: Int {
+    intakeEmails.reduce(0) { count, email in
+      guard email.reviewState == .needsReview else { return count }
+      let isReady = email.linkedOrderID == nil
+        && !email.detectedOrderNumber.isPlaceholderValidationValue
+        && !email.detectedTrackingNumber.isPlaceholderValidationValue
+      return count + (isReady ? 1 : 0)
+    }
+  }
+
+  var linkedReviewIntakeCount: Int {
+    intakeEmails.reduce(0) { count, email in
+      count + (email.reviewState == .needsReview && email.linkedOrderID != nil ? 1 : 0)
+    }
+  }
+
+  var clearReviewIntakeParseCount: Int {
+    intakeEmails.reduce(0) { count, email in
+      guard email.reviewState == .needsReview else { return count }
+      let isClear = !email.detectedOrderNumber.isPlaceholderValidationValue
+        && !email.detectedTrackingNumber.isPlaceholderValidationValue
+      return count + (isClear ? 1 : 0)
+    }
+  }
+
   var intakeParserDiagnostics: [IntakeParserDiagnostic] {
     intakeEmails.compactMap(intakeParserDiagnostic(for:))
       .sorted { lhs, rhs in
