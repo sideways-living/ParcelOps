@@ -609,6 +609,15 @@ struct AuditView: View {
     }.count
   }
 
+  private var auditEvidenceGridColumns: [GridItem] {
+    let count = horizontalSizeClass == .compact ? 2 : 3
+    return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+  }
+
+  private var auditEvidenceCardHeight: CGFloat {
+    horizontalSizeClass == .compact ? 132 : 122
+  }
+
   private func eventMatchesSearch(_ event: AuditEvent) -> Bool {
     let query = normalizedAuditSearch
     guard !query.isEmpty else { return true }
@@ -766,7 +775,7 @@ struct AuditView: View {
           Badge("\(auditEvidenceReadyCount)/\(auditEvidenceItems.count)", color: auditEvidenceReadyCount >= auditEvidenceItems.count - 1 ? .green : .orange)
         }
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 170 : 220), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: auditEvidenceGridColumns, alignment: .leading, spacing: 10) {
           ForEach(auditEvidenceItems, id: \.title) { item in
             VStack(alignment: .leading, spacing: 8) {
               HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -782,7 +791,7 @@ struct AuditView: View {
                 .fixedSize(horizontal: false, vertical: true)
             }
             .padding(10)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: auditEvidenceCardHeight, maxHeight: auditEvidenceCardHeight, alignment: .topLeading)
             .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           }
         }
