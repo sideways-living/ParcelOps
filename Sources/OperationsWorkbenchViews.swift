@@ -369,11 +369,7 @@ struct OperationsWorkbenchView: View {
   }
 
   private var activeGmailRefreshTasks: [ReviewTask] {
-    store.reviewTasks.filter { task in
-      task.linkedEntityType == .integration
-        && task.linkedEntityID.localizedCaseInsensitiveContains("gmail-latest-refresh-")
-        && task.status != .completed
-    }
+    store.activeGmailRefreshTasks
   }
 
   private var microsoft365ReleaseBlockingCount: Int {
@@ -409,11 +405,7 @@ struct OperationsWorkbenchView: View {
   }
 
   private var activeMicrosoft365ReleaseTasks: [ReviewTask] {
-    store.reviewTasks.filter { task in
-      task.linkedEntityType == .integration
-        && task.title.localizedCaseInsensitiveContains("Outlook release self-check")
-        && task.status != .completed
-    }
+    store.activeMicrosoft365ReleaseTasks
   }
 
   private var mailboxFetchedCount: Int {

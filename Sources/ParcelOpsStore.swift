@@ -6089,6 +6089,22 @@ final class ParcelOpsStore {
     developmentStatusTaskCount + developmentStatusHandoffCount + developmentStatusDraftCount
   }
 
+  var activeGmailRefreshTasks: [ReviewTask] {
+    reviewTasks.filter { task in
+      task.linkedEntityType == .integration
+        && task.linkedEntityID.localizedCaseInsensitiveContains("gmail-latest-refresh-")
+        && task.status != .completed
+    }
+  }
+
+  var activeMicrosoft365ReleaseTasks: [ReviewTask] {
+    reviewTasks.filter { task in
+      task.linkedEntityType == .integration
+        && task.title.localizedCaseInsensitiveContains("Outlook release self-check")
+        && task.status != .completed
+    }
+  }
+
   var policiesNeedingReview: [SLAPolicy] {
     slaPolicies.filter { $0.reviewState != .accepted }
   }
