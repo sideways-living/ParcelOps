@@ -155,7 +155,7 @@ struct ParcelOpsRootView: View {
   @State private var sidebarSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-  private let desktopSidebarWidth: CGFloat = 520
+  private let desktopSidebarWidth: CGFloat = 560
 
   private var isSearchingSidebar: Bool {
     !sidebarSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -524,7 +524,7 @@ struct ParcelOpsRootView: View {
 
       sidebarReviewFooter
     }
-    .frame(width: desktopSidebarWidth)
+    .frame(minWidth: 340, idealWidth: desktopSidebarWidth, maxWidth: desktopSidebarWidth)
     .background(.bar)
   }
 
@@ -712,17 +712,26 @@ struct ParcelOpsRootView: View {
       route(to: section)
     } label: {
       VStack(alignment: .leading, spacing: 2) {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .center, spacing: 10) {
           Image(systemName: section.symbol)
             .font(.body.weight(.bold))
-            .frame(width: 24, height: 26, alignment: .center)
+            .frame(width: 28, height: 30, alignment: .center)
             .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
-          Text(section.title)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
-            .lineLimit(2)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+          VStack(alignment: .leading, spacing: 2) {
+            Text(section.title)
+              .font(.subheadline.weight(.semibold))
+              .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+              .lineLimit(2)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(sidebarRouteHint(for: section))
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .lineLimit(2)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+
           Spacer(minLength: 8)
           if let shortcut = routeShortcut(for: section) {
             Text(shortcut.label)
@@ -746,11 +755,47 @@ struct ParcelOpsRootView: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.horizontal, 12)
-      .padding(.vertical, 9)
+      .padding(.vertical, 10)
       .background(selection == section ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8))
+      .overlay(RoundedRectangle(cornerRadius: 8).stroke(selection == section ? Color.accentColor.opacity(0.28) : Color.clear))
     }
     .buttonStyle(.plain)
     .padding(.horizontal, 6)
+  }
+
+  private func sidebarRouteHint(for section: ParcelSection) -> String {
+    switch section {
+    case .dashboard:
+      return "Daily start screen"
+    case .inbox:
+      return "Mailbox intake and triage"
+    case .orders:
+      return "Active orders and handoff trail"
+    case .workbench:
+      return "Exceptions and blocked work"
+    case .dispatch:
+      return "Manifest and readiness queue"
+    case .tasks:
+      return "Follow-ups, handoffs, drafts"
+    case .wishlist:
+      return "Wanted items and purchase prep"
+    case .audit:
+      return "Local activity history"
+    case .settings:
+      return "Mailbox setup and app options"
+    case .mailbox:
+      return "Provider refresh and intake review"
+    case .importQueue:
+      return "Captured import candidates"
+    case .acceptanceReview:
+      return "Accept or reject local records"
+    case .shipmentManifests:
+      return "Outbound manifest records"
+    case .dispatchReadiness:
+      return "Checklist status and blockers"
+    default:
+      return "Supporting local records"
+    }
   }
 
   private func attentionCount(for section: ParcelSection) -> Int? {
