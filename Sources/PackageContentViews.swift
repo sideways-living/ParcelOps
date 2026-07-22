@@ -9,6 +9,7 @@ struct PackageContentsView: View {
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var packageSearchText = ""
+  @State private var showAllPackageContents = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -41,6 +42,15 @@ struct PackageContentsView: View {
       || !packageSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedContents: [PackageContentRecord] {
+    guard !showAllPackageContents && !hasActiveFilters else { return filteredContents }
+    return Array(filteredContents.prefix(48))
+  }
+
+  private var hiddenDisplayedContentCount: Int {
+    max(filteredContents.count - displayedContents.count, 0)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -65,7 +75,25 @@ struct PackageContentsView: View {
           if filteredContents.isEmpty {
             MVPEmptyState(title: "No package contents match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local package content records." : "Add a package content record to track item verification, quantities, discrepancies, evidence, and receiving context.", symbol: "shippingbox.circle.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add content", action: hasActiveFilters ? clearFilters : store.addPackageContentPlaceholder)
           } else {
-            ForEach(filteredContents) { content in
+            if hiddenDisplayedContentCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedContents.count) content records", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedContentCount) older hidden", color: .secondary)
+                Button(showAllPackageContents ? "Show first 48" : "Show all \(filteredContents.count)", systemImage: showAllPackageContents ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllPackageContents.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local package content record. The default list is capped so Package Contents opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedContents) { content in
               PackageContentRow(content: content, store: store, linkedOrder: linkedOrder(for: content), costRecords: store.suggestedCostRecords(for: content), returnClaims: store.suggestedReturnClaims(for: content), procurementRequests: store.suggestedProcurementRequests(for: content), receivingInspections: store.suggestedReceivingInspections(for: content), inventoryReceipts: store.suggestedInventoryReceipts(for: content), storageLocations: store.suggestedStorageLocations(for: content), custodyRecords: store.suggestedCustodyRecords(for: content), labelReferences: store.suggestedLabelReferenceRecords(for: content), scanSessions: store.suggestedScanSessionRecords(for: content), shipmentManifests: store.suggestedShipmentManifestRecords(for: content), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: content)) { updatedContent in
                 store.updatePackageContent(updatedContent)
               } onVerified: {

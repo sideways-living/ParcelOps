@@ -7,6 +7,7 @@ struct ShipmentGroupsView: View {
   @State private var carrierFilter = ""
   @State private var reviewFilter: ReviewState?
   @State private var groupSearchText = ""
+  @State private var showAllShipmentGroups = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -33,6 +34,15 @@ struct ShipmentGroupsView: View {
       || !carrierFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       || reviewFilter != nil
       || !groupSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var displayedGroups: [ShipmentGroup] {
+    guard !showAllShipmentGroups && !hasActiveFilters else { return filteredGroups }
+    return Array(filteredGroups.prefix(48))
+  }
+
+  private var hiddenDisplayedGroupCount: Int {
+    max(filteredGroups.count - displayedGroups.count, 0)
   }
 
   var body: some View {
@@ -63,7 +73,25 @@ struct ShipmentGroupsView: View {
               action: hasActiveFilters ? clearFilters : store.addShipmentGroupPlaceholder
             )
           } else {
-            ForEach(filteredGroups) { group in
+            if hiddenDisplayedGroupCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedGroups.count) shipment groups", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedGroupCount) older hidden", color: .secondary)
+                Button(showAllShipmentGroups ? "Show first 48" : "Show all \(filteredGroups.count)", systemImage: showAllShipmentGroups ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllShipmentGroups.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local shipment group. The default list is capped so Shipment Groups opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedGroups) { group in
               ShipmentGroupRow(group: group, store: store, linkedOrders: linkedOrders(for: group), importQueueItems: store.importQueueItems(for: group), acceptanceRecords: store.acceptanceRecords(for: group), playbooks: store.suggestedPlaybooks(for: group), handoffNotes: store.handoffNotes(for: group), customerProfiles: store.suggestedCustomerProfiles(for: group), destinationAddresses: store.suggestedDestinationAddresses(for: group), deliveryInstructions: store.suggestedDeliveryInstructions(for: group), packageContents: store.suggestedPackageContents(for: group)) { updatedGroup in
                 store.updateShipmentGroup(updatedGroup)
               } onReviewed: {

@@ -5,6 +5,7 @@ struct EvidenceView: View {
   @State private var selectedEntityType: EvidenceLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var evidenceSearchText = ""
+  @State private var showAllEvidenceAttachments = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var baseFilteredAttachments: [EvidenceAttachment] {
@@ -29,8 +30,14 @@ struct EvidenceView: View {
       || !evidenceSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedAttachments: [EvidenceAttachment] {
+    guard !showAllEvidenceAttachments && !hasActiveFilters else { return filteredAttachments }
+    return Array(filteredAttachments.prefix(48))
+  }
 
-
+  private var hiddenDisplayedAttachmentCount: Int {
+    max(filteredAttachments.count - displayedAttachments.count, 0)
+  }
 
   private var inboxCreatedOrdersWithEvidence: [TrackedOrder] {
     store.operatorSourceOrders.filter { order in
@@ -190,7 +197,25 @@ struct EvidenceView: View {
           if filteredAttachments.isEmpty {
             MVPEmptyState(title: "No evidence matches this view", detail: hasActiveFilters ? "Clear search or filters to return to all local evidence records." : "Evidence appears here when local attachments or placeholder file references are linked to operational records.", symbol: "paperclip", actionTitle: hasActiveFilters ? "Clear filters" : nil, action: hasActiveFilters ? clearFilters : nil)
           } else {
-            ForEach(filteredAttachments) { attachment in
+            if hiddenDisplayedAttachmentCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedAttachments.count) attachments", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedAttachmentCount) older hidden", color: .secondary)
+                Button(showAllEvidenceAttachments ? "Show first 48" : "Show all \(filteredAttachments.count)", systemImage: showAllEvidenceAttachments ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllEvidenceAttachments.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local evidence record. The default list is capped so Evidence opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedAttachments) { attachment in
               EvidenceAttachmentRow(attachment: attachment, store: store, linkedOrder: linkedOrder(for: attachment), shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment), destinationAddresses: store.suggestedDestinationAddresses(for: attachment), deliveryInstructions: store.suggestedDeliveryInstructions(for: attachment), packageContents: store.suggestedPackageContents(for: attachment)) {
                 store.markEvidenceReviewed(attachment)
               } onRemove: {
