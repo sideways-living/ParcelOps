@@ -7,6 +7,7 @@ struct MailboxView: View {
   @State private var showResolvedIntakeEmails = false
   @State private var providerSetupFeedbackMessage: String?
   @State private var showAdvancedMailboxEvidence = false
+  @State private var showProviderSetupDetails = false
 
   private var normalizedIntakeSearch: String {
     intakeSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -541,6 +542,30 @@ struct MailboxView: View {
             .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
 
+        SettingsPanel(title: "Mailbox provider setup details", symbol: "slider.horizontal.3") {
+          VStack(alignment: .leading, spacing: 10) {
+            Text(showProviderSetupDetails ? "Setup editors are visible. Use them when changing providers, credentials, OAuth values, or mock/real refresh settings." : "Setup editors are hidden so Mailbox Monitor opens faster. Latest refresh results and detected order emails stay visible below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            MetricStrip(items: [
+              ("SpaceMail", "\(store.spaceMailIMAPConnections.count)", store.spaceMailIMAPConnections.isEmpty ? .secondary : .blue),
+              ("Gmail", "\(store.gmailMailboxConnections.count)", store.gmailMailboxConnections.isEmpty ? .secondary : .teal),
+              ("Outlook", "\(store.microsoft365MailboxConnections.count)", store.microsoft365MailboxConnections.isEmpty ? .secondary : .orange)
+            ])
+
+            CompactActionRow {
+              Button(showProviderSetupDetails ? "Hide setup details" : "Show setup details", systemImage: showProviderSetupDetails ? "eye.slash" : "slider.horizontal.3") {
+                showProviderSetupDetails.toggle()
+              }
+              .buttonStyle(.bordered)
+              Badge(showProviderSetupDetails ? "Editors visible" : "Editors hidden", color: showProviderSetupDetails ? .teal : .secondary)
+            }
+          }
+        }
+
+        if showProviderSetupDetails {
         SettingsPanel(title: "SpaceMail IMAP setup", symbol: "server.rack") {
           Text("Use SpaceMail for IMAP mailboxes. Gmail covers Google-hosted mailboxes, and Outlook / Microsoft 365 covers Microsoft-hosted mailboxes; all feed the same local Inbox intake path.")
             .font(.subheadline)
@@ -764,6 +789,7 @@ struct MailboxView: View {
             }
           }
         }
+        }
 
         SettingsPanel(title: "After mailbox refresh", symbol: "arrow.right.circle.fill") {
           VStack(alignment: .leading, spacing: 12) {
@@ -852,6 +878,7 @@ struct MailboxView: View {
           latestGmailSummary: latestGmailSummary
         )
 
+        if showProviderSetupDetails {
         SettingsPanel(title: "Outlook / Microsoft 365 setup", symbol: "mail.stack.fill") {
           Text("Use Outlook / Microsoft 365 when the active mailbox is Microsoft-hosted. Real sign-in and manual Graph refresh remain explicit, read-only, and isolated from SpaceMail and Gmail.")
             .font(.subheadline)
@@ -910,6 +937,7 @@ struct MailboxView: View {
               store.dismissFilteredMicrosoft365Message(message, for: connection)
             }
           }
+        }
         }
 
         SettingsPanel(title: "Local sample mailbox import", symbol: "tray.and.arrow.down.fill") {
