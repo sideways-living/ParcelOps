@@ -4182,6 +4182,8 @@ private func dashboardMailboxSourceColor(_ summary: OrderMailboxSourceSummary) -
   }
 }
 
+private let dashboardCompactRecordLimit = 6
+
 private func uniqueDashboardOrders(_ orders: [TrackedOrder]) -> [TrackedOrder] {
   uniqueDashboardRecords(orders)
 }
@@ -4190,12 +4192,13 @@ private func uniqueDashboardShipmentManifests(_ manifests: [ShipmentManifestReco
   uniqueDashboardRecords(manifests)
 }
 
-private func uniqueDashboardRecords<Record: Identifiable>(_ records: [Record]) -> [Record] where Record.ID: Hashable {
+private func uniqueDashboardRecords<Record: Identifiable>(_ records: [Record], limit: Int = dashboardCompactRecordLimit) -> [Record] where Record.ID: Hashable {
   var seen: Set<Record.ID> = []
   var unique: [Record] = []
   for record in records where !seen.contains(record.id) {
     seen.insert(record.id)
     unique.append(record)
+    if unique.count >= limit { break }
   }
   return unique
 }
