@@ -155,7 +155,7 @@ struct ParcelOpsRootView: View {
   @State private var sidebarSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-  private let desktopSidebarWidth: CGFloat = 440
+  private let desktopSidebarWidth: CGFloat = 500
 
   private var isSearchingSidebar: Bool {
     !sidebarSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -471,7 +471,7 @@ struct ParcelOpsRootView: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
 
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 186), spacing: 8)], alignment: .leading, spacing: 8) {
+      LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), alignment: .leading, spacing: 8) {
         ForEach(dailyFocusSections) { section in
           let count = attentionCount(for: section) ?? 0
           Button {
@@ -490,7 +490,7 @@ struct ParcelOpsRootView: View {
                 Text(sidebarDailyFocusDetail(for: section, count: count))
                   .font(.caption2)
                   .foregroundStyle(.secondary)
-                  .lineLimit(2)
+                  .lineLimit(3)
                   .fixedSize(horizontal: false, vertical: true)
               }
 
@@ -506,7 +506,7 @@ struct ParcelOpsRootView: View {
               }
             }
             .font(.caption.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 92, maxHeight: 92, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: 106, maxHeight: 106, alignment: .topLeading)
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
