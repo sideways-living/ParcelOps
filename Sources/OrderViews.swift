@@ -3089,7 +3089,7 @@ struct OrderEditView: View {
         }
       }
       #if os(macOS)
-      .frame(minWidth: 560, minHeight: 620)
+      .frame(minWidth: 500, idealWidth: 620, maxWidth: 760, minHeight: 360, idealHeight: 580, maxHeight: 640)
       #endif
     }
   }

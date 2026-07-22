@@ -3975,7 +3975,7 @@ struct IntakeEmailEditView: View {
         }
       }
       #if os(macOS)
-      .frame(minWidth: 520, minHeight: 520)
+      .frame(minWidth: 460, idealWidth: 560, maxWidth: 680, minHeight: 320, idealHeight: 500, maxHeight: 600)
       #endif
     }
   }
