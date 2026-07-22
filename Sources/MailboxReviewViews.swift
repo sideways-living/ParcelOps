@@ -8,6 +8,7 @@ struct MailboxView: View {
   @State private var providerSetupFeedbackMessage: String?
   @State private var showAdvancedMailboxEvidence = false
   @State private var showProviderSetupDetails = false
+  @State private var showMailboxReviewTools = false
 
   private var normalizedIntakeSearch: String {
     intakeSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -28,6 +29,13 @@ struct MailboxView: View {
   private var hiddenResolvedIntakeCount: Int {
     guard normalizedIntakeSearch.isEmpty && !showResolvedIntakeEmails else { return 0 }
     return store.intakeEmails.filter { $0.reviewState == .reviewed || $0.reviewState == .ignored }.count
+  }
+
+  private var shouldShowMailboxReviewTools: Bool {
+    showMailboxReviewTools
+      || showProviderSetupDetails
+      || showAdvancedMailboxEvidence
+      || !store.intakeParserDiagnostics.isEmpty
   }
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
@@ -523,15 +531,8 @@ struct MailboxView: View {
 
         activeMailboxProviderPanel
         MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store, showMailboxLink: false)
-        MailboxProviderChoiceGuideCard()
-
-        MailboxReviewStartPanel(store: store)
-
-        IntakeParserRegressionPanel(store: store)
-
-        wishlistOrderWatchPanel
-
-        advancedMailboxEvidencePanel
+        detectedOrderEmailsPanel
+        mailboxReviewToolsTogglePanel
 
         if let providerSetupFeedbackMessage {
           Label(providerSetupFeedbackMessage, systemImage: "checkmark.circle.fill")
@@ -541,6 +542,54 @@ struct MailboxView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
+
+        if shouldShowMailboxReviewTools {
+          mailboxReviewSupportingTools
+        }
+      }
+      .padding(horizontalSizeClass == .compact ? 14 : 24)
+    }
+  }
+
+  private var mailboxReviewToolsTogglePanel: some View {
+    SettingsPanel(title: "Mailbox review tools", symbol: "line.3.horizontal.decrease.circle.fill") {
+      Text(shouldShowMailboxReviewTools ? "Provider setup, parser diagnostics, sample import tools, refresh evidence, and missed-order investigation are visible." : "Mailbox Monitor opens with provider status and detected order emails first. Open tools only when changing setup, checking parser diagnostics, importing samples, or investigating missed mail.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      MetricStrip(items: [
+        ("Detected", "\(visibleIntakeEmails.count)", visibleIntakeEmails.isEmpty ? .secondary : .blue),
+        ("Need review", "\(visibleReviewIntakeCount)", visibleReviewIntakeCount == 0 ? .green : .orange),
+        ("Fetched", "\(latestMailboxFetchedCount)", latestMailboxFetchedCount > 0 ? .blue : .secondary),
+        ("Imported", "\(latestMailboxImportedCount)", latestMailboxImportedCount > 0 ? .green : .secondary),
+        ("Diagnostics", "\(store.intakeParserDiagnostics.count)", store.intakeParserDiagnostics.isEmpty ? .green : .purple)
+      ])
+
+      CompactActionRow {
+        Button(shouldShowMailboxReviewTools ? "Hide review tools" : "Show review tools", systemImage: shouldShowMailboxReviewTools ? "chevron.up.circle" : "chevron.down.circle") {
+          showMailboxReviewTools.toggle()
+        }
+        .buttonStyle(.bordered)
+
+        if !store.intakeParserDiagnostics.isEmpty && !showMailboxReviewTools {
+          Badge("Diagnostics available", color: .purple)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var mailboxReviewSupportingTools: some View {
+    MailboxProviderChoiceGuideCard()
+
+    MailboxReviewStartPanel(store: store)
+
+    IntakeParserRegressionPanel(store: store)
+
+    wishlistOrderWatchPanel
+
+    advancedMailboxEvidencePanel
 
         SettingsPanel(title: "Mailbox provider setup details", symbol: "slider.horizontal.3") {
           VStack(alignment: .leading, spacing: 10) {
@@ -986,6 +1035,10 @@ struct MailboxView: View {
           }
         }
 
+    mailboxEventsPanel
+  }
+
+  private var detectedOrderEmailsPanel: some View {
         SettingsPanel(title: "Detected order emails", symbol: "envelope.open.fill") {
           if store.intakeEmails.isEmpty {
             MVPEmptyState(title: "No forwarded emails yet", detail: "Run an active mailbox provider refresh, or import sample messages, to populate the mailbox review flow.", symbol: "envelope.badge")
@@ -1069,14 +1122,13 @@ struct MailboxView: View {
             }
           }
         }
+  }
 
-        SettingsPanel(title: "Mailbox events", symbol: "envelope.badge.fill") {
-          ForEach(store.mailEvents) { event in
-            MailEventRow(event: event)
-          }
-        }
+  private var mailboxEventsPanel: some View {
+    SettingsPanel(title: "Mailbox events", symbol: "envelope.badge.fill") {
+      ForEach(store.mailEvents) { event in
+        MailEventRow(event: event)
       }
-      .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
   }
 }
