@@ -539,42 +539,71 @@ struct ParcelOpsRootView: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
 
-      LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), alignment: .leading, spacing: 8) {
+      LazyVGrid(columns: [GridItem(.flexible(), spacing: 8)], alignment: .leading, spacing: 8) {
         ForEach(dailyFocusSections) { section in
           let count = attentionCount(for: section) ?? 0
           Button {
             route(to: section)
           } label: {
-            VStack(alignment: .leading, spacing: 6) {
-              HStack(alignment: .top, spacing: 6) {
-                Image(systemName: section.symbol)
-                  .frame(width: 18, height: 18)
-                Spacer(minLength: 4)
-                if count > 0 {
-                  Text("\(count)")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background(attentionColor(for: section, count: count), in: Capsule())
-                }
+            HStack(alignment: .top, spacing: 10) {
+              Image(systemName: section.symbol)
+                .font(.body.weight(.semibold))
+                .frame(width: 22, height: 24)
+
+              VStack(alignment: .leading, spacing: 3) {
+                Text(section.title)
+                  .font(.caption.weight(.semibold))
+                  .lineLimit(1)
+                Text(sidebarDailyFocusDetail(for: section, count: count))
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+                  .fixedSize(horizontal: false, vertical: true)
               }
 
-              Text(section.shortTitle)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+              Spacer(minLength: 6)
+
+              if count > 0 {
+                Text("\(count)")
+                  .font(.caption2.weight(.bold))
+                  .foregroundStyle(.white)
+                  .padding(.horizontal, 6)
+                  .padding(.vertical, 2)
+                  .background(attentionColor(for: section, count: count), in: Capsule())
+              }
             }
             .font(.caption.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 72, maxHeight: 72, alignment: .topLeading)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, minHeight: 62, maxHeight: 62, alignment: .topLeading)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 8)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
           }
           .buttonStyle(.plain)
           .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
         }
       }
+    }
+  }
+
+  private func sidebarDailyFocusDetail(for section: ParcelSection, count: Int) -> String {
+    if count > 0 {
+      return "Needs attention in the daily queue."
+    }
+    switch section {
+    case .inbox:
+      return "Mailbox and intake triage."
+    case .orders:
+      return "Order review and tracking."
+    case .workbench:
+      return "Exceptions and mismatches."
+    case .dispatch:
+      return "Manifests and readiness."
+    case .tasks:
+      return "Tasks, handoffs, drafts."
+    case .wishlist:
+      return "Wanted items and purchase prep."
+    default:
+      return section.shortTitle
     }
   }
 
