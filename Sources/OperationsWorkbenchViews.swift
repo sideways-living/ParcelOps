@@ -112,25 +112,22 @@ struct OperationsWorkbenchView: View {
   }
 
   private var inboxCreatedOrders: [TrackedOrder] {
-    Array(
-      store.operatorSourceOrders
-        .filter { order in
-          needsPreDispatchVerification(order)
-            || order.reviewState != .accepted
-            || needsDispatchSetup(order)
-            || needsInboxDispatchReadiness(order)
-            || hasReopenedInboxDispatchHandoff(order)
+    store.operatorSourceOrders
+      .filter { order in
+        needsPreDispatchVerification(order)
+          || order.reviewState != .accepted
+          || needsDispatchSetup(order)
+          || needsInboxDispatchReadiness(order)
+          || hasReopenedInboxDispatchHandoff(order)
+      }
+      .sorted { first, second in
+        let firstPriority = inboxOrderFollowUpPriority(first)
+        let secondPriority = inboxOrderFollowUpPriority(second)
+        if firstPriority == secondPriority {
+          return first.orderNumber.localizedCaseInsensitiveCompare(second.orderNumber) == .orderedAscending
         }
-        .sorted { first, second in
-          let firstPriority = inboxOrderFollowUpPriority(first)
-          let secondPriority = inboxOrderFollowUpPriority(second)
-          if firstPriority == secondPriority {
-            return first.orderNumber.localizedCaseInsensitiveCompare(second.orderNumber) == .orderedAscending
-          }
-          return firstPriority > secondPriority
-        }
-        .prefix(5)
-    )
+        return firstPriority > secondPriority
+      }
   }
 
   private var draftFollowUpItems: [DraftMessage] {
@@ -138,7 +135,15 @@ struct OperationsWorkbenchView: View {
     let otherDrafts = store.draftMessagesNeedingReview.filter { draft in
       !providerDrafts.contains(where: { $0.id == draft.id })
     }
-    return Array((providerDrafts + otherDrafts).prefix(5))
+    return providerDrafts + otherDrafts
+  }
+
+  private var visibleInboxCreatedOrders: [TrackedOrder] {
+    showAllWorkbenchRows ? inboxCreatedOrders : Array(inboxCreatedOrders.prefix(5))
+  }
+
+  private var visibleDraftFollowUpItems: [DraftMessage] {
+    showAllWorkbenchRows ? draftFollowUpItems : Array(draftFollowUpItems.prefix(5))
   }
 
   private var developmentStatusTasks: [ReviewTask] {
@@ -2362,7 +2367,7 @@ struct OperationsWorkbenchView: View {
           : "Partial Inbox-created or Wishlist-linked orders stay here until missing order, tracking, or destination details are confirmed. Do this before dispatch setup.")
           .font(.callout)
           .foregroundStyle(.secondary)
-        ForEach(inboxCreatedOrders) { order in
+        ForEach(visibleInboxCreatedOrders) { order in
           WorkbenchInboxOrderRow(
             order: order,
             needsDispatchSetup: needsDispatchSetup(order),
@@ -2375,6 +2380,11 @@ struct OperationsWorkbenchView: View {
             store: store
           )
         }
+        if inboxCreatedOrders.count > visibleInboxCreatedOrders.count {
+          Text("\(inboxCreatedOrders.count - visibleInboxCreatedOrders.count) more source orders are available. Use Show all visible rows in the main Workbench queue controls when you need the full follow-up list.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
       }
     }
   }
@@ -2386,8 +2396,13 @@ struct OperationsWorkbenchView: View {
         Text("Drafts created from local work stay visible here until they are marked ready, sent locally, or reopened for another pass.")
           .font(.callout)
           .foregroundStyle(.secondary)
-        ForEach(draftFollowUpItems) { draft in
+        ForEach(visibleDraftFollowUpItems) { draft in
           WorkbenchDraftFollowUpRow(draft: draft, store: store)
+        }
+        if draftFollowUpItems.count > visibleDraftFollowUpItems.count {
+          Text("\(draftFollowUpItems.count - visibleDraftFollowUpItems.count) more drafts are available in Communication.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         NavigationLink {
           CommunicationView(store: store)
