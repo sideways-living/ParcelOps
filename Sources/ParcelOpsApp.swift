@@ -155,7 +155,9 @@ struct ParcelOpsRootView: View {
   @State private var sidebarSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-  private let desktopSidebarWidth: CGFloat = 500
+  private let desktopSidebarMinimumWidth: CGFloat = 360
+  private let desktopSidebarIdealWidth: CGFloat = 500
+  private let desktopSidebarMaximumWidth: CGFloat = 540
 
   private var isSearchingSidebar: Bool {
     !sidebarSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -326,21 +328,28 @@ struct ParcelOpsRootView: View {
   }
 
   private var desktopLayout: some View {
-    HStack(spacing: 0) {
-      desktopSidebar
+    GeometryReader { proxy in
+      let sidebarWidth = min(
+        desktopSidebarMaximumWidth,
+        max(desktopSidebarMinimumWidth, min(desktopSidebarIdealWidth, proxy.size.width * 0.34))
+      )
 
-      Divider()
+      HStack(spacing: 0) {
+        desktopSidebar(width: sidebarWidth)
 
-      NavigationStack {
-        content(for: selection)
-          .id(selection)
-          .navigationTitle(selection.title)
+        Divider()
+
+        NavigationStack {
+          content(for: selection)
+            .id(selection)
+            .navigationTitle(selection.title)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
   }
 
-  private var desktopSidebar: some View {
+  private func desktopSidebar(width: CGFloat) -> some View {
     VStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 10) {
         HStack(alignment: .firstTextBaseline) {
@@ -379,7 +388,7 @@ struct ParcelOpsRootView: View {
           } else {
             VStack(alignment: .leading, spacing: 8) {
               sidebarSectionHeader("Daily Focus")
-              sidebarDailyFocusSummary
+              sidebarDailyFocusSummary(sidebarWidth: width)
                 .padding(.horizontal, 18)
             }
 
@@ -451,7 +460,7 @@ struct ParcelOpsRootView: View {
 
       sidebarReviewFooter
     }
-    .frame(width: desktopSidebarWidth)
+    .frame(width: width)
     .background(.bar)
   }
 
@@ -464,14 +473,18 @@ struct ParcelOpsRootView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private var sidebarDailyFocusSummary: some View {
-    VStack(alignment: .leading, spacing: 8) {
+  private func sidebarDailyFocusSummary(sidebarWidth: CGFloat) -> some View {
+    let cardColumns = sidebarWidth < 430
+      ? [GridItem(.flexible(), spacing: 8)]
+      : Array(repeating: GridItem(.flexible(), spacing: 8), count: 2)
+
+    return VStack(alignment: .leading, spacing: 8) {
       Text("Start with the row that has the highest active count. Advanced records stay hidden unless you need diagnostics.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
 
-      LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), alignment: .leading, spacing: 8) {
+      LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 8) {
         ForEach(dailyFocusSections) { section in
           let count = attentionCount(for: section) ?? 0
           Button {
@@ -506,7 +519,7 @@ struct ParcelOpsRootView: View {
               }
             }
             .font(.caption.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 106, maxHeight: 106, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: 112, maxHeight: 112, alignment: .topLeading)
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
