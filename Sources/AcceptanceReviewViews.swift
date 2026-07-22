@@ -8,8 +8,10 @@ struct AcceptanceReviewView: View {
   @State private var selectedReviewState: ReviewState?
   @State private var grouping: AcceptanceGrouping = .confidence
   @State private var acceptanceSearchText = ""
+  @State private var showAllAcceptanceRows = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
+  private let acceptanceSectionLimit = 24
 
   private var baseFilteredCandidates: [AcceptanceCandidate] {
     store.filteredAcceptanceCandidates(
@@ -34,6 +36,10 @@ struct AcceptanceReviewView: View {
       || selectedConfidenceRange != .all
       || selectedReviewState != nil
       || !acceptanceSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private func visibleAcceptanceCandidates(_ candidates: [AcceptanceCandidate]) -> [AcceptanceCandidate] {
+    showAllAcceptanceRows ? candidates : Array(candidates.prefix(acceptanceSectionLimit))
   }
 
   private var candidatesNeedingDecision: [AcceptanceCandidate] {
@@ -126,6 +132,29 @@ struct AcceptanceReviewView: View {
         )
         acceptanceReadinessPanel
         filters
+        SettingsPanel(title: "Acceptance results", symbol: "line.3.horizontal.decrease.circle") {
+          CompactActionRow {
+            Text("\(filteredCandidates.count) visible candidates")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            if hasActiveFilters {
+              Badge("\(baseFilteredCandidates.count) after filters", color: .blue)
+            }
+            if filteredCandidates.count > acceptanceSectionLimit {
+              Button(showAllAcceptanceRows ? "Use capped groups" : "Show all candidates", systemImage: showAllAcceptanceRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                withAnimation(.snappy) {
+                  showAllAcceptanceRows.toggle()
+                }
+              }
+              .buttonStyle(.bordered)
+            }
+          }
+          if filteredCandidates.count > acceptanceSectionLimit {
+            Text(showAllAcceptanceRows ? "All matching acceptance candidates are visible." : "Acceptance groups show the first \(acceptanceSectionLimit) rows by default so the screen opens quickly. Search and filters still evaluate all local candidates.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
 
         if filteredCandidates.isEmpty {
           SettingsPanel(title: "Acceptance candidates", symbol: "checkmark.rectangle.stack.fill") {
@@ -141,7 +170,7 @@ struct AcceptanceReviewView: View {
           ForEach(store.groupedAcceptanceCandidates(filteredCandidates, by: grouping), id: \.title) { group in
             SettingsPanel(title: "\(group.title) (\(group.candidates.count))", symbol: grouping.symbol) {
               VStack(spacing: 12) {
-                ForEach(group.candidates) { candidate in
+                ForEach(visibleAcceptanceCandidates(group.candidates)) { candidate in
                   AcceptanceCandidateRow(
                     candidate: candidate,
                     store: store,

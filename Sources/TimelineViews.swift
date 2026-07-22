@@ -7,8 +7,10 @@ struct TimelineView: View {
   @State private var reviewFilter: ReviewState?
   @State private var sourceFilter: TimelineActivitySource?
   @State private var timelineSearchText = ""
+  @State private var showAllTimelineRows = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
+  private let timelineSectionLimit = 48
 
   private var baseFilteredActivities: [TimelineActivity] {
     store.filteredTimelineActivities(
@@ -33,6 +35,10 @@ struct TimelineView: View {
       || reviewFilter != nil
       || sourceFilter != nil
       || !timelineSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private func visibleTimelineActivities(_ activities: [TimelineActivity]) -> [TimelineActivity] {
+    showAllTimelineRows ? activities : Array(activities.prefix(timelineSectionLimit))
   }
   private var inboxDispatchTimelineActivities: [TimelineActivity] {
     store.timelineActivities.filter(\.isInboxDispatchHandoffActivity)
@@ -137,14 +143,26 @@ struct TimelineView: View {
         inboxDispatchTimelinePanel
 
         SettingsPanel(title: "Timeline results", symbol: "calendar.badge.clock") {
-          HStack {
+          CompactActionRow {
             Text("\(filteredActivities.count) visible timeline activities")
               .font(.caption)
               .foregroundStyle(.secondary)
             if hasActiveFilters {
               Badge("\(baseFilteredActivities.count) after filters", color: .blue)
             }
-            Spacer()
+            if filteredActivities.count > timelineSectionLimit {
+              Button(showAllTimelineRows ? "Use capped groups" : "Show all timeline rows", systemImage: showAllTimelineRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                withAnimation(.snappy) {
+                  showAllTimelineRows.toggle()
+                }
+              }
+              .buttonStyle(.bordered)
+            }
+          }
+          if filteredActivities.count > timelineSectionLimit {
+            Text(showAllTimelineRows ? "All matching timeline rows are visible." : "Timeline groups show the first \(timelineSectionLimit) rows by default so the screen opens quickly. Search and filters still evaluate the full local timeline.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
 
@@ -153,7 +171,7 @@ struct TimelineView: View {
         } else {
           ForEach(store.groupedTimelineActivities(filteredActivities)) { group in
             SettingsPanel(title: group.title, symbol: group.symbol) {
-              ForEach(group.activities) { activity in
+              ForEach(visibleTimelineActivities(group.activities)) { activity in
                 TimelineActivityRow(activity: activity, store: store, linkedOrder: linkedOrder(for: activity), shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
                   store.createReviewTask(from: activity)
                 } onCreateDraft: {

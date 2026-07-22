@@ -5,7 +5,9 @@ struct AutomationView: View {
   @State private var selectedEnabledState: Bool?
   @State private var selectedReviewState: ReviewState?
   @State private var ruleSearchText = ""
+  @State private var showAllAutomationRules = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  private let automationRuleLimit = 48
 
   private var baseFilteredRules: [AutomationRule] {
     store.automationRules.filter { rule in
@@ -39,6 +41,10 @@ struct AutomationView: View {
       || !ruleSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedRules: [AutomationRule] {
+    showAllAutomationRules ? filteredRules : Array(filteredRules.prefix(automationRuleLimit))
+  }
+
   private var steps: [(String, String, String)] {
     [
       ("Mailbox parsing intent", "Document how local intake should be parsed before future automation runs anything.", "envelope.open.fill"),
@@ -63,22 +69,34 @@ struct AutomationView: View {
         filterBar
 
         SettingsPanel(title: "Rules", symbol: "arrow.triangle.branch") {
-          HStack {
+          CompactActionRow {
             Text("\(filteredRules.count) visible rules")
               .font(.caption)
               .foregroundStyle(.secondary)
             if hasActiveFilters {
               Badge("\(baseFilteredRules.count) after filters", color: .blue)
             }
-            Spacer()
+            if filteredRules.count > automationRuleLimit {
+              Button(showAllAutomationRules ? "Use capped list" : "Show all rules", systemImage: showAllAutomationRules ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                withAnimation(.snappy) {
+                  showAllAutomationRules.toggle()
+                }
+              }
+              .buttonStyle(.bordered)
+            }
             Button("Add rule", systemImage: "plus", action: store.addAutomationRulePlaceholder)
               .buttonStyle(.borderedProminent)
+          }
+          if filteredRules.count > automationRuleLimit {
+            Text(showAllAutomationRules ? "All matching automation intent records are visible." : "Showing the first \(automationRuleLimit) automation intent records by default. Search and filters still evaluate the full local rule set.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
 
           if filteredRules.isEmpty {
             MVPEmptyState(title: "No automation rules match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local automation intent records." : "Add a local automation rule placeholder to document future automation behavior without running integrations.", symbol: "arrow.triangle.branch", actionTitle: hasActiveFilters ? "Clear filters" : "Add rule", action: hasActiveFilters ? clearFilters : store.addAutomationRulePlaceholder)
           } else {
-            ForEach(filteredRules) { rule in
+            ForEach(displayedRules) { rule in
               AutomationRuleRow(rule: rule) {
                 store.toggleAutomationRule(rule)
               } onReviewed: {
