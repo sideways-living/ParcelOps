@@ -3703,6 +3703,8 @@ struct GmailMailboxReviewQueueSummary: View {
 }
 
 struct IntakeEmailRow: View {
+  private let inlineSuggestionLimit = 3
+
   var email: ForwardedEmailIntake
   var store: ParcelOpsStore
   var orders: [TrackedOrder]
@@ -3947,7 +3949,7 @@ struct IntakeEmailRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
-          ForEach(evidenceAttachments) { attachment in
+          ForEach(Array(evidenceAttachments.prefix(inlineSuggestionLimit))) { attachment in
             EvidenceAttachmentRow(attachment: attachment) {
               onReviewEvidence(attachment)
             } onRemove: {
@@ -3955,6 +3957,11 @@ struct IntakeEmailRow: View {
             } onCreateDraft: {
               onCreateDraft()
             }
+          }
+          if evidenceAttachments.count > inlineSuggestionLimit {
+            Text("\(evidenceAttachments.count - inlineSuggestionLimit) more evidence links are available in Evidence.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
       }
@@ -3964,10 +3971,15 @@ struct IntakeEmailRow: View {
           Label("Suggested contacts", systemImage: "person.crop.circle.badge.checkmark")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
-          ForEach(suggestedContacts) { contact in
+          ForEach(Array(suggestedContacts.prefix(inlineSuggestionLimit))) { contact in
             ContactSuggestionRow(contact: contact) {
               onDraftFromContact(contact)
             }
+          }
+          if suggestedContacts.count > inlineSuggestionLimit {
+            Text("\(suggestedContacts.count - inlineSuggestionLimit) more contact matches are available in Contacts.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
       }
@@ -3988,12 +4000,17 @@ struct IntakeEmailRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
-          ForEach(suggestedAccounts) { account in
+          ForEach(Array(suggestedAccounts.prefix(inlineSuggestionLimit))) { account in
             AccountSuggestionRow(account: account) {
               onTaskFromAccount(account)
             } onCreateDraft: {
               onDraftFromAccount(account)
             }
+          }
+          if suggestedAccounts.count > inlineSuggestionLimit {
+            Text("\(suggestedAccounts.count - inlineSuggestionLimit) more account matches are available in Accounts.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
       }
@@ -4014,12 +4031,17 @@ struct IntakeEmailRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
-          ForEach(suggestedProfiles) { profile in
+          ForEach(Array(suggestedProfiles.prefix(inlineSuggestionLimit))) { profile in
             VendorProfileSuggestionRow(profile: profile) {
               onTaskFromProfile(profile)
             } onCreateDraft: {
               onDraftFromProfile(profile)
             }
+          }
+          if suggestedProfiles.count > inlineSuggestionLimit {
+            Text("\(suggestedProfiles.count - inlineSuggestionLimit) more vendor profile matches are available in Vendor Profiles.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
       }
