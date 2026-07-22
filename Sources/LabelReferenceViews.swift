@@ -11,6 +11,7 @@ struct LabelReferencesView: View {
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var labelSearchText = ""
+  @State private var showAllLabelReferences = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -34,6 +35,15 @@ struct LabelReferencesView: View {
       || selectedLinkedEntityType != nil
       || selectedReviewState != nil
       || !labelSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var displayedRecords: [LabelReferenceRecord] {
+    guard !showAllLabelReferences && !hasActiveFilters else { return filteredRecords }
+    return Array(filteredRecords.prefix(48))
+  }
+
+  private var hiddenDisplayedRecordCount: Int {
+    max(filteredRecords.count - displayedRecords.count, 0)
   }
 
   var body: some View {
@@ -60,7 +70,25 @@ struct LabelReferencesView: View {
           if filteredRecords.isEmpty {
             MVPEmptyState(title: "No label references match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local label references." : "Add a local label placeholder to track barcodes, QR codes, shelf labels, return labels, custody labels, or evidence labels.", symbol: "barcode.viewfinder", actionTitle: hasActiveFilters ? "Clear filters" : "Add label", action: hasActiveFilters ? clearFilters : store.addLabelReferencePlaceholder)
           } else {
-            ForEach(filteredRecords) { record in
+            if hiddenDisplayedRecordCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedRecords.count) label references", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedRecordCount) older hidden", color: .secondary)
+                Button(showAllLabelReferences ? "Show first 48" : "Show all \(filteredRecords.count)", systemImage: showAllLabelReferences ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllLabelReferences.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local label reference. The default list is capped so Label References opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedRecords) { record in
               LabelReferenceRow(record: record, store: store, linkedOrder: linkedOrder(for: record), scanSessions: store.suggestedScanSessionRecords(for: record), shipmentManifests: store.suggestedShipmentManifestRecords(for: record), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
                 store.updateLabelReferenceRecord(updatedRecord)
               } onPrinted: {

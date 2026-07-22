@@ -10,6 +10,7 @@ struct ScanSessionsView: View {
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var scanSearchText = ""
+  @State private var showAllScanSessions = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -32,6 +33,15 @@ struct ScanSessionsView: View {
       || selectedLinkedEntityType != nil
       || selectedReviewState != nil
       || !scanSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var displayedRecords: [ScanSessionRecord] {
+    guard !showAllScanSessions && !hasActiveFilters else { return filteredRecords }
+    return Array(filteredRecords.prefix(48))
+  }
+
+  private var hiddenDisplayedRecordCount: Int {
+    max(filteredRecords.count - displayedRecords.count, 0)
   }
 
   var body: some View {
@@ -58,7 +68,25 @@ struct ScanSessionsView: View {
           if filteredRecords.isEmpty {
             MVPEmptyState(title: "No scan sessions match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local scan sessions." : "Add a local scan session placeholder to track expected and captured label values without scanner hardware.", symbol: "qrcode.viewfinder", actionTitle: hasActiveFilters ? "Clear filters" : "Add scan", action: hasActiveFilters ? clearFilters : store.addScanSessionPlaceholder)
           } else {
-            ForEach(filteredRecords) { record in
+            if hiddenDisplayedRecordCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedRecords.count) scan sessions", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedRecordCount) older hidden", color: .secondary)
+                Button(showAllScanSessions ? "Show first 48" : "Show all \(filteredRecords.count)", systemImage: showAllScanSessions ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllScanSessions.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local scan session. The default list is capped so Scan Sessions opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedRecords) { record in
               ScanSessionRow(record: record, store: store, linkedOrder: linkedOrder(for: record), shipmentManifests: store.suggestedShipmentManifestRecords(for: record), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
                 store.updateScanSessionRecord(updatedRecord)
               } onMatched: {
