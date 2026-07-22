@@ -2993,6 +2993,7 @@ private struct OperatorDashboardCard<Destination: View>: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var cardHeight: CGFloat { isCompact ? 166 : 154 }
 
   var body: some View {
     NavigationLink {
@@ -3006,9 +3007,11 @@ private struct OperatorDashboardCard<Destination: View>: View {
           VStack(alignment: .leading, spacing: 3) {
             Text(title)
               .font(.headline)
+              .lineLimit(1)
             Text(detail)
               .font(.caption)
               .foregroundStyle(.secondary)
+              .lineLimit(3)
               .fixedSize(horizontal: false, vertical: true)
           }
           Spacer(minLength: 8)
@@ -3021,9 +3024,10 @@ private struct OperatorDashboardCard<Destination: View>: View {
           .font(.caption.weight(.semibold))
           .foregroundStyle(tint)
           .lineLimit(isCompact ? 2 : 1)
+          .frame(maxWidth: .infinity, alignment: .leading)
       }
       .padding(14)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(maxWidth: .infinity, minHeight: cardHeight, maxHeight: cardHeight, alignment: .topLeading)
       .background(.background)
       .clipShape(RoundedRectangle(cornerRadius: 8))
       .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
