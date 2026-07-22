@@ -225,15 +225,7 @@ struct InboxView: View {
   }
 
   private var mailboxHealthAttentionCount: Int {
-    store.spaceMailIntakeHealthSummaries.filter {
-      $0.tone == "warning" || $0.pendingUncertainReviewCount > 0 || $0.parserIssueCount > 0 || $0.importedCount > 0
-    }.count
-      + store.gmailIntakeHealthSummaries.filter {
-        $0.tone == "warning" || $0.tone == "attention" || $0.pendingUncertainReviewCount > 0 || $0.importedCount > 0
-      }.count
-      + store.microsoft365IntakeHealthSummaries.filter {
-        $0.tone == "warning" || $0.tone == "attention" || $0.importedCount > 0 || $0.blockedCount > 0
-      }.count
+    store.mailboxHealthAttentionCount
   }
 
   private var mailboxProviderTestQueue: MailboxProviderTestQueueSummary {

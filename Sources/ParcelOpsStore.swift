@@ -8475,6 +8475,16 @@ final class ParcelOpsStore {
     totalSpaceMailUncertainCount + totalGmailUncertainSignalCount + totalMicrosoft365UncertainCount
   }
 
+  var mailboxHealthAttentionCount: Int {
+    spaceMailIntakeHealthSummaries.reduce(0) { count, summary in
+      count + ((summary.tone == "warning" || summary.pendingUncertainReviewCount > 0 || summary.parserIssueCount > 0 || summary.importedCount > 0) ? 1 : 0)
+    } + gmailIntakeHealthSummaries.reduce(0) { count, summary in
+      count + ((summary.tone == "warning" || summary.tone == "attention" || summary.pendingUncertainReviewCount > 0 || summary.importedCount > 0) ? 1 : 0)
+    } + microsoft365IntakeHealthSummaries.reduce(0) { count, summary in
+      count + ((summary.tone == "warning" || summary.tone == "attention" || summary.importedCount > 0 || summary.blockedCount > 0) ? 1 : 0)
+    }
+  }
+
   var gmailClassifierHintCount: Int {
     gmailMailboxConnections.reduce(0) { total, connection in
       total
