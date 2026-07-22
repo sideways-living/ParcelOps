@@ -1695,6 +1695,9 @@ struct OrderDetailView: View {
   @State private var isEditing = false
   @State private var feedbackMessage: String?
 
+  private let inlineSectionLimit = 6
+  private let timelineSectionLimit = 8
+
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var currentOrder: TrackedOrder {
     store.orders.first { $0.id == order.id } ?? order
@@ -1752,10 +1755,15 @@ struct OrderDetailView: View {
               .foregroundStyle(.secondary)
           } else {
             VStack(spacing: 10) {
-              ForEach(contacts) { contact in
+              ForEach(Array(contacts.prefix(inlineSectionLimit))) { contact in
                 ContactSuggestionRow(contact: contact) {
                   store.createDraftMessage(from: contact, linkedEntityType: .order, linkedEntityID: order.id.uuidString, label: order.orderNumber)
                 }
+              }
+              if contacts.count > inlineSectionLimit {
+                Text("\(contacts.count - inlineSectionLimit) more matching contacts are available in Contacts.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
               }
             }
           }
@@ -1952,12 +1960,17 @@ struct OrderDetailView: View {
             }
           } else {
             VStack(spacing: 10) {
-              ForEach(accounts) { account in
+              ForEach(Array(accounts.prefix(inlineSectionLimit))) { account in
                 AccountSuggestionRow(account: account) {
                   store.createReviewTask(from: account)
                 } onCreateDraft: {
                   store.createDraftMessage(from: account)
                 }
+              }
+              if accounts.count > inlineSectionLimit {
+                Text("\(accounts.count - inlineSectionLimit) more matching accounts are available in Accounts.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
               }
             }
           }
@@ -1977,12 +1990,17 @@ struct OrderDetailView: View {
             }
           } else {
             VStack(spacing: 10) {
-              ForEach(profiles) { profile in
+              ForEach(Array(profiles.prefix(inlineSectionLimit))) { profile in
                 VendorProfileSuggestionRow(profile: profile) {
                   store.createReviewTask(from: profile)
                 } onCreateDraft: {
                   store.createDraftMessage(from: profile)
                 }
+              }
+              if profiles.count > inlineSectionLimit {
+                Text("\(profiles.count - inlineSectionLimit) more matching vendor profiles are available in Vendor Profiles.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
               }
             }
           }
@@ -2052,7 +2070,7 @@ struct OrderDetailView: View {
               Text("No local SLA tasks or policies linked to this order.")
                 .foregroundStyle(.secondary)
             } else {
-              ForEach(tasks) { task in
+              ForEach(Array(tasks.prefix(inlineSectionLimit))) { task in
                 HStack {
                   VStack(alignment: .leading, spacing: 3) {
                     Text(task.title)
@@ -2069,10 +2087,21 @@ struct OrderDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
               }
 
-              ForEach(policies) { policy in
+              if tasks.count > inlineSectionLimit {
+                Text("\(tasks.count - inlineSectionLimit) more linked SLA tasks are available in Tasks.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+
+              ForEach(Array(policies.prefix(inlineSectionLimit))) { policy in
                 Text("\(policy.name): \(policy.responseTarget); \(policy.resolutionTarget)")
                   .font(.caption)
                   .foregroundStyle(policy.priority.color)
+              }
+              if policies.count > inlineSectionLimit {
+                Text("\(policies.count - inlineSectionLimit) more matching SLA policies are available in SLA Policies.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
               }
             }
           }
@@ -2108,7 +2137,7 @@ struct OrderDetailView: View {
                 .background(.quinary)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
-              ForEach(events) { event in
+              ForEach(Array(events.prefix(timelineSectionLimit))) { event in
                 TrackingEventRow(event: event, store: store, order: order, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), deliveryInstructions: store.suggestedDeliveryInstructions(for: event), packageContents: store.suggestedPackageContents(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
                   store.markTrackingEventReviewed(event)
                 } onRemove: {
@@ -2128,6 +2157,11 @@ struct OrderDetailView: View {
                 } relatedTasks: {
                   store.tasks(for: .trackingEvent, linkedEntityID: event.id.uuidString)
                 }
+              }
+              if events.count > timelineSectionLimit {
+                Text("\(events.count - timelineSectionLimit) more carrier events are available in Tracking.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
               }
             }
           }
@@ -2156,7 +2190,7 @@ struct OrderDetailView: View {
                 .background(.quinary)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
-              ForEach(attachments) { attachment in
+              ForEach(Array(attachments.prefix(inlineSectionLimit))) { attachment in
                 EvidenceAttachmentRow(attachment: attachment, shipmentGroups: store.suggestedShipmentGroups(for: attachment), customerProfiles: store.suggestedCustomerProfiles(for: attachment), destinationAddresses: store.suggestedDestinationAddresses(for: attachment), deliveryInstructions: store.suggestedDeliveryInstructions(for: attachment), packageContents: store.suggestedPackageContents(for: attachment)) {
                   store.markEvidenceReviewed(attachment)
                 } onRemove: {
@@ -2169,6 +2203,11 @@ struct OrderDetailView: View {
                   store.addContactDirectoryEntry(linkedEntityType: .evidence, linkedEntityID: attachment.id.uuidString, label: attachment.fileName)
                 }
               }
+              if attachments.count > inlineSectionLimit {
+                Text("\(attachments.count - inlineSectionLimit) more attachments are available in Evidence.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
             }
           }
         }
@@ -2177,8 +2216,15 @@ struct OrderDetailView: View {
 
         Panel(title: "Timeline", symbol: "clock.fill") {
           VStack(spacing: 0) {
-            ForEach(order.timeline) { event in
+            ForEach(Array(order.timeline.prefix(timelineSectionLimit))) { event in
               TimelineRow(event: event)
+            }
+            if order.timeline.count > timelineSectionLimit {
+              Text("\(order.timeline.count - timelineSectionLimit) more timeline entries are available in Timeline.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 8)
             }
           }
         }
@@ -2478,8 +2524,14 @@ struct OrderDetailView: View {
           ])
 
           VStack(spacing: 8) {
-            ForEach(activities) { activity in
+            ForEach(Array(activities.prefix(timelineSectionLimit))) { activity in
               OrderOperationalTimelineRow(activity: activity, store: store)
+            }
+            if activities.count > timelineSectionLimit {
+              Text("\(activities.count - timelineSectionLimit) more linked activity entries are available in Timeline.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
           }
 
