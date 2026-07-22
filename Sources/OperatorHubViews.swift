@@ -3257,6 +3257,15 @@ struct DispatchView: View {
     dispatchReadinessItems.filter { $0.count == 0 || $0.title == "Move ready work" }.count
   }
 
+  private var dispatchReadinessGridColumns: [GridItem] {
+    let count = isCompact ? 2 : 3
+    return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+  }
+
+  private var dispatchReadinessCardHeight: CGFloat {
+    isCompact ? 138 : 128
+  }
+
   private var dispatchReadinessLadderPanel: some View {
     SettingsPanel(title: "Dispatch readiness ladder", symbol: "checklist.checked") {
       VStack(alignment: .leading, spacing: 12) {
@@ -3276,7 +3285,7 @@ struct DispatchView: View {
           Badge("\(dispatchReadinessCompleteCount)/\(dispatchReadinessItems.count)", color: dispatchReadinessCompleteCount == dispatchReadinessItems.count ? .green : .orange)
         }
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 160 : 215), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: dispatchReadinessGridColumns, alignment: .leading, spacing: 10) {
           ForEach(dispatchReadinessItems, id: \.title) { item in
             VStack(alignment: .leading, spacing: 8) {
               HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -3295,7 +3304,7 @@ struct DispatchView: View {
                 .foregroundStyle(item.color)
             }
             .padding(10)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: dispatchReadinessCardHeight, maxHeight: dispatchReadinessCardHeight, alignment: .topLeading)
             .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           }
         }

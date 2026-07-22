@@ -1056,6 +1056,15 @@ struct TasksView: View {
     }.count
   }
 
+  private var taskResolutionGridColumns: [GridItem] {
+    let count = horizontalSizeClass == .compact ? 2 : 3
+    return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+  }
+
+  private var taskResolutionCardHeight: CGFloat {
+    horizontalSizeClass == .compact ? 138 : 128
+  }
+
   private var nextActionTone: Color {
     if overdueActionCount > 0 || blockedActionCount > 0 { return .red }
     if urgentActionCount > 0 || inboxOrderActionCount > 0 { return .orange }
@@ -1178,7 +1187,7 @@ struct TasksView: View {
           Badge("\(taskResolutionCompleteCount)/\(taskResolutionItems.count)", color: taskResolutionCompleteCount == taskResolutionItems.count ? .green : .orange)
         }
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 160 : 215), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: taskResolutionGridColumns, alignment: .leading, spacing: 10) {
           ForEach(taskResolutionItems, id: \.title) { item in
             VStack(alignment: .leading, spacing: 8) {
               HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -1197,7 +1206,7 @@ struct TasksView: View {
                 .foregroundStyle(item.color)
             }
             .padding(10)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: taskResolutionCardHeight, maxHeight: taskResolutionCardHeight, alignment: .topLeading)
             .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           }
         }
