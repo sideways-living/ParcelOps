@@ -1575,14 +1575,17 @@ struct DashboardView: View {
               Text(item.detail)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
+
+              Spacer(minLength: 0)
 
               Text("Open \(item.destination)")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(item.color)
             }
             .padding(10)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: isCompact ? 124 : 118, maxHeight: isCompact ? 124 : 118, alignment: .topLeading)
             .background(item.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           }
         }

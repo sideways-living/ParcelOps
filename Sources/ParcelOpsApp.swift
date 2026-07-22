@@ -6,6 +6,10 @@ import AppKit
 
 @main
 struct ParcelOpsApp: App {
+  #if os(macOS)
+  @NSApplicationDelegateAdaptor(ParcelOpsAppDelegate.self) private var appDelegate
+  #endif
+
   var body: some Scene {
     #if os(macOS)
     WindowGroup {
@@ -31,6 +35,72 @@ struct ParcelOpsApp: App {
     #endif
   }
 }
+
+#if os(macOS)
+final class ParcelOpsAppDelegate: NSObject, NSApplicationDelegate {
+  private var fallbackWindowController: NSWindowController?
+
+  func applicationDidFinishLaunching(_ notification: Notification) {
+    openMainWindowIfNeeded()
+  }
+
+  func applicationDidBecomeActive(_ notification: Notification) {
+    openMainWindowIfNeeded()
+  }
+
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    if !flag {
+      openMainWindowIfNeeded()
+    }
+    return true
+  }
+
+  private func openMainWindowIfNeeded() {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+      let hasVisibleParcelWindow = NSApp.windows.contains { window in
+        window.isVisible && !window.title.localizedCaseInsensitiveContains("settings")
+      }
+      guard !hasVisibleParcelWindow else { return }
+
+      NSApp.sendAction(Selector(("newWindow:")), to: nil, from: nil)
+      NSApp.activate(ignoringOtherApps: true)
+
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        guard
+          let self,
+          !NSApp.windows.contains(where: { $0.isVisible && !$0.title.localizedCaseInsensitiveContains("settings") })
+        else { return }
+        self.openFallbackWindow()
+      }
+    }
+  }
+
+  private func openFallbackWindow() {
+    if let window = fallbackWindowController?.window {
+      window.makeKeyAndOrderFront(nil)
+      NSApp.activate(ignoringOtherApps: true)
+      return
+    }
+
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 1320, height: 860),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+      backing: .buffered,
+      defer: false
+    )
+    window.title = "ParcelOps"
+    window.isReleasedWhenClosed = false
+    window.center()
+    window.contentViewController = NSHostingController(rootView: ParcelOpsRootView().parcelOpsWindowFrame())
+
+    let controller = NSWindowController(window: window)
+    fallbackWindowController = controller
+    controller.showWindow(nil)
+    window.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
+  }
+}
+#endif
 
 extension View {
   @ViewBuilder
