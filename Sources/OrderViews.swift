@@ -211,7 +211,7 @@ struct OrdersView: View {
     @Bindable var store = store
 
     ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
+      LazyVStack(alignment: .leading, spacing: 16) {
         header
         MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
         orderNextActionPanel

@@ -500,7 +500,7 @@ struct MailboxView: View {
 
   var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
+      LazyVStack(alignment: .leading, spacing: 16) {
         VStack(alignment: .leading, spacing: 6) {
           Text("Forwarded email intake")
             .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())

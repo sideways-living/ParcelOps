@@ -436,7 +436,7 @@ struct IntegrationsView: View {
 
   var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 14) {
+      LazyVStack(alignment: .leading, spacing: 14) {
         VStack(alignment: .leading, spacing: 10) {
           Text("Local source setup")
             .font(isCompact ? .title2.bold() : .title.bold())
@@ -8868,7 +8868,7 @@ struct SettingsView: View {
     @Bindable var store = store
 
     ScrollView {
-      VStack(alignment: .leading, spacing: 14) {
+      LazyVStack(alignment: .leading, spacing: 14) {
         Text("Settings")
           .font(isCompact ? .title.bold() : .largeTitle.bold())
 
