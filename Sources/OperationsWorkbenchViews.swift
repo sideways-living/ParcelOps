@@ -20,6 +20,7 @@ struct OperationsWorkbenchView: View {
   @State private var selectedSource: WorkbenchSource?
   @State private var workbenchSearchText = ""
   @State private var showWorkbenchProviderEvidence = false
+  @State private var showWorkbenchContextSections = false
   @State private var developmentStatusFeedbackMessage: String?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -91,6 +92,10 @@ struct OperationsWorkbenchView: View {
       || selectedStatus != nil
       || selectedReviewState != nil
       || selectedSource != nil
+  }
+
+  private var shouldShowWorkbenchContextSections: Bool {
+    showWorkbenchContextSections || hasActiveFilters
   }
 
   private var inboxCreatedOrders: [TrackedOrder] {
@@ -868,26 +873,62 @@ struct OperationsWorkbenchView: View {
           detailWhenClear: "No primary workflow exceptions are waiting. Use advanced filters only when you need supporting records.",
           detailWhenBusy: "Clear urgent, blocked, needs-review, and Inbox-created order work before opening advanced record queues."
         )
-        releaseCandidateBlockersPanel
-        developmentStatusWorkbenchPanel
         operatorSummary
-        resolutionLadderPanel
-        workbenchProviderEvidencePanel
-        mailboxWorkbenchBoundary
-        gmailWorkbenchBoundary
-        microsoft365WorkbenchBoundary
-        inboxParserQualityHandoff
-        mailboxAssignedFollowUpPanel
-        workbenchDiagnosticsBoundary
-        inboxCreatedOrderFollowUp
-        draftFollowUpPanel
-        wishlistPurchaseFollowUpPanel
+        workbenchContextSectionsPanel
         operatorQueue
-        advancedFilters
+        if shouldShowWorkbenchContextSections {
+          workbenchSupportingContextSections
+        }
       }
       .padding(horizontalSizeClass == .compact ? 14 : 24)
     }
     .background(.regularMaterial)
+  }
+
+  private var workbenchContextSectionsPanel: some View {
+    SettingsPanel(title: "Workbench context sections", symbol: "line.3.horizontal.decrease.circle.fill") {
+      Text(shouldShowWorkbenchContextSections ? "Supporting diagnostics, provider follow-up, release checks, drafts, Wishlist purchase follow-up, and advanced filters are visible." : "Workbench opens with workload summary and the exception queue first. Open context sections when you need diagnostics, provider setup evidence, release checks, drafts, Wishlist purchase follow-up, or advanced filters.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      MetricStrip(items: [
+        ("Primary queue", "\(defaultQueueItems.count)", defaultQueueItems.isEmpty ? .green : .orange),
+        ("Due/high", "\(urgentWorkbenchCount)", urgentWorkbenchCount == 0 ? .green : .red),
+        ("Blocked", "\(defaultQueueItems.filter(\.isBlocked).count)", defaultQueueItems.contains(where: \.isBlocked) ? .red : .green),
+        ("Review", "\(defaultQueueItems.filter { $0.reviewState == .needsReview }.count)", defaultQueueItems.contains { $0.reviewState == .needsReview } ? .purple : .green),
+        ("Advanced", "\(advancedBacklogCount)", advancedBacklogCount == 0 ? .green : .secondary)
+      ])
+
+      CompactActionRow {
+        Button(shouldShowWorkbenchContextSections ? "Hide context sections" : "Show context sections", systemImage: shouldShowWorkbenchContextSections ? "chevron.up.circle" : "chevron.down.circle") {
+          showWorkbenchContextSections.toggle()
+        }
+        .buttonStyle(.bordered)
+
+        if hasActiveFilters && !showWorkbenchContextSections {
+          Badge("Filters active", color: .orange)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var workbenchSupportingContextSections: some View {
+    releaseCandidateBlockersPanel
+    developmentStatusWorkbenchPanel
+    resolutionLadderPanel
+    workbenchProviderEvidencePanel
+    mailboxWorkbenchBoundary
+    gmailWorkbenchBoundary
+    microsoft365WorkbenchBoundary
+    inboxParserQualityHandoff
+    mailboxAssignedFollowUpPanel
+    workbenchDiagnosticsBoundary
+    inboxCreatedOrderFollowUp
+    draftFollowUpPanel
+    wishlistPurchaseFollowUpPanel
+    advancedFilters
   }
 
   private var workbenchProviderEvidencePanel: some View {
