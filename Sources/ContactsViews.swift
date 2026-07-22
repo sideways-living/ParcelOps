@@ -629,7 +629,8 @@ struct ContactDirectoryRow: View {
           Label("Linked accounts", systemImage: "key.horizontal.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
-          ForEach(suggestedAccounts) { account in
+          let displayedSuggestedAccounts = Array(suggestedAccounts.prefix(3))
+          ForEach(displayedSuggestedAccounts) { account in
             AccountSuggestionRow(account: account) {
               onTaskFromAccount(account)
               feedbackMessage = "Follow-up task created from linked account. Check Tasks."
@@ -637,6 +638,11 @@ struct ContactDirectoryRow: View {
               onDraftFromAccount(account)
               feedbackMessage = "Draft created from linked account. Check Drafts."
             }
+          }
+          if suggestedAccounts.count > displayedSuggestedAccounts.count {
+            Text("\(suggestedAccounts.count - displayedSuggestedAccounts.count) more linked accounts hidden for this contact.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
       }
@@ -646,7 +652,8 @@ struct ContactDirectoryRow: View {
           Label("Linked profiles", systemImage: "building.2.crop.circle.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
-          ForEach(suggestedProfiles) { profile in
+          let displayedSuggestedProfiles = Array(suggestedProfiles.prefix(3))
+          ForEach(displayedSuggestedProfiles) { profile in
             VendorProfileSuggestionRow(profile: profile) {
               onTaskFromProfile(profile)
               feedbackMessage = "Follow-up task created from linked profile. Check Tasks."
@@ -654,6 +661,11 @@ struct ContactDirectoryRow: View {
               onDraftFromProfile(profile)
               feedbackMessage = "Draft created from linked profile. Check Drafts."
             }
+          }
+          if suggestedProfiles.count > displayedSuggestedProfiles.count {
+            Text("\(suggestedProfiles.count - displayedSuggestedProfiles.count) more linked profiles hidden for this contact.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
       }
