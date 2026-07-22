@@ -917,24 +917,27 @@ struct ExpandableBottomMenu: View {
 
   var body: some View {
     VStack(spacing: 8) {
-      HStack(spacing: 0) {
-        ForEach(primaryItems) { section in
-          BottomMenuButton(title: section.shortTitle, symbol: section.symbol, badgeCount: attentionCount(section), isSelected: selection == section) {
-            withAnimation(.snappy) {
-              isExpanded = false
-              onSelect(section)
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 2) {
+          ForEach(primaryItems) { section in
+            BottomMenuButton(title: section.shortTitle, symbol: section.symbol, badgeCount: attentionCount(section), isSelected: selection == section) {
+              withAnimation(.snappy) {
+                isExpanded = false
+                onSelect(section)
+              }
             }
           }
-        }
 
-        BottomMenuButton(title: isExpanded ? "Less" : "More", symbol: isExpanded ? "arrow.down" : "arrow.up", isSelected: isExpanded) {
-          withAnimation(.snappy) {
-            isExpanded.toggle()
-            if !isExpanded {
-              routeSearchText = ""
+          BottomMenuButton(title: isExpanded ? "Less" : "More", symbol: isExpanded ? "arrow.down" : "arrow.up", isSelected: isExpanded) {
+            withAnimation(.snappy) {
+              isExpanded.toggle()
+              if !isExpanded {
+                routeSearchText = ""
+              }
             }
           }
         }
+        .padding(.horizontal, 2)
       }
 
       if isExpanded {
@@ -972,7 +975,7 @@ struct ExpandableBottomMenu: View {
           .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
           .padding(.horizontal, 4)
 
-          Text("Dispatch, Tasks, Audit, Settings, and detailed records live here. Wishlist stays in the primary bar for purchase planning.")
+          Text("Advanced review, reference, and setup screens live here. Daily workflow screens stay in the bottom strip for direct access.")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -1028,7 +1031,7 @@ struct ParcelNavigationGroup: Identifiable {
 
   static let dailyOperations = ParcelNavigationGroup(title: "Primary Workflow", sections: [.dashboard, .inbox, .orders, .workbench, .dispatch, .tasks, .wishlist, .audit, .settings])
 
-  static let mobilePrimarySections: [ParcelSection] = [.dashboard, .inbox, .orders, .workbench, .wishlist]
+  static let mobilePrimarySections: [ParcelSection] = dailyOperations.sections
 
   static let secondaryDesktopGroups: [ParcelNavigationGroup] = [
     ParcelNavigationGroup(title: "Detailed Review", sections: [.mvpSetup, .review, .mailbox, .importQueue, .acceptanceReview, .shipmentManifests, .dispatchReadiness, .tracking, .search, .timeline, .validation, .reconciliation, .handoffNotes]),
@@ -1051,7 +1054,7 @@ struct ParcelNavigationGroup: Identifiable {
       title: "More daily tools",
       sections: dailyOperations.sections.filter { !primarySet.contains($0) }
     )
-    return [dailyOverflow] + secondaryDesktopGroups
+    return (dailyOverflow.sections.isEmpty ? [] : [dailyOverflow]) + secondaryDesktopGroups
   }
 
   static func desktopGroupsMatching(_ query: String) -> [ParcelNavigationGroup] {
@@ -1113,7 +1116,7 @@ struct BottomMenuButton: View {
           .minimumScaleFactor(0.72)
       }
       .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-      .frame(maxWidth: .infinity)
+      .frame(width: 70)
       .frame(height: 48)
       .contentShape(Rectangle())
     }
