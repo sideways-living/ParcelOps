@@ -6,6 +6,7 @@ struct TrackingView: View {
   @State private var selectedSeverity: Severity?
   @State private var selectedOrderStatus: OrderStatus?
   @State private var trackingSearchText = ""
+  @State private var showAllTrackingEvents = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var carriers: [String] {
@@ -36,6 +37,15 @@ struct TrackingView: View {
       || selectedOrderStatus != nil
       || !trackingSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
+
+  private var displayedEvents: [CarrierTrackingEvent] {
+    guard !showAllTrackingEvents && !hasActiveFilters else { return filteredEvents }
+    return Array(filteredEvents.prefix(48))
+  }
+
+  private var hiddenDisplayedEventCount: Int {
+    max(filteredEvents.count - displayedEvents.count, 0)
+  }
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -65,7 +75,25 @@ struct TrackingView: View {
           if filteredEvents.isEmpty {
             MVPEmptyState(title: "No tracking events match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local carrier events." : "Tracking events appear here when local carrier warnings or placeholder updates are captured.", symbol: "location.fill.viewfinder", actionTitle: hasActiveFilters ? "Clear filters" : nil, action: hasActiveFilters ? clearFilters : nil)
           } else {
-            ForEach(filteredEvents) { event in
+            if hiddenDisplayedEventCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedEvents.count) tracking events", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedEventCount) older hidden", color: .secondary)
+                Button(showAllTrackingEvents ? "Show first 48" : "Show all \(filteredEvents.count)", systemImage: showAllTrackingEvents ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllTrackingEvents.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local tracking event. The default list is capped so Tracking opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedEvents) { event in
               TrackingEventRow(event: event, store: store, order: store.orders.first { $0.id == event.orderID }, suggestedContacts: store.suggestedContacts(for: event), suggestedProfiles: store.suggestedVendorProfiles(for: event), customerProfiles: store.suggestedCustomerProfiles(for: event), destinationAddresses: store.suggestedDestinationAddresses(for: event), deliveryInstructions: store.suggestedDeliveryInstructions(for: event), packageContents: store.suggestedPackageContents(for: event), shipmentGroups: store.suggestedShipmentGroups(for: event)) {
                 store.markTrackingEventReviewed(event)
               } onRemove: {

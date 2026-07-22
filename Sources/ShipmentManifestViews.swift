@@ -10,6 +10,7 @@ struct ShipmentManifestsView: View {
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var manifestSearchText = ""
+  @State private var showAllShipmentManifests = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -34,6 +35,15 @@ struct ShipmentManifestsView: View {
       || selectedLinkedEntityType != nil
       || selectedReviewState != nil
       || !manifestSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var displayedRecords: [ShipmentManifestRecord] {
+    guard !showAllShipmentManifests && !hasActiveFilters else { return filteredRecords }
+    return Array(filteredRecords.prefix(48))
+  }
+
+  private var hiddenDisplayedRecordCount: Int {
+    max(filteredRecords.count - displayedRecords.count, 0)
   }
   var body: some View {
     ScrollView {
@@ -88,7 +98,25 @@ struct ShipmentManifestsView: View {
               action: hasActiveFilters ? clearFilters : store.addShipmentManifestPlaceholder
             )
           } else {
-            ForEach(filteredRecords) { record in
+            if hiddenDisplayedRecordCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedRecords.count) manifests", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedRecordCount) older hidden", color: .secondary)
+                Button(showAllShipmentManifests ? "Show first 48" : "Show all \(filteredRecords.count)", systemImage: showAllShipmentManifests ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllShipmentManifests.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local shipment manifest. The default list is capped so Shipment Manifests opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedRecords) { record in
               ShipmentManifestRow(record: record, store: store, linkedOrders: linkedOrders(for: record), dispatchChecklists: store.suggestedDispatchReadinessChecklists(for: record)) { updatedRecord in
                 store.updateShipmentManifestRecord(updatedRecord)
               } onPrepared: {

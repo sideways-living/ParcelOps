@@ -9,6 +9,7 @@ struct DispatchReadinessView: View {
   @State private var selectedLinkedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var readinessSearchText = ""
+  @State private var showAllDispatchChecklists = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -32,6 +33,15 @@ struct DispatchReadinessView: View {
       || selectedLinkedEntityType != nil
       || selectedReviewState != nil
       || !readinessSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var displayedChecklists: [DispatchReadinessChecklist] {
+    guard !showAllDispatchChecklists && !hasActiveFilters else { return filteredChecklists }
+    return Array(filteredChecklists.prefix(48))
+  }
+
+  private var hiddenDisplayedChecklistCount: Int {
+    max(filteredChecklists.count - displayedChecklists.count, 0)
   }
   var body: some View {
     ScrollView {
@@ -87,7 +97,25 @@ struct DispatchReadinessView: View {
               action: hasActiveFilters ? clearFilters : store.addDispatchReadinessChecklistPlaceholder
             )
           } else {
-            ForEach(filteredChecklists) { checklist in
+            if hiddenDisplayedChecklistCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedChecklists.count) checklists", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedChecklistCount) older hidden", color: .secondary)
+                Button(showAllDispatchChecklists ? "Show first 48" : "Show all \(filteredChecklists.count)", systemImage: showAllDispatchChecklists ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllDispatchChecklists.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local dispatch checklist. The default list is capped so Dispatch Readiness opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedChecklists) { checklist in
               DispatchReadinessRow(checklist: checklist, store: store, linkedOrders: linkedOrders(for: checklist)) { updatedChecklist in
                 store.updateDispatchReadinessChecklist(updatedChecklist)
               } onReady: {

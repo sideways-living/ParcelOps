@@ -7,6 +7,7 @@ struct ImportQueueView: View {
   @State private var confidenceFilter: ImportConfidenceRange = .all
   @State private var reviewFilter: ReviewState?
   @State private var importSearchText = ""
+  @State private var showAllImportItems = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -33,6 +34,15 @@ struct ImportQueueView: View {
       || confidenceFilter != .all
       || reviewFilter != nil
       || !importSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var displayedItems: [ImportQueueItem] {
+    guard !showAllImportItems && !hasActiveFilters else { return filteredItems }
+    return Array(filteredItems.prefix(48))
+  }
+
+  private var hiddenDisplayedItemCount: Int {
+    max(filteredItems.count - displayedItems.count, 0)
   }
 
   private var importItemsNeedingReview: [ImportQueueItem] {
@@ -169,7 +179,25 @@ struct ImportQueueView: View {
           if filteredItems.isEmpty {
             MVPEmptyState(title: "No staged imports match this view", detail: hasActiveFilters ? "Clear search or filters to return to the full import queue." : "Add a local import item to test the acceptance workflow.", symbol: "tray.and.arrow.down.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add import item", action: hasActiveFilters ? clearFilters : store.addImportQueueItemPlaceholder)
           } else {
-            ForEach(filteredItems) { item in
+            if hiddenDisplayedItemCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedItems.count) import items", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedItemCount) older hidden", color: .secondary)
+                Button(showAllImportItems ? "Show first 48" : "Show all \(filteredItems.count)", systemImage: showAllImportItems ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllImportItems.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every staged import. The default list is capped so Import Queue opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedItems) { item in
               ImportQueueItemRow(
                 item: item,
                 store: store,
