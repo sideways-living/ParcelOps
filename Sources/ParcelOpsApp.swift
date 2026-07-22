@@ -6,17 +6,19 @@ import AppKit
 
 @main
 struct ParcelOpsApp: App {
-  #if os(macOS)
-  @NSApplicationDelegateAdaptor(ParcelOpsAppDelegate.self) private var appDelegate
-  #endif
-
   var body: some Scene {
     #if os(macOS)
-    Settings {
-      EmptyView()
+    WindowGroup {
+      ParcelOpsRootView()
+        .parcelOpsWindowFrame()
     }
+    .defaultSize(width: 1320, height: 860)
     .commands {
       ParcelRouteCommands()
+    }
+
+    Settings {
+      EmptyView()
     }
     #else
     WindowGroup {
@@ -29,61 +31,6 @@ struct ParcelOpsApp: App {
     #endif
   }
 }
-
-#if os(macOS)
-final class ParcelOpsAppDelegate: NSObject, NSApplicationDelegate {
-  private var mainWindowController: NSWindowController?
-
-  func applicationDidFinishLaunching(_ notification: Notification) {
-    NSApp.setActivationPolicy(.regular)
-    NSApp.unhide(nil)
-    showMainWindow()
-    NSApp.activate()
-  }
-
-  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-    if !flag {
-      showMainWindow()
-    }
-    return true
-  }
-
-  private func showMainWindow() {
-    if let window = mainWindowController?.window {
-      window.makeKeyAndOrderFront(nil)
-      NSApp.activate()
-      return
-    }
-
-    let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 1320, height: 860),
-      styleMask: [.titled, .closable, .miniaturizable, .resizable],
-      backing: .buffered,
-      defer: false
-    )
-    window.title = "ParcelOps"
-    window.isReleasedWhenClosed = false
-    window.isRestorable = false
-    window.collectionBehavior = [.managed, .fullScreenPrimary]
-    window.center()
-    window.contentViewController = NSHostingController(rootView: ParcelOpsRootView().parcelOpsWindowFrame())
-
-    let controller = NSWindowController(window: window)
-    mainWindowController = controller
-    controller.showWindow(nil)
-    window.makeKeyAndOrderFront(nil)
-    NSApp.activate()
-  }
-
-  func application(_ application: NSApplication, shouldRestoreApplicationState coder: NSCoder) -> Bool {
-    false
-  }
-
-  func application(_ application: NSApplication, shouldSaveApplicationState coder: NSCoder) -> Bool {
-    false
-  }
-}
-#endif
 
 extension View {
   @ViewBuilder

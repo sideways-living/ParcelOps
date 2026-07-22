@@ -2108,20 +2108,17 @@ struct CompactActionRow<Content: View>: View {
   @ViewBuilder var content: Content
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: isCompact ? 108 : 220), spacing: 8)]
+  }
 
   var body: some View {
-    if isCompact {
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 8)], alignment: .leading, spacing: 8) {
-        content
-      }
-      .font(.caption)
-      .controlSize(.small)
-      .frame(maxWidth: .infinity, alignment: .leading)
-    } else {
-      HStack(spacing: 8) {
-        content
-      }
+    LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+      content
     }
+    .font(isCompact ? .caption : .body)
+    .controlSize(isCompact ? .small : .regular)
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
