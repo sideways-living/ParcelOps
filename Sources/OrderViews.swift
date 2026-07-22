@@ -25,7 +25,7 @@ struct OrdersView: View {
       }
   }
   private var displayedOrderItems: [OrderQueueItem] {
-    showAllOrderQueueRows || hasActiveOrderFilters ? orderItems : Array(orderItems.prefix(32))
+    showAllOrderQueueRows ? orderItems : Array(orderItems.prefix(isCompact ? 20 : 32))
   }
   private var hiddenDisplayedOrderCount: Int {
     max(orderItems.count - displayedOrderItems.count, 0)
@@ -261,16 +261,16 @@ struct OrdersView: View {
             } else {
               if hiddenDisplayedOrderCount > 0 {
                 CompactActionRow {
-                  Label("Showing first \(displayedOrderItems.count) priority orders", systemImage: "speedometer")
+                  Label("Showing first \(displayedOrderItems.count) matched orders", systemImage: "speedometer")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                   Badge("\(hiddenDisplayedOrderCount) older hidden", color: .secondary)
-                  Button(showAllOrderQueueRows ? "Show first 32" : "Show all \(orderItems.count)", systemImage: showAllOrderQueueRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  Button(showAllOrderQueueRows ? "Show first \(isCompact ? 20 : 32)" : "Show all \(orderItems.count)", systemImage: showAllOrderQueueRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
                     showAllOrderQueueRows.toggle()
                   }
                   .buttonStyle(.bordered)
                 }
-                Text("Search and status filters still scan every local order. The default queue is capped so Orders opens quickly with accumulated test data.")
+                Text("Search and status filters still scan every local order. Rendering stays capped until you choose Show all, so Orders opens quickly with accumulated test data.")
                   .font(.caption)
                   .foregroundStyle(.secondary)
                   .fixedSize(horizontal: false, vertical: true)

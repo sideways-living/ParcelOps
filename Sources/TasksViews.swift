@@ -3566,7 +3566,7 @@ struct ReviewTasksDetailView: View {
   }
 
   private var displayedReviewTasks: [ReviewTask] {
-    showAllReviewTaskRows || hasActiveReviewTaskFilters ? filteredTasks : Array(filteredTasks.prefix(32))
+    showAllReviewTaskRows ? filteredTasks : Array(filteredTasks.prefix(horizontalSizeClass == .compact ? 20 : 32))
   }
 
   private var hiddenDisplayedReviewTaskCount: Int {
@@ -3618,7 +3618,7 @@ struct ReviewTasksDetailView: View {
               .foregroundStyle(.secondary)
             Spacer()
             if hiddenDisplayedReviewTaskCount > 0 {
-              Button(showAllReviewTaskRows ? "Show first 32" : "Show all", systemImage: showAllReviewTaskRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+              Button(showAllReviewTaskRows ? "Show first \(horizontalSizeClass == .compact ? 20 : 32)" : "Show all", systemImage: showAllReviewTaskRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
                 showAllReviewTaskRows.toggle()
               }
               .buttonStyle(.bordered)
@@ -3631,7 +3631,7 @@ struct ReviewTasksDetailView: View {
             MVPEmptyState(title: "No tasks match this view", detail: "Clear filters or add a local task to test follow-up ownership.", symbol: "checklist", actionTitle: "Add task", action: store.addReviewTaskPlaceholder)
           } else {
             if hiddenDisplayedReviewTaskCount > 0 {
-              Label("Showing the first \(displayedReviewTasks.count) tasks by default so this detailed view stays responsive. Filters still scan every local task.", systemImage: "speedometer")
+              Label("Showing the first \(displayedReviewTasks.count) matched tasks so this detailed view stays responsive. Filters still scan every local task.", systemImage: "speedometer")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
