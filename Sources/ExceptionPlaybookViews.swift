@@ -8,6 +8,7 @@ struct ExceptionPlaybooksView: View {
   @State private var selectedEnabledState: Bool?
   @State private var selectedReviewState: ReviewState?
   @State private var playbookSearchText = ""
+  @State private var showAllExceptionPlaybooks = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.accepted, .needsReview, .monitor]
 
@@ -36,6 +37,15 @@ struct ExceptionPlaybooksView: View {
       || selectedEnabledState != nil
       || selectedReviewState != nil
       || !playbookSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var displayedPlaybooks: [ExceptionPlaybook] {
+    guard !showAllExceptionPlaybooks && !hasActiveFilters else { return filteredPlaybooks }
+    return Array(filteredPlaybooks.prefix(48))
+  }
+
+  private var hiddenDisplayedPlaybookCount: Int {
+    max(filteredPlaybooks.count - displayedPlaybooks.count, 0)
   }
 
   var body: some View {
@@ -71,7 +81,25 @@ struct ExceptionPlaybooksView: View {
           if filteredPlaybooks.isEmpty {
             MVPEmptyState(title: "No playbooks match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local exception playbooks." : "Add a local playbook to guide staff through common intake, tracking, dispatch, and reconciliation exceptions.", symbol: "book.closed.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add playbook", action: hasActiveFilters ? clearFilters : store.addExceptionPlaybookPlaceholder)
           } else {
-            ForEach(filteredPlaybooks) { playbook in
+            if hiddenDisplayedPlaybookCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedPlaybooks.count) playbooks", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedPlaybookCount) older hidden", color: .secondary)
+                Button(showAllExceptionPlaybooks ? "Show first 48" : "Show all \(filteredPlaybooks.count)", systemImage: showAllExceptionPlaybooks ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllExceptionPlaybooks.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local exception playbook. The default list is capped so Exception Playbooks opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedPlaybooks) { playbook in
               ExceptionPlaybookRow(playbook: playbook, store: store, inboxOrders: inboxOrders(for: playbook), handoffNotes: store.handoffNotes(for: playbook), destinationAddresses: store.suggestedDestinationAddresses(for: playbook), deliveryInstructions: store.suggestedDeliveryInstructions(for: playbook), packageContents: store.suggestedPackageContents(for: playbook)) { updatedPlaybook in
                 store.updateExceptionPlaybook(updatedPlaybook)
               } onToggle: {

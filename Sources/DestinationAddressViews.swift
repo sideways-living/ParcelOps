@@ -8,6 +8,7 @@ struct DestinationAddressesView: View {
   @State private var selectedEnabled: Bool?
   @State private var selectedReviewState: ReviewState?
   @State private var addressSearchText = ""
+  @State private var showAllDestinationAddresses = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var teams: [String] {
@@ -45,6 +46,15 @@ struct DestinationAddressesView: View {
       || !addressSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedAddresses: [DestinationAddressRecord] {
+    guard !showAllDestinationAddresses && !hasActiveFilters else { return filteredAddresses }
+    return Array(filteredAddresses.prefix(48))
+  }
+
+  private var hiddenDisplayedAddressCount: Int {
+    max(filteredAddresses.count - displayedAddresses.count, 0)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -69,7 +79,25 @@ struct DestinationAddressesView: View {
           if filteredAddresses.isEmpty {
             MVPEmptyState(title: "No destination addresses match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local destination addresses." : "Add a local destination address to reuse delivery instructions, access notes, preferred carrier, and risk context.", symbol: "mappin.and.ellipse", actionTitle: hasActiveFilters ? "Clear filters" : "Add address", action: hasActiveFilters ? clearFilters : store.addDestinationAddressPlaceholder)
           } else {
-            ForEach(filteredAddresses) { address in
+            if hiddenDisplayedAddressCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedAddresses.count) addresses", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedAddressCount) older hidden", color: .secondary)
+                Button(showAllDestinationAddresses ? "Show first 48" : "Show all \(filteredAddresses.count)", systemImage: showAllDestinationAddresses ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllDestinationAddresses.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local destination address. The default list is capped so Destination Addresses opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedAddresses) { address in
               DestinationAddressRow(address: address, store: store, inboxOrders: inboxOrders(for: address), customerProfiles: store.customerRecipientProfiles, deliveryInstructions: store.suggestedDeliveryInstructions(for: address), packageContents: store.suggestedPackageContents(for: address)) { updatedAddress in
                 store.updateDestinationAddress(updatedAddress)
               } onToggle: {

@@ -9,6 +9,7 @@ struct DeliveryInstructionsView: View {
   @State private var selectedEnabledState: Bool?
   @State private var selectedReviewState: ReviewState?
   @State private var instructionSearchText = ""
+  @State private var showAllDeliveryInstructions = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private let reviewStates: [ReviewState] = [.needsReview, .monitor, .accepted]
 
@@ -45,6 +46,15 @@ struct DeliveryInstructionsView: View {
       || !instructionSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var displayedInstructions: [DeliveryInstructionRecord] {
+    guard !showAllDeliveryInstructions && !hasActiveFilters else { return filteredInstructions }
+    return Array(filteredInstructions.prefix(48))
+  }
+
+  private var hiddenDisplayedInstructionCount: Int {
+    max(filteredInstructions.count - displayedInstructions.count, 0)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -69,7 +79,25 @@ struct DeliveryInstructionsView: View {
           if filteredInstructions.isEmpty {
             MVPEmptyState(title: "No delivery instructions match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local delivery instructions." : "Add a local instruction to reuse delivery windows, access constraints, and carrier notes.", symbol: "signpost.right.and.left.fill", actionTitle: hasActiveFilters ? "Clear filters" : "Add instruction", action: hasActiveFilters ? clearFilters : store.addDeliveryInstructionPlaceholder)
           } else {
-            ForEach(filteredInstructions) { instruction in
+            if hiddenDisplayedInstructionCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedInstructions.count) instructions", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedInstructionCount) older hidden", color: .secondary)
+                Button(showAllDeliveryInstructions ? "Show first 48" : "Show all \(filteredInstructions.count)", systemImage: showAllDeliveryInstructions ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllDeliveryInstructions.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local delivery instruction. The default list is capped so Delivery Instructions opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedInstructions) { instruction in
               DeliveryInstructionRow(
                 instruction: instruction,
                 store: store,

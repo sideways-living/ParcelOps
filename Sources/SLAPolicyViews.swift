@@ -8,6 +8,7 @@ struct SLAPoliciesView: View {
   @State private var selectedEntityType: ReviewTaskLinkedEntityType?
   @State private var selectedReviewState: ReviewState?
   @State private var policySearchText = ""
+  @State private var showAllSLAPolicies = false
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   private var baseFilteredPolicies: [SLAPolicy] {
@@ -34,6 +35,15 @@ struct SLAPoliciesView: View {
       || selectedEntityType != nil
       || selectedReviewState != nil
       || !policySearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var displayedPolicies: [SLAPolicy] {
+    guard !showAllSLAPolicies && !hasActiveFilters else { return filteredPolicies }
+    return Array(filteredPolicies.prefix(48))
+  }
+
+  private var hiddenDisplayedPolicyCount: Int {
+    max(filteredPolicies.count - displayedPolicies.count, 0)
   }
 
   var body: some View {
@@ -65,7 +75,25 @@ struct SLAPoliciesView: View {
           if filteredPolicies.isEmpty {
             MVPEmptyState(title: "No SLA policies match this view", detail: hasActiveFilters ? "Clear search or filters to return to all local SLA policies." : "Add a local SLA policy to define manual timing, review, and escalation expectations.", symbol: "timer", actionTitle: hasActiveFilters ? "Clear filters" : "Add policy", action: hasActiveFilters ? clearFilters : store.addSLAPolicyPlaceholder)
           } else {
-            ForEach(filteredPolicies) { policy in
+            if hiddenDisplayedPolicyCount > 0 {
+              CompactActionRow {
+                Label("Showing first \(displayedPolicies.count) policies", systemImage: "speedometer")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+                Badge("\(hiddenDisplayedPolicyCount) older hidden", color: .secondary)
+                Button(showAllSLAPolicies ? "Show first 48" : "Show all \(filteredPolicies.count)", systemImage: showAllSLAPolicies ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                  withAnimation(.snappy) {
+                    showAllSLAPolicies.toggle()
+                  }
+                }
+                .buttonStyle(.bordered)
+              }
+              Text("Search and filters still scan every local SLA policy. The default list is capped so SLA Policies opens quickly with accumulated test data.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(displayedPolicies) { policy in
               SLAPolicyRow(policy: policy, store: store, inboxOrders: inboxOrders(for: policy), destinationAddresses: store.suggestedDestinationAddresses(for: policy), deliveryInstructions: store.suggestedDeliveryInstructions(for: policy), packageContents: store.suggestedPackageContents(for: policy)) { updatedPolicy in
                 store.updateSLAPolicy(updatedPolicy)
               } onToggle: {
