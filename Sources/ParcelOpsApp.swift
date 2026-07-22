@@ -508,7 +508,7 @@ struct ParcelOpsRootView: View {
 
       sidebarReviewFooter
     }
-    .frame(width: 380)
+    .frame(width: 420)
     .background(.bar)
   }
 
