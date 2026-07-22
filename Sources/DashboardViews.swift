@@ -1109,9 +1109,10 @@ struct DashboardView: View {
 
   var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 18) {
+      LazyVStack(alignment: .leading, spacing: 18) {
         header
         dailyStartDecisionPanel
+        dailyOperatorStart
         dashboardDetailTogglePanel
 
         if showDetailedDashboard {
@@ -1154,7 +1155,6 @@ struct DashboardView: View {
           FirstLiveMailboxTestCard(store: store)
           spaceMailParserQAPanel
           spaceMailFollowUpPanel
-          dailyOperatorStart
 
           VStack(alignment: .leading, spacing: 6) {
             Text("Detailed local analytics")
