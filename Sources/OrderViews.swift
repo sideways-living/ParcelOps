@@ -4,8 +4,15 @@ struct OrdersView: View {
   var store: ParcelOpsStore
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var showOrderProviderEvidence = false
+  @State private var showOrderDetailSections = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var hasActiveOrderFilters: Bool {
+    !store.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.selectedStatus != nil
+  }
+  private var shouldShowOrderDetailSections: Bool {
+    showOrderDetailSections || hasActiveOrderFilters
+  }
   private var orderItems: [OrderQueueItem] {
     store.filteredOrders
       .map(queueItem)
@@ -215,7 +222,6 @@ struct OrdersView: View {
         header
         MailboxProviderQuickStatusCard(summary: store.mailboxProviderComparisonSummary, store: store)
         orderNextActionPanel
-        orderReadinessLadderPanel
 
         MVPWorkflowGuide(
           title: "Order workflow",
@@ -228,7 +234,12 @@ struct OrdersView: View {
           symbol: "shippingbox.fill"
         )
 
-        inboxCreatedOrderHandoffPanel
+        orderDetailSectionsPanel
+
+        if shouldShowOrderDetailSections {
+          orderReadinessLadderPanel
+          inboxCreatedOrderHandoffPanel
+        }
 
         SettingsPanel(title: "Order queue", symbol: "shippingbox.fill") {
           VStack(alignment: .leading, spacing: 12) {
@@ -251,6 +262,34 @@ struct OrdersView: View {
       .padding(isCompact ? 14 : 24)
     }
     .searchable(text: $store.searchText, prompt: "Search orders, tracking, email, store")
+  }
+
+  private var orderDetailSectionsPanel: some View {
+    SettingsPanel(title: "Order detail sections", symbol: "line.3.horizontal.decrease.circle.fill") {
+      Text(shouldShowOrderDetailSections ? "Readiness, source handoff, Wishlist, and mailbox provider details are visible." : "Orders opens with the active queue first. Open detail sections when you need readiness, source handoff, Wishlist, or mailbox provider evidence.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+
+      MetricStrip(items: [
+        ("Source orders", "\(inboxCreatedOrderCount)", inboxCreatedOrderCount == 0 ? .secondary : .teal),
+        ("Actionable", "\(inboxCreatedOrdersActionableCount)", inboxCreatedOrdersActionableCount == 0 ? .green : .orange),
+        ("Wishlist", "\(store.wishlistLinkedOrderCount)", store.wishlistLinkedOrderCount == 0 ? .secondary : .pink),
+        ("Mail imported", "\(mailboxImportedCount)", mailboxImportedCount == 0 ? .secondary : .green),
+        ("Mail filtered", "\(mailboxFilteredCount)", mailboxFilteredCount == 0 ? .secondary : .teal)
+      ])
+
+      CompactActionRow {
+        Button(shouldShowOrderDetailSections ? "Hide detail sections" : "Show detail sections", systemImage: shouldShowOrderDetailSections ? "chevron.up.circle" : "chevron.down.circle") {
+          showOrderDetailSections.toggle()
+        }
+        .buttonStyle(.bordered)
+
+        if hasActiveOrderFilters && !showOrderDetailSections {
+          Badge("Filters active", color: .orange)
+        }
+      }
+    }
   }
 
   private var inboxCreatedOrderHandoffPanel: some View {
