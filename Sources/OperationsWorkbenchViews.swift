@@ -2292,6 +2292,11 @@ struct OperationsWorkbenchView: View {
               .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
           }
+          if mailboxAssignedWorkbenchItems.count > 4 {
+            Text("\(mailboxAssignedWorkbenchItems.count - 4) more mailbox-assigned workbench items are hidden and still need review, task, or handoff action.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
 
           CompactActionRow {
             NavigationLink {
@@ -2500,13 +2505,28 @@ struct OperationsWorkbenchView: View {
         ForEach(wishlistResearchWorkbenchRequests.prefix(3)) { request in
           WishlistResearchWorkbenchRow(request: request, store: store)
         }
+        if wishlistResearchWorkbenchRequests.count > 3 {
+          Text("\(wishlistResearchWorkbenchRequests.count - 3) more Wishlist research requests are hidden and still need scope or comparison follow-up.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
 
         ForEach(wishlistPurchasePacketNeededItems.prefix(3)) { item in
           WishlistWorkbenchPurchasePacketRow(item: item, store: store)
         }
+        if wishlistPurchasePacketNeededItems.count > 3 {
+          Text("\(wishlistPurchasePacketNeededItems.count - 3) more Wishlist items are hidden and still need purchase packet preparation.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
 
         ForEach(wishlistWorkbenchItems.prefix(4)) { item in
           WishlistWorkbenchFollowUpRow(item: item, store: store)
+        }
+        if wishlistWorkbenchItems.count > 4 {
+          Text("\(wishlistWorkbenchItems.count - 4) more Wishlist workbench items are hidden and still need readiness, research, purchase, or order-watch follow-up.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
 
         CompactActionRow {

@@ -1444,6 +1444,11 @@ struct TasksView: View {
               .background(item.decisionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
           }
+          if intakeLinkedTaskItems.count > 4 {
+            Text("\(intakeLinkedTaskItems.count - 4) more Inbox-linked task items are hidden and still need ownership, parse, review, or handoff follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
 
         CompactActionRow {
@@ -1995,6 +2000,11 @@ struct TasksView: View {
           ForEach(mailboxProviderFollowUpItems.prefix(4)) { item in
             TaskQueueRow(item: item, store: store)
           }
+          if mailboxProviderFollowUpItems.count > 4 {
+            Text("\(mailboxProviderFollowUpItems.count - 4) more mailbox-provider follow-up tasks are hidden and still need operator action.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
 
           CompactActionRow {
             NavigationLink {
@@ -2071,6 +2081,11 @@ struct TasksView: View {
               .background(item.priority.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
           }
+          if gmailAssignedFollowUpItems.count > 4 {
+            Text("\(gmailAssignedFollowUpItems.count - 4) more Gmail follow-up items are hidden and still need setup, classifier, refresh, or review action.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
 
           CompactActionRow {
             NavigationLink {
@@ -2139,6 +2154,11 @@ struct TasksView: View {
               .frame(maxWidth: .infinity, alignment: .leading)
               .background(item.decisionColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
+          }
+          if outlookAssignedFollowUpItems.count > 4 {
+            Text("\(outlookAssignedFollowUpItems.count - 4) more Outlook follow-up items are hidden and still need auth, Graph, refresh, or review action.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
 
           CompactActionRow {
