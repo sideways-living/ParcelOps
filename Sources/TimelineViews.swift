@@ -301,6 +301,11 @@ struct TimelineView: View {
                 }
                 .buttonStyle(.plain)
               }
+              if sourceOrdersWithMailboxSourceTrail.count > 4 {
+                Text("\(sourceOrdersWithMailboxSourceTrail.count - 4) more mailbox-sourced order\(sourceOrdersWithMailboxSourceTrail.count - 4 == 1 ? "" : "s") are hidden in this compact timeline panel.")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+              }
             }
           }
 
@@ -333,6 +338,11 @@ struct TimelineView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
               }
               .buttonStyle(.plain)
+            }
+            if sourceOrdersMissingSourceTrail.count > 4 {
+              Text("\(sourceOrdersMissingSourceTrail.count - 4) more source-linked order\(sourceOrdersMissingSourceTrail.count - 4 == 1 ? "" : "s") are hidden and still need intake, import, acceptance, or Wishlist source review.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
           }
         }

@@ -404,6 +404,11 @@ struct ReconciliationView: View {
             }
             .buttonStyle(.plain)
           }
+          if sourceOrdersMissingSourceTrail.count > 4 {
+            Text("\(sourceOrdersMissingSourceTrail.count - 4) more source-linked order\(sourceOrdersMissingSourceTrail.count - 4 == 1 ? "" : "s") are hidden and still need reconciliation source review.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }
