@@ -252,6 +252,11 @@ struct ExceptionPlaybooksView: View {
               Badge(playbook.priority.rawValue, color: playbook.priority.color)
             }
           }
+          if actionPlaybooks.count > 3 {
+            Text("\(actionPlaybooks.count - 3) more exception playbooks are hidden and still need priority, enabled-state, owner, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }

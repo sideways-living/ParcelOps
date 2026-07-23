@@ -244,6 +244,11 @@ struct SLAPoliciesView: View {
               Badge(policy.priority.rawValue, color: policy.priority.color)
             }
           }
+          if actionPolicies.count > 3 {
+            Text("\(actionPolicies.count - 3) more SLA policies are hidden and still need priority, enabled-state, review, or escalation follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }

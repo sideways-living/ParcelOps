@@ -336,6 +336,11 @@ struct DeliveryInstructionsView: View {
               Badge(instruction.riskLevel.rawValue, color: instruction.riskLevel.color)
             }
           }
+          if actionInstructions.count > 3 {
+            Text("\(actionInstructions.count - 3) more delivery instructions are hidden and still need access, risk, enabled-state, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }
