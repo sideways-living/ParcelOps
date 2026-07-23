@@ -2363,6 +2363,13 @@ struct DashboardView: View {
                 }
                 .buttonStyle(.plain)
               }
+
+              let remainingFailures = max(spaceMailParserSuiteFailures.count - 3, 0)
+              if remainingFailures > 0 {
+                Text("\(remainingFailures) more parser failure\(remainingFailures == 1 ? "" : "s") are available in Mailbox Monitor diagnostics.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
             }
           }
 

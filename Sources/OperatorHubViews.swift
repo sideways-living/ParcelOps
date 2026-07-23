@@ -1803,6 +1803,13 @@ private struct InboxGmailHealthRow: View {
               Spacer(minLength: 0)
             }
           }
+
+          let hiddenReasonCount = max(reasonBreakdown.count - 4, 0)
+          if hiddenReasonCount > 0 {
+            Text("\(hiddenReasonCount) more classifier reason\(hiddenReasonCount == 1 ? "" : "s") are available in Mailbox Monitor diagnostics.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
         }
         .padding(8)
         .background(Color.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
@@ -3885,6 +3892,14 @@ private struct DispatchInboxOrderRow: View {
               Badge(source.statusLabel, color: mailboxSourceColor(source))
             }
           }
+
+          let hiddenSourceCount = max(mailboxSourceSummaries.count - 3, 0)
+          if hiddenSourceCount > 0 {
+            Text("\(hiddenSourceCount) more mailbox source\(hiddenSourceCount == 1 ? "" : "s") are tracked on this order.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
+
           Text(mailboxSourceDetailText)
             .font(.caption2)
             .foregroundStyle(.secondary)
@@ -4656,6 +4671,13 @@ private struct DispatchQueueInboxOrderContext: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            }
+
+            let hiddenSourceCount = max(mailboxSourceSummaries.count - 3, 0)
+            if hiddenSourceCount > 0 {
+              Text("\(hiddenSourceCount) more provider source\(hiddenSourceCount == 1 ? "" : "s") are tracked on this handoff.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
           }
           .padding(8)
