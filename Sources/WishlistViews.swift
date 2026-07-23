@@ -12200,6 +12200,13 @@ struct WishlistView: View {
               .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
           }
+
+          let remaining = max(intakeItems.count - 6, 0)
+          if remaining > 0 {
+            Text("\(remaining) more research-result intake item\(remaining == 1 ? "" : "s") are available in the detailed Wishlist rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
 
         CompactActionRow {
@@ -15147,6 +15154,13 @@ private struct WishlistLinkedOrderFollowUpDashboardRow: View {
             Badge(phase, color: .orange)
           }
         }
+
+        let hiddenPhaseCount = max(entry.missingPhases.count - 8, 0)
+        if hiddenPhaseCount > 0 {
+          Text("\(hiddenPhaseCount) more missing phase\(hiddenPhaseCount == 1 ? "" : "s") are tracked on this linked order.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
       }
 
       Text("Local follow-up only. This row does not poll carriers, update orders externally, receive stock, book dispatch, send notifications, or contact retailers.")
@@ -17605,6 +17619,13 @@ private struct WishlistPurchaseRecommendationRow: View {
               Badge(warning, color: .orange)
             }
           }
+
+          let hiddenWarningCount = max(entry.warningLabels.count - 8, 0)
+          if hiddenWarningCount > 0 {
+            Text("\(hiddenWarningCount) more decision warning\(hiddenWarningCount == 1 ? "" : "s") are tracked on this item.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
         }
       }
 
@@ -17799,6 +17820,13 @@ private struct WishlistLandedCostReviewRow: View {
             ForEach(entry.blockers.prefix(6), id: \.self) { blocker in
               Badge(blocker, color: .orange)
             }
+          }
+
+          let hiddenBlockerCount = max(entry.blockers.count - 6, 0)
+          if hiddenBlockerCount > 0 {
+            Text("\(hiddenBlockerCount) more blocker\(hiddenBlockerCount == 1 ? "" : "s") are tracked on this seller option.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
           }
         }
       }
@@ -18144,6 +18172,13 @@ private struct WishlistPurchaseDecisionSummaryRow: View {
               Badge(gap, color: .orange)
             }
           }
+
+          let hiddenGapCount = max(summary.verificationGaps.count - 8, 0)
+          if hiddenGapCount > 0 {
+            Text("\(hiddenGapCount) more verification gap\(hiddenGapCount == 1 ? "" : "s") are tracked in this decision summary.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
         }
       } else {
         Text("Local decision fields are complete. Still verify live price, stock, postage, account, payment, delivery address, returns, and warranty outside ParcelOps before buying.")
@@ -18303,6 +18338,13 @@ private struct WishlistPurchaseDecisionEvidencePackRow: View {
               Badge(gap, color: .orange)
             }
           }
+
+          let hiddenEvidenceCount = max(pack.unresolvedEvidence.count - 8, 0)
+          if hiddenEvidenceCount > 0 {
+            Text("\(hiddenEvidenceCount) more unresolved evidence item\(hiddenEvidenceCount == 1 ? "" : "s") are tracked in this pack.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
         }
       }
 
@@ -18420,6 +18462,13 @@ private struct WishlistPurchaseEvidenceDossierRow: View {
             ForEach(dossier.gaps.prefix(8), id: \.self) { gap in
               Badge(gap, color: .orange)
             }
+          }
+
+          let hiddenDossierGapCount = max(dossier.gaps.count - 8, 0)
+          if hiddenDossierGapCount > 0 {
+            Text("\(hiddenDossierGapCount) more evidence gap\(hiddenDossierGapCount == 1 ? "" : "s") are tracked in this dossier.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
           }
         }
       }
