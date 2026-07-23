@@ -649,8 +649,14 @@ struct DeliveryInstructionRow: View {
                 .lineLimit(1)
             }
           }
+          if inboxOrders.count > 2 {
+            Text("\(inboxOrders.count - 2) more Inbox/Wishlist order\(inboxOrders.count - 2 == 1 ? "" : "s") are linked to this instruction but hidden in the compact row.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
           if let store {
-            ForEach(sourceEmails(using: store).prefix(2)) { email in
+            let emails = sourceEmails(using: store)
+            ForEach(emails.prefix(2)) { email in
               HStack(spacing: 6) {
                 let source = store.intakeSourceSummary(for: email)
                 Badge(source.label, color: sourceColor(for: source.tone))
@@ -659,6 +665,11 @@ struct DeliveryInstructionRow: View {
                   .foregroundStyle(.secondary)
                   .lineLimit(1)
               }
+            }
+            if emails.count > 2 {
+              Text("\(emails.count - 2) more source email\(emails.count - 2 == 1 ? "" : "s") are linked to this instruction but hidden here.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
           }
         }
