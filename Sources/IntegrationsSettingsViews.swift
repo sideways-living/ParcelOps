@@ -7240,20 +7240,32 @@ struct ShopifyConnectionRow: View {
           .buttonStyle(.bordered)
       }
 
-      ForEach(suggestedAccounts) { account in
+      let displayedSuggestedAccounts = Array(suggestedAccounts.prefix(3))
+      ForEach(displayedSuggestedAccounts) { account in
         AccountSuggestionRow(account: account) {
           onTaskFromAccount(account)
         } onCreateDraft: {
           onDraftFromAccount(account)
         }
       }
+      if suggestedAccounts.count > displayedSuggestedAccounts.count {
+        Text("\(suggestedAccounts.count - displayedSuggestedAccounts.count) more linked accounts hidden for this Shopify placeholder.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
 
-      ForEach(suggestedProfiles) { profile in
+      let displayedSuggestedProfiles = Array(suggestedProfiles.prefix(3))
+      ForEach(displayedSuggestedProfiles) { profile in
         VendorProfileSuggestionRow(profile: profile) {
           onTaskFromProfile(profile)
         } onCreateDraft: {
           onDraftFromProfile(profile)
         }
+      }
+      if suggestedProfiles.count > displayedSuggestedProfiles.count {
+        Text("\(suggestedProfiles.count - displayedSuggestedProfiles.count) more linked profiles hidden for this Shopify placeholder.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
     }
     .padding(10)
@@ -7347,20 +7359,32 @@ struct SourceConnectionRow: View {
           .buttonStyle(.bordered)
       }
 
-      ForEach(suggestedAccounts) { account in
+      let displayedSuggestedAccounts = Array(suggestedAccounts.prefix(3))
+      ForEach(displayedSuggestedAccounts) { account in
         AccountSuggestionRow(account: account) {
           onTaskFromAccount(account)
         } onCreateDraft: {
           onDraftFromAccount(account)
         }
       }
+      if suggestedAccounts.count > displayedSuggestedAccounts.count {
+        Text("\(suggestedAccounts.count - displayedSuggestedAccounts.count) more linked accounts hidden for this source placeholder.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
 
-      ForEach(suggestedProfiles) { profile in
+      let displayedSuggestedProfiles = Array(suggestedProfiles.prefix(3))
+      ForEach(displayedSuggestedProfiles) { profile in
         VendorProfileSuggestionRow(profile: profile) {
           onTaskFromProfile(profile)
         } onCreateDraft: {
           onDraftFromProfile(profile)
         }
+      }
+      if suggestedProfiles.count > displayedSuggestedProfiles.count {
+        Text("\(suggestedProfiles.count - displayedSuggestedProfiles.count) more linked profiles hidden for this source placeholder.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
     }
     .padding(14)
