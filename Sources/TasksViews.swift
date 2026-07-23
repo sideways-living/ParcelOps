@@ -804,6 +804,13 @@ struct TasksView: View {
             .buttonStyle(.plain)
           }
 
+          let hiddenWishlistContextCount = max(wishlistTaskContextItems.count - 3, 0)
+          if hiddenWishlistContextCount > 0 {
+            Text("\(hiddenWishlistContextCount) more Wishlist task context item\(hiddenWishlistContextCount == 1 ? "" : "s") are available in Wishlist.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+
           if !wishlistPacketFollowUpItems.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
               Label("Purchase packet follow-up", systemImage: "doc.text.image.fill")
@@ -832,6 +839,13 @@ struct TasksView: View {
                     .controlSize(.small)
                   }
                 }
+              }
+
+              let hiddenPacketFollowUpCount = max(wishlistPacketFollowUpItems.count - 3, 0)
+              if hiddenPacketFollowUpCount > 0 {
+                Text("\(hiddenPacketFollowUpCount) more purchase packet follow-up item\(hiddenPacketFollowUpCount == 1 ? "" : "s") are available in Wishlist.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
               }
             }
             .padding(8)
@@ -1585,6 +1599,13 @@ struct TasksView: View {
               .frame(maxWidth: .infinity, alignment: .leading)
               .background(gmailToneColor(summary.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
+          }
+
+          let hiddenGmailHealthCount = max(gmailHealthSummaries.count - 3, 0)
+          if hiddenGmailHealthCount > 0 {
+            Text("\(hiddenGmailHealthCount) more Gmail setup or refresh summary item\(hiddenGmailHealthCount == 1 ? "" : "s") are available in Mailbox Monitor.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
 
@@ -3456,6 +3477,13 @@ private struct TaskInboxSourceTrail: View {
               .padding(8)
               .background(mailboxSourceColor(source).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
+          }
+
+          let hiddenMailboxSourceCount = max(mailboxSourceSummaries.count - 3, 0)
+          if hiddenMailboxSourceCount > 0 {
+            Text("\(hiddenMailboxSourceCount) more mailbox source\(hiddenMailboxSourceCount == 1 ? "" : "s") are tracked on this task.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
         let displayedLinkedEmails = Array(linkedEmails.prefix(3))

@@ -911,6 +911,13 @@ struct AuditView: View {
               color: developmentStatusEventColor(event)
             )
           }
+
+          let hiddenStatusEventCount = max(visibleDevelopmentStatusEvents.count - 3, 0)
+          if hiddenStatusEventCount > 0 {
+            Text("\(hiddenStatusEventCount) more development status event\(hiddenStatusEventCount == 1 ? "" : "s") are available in the detailed audit log.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
 
         CompactActionRow {
@@ -1056,6 +1063,13 @@ struct AuditView: View {
               .padding(10)
               .background(event.action.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
+
+            let hiddenReleaseEventCount = max(visibleMailboxProviderReleaseGateEvents.count - 3, 0)
+            if hiddenReleaseEventCount > 0 {
+              Text("\(hiddenReleaseEventCount) more provider release-gate audit event\(hiddenReleaseEventCount == 1 ? "" : "s") are available in the detailed log.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
           }
         }
 
@@ -1179,6 +1193,13 @@ struct AuditView: View {
               }
               .buttonStyle(.plain)
             }
+
+            let hiddenSourceOrderCount = max(inboxCreatedOrdersWithMailboxSourceTrail.count - 4, 0)
+            if hiddenSourceOrderCount > 0 {
+              Text("\(hiddenSourceOrderCount) more source-covered order\(hiddenSourceOrderCount == 1 ? "" : "s") are available in Orders.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
           }
         }
 
@@ -1211,6 +1232,13 @@ struct AuditView: View {
               .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
+          }
+
+          let hiddenMissingSourceCount = max(inboxCreatedOrdersMissingSourceTrail.count - 4, 0)
+          if hiddenMissingSourceCount > 0 {
+            Text("\(hiddenMissingSourceCount) more order\(hiddenMissingSourceCount == 1 ? "" : "s") without source trails are available in Orders.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
       }
