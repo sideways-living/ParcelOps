@@ -170,7 +170,8 @@ struct AcceptanceReviewView: View {
           ForEach(store.groupedAcceptanceCandidates(filteredCandidates, by: grouping), id: \.title) { group in
             SettingsPanel(title: "\(group.title) (\(group.candidates.count))", symbol: grouping.symbol) {
               VStack(spacing: 12) {
-                ForEach(visibleAcceptanceCandidates(group.candidates)) { candidate in
+                let displayedCandidates = visibleAcceptanceCandidates(group.candidates)
+                ForEach(displayedCandidates) { candidate in
                   AcceptanceCandidateRow(
                     candidate: candidate,
                     store: store,
@@ -195,6 +196,12 @@ struct AcceptanceReviewView: View {
                     onTask: { store.createReviewTask(from: candidate) },
                     onDraft: { store.createDraftMessage(from: candidate) }
                   )
+                }
+                if !showAllAcceptanceRows && group.candidates.count > displayedCandidates.count {
+                  Text("\(group.candidates.count - displayedCandidates.count) more acceptance candidates hidden in this group.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
               }
             }
