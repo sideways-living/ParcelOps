@@ -1464,6 +1464,9 @@ private struct OrderQueueRow: View {
               ForEach(item.mailboxSourceSummaries.prefix(2)) { source in
                 Badge(source.badgeLabel, color: mailboxSourceColor(source))
               }
+              if item.mailboxSourceSummaries.count > 2 {
+                Badge("+\(item.mailboxSourceSummaries.count - 2) sources", color: .secondary)
+              }
             }
             if item.isWishlistLinked {
               Badge("\(item.wishlistItems.count) Wishlist", color: .pink)
@@ -2818,9 +2821,19 @@ private struct OrderDispatchHandoffRows: View {
       ForEach(manifests.prefix(2)) { manifest in
         OrderDispatchManifestRow(record: manifest, store: store)
       }
+      if manifests.count > 2 {
+        Text("\(manifests.count - 2) more linked dispatch manifest\(manifests.count - 2 == 1 ? "" : "s") are available in Shipment Manifests.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
 
       ForEach(checklists.prefix(2)) { checklist in
         OrderDispatchReadinessRow(checklist: checklist, store: store)
+      }
+      if checklists.count > 2 {
+        Text("\(checklists.count - 2) more linked dispatch readiness checklist\(checklists.count - 2 == 1 ? "" : "s") are available in Dispatch Readiness.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
     }
   }
