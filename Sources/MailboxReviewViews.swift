@@ -1101,6 +1101,13 @@ struct MailboxView: View {
                 }
               }
             }
+
+            let hiddenParserDiagnosticCount = max(store.intakeParserDiagnostics.count - 8, 0)
+            if hiddenParserDiagnosticCount > 0 {
+              Text("\(hiddenParserDiagnosticCount) more parser diagnostic\(hiddenParserDiagnosticCount == 1 ? "" : "s") are available in Needs Review and Audit diagnostics.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
           }
         }
 
@@ -1752,6 +1759,13 @@ private struct MailboxMissedOrderInvestigationPanel: View {
               }
               .padding(8)
               .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            let hiddenTopParserCheckCount = max(store.intakeParserDiagnostics.count - 3, 0)
+            if hiddenTopParserCheckCount > 0 {
+              Text("\(hiddenTopParserCheckCount) more parser check\(hiddenTopParserCheckCount == 1 ? "" : "s") are available in the parser review queue below.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
           }
         }
@@ -3248,6 +3262,13 @@ struct MailboxGmailReadinessPanel: View {
                   .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
               }
+            }
+
+            let hiddenReasonCount = max(latestReasonBreakdown.count - 6, 0)
+            if hiddenReasonCount > 0 {
+              Text("\(hiddenReasonCount) more Gmail classifier reason\(hiddenReasonCount == 1 ? "" : "s") are available in Audit diagnostics.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
           }
           .padding(10)
@@ -4870,6 +4891,13 @@ struct NeedsReviewView: View {
                           store.addSpaceMailHintFromUncertain(message, target: .filterKeyword, for: connection)
                         }
                       }
+
+                      let hiddenUncertainCount = max(connection.uncertainMessages.count - 5, 0)
+                      if hiddenUncertainCount > 0 {
+                        Text("\(hiddenUncertainCount) more uncertain SpaceMail preview\(hiddenUncertainCount == 1 ? "" : "s") are held locally for review.")
+                          .font(.caption2)
+                          .foregroundStyle(.secondary)
+                      }
                     }
                   }
 
@@ -4909,6 +4937,13 @@ struct NeedsReviewView: View {
                         } onFilterHint: {
                           store.addSpaceMailHintFromFiltered(message, target: .filterKeyword, for: connection)
                         }
+                      }
+
+                      let hiddenFilteredCount = max(connection.filteredMessages.count - 3, 0)
+                      if hiddenFilteredCount > 0 {
+                        Text("\(hiddenFilteredCount) more filtered SpaceMail preview\(hiddenFilteredCount == 1 ? "" : "s") are counted locally but kept out of Inbox.")
+                          .font(.caption2)
+                          .foregroundStyle(.secondary)
                       }
                     }
                   }
@@ -4988,6 +5023,13 @@ struct NeedsReviewView: View {
                           store.addGmailHintFromUncertain(message, target: .filterKeyword, for: connection)
                         }
                       }
+
+                      let hiddenUncertainCount = max(messages.count - 5, 0)
+                      if hiddenUncertainCount > 0 {
+                        Text("\(hiddenUncertainCount) more uncertain Gmail preview\(hiddenUncertainCount == 1 ? "" : "s") are held locally for review.")
+                          .font(.caption2)
+                          .foregroundStyle(.secondary)
+                      }
                     }
                   }
 
@@ -5025,6 +5067,13 @@ struct NeedsReviewView: View {
                         } onFilterHint: {
                           store.addGmailHintFromFiltered(message, target: .filterKeyword, for: connection)
                         }
+                      }
+
+                      let hiddenFilteredCount = max(filteredMessages.count - 5, 0)
+                      if hiddenFilteredCount > 0 {
+                        Text("\(hiddenFilteredCount) more filtered Gmail preview\(hiddenFilteredCount == 1 ? "" : "s") are counted locally but kept out of Inbox.")
+                          .font(.caption2)
+                          .foregroundStyle(.secondary)
                       }
                     }
                   }
