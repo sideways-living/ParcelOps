@@ -1355,6 +1355,13 @@ struct AuditView: View {
             }
           }
 
+          let hiddenGmailHealthCount = max(gmailHealthSummaries.count - 3, 0)
+          if hiddenGmailHealthCount > 0 {
+            Text("\(hiddenGmailHealthCount) more Gmail health summar\(hiddenGmailHealthCount == 1 ? "y is" : "ies are") available in Mailbox Monitor.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+
           MailboxProviderPostRefreshDisclosure(
             title: "Gmail audit follow-up",
             detail: "Open this when Audit needs Gmail post-refresh evidence. The activity feed remains the primary audit surface.",
@@ -1510,6 +1517,13 @@ struct AuditView: View {
             .background(event.inboxDispatchHandoffTrailColor.opacity(0.10))
             .clipShape(RoundedRectangle(cornerRadius: 8))
           }
+
+          let hiddenHandoffEventCount = max(visibleInboxDispatchHandoffEvents.count - 4, 0)
+          if hiddenHandoffEventCount > 0 {
+            Text("\(hiddenHandoffEventCount) more source dispatch handoff event\(hiddenHandoffEventCount == 1 ? "" : "s") are available in the detailed audit log.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }
@@ -1562,6 +1576,13 @@ struct AuditView: View {
                       Badge(gap.capitalized, color: .orange)
                     }
                   }
+
+                  let hiddenGapCount = max(wishlistHandoffSanityGaps(for: item).count - 5, 0)
+                  if hiddenGapCount > 0 {
+                    Text("\(hiddenGapCount) more handoff sanity gap\(hiddenGapCount == 1 ? "" : "s") are tracked for this Wishlist item.")
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                  }
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -1569,6 +1590,13 @@ struct AuditView: View {
               }
               .buttonStyle(.plain)
             }
+          }
+
+          let hiddenSanityItemCount = max(wishlistHandoffSanityItems.count - 6, 0)
+          if hiddenSanityItemCount > 0 {
+            Text("\(hiddenSanityItemCount) more Wishlist handoff sanity item\(hiddenSanityItemCount == 1 ? "" : "s") are available in Wishlist.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
 
           CompactActionRow {
