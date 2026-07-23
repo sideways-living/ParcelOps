@@ -5578,6 +5578,12 @@ struct WishlistView: View {
               .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
           }
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more seller trust evidence item\(remaining == 1 ? "" : "s") are available in detailed Wishlist rows.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
 
         Text("Trust evidence remains manually supplied. ParcelOps does not call review sites, check business registrations, validate seller identity, test checkout, verify delivery probability, or contact sellers.")
