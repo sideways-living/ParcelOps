@@ -2780,6 +2780,12 @@ struct WishlistView: View {
               }
             }
           }
+          let remaining = max(entries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more Wishlist purchase readiness item\(remaining == 1 ? "" : "s") are available in the detailed list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
 
         Text("Readiness is local guidance only. ParcelOps does not buy the item, log into sellers, verify live price or stock, send payment, open a browser, mutate mailboxes, or run background monitoring.")
@@ -2877,6 +2883,12 @@ struct WishlistView: View {
               .background(entry.tone.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
               .overlay(RoundedRectangle(cornerRadius: 8).stroke(entry.tone.opacity(0.18)))
             }
+          }
+          let remaining = max(entries.count - 4, 0)
+          if remaining > 0 {
+            Text("\(remaining) more Wishlist purchase triage item\(remaining == 1 ? "" : "s") are available in the detailed purchase workflow sections below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
 
