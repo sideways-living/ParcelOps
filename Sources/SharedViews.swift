@@ -2150,20 +2150,26 @@ struct OrderMailboxSourceTrailPanel: View {
 
   var body: some View {
     if !summaries.isEmpty {
+      let displayedSummaries = Array(summaries.prefix(3))
       VStack(alignment: .leading, spacing: 7) {
         Label(title, systemImage: symbol)
           .font(.caption.weight(.semibold))
           .foregroundStyle(.blue)
         CompactMetadataGrid(minimumWidth: 130) {
-          ForEach(summaries) { summary in
+          ForEach(displayedSummaries) { summary in
             Badge(summary.badgeLabel, color: color(for: summary.providerName))
           }
         }
-        ForEach(summaries) { summary in
+        ForEach(displayedSummaries) { summary in
           Text("\(summary.statusLabel): \(summary.detailText)")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+        }
+        if summaries.count > displayedSummaries.count {
+          Text("\(summaries.count - displayedSummaries.count) more mailbox source summaries hidden.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
         }
       }
       .padding(10)

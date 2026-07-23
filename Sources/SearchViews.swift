@@ -896,16 +896,22 @@ struct SearchResultRow: View {
             .lineLimit(isCompact ? 4 : 3)
 
           if !mailboxSourceSummaries.isEmpty {
+            let displayedMailboxSourceSummaries = Array(mailboxSourceSummaries.prefix(3))
             CompactMetadataGrid(minimumWidth: 130) {
-              ForEach(mailboxSourceSummaries) { summary in
+              ForEach(displayedMailboxSourceSummaries) { summary in
                 Badge(summary.badgeLabel, color: sourceColor(for: summary.providerName))
               }
             }
-            ForEach(mailboxSourceSummaries) { summary in
+            ForEach(displayedMailboxSourceSummaries) { summary in
               Text("\(summary.statusLabel): \(summary.detailText)")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
+            }
+            if mailboxSourceSummaries.count > displayedMailboxSourceSummaries.count {
+              Text("\(mailboxSourceSummaries.count - displayedMailboxSourceSummaries.count) more mailbox source summaries hidden for this search result.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
           }
         }
