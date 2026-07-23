@@ -3945,11 +3945,21 @@ private struct DispatchInboxOrderRow: View {
               }
             }
           }
+          if linkedWishlistItems.count > 2 {
+            Text("\(linkedWishlistItems.count - 2) more Wishlist purchase link\(linkedWishlistItems.count - 2 == 1 ? "" : "s") are tracked on this dispatch order.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+          }
           ForEach(wishlistHandoffSanityGaps.prefix(2), id: \.item.id) { entry in
             Text("Handoff sanity gaps for \(entry.item.itemName): \(entry.gaps.prefix(4).joined(separator: ", "))")
               .font(.caption2.weight(.semibold))
               .foregroundStyle(.orange)
               .fixedSize(horizontal: false, vertical: true)
+          }
+          if wishlistHandoffSanityGaps.count > 2 {
+            Text("\(wishlistHandoffSanityGaps.count - 2) more Wishlist handoff sanity item\(wishlistHandoffSanityGaps.count - 2 == 1 ? "" : "s") are tracked in Wishlist.")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
           }
         }
         .padding(8)
