@@ -171,12 +171,19 @@ struct TimelineView: View {
         } else {
           ForEach(store.groupedTimelineActivities(filteredActivities)) { group in
             SettingsPanel(title: group.title, symbol: group.symbol) {
-              ForEach(visibleTimelineActivities(group.activities)) { activity in
+              let displayedActivities = visibleTimelineActivities(group.activities)
+              ForEach(displayedActivities) { activity in
                 TimelineActivityRow(activity: activity, store: store, linkedOrder: linkedOrder(for: activity), shipmentGroups: store.suggestedShipmentGroups(for: activity), importQueueItems: store.importQueueItems(for: activity), acceptanceRecords: store.acceptanceRecords(for: activity)) {
                   store.createReviewTask(from: activity)
                 } onCreateDraft: {
                   store.createDraftMessage(from: activity)
                 }
+              }
+              if !showAllTimelineRows && group.activities.count > displayedActivities.count {
+                Text("\(group.activities.count - displayedActivities.count) more timeline activities hidden in this group.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .frame(maxWidth: .infinity, alignment: .leading)
               }
             }
           }
