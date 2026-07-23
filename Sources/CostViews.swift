@@ -690,6 +690,11 @@ struct CostRecordRow: View {
           Badge(email.detectedOrderNumber, color: email.detectedOrderNumber.isPlaceholderValidationValue ? .orange : .teal)
         }
       }
+      if linkedWishlistItems.count > 2 || linkedIntakeEmails.count > 3 {
+        Text("\(max(linkedWishlistItems.count - 2, 0)) more Wishlist item\(max(linkedWishlistItems.count - 2, 0) == 1 ? "" : "s") and \(max(linkedIntakeEmails.count - 3, 0)) more source email\(max(linkedIntakeEmails.count - 3, 0) == 1 ? "" : "s") are linked to this cost record but hidden in the compact grid.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
     }
     .padding(8)
     .frame(maxWidth: .infinity, alignment: .leading)

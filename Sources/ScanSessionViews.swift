@@ -603,6 +603,11 @@ struct ScanSessionRow: View {
                   .lineLimit(1)
               }
             }
+            if linkedWishlistItems.count > 2 {
+              Text("\(linkedWishlistItems.count - 2) more Wishlist item\(linkedWishlistItems.count - 2 == 1 ? "" : "s") are linked to this scan session but hidden here.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
             ForEach(linkedEmails.prefix(2)) { email in
               HStack(spacing: 6) {
                 let sourceSummary = store.intakeSourceSummary(for: email)
@@ -618,6 +623,11 @@ struct ScanSessionRow: View {
                   .foregroundStyle(.secondary)
                   .lineLimit(1)
               }
+            }
+            if linkedEmails.count > 2 {
+              Text("\(linkedEmails.count - 2) more source email\(linkedEmails.count - 2 == 1 ? "" : "s") are linked to this scan session but hidden here.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
           }
         }

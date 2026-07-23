@@ -619,6 +619,11 @@ struct InventoryReceiptRow: View {
                   .lineLimit(1)
               }
             }
+            if linkedEmails.count > 2 {
+              Text("\(linkedEmails.count - 2) more source email\(linkedEmails.count - 2 == 1 ? "" : "s") are linked to this inventory receipt but hidden here.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
           }
         }
         OrderMailboxSourceTrailPanel(
@@ -636,6 +641,11 @@ struct InventoryReceiptRow: View {
                 Badge(item.itemName, color: .pink)
                 Badge(item.purchaseHandoff?.purchaseStatus ?? item.purchaseReadiness ?? item.status, color: .secondary)
               }
+            }
+            if linkedWishlistItems.count > 3 {
+              Text("\(linkedWishlistItems.count - 3) more Wishlist item\(linkedWishlistItems.count - 3 == 1 ? "" : "s") are linked to this inventory receipt but hidden here.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
             Text("Confirm the received item, accepted quantity, storage, and owner against the Wishlist purchase handoff before closing this receipt.")
               .font(.caption2)

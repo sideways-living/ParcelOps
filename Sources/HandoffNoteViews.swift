@@ -925,6 +925,11 @@ struct HandoffNoteRow: View {
                   .lineLimit(1)
               }
             }
+            if linkedEmails.count > 2 {
+              Text("\(linkedEmails.count - 2) more source email\(linkedEmails.count - 2 == 1 ? "" : "s") are linked to this handoff note but hidden here.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
           }
         }
         if !wishlistItems.isEmpty {
@@ -941,6 +946,11 @@ struct HandoffNoteRow: View {
                   .foregroundStyle(.secondary)
                   .lineLimit(1)
               }
+            }
+            if wishlistItems.count > 2 {
+              Text("\(wishlistItems.count - 2) more Wishlist item\(wishlistItems.count - 2 == 1 ? "" : "s") are linked to this handoff note but hidden here.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
           }
         }
