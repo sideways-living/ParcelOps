@@ -11,6 +11,10 @@ struct MailboxView: View {
   @State private var showMailboxReviewTools = false
   @State private var showAllDetectedIntakeEmails = false
   @State private var showAllMailboxEvents = false
+  @State private var showAllSpaceMailSetupRows = false
+  @State private var showAllGmailSetupRows = false
+  @State private var showAllMicrosoft365SetupRows = false
+  private let setupRowLimit = 4
 
   private var normalizedIntakeSearch: String {
     intakeSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -30,6 +34,18 @@ struct MailboxView: View {
 
   private var hiddenDisplayedIntakeCount: Int {
     max(visibleIntakeEmails.count - displayedIntakeEmails.count, 0)
+  }
+
+  private var displayedSpaceMailSetupRows: [SpaceMailIMAPConnection] {
+    showAllSpaceMailSetupRows ? store.spaceMailIMAPConnections : Array(store.spaceMailIMAPConnections.prefix(setupRowLimit))
+  }
+
+  private var displayedGmailSetupRows: [GmailMailboxConnection] {
+    showAllGmailSetupRows ? store.gmailMailboxConnections : Array(store.gmailMailboxConnections.prefix(setupRowLimit))
+  }
+
+  private var displayedMicrosoft365SetupRows: [Microsoft365MailboxConnection] {
+    showAllMicrosoft365SetupRows ? store.microsoft365MailboxConnections : Array(store.microsoft365MailboxConnections.prefix(setupRowLimit))
   }
 
   private var displayedMailEvents: [MailEvent] {
@@ -642,11 +658,24 @@ struct MailboxView: View {
             }
               .buttonStyle(.bordered)
             Badge("\(store.spaceMailIMAPConnections.count) setup records", color: .blue)
+            if store.spaceMailIMAPConnections.count > setupRowLimit {
+              Button(showAllSpaceMailSetupRows ? "Show first \(setupRowLimit)" : "Show all setup rows", systemImage: showAllSpaceMailSetupRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                withAnimation(.snappy) {
+                  showAllSpaceMailSetupRows.toggle()
+                }
+              }
+              .buttonStyle(.bordered)
+            }
           }
           if store.spaceMailIMAPConnections.isEmpty {
             MVPEmptyState(title: "No SpaceMail IMAP setup", detail: "Add a SpaceMail setup, confirm host/folder details, set the Keychain password, then use either Mock SpaceMail refresh or the manual real read-only refresh.", symbol: "server.rack")
           }
-          ForEach(store.spaceMailIMAPConnections) { connection in
+          if store.spaceMailIMAPConnections.count > setupRowLimit && !showAllSpaceMailSetupRows {
+            Text("\(store.spaceMailIMAPConnections.count - setupRowLimit) older SpaceMail setup rows are hidden. Existing setup records are preserved.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          ForEach(displayedSpaceMailSetupRows) { connection in
             SpaceMailIMAPConnectionRow(
               connection: connection,
               healthSummary: store.spaceMailIntakeHealthSummary(for: connection),
@@ -738,22 +767,35 @@ struct MailboxView: View {
             }
               .buttonStyle(.bordered)
             Badge("\(store.gmailMailboxConnections.count) setup records", color: .teal)
+            if store.gmailMailboxConnections.count > setupRowLimit {
+              Button(showAllGmailSetupRows ? "Show first \(setupRowLimit)" : "Show all setup rows", systemImage: showAllGmailSetupRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                withAnimation(.snappy) {
+                  showAllGmailSetupRows.toggle()
+                }
+              }
+              .buttonStyle(.bordered)
+            }
           }
           if store.gmailMailboxConnections.isEmpty {
             MVPEmptyState(title: "No Gmail setup", detail: "Add a Gmail setup record to capture address, labels, mixed-mailbox mode, OAuth app notes, and manual read-only refresh readiness.", symbol: "envelope.badge.shield.half.filled")
+          }
+          if store.gmailMailboxConnections.count > setupRowLimit && !showAllGmailSetupRows {
+            Text("\(store.gmailMailboxConnections.count - setupRowLimit) older Gmail setup rows are hidden. Existing setup records are preserved.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
           if !store.gmailMailboxConnections.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
               Label("Gmail release readiness", systemImage: "checkmark.seal.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-              ForEach(store.gmailMailboxConnections) { connection in
+              ForEach(displayedGmailSetupRows) { connection in
                 GmailReleaseSelfCheckSummaryCard(summary: store.gmailReleaseSelfCheckSummary(for: connection))
               }
             }
             MailboxReleaseBlockerCard(summary: store.gmailReleaseBlockerSummary)
           }
-          ForEach(store.gmailMailboxConnections) { connection in
+          ForEach(displayedGmailSetupRows) { connection in
             GmailMailboxConnectionRow(
               connection: connection,
               readiness: store.gmailOAuthReadinessSummary(for: connection),
@@ -953,11 +995,24 @@ struct MailboxView: View {
             }
               .buttonStyle(.bordered)
             Badge("\(store.microsoft365MailboxConnections.count) setup records", color: .orange)
+            if store.microsoft365MailboxConnections.count > setupRowLimit {
+              Button(showAllMicrosoft365SetupRows ? "Show first \(setupRowLimit)" : "Show all setup rows", systemImage: showAllMicrosoft365SetupRows ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                withAnimation(.snappy) {
+                  showAllMicrosoft365SetupRows.toggle()
+                }
+              }
+              .buttonStyle(.bordered)
+            }
           }
           if store.microsoft365MailboxConnections.isEmpty {
             MVPEmptyState(title: "No Outlook / Microsoft 365 mailbox setup", detail: "Add a setup record in Mailbox Monitor or Settings, then run Mock Graph refresh to test the local intake path.", symbol: "mail.stack")
           }
-          ForEach(store.microsoft365MailboxConnections) { connection in
+          if store.microsoft365MailboxConnections.count > setupRowLimit && !showAllMicrosoft365SetupRows {
+            Text("\(store.microsoft365MailboxConnections.count - setupRowLimit) older Outlook setup rows are hidden. Existing setup records are preserved.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          ForEach(displayedMicrosoft365SetupRows) { connection in
             Microsoft365MailboxConnectionRow(connection: connection, readiness: store.microsoft365OAuthReadinessSummary(for: connection), implementationPlan: store.microsoft365OAuthImplementationPlan(for: connection), authState: store.microsoft365AuthSessionState(for: connection)) { updatedConnection in
               store.updateMicrosoft365MailboxConnection(updatedConnection)
             } onReadyForReview: {
