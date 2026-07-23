@@ -3438,7 +3438,8 @@ private struct TaskInboxSourceTrail: View {
             }
           }
         }
-        ForEach(linkedEmails) { email in
+        let displayedLinkedEmails = Array(linkedEmails.prefix(3))
+        ForEach(displayedLinkedEmails) { email in
           IntakeSourceContextPanel(
             email: email,
             store: store,
@@ -3446,6 +3447,11 @@ private struct TaskInboxSourceTrail: View {
             linkedDetailSuffix: "Duplicate-safe source metadata is linked to this task handoff.",
             compact: true
           )
+        }
+        if linkedEmails.count > displayedLinkedEmails.count {
+          Text("\(linkedEmails.count - displayedLinkedEmails.count) more linked intake email source panels hidden for this task.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         if !importItems.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
