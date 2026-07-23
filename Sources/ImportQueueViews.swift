@@ -803,6 +803,9 @@ struct ImportQueueContextStrip: View {
       ForEach(items.prefix(3)) { item in
         Badge(item.sourceLabel, color: item.importStatus.color)
       }
+      if items.count > 3 {
+        Badge("+\(items.count - 3) more", color: .secondary)
+      }
     }
   }
 }
