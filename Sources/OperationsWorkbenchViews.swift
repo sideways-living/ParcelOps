@@ -2945,9 +2945,12 @@ private struct WorkbenchInboxOrderRow: View {
   }
 
   private var mailboxSourceText: String {
-    mailboxSourceSummaries.prefix(2)
+    let visible = mailboxSourceSummaries.prefix(2)
       .map { "\($0.providerName) via \($0.mailboxLabel)" }
       .joined(separator: "; ")
+    let hidden = mailboxSourceSummaries.count - 2
+    guard hidden > 0 else { return visible }
+    return "\(visible); \(hidden) more source\(hidden == 1 ? "" : "s") hidden"
   }
 
   private func mailboxSourceColor(_ summary: OrderMailboxSourceSummary) -> Color {
@@ -3013,6 +3016,9 @@ private struct WorkbenchInboxOrderRow: View {
         Badge(sourceTrailCount > 0 ? "\(sourceTrailCount) source" : "Source trail missing", color: sourceTrailCount > 0 ? .green : .orange)
         ForEach(mailboxSourceSummaries.prefix(2)) { source in
           Badge(source.badgeLabel, color: mailboxSourceColor(source))
+        }
+        if mailboxSourceSummaries.count > 2 {
+          Badge("+\(mailboxSourceSummaries.count - 2) source", color: .secondary)
         }
         if order.missingInboxOrderFieldCount > 0 {
           Badge("\(order.missingInboxOrderFieldCount) missing", color: .orange)

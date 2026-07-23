@@ -4020,8 +4020,27 @@ struct CompactMailboxHealthList: View {
           }
           .buttonStyle(.plain)
         }
+        if hiddenMailboxSummaryCount > 0 {
+          NavigationLink {
+            MailboxView(store: store)
+          } label: {
+            CompactRow(
+              title: "\(hiddenMailboxSummaryCount) more mailbox setup\(hiddenMailboxSummaryCount == 1 ? "" : "s") hidden",
+              detail: "Open Mailbox Monitor to review every SpaceMail, Gmail, and Outlook refresh summary.",
+              badge: "More",
+              color: .secondary
+            )
+          }
+          .buttonStyle(.plain)
+        }
       }
     }
+  }
+
+  private var hiddenMailboxSummaryCount: Int {
+    max(spaceMailSummaries.count - 2, 0)
+      + max(gmailSummaries.count - 2, 0)
+      + max(microsoft365Summaries.count - 2, 0)
   }
 
   private func color(for summary: SpaceMailIntakeHealthSummary) -> Color {
