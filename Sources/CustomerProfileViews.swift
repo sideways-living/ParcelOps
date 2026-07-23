@@ -304,6 +304,11 @@ struct CustomerProfilesView: View {
               Badge(profile.reviewState.rawValue, color: profile.reviewState.color)
             }
           }
+          if actionProfiles.count > 3 {
+            Text("\(actionProfiles.count - 3) more matched customer profiles need enabled-state, contact detail, destination, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }

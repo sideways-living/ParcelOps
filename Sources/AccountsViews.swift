@@ -324,6 +324,11 @@ struct AccountsView: View {
               Badge(account.credentialStorageStatus.rawValue, color: account.credentialStorageStatus.color)
             }
           }
+          if actionAccounts.count > 3 {
+            Text("\(actionAccounts.count - 3) more account placeholders need credential status, recent check, enabled-state, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }

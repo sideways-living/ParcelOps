@@ -308,6 +308,11 @@ struct ContactsView: View {
               Badge(contact.reviewState.rawValue, color: contact.reviewState.color)
             }
           }
+          if actionContacts.count > 3 {
+            Text("\(actionContacts.count - 3) more matched contacts need contact details, enabled-state, ownership, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }

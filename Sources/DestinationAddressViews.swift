@@ -301,6 +301,11 @@ struct DestinationAddressesView: View {
               Badge(address.riskLevel.rawValue, color: address.riskLevel.color)
             }
           }
+          if actionAddresses.count > 3 {
+            Text("\(actionAddresses.count - 3) more matched destination addresses need risk, enabled-state, destination, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }
