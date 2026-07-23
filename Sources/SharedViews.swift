@@ -9501,6 +9501,11 @@ struct LinkedOrdersContextPanel: View {
                   .foregroundStyle(.secondary)
                   .fixedSize(horizontal: false, vertical: true)
               }
+              if mailboxSources.count > 6 {
+                Text("\(mailboxSources.count - 6) more mailbox provider trail entries hidden for this linked-order panel.")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+              }
             }
             .padding(8)
             .background(tone.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
