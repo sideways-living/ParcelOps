@@ -276,6 +276,11 @@ struct ReturnsClaimsView: View {
               Badge(claim.title, color: claim.riskLevel.color)
             }
           }
+          if claimsNeedingAction.count > 4 {
+            Text("\(claimsNeedingAction.count - 4) more linked return/claim records are hidden and still need status, evidence, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }

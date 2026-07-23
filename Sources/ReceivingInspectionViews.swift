@@ -278,6 +278,11 @@ struct ReceivingInspectionsView: View {
                 .buttonStyle(.bordered)
               }
             }
+            if inboxOrdersMissingInspection.count > 4 {
+              Text("\(inboxOrdersMissingInspection.count - 4) more Inbox/Wishlist orders still need receiving inspection records.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
           }
 
           if !inspectionsNeedingAction.isEmpty {
@@ -287,6 +292,11 @@ struct ReceivingInspectionsView: View {
               ForEach(inspectionsNeedingAction.prefix(4)) { inspection in
                 Badge(inspection.title, color: inspection.riskLevel.color)
               }
+            }
+            if inspectionsNeedingAction.count > 4 {
+              Text("\(inspectionsNeedingAction.count - 4) more linked inspections are hidden and still need discrepancy, quantity, risk, or review follow-up.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
           }
         }

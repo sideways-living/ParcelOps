@@ -279,6 +279,11 @@ struct ProcurementView: View {
               Badge(request.title, color: request.riskLevel.color)
             }
           }
+          if requestsNeedingAction.count > 4 {
+            Text("\(requestsNeedingAction.count - 4) more linked procurement requests are hidden and still need approval, order, budget, or review follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }

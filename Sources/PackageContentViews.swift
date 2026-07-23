@@ -307,6 +307,11 @@ struct PackageContentsView: View {
                 .buttonStyle(.bordered)
               }
             }
+            if inboxOrdersMissingContent.count > 4 {
+              Text("\(inboxOrdersMissingContent.count - 4) more Inbox/Wishlist orders still need package content verification records.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
           }
 
           if !unverifiedInboxContents.isEmpty {
@@ -316,6 +321,11 @@ struct PackageContentsView: View {
               ForEach(unverifiedInboxContents.prefix(4)) { content in
                 Badge(content.title, color: content.riskLevel.color)
               }
+            }
+            if unverifiedInboxContents.count > 4 {
+              Text("\(unverifiedInboxContents.count - 4) more linked content records are hidden and still need verification.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
           }
         }

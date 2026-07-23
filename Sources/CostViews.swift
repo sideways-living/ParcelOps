@@ -283,6 +283,11 @@ struct CostsBudgetsView: View {
                 .buttonStyle(.bordered)
               }
             }
+            if inboxOrdersMissingCost.count > 4 {
+              Text("\(inboxOrdersMissingCost.count - 4) more Inbox/Wishlist orders still need cost records.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
           }
 
           if !costsNeedingAction.isEmpty {
@@ -292,6 +297,11 @@ struct CostsBudgetsView: View {
               ForEach(costsNeedingAction.prefix(4)) { cost in
                 Badge(cost.title, color: cost.riskLevel.color)
               }
+            }
+            if costsNeedingAction.count > 4 {
+              Text("\(costsNeedingAction.count - 4) more linked cost records are hidden and still need budget, risk, or review follow-up.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
           }
         }

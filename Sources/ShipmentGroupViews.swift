@@ -223,6 +223,11 @@ struct ShipmentGroupsView: View {
                 .buttonStyle(.bordered)
               }
             }
+            if inboxOrdersMissingGroup.count > 4 {
+              Text("\(inboxOrdersMissingGroup.count - 4) more Inbox/Wishlist orders still need shipment group setup.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
           }
 
           if !groupsMissingPrimaryOrder.isEmpty {
@@ -232,6 +237,11 @@ struct ShipmentGroupsView: View {
               ForEach(groupsMissingPrimaryOrder.prefix(4)) { group in
                 Badge(group.groupName, color: .orange)
               }
+            }
+            if groupsMissingPrimaryOrder.count > 4 {
+              Text("\(groupsMissingPrimaryOrder.count - 4) more shipment groups are hidden and still need a valid primary order.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
           }
         }
