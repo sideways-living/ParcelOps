@@ -6953,6 +6953,12 @@ struct WishlistView: View {
               )
             }
           }
+          let remaining = max(queueItems.count - 5, 0)
+          if remaining > 0 {
+            Text("\(remaining) more purchase decision runway item\(remaining == 1 ? "" : "s") are available in the detailed decision queue below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
 
         Text("Decision boundary: these actions only update local Wishlist records, checks, tasks, handoffs, and audit history. They do not open seller pages, log into accounts, purchase, pay, mutate mailboxes, or run monitoring.")
@@ -7380,6 +7386,12 @@ struct WishlistView: View {
               .padding(10)
               .background(safety.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
+          }
+          let remaining = max(summaries.count - 8, 0)
+          if remaining > 0 {
+            Text("\(remaining) more external purchase safety item\(remaining == 1 ? "" : "s") are available in the detailed purchase decision list below.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
 
