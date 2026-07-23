@@ -504,6 +504,11 @@ struct CommunicationView: View {
               }
             }
           }
+          if openWishlistDrafts.count > 4 {
+            Text("\(openWishlistDrafts.count - 4) more open Wishlist drafts are hidden and still need review, send-state, or purchase handoff follow-up.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
 
           CompactActionRow {
             NavigationLink {

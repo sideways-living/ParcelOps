@@ -317,6 +317,12 @@ struct EvidenceView: View {
             }
             .buttonStyle(.plain)
           }
+          let missingEvidenceOrders = (inboxCreatedOrdersWithoutEvidence + inboxCreatedOrdersMissingSourceTrail).uniquedByID()
+          if missingEvidenceOrders.count > 4 {
+            Text("\(missingEvidenceOrders.count - 4) more Inbox/Wishlist orders are hidden and still need evidence or source-trail review.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
       }
     }
@@ -418,6 +424,11 @@ struct EvidenceView: View {
                   .buttonStyle(.plain)
                 }
               }
+            }
+            if providerOrdersMissingEvidence.count > 4 {
+              Text("\(providerOrdersMissingEvidence.count - 4) more mailbox-created orders are hidden and still need evidence or source-trail review.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
           }
 
