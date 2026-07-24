@@ -597,6 +597,19 @@ extension AcceptanceCandidate {
   }
 }
 
+private struct HiddenStripCountNote: View {
+  var hiddenCount: Int
+  var itemLabel: String
+
+  var body: some View {
+    if hiddenCount > 0 {
+      Text("\(hiddenCount) more \(itemLabel)\(hiddenCount == 1 ? "" : "s") are hidden in this compact strip.")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+  }
+}
+
 struct AcceptanceHistoryStrip: View {
   var records: [AcceptanceRecord]
   var store: ParcelOpsStore? = nil
@@ -635,6 +648,7 @@ struct AcceptanceHistoryStrip: View {
             Badge("\(record.confidenceScore)%", color: record.confidenceScore < 50 ? .red : record.confidenceScore < 75 ? .orange : .green)
           }
         }
+        HiddenStripCountNote(hiddenCount: records.count - 3, itemLabel: "acceptance record")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -672,6 +686,7 @@ struct ExceptionPlaybookStrip: View {
             Badge(playbook.priority.rawValue, color: playbook.priority.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: playbooks.count - 3, itemLabel: "playbook")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -709,6 +724,7 @@ struct HandoffNoteStrip: View {
             Badge(note.status.rawValue, color: note.status.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: notes.count - 3, itemLabel: "handoff note")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -746,6 +762,7 @@ struct CustomerProfileStrip: View {
             Badge(profile.reviewState.rawValue, color: profile.reviewState.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: profiles.count - 3, itemLabel: "customer profile")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -783,6 +800,7 @@ struct DestinationAddressStrip: View {
             Badge(address.riskLevel.rawValue, color: address.riskLevel.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: addresses.count - 3, itemLabel: "destination address")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -820,6 +838,7 @@ struct DeliveryInstructionStrip: View {
             Badge(instruction.riskLevel.rawValue, color: instruction.riskLevel.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: instructions.count - 3, itemLabel: "delivery instruction")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -857,6 +876,7 @@ struct PackageContentStrip: View {
             Badge(content.verificationStatus.rawValue, color: content.verificationStatus.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: contents.count - 3, itemLabel: "package content record")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -894,6 +914,7 @@ struct CostRecordStrip: View {
             Badge(cost.approvalStatus.rawValue, color: cost.approvalStatus.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: costs.count - 3, itemLabel: "cost record")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -931,6 +952,7 @@ struct ReturnClaimStrip: View {
             Badge(claim.claimStatus.rawValue, color: claim.claimStatus.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: claims.count - 3, itemLabel: "return or claim")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -968,6 +990,7 @@ struct ProcurementRequestStrip: View {
             Badge(request.approvalStatus.rawValue, color: request.approvalStatus.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: requests.count - 3, itemLabel: "procurement request")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -1005,6 +1028,7 @@ struct ReceivingInspectionStrip: View {
             Badge(inspection.inspectionStatus.rawValue, color: inspection.inspectionStatus.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: inspections.count - 3, itemLabel: "receiving inspection")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -1042,6 +1066,7 @@ struct InventoryReceiptStrip: View {
             Badge(receipt.stockHandoffStatus.rawValue, color: receipt.stockHandoffStatus.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: receipts.count - 3, itemLabel: "inventory receipt")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -1079,6 +1104,7 @@ struct StorageLocationStrip: View {
             Badge(location.isEnabled ? "Enabled" : "Disabled", color: location.isEnabled ? .green : .gray)
           }
         }
+        HiddenStripCountNote(hiddenCount: locations.count - 3, itemLabel: "storage location")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -1116,6 +1142,7 @@ struct CustodyRecordStrip: View {
             Badge(record.custodyStatus.rawValue, color: record.custodyStatus.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: records.count - 3, itemLabel: "custody record")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -1153,6 +1180,7 @@ struct LabelReferenceStrip: View {
             Badge(record.labelStatus.rawValue, color: record.labelStatus.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: records.count - 3, itemLabel: "label reference")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -1190,6 +1218,7 @@ struct ScanSessionStrip: View {
             Badge(record.scanStatus.rawValue, color: record.scanStatus.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: records.count - 3, itemLabel: "scan session")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -1227,6 +1256,7 @@ struct ShipmentManifestStrip: View {
             Badge(record.dispatchStatus.rawValue, color: record.dispatchStatus.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: records.count - 3, itemLabel: "shipment manifest")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -1337,6 +1367,7 @@ struct DispatchReadinessStrip: View {
             Badge(checklist.checklistStatus.rawValue, color: checklist.checklistStatus.color)
           }
         }
+        HiddenStripCountNote(hiddenCount: checklists.count - 3, itemLabel: "dispatch checklist")
       }
       .padding(10)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
