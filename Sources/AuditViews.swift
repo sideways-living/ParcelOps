@@ -730,6 +730,14 @@ struct AuditView: View {
             store.createReviewTask(from: event)
           }
         }
+        let hiddenDetailedEventCount = max(filteredEvents.count - 30, 0)
+        if hiddenDetailedEventCount > 0 {
+          AuditHiddenCountNote(
+            hiddenCount: hiddenDetailedEventCount,
+            itemLabel: "audit event",
+            detail: "Use search, action, or record-type filters to narrow the detailed log before creating follow-up tasks."
+          )
+        }
       }
     }
   }
@@ -914,9 +922,11 @@ struct AuditView: View {
 
           let hiddenStatusEventCount = max(visibleDevelopmentStatusEvents.count - 3, 0)
           if hiddenStatusEventCount > 0 {
-            Text("\(hiddenStatusEventCount) more development status event\(hiddenStatusEventCount == 1 ? "" : "s") are available in the detailed audit log.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            AuditHiddenCountNote(
+              hiddenCount: hiddenStatusEventCount,
+              itemLabel: "development status event",
+              detail: "Use the detailed audit log for the full checkpoint history."
+            )
           }
         }
 
@@ -1066,9 +1076,11 @@ struct AuditView: View {
 
             let hiddenReleaseEventCount = max(visibleMailboxProviderReleaseGateEvents.count - 3, 0)
             if hiddenReleaseEventCount > 0 {
-              Text("\(hiddenReleaseEventCount) more provider release-gate audit event\(hiddenReleaseEventCount == 1 ? "" : "s") are available in the detailed log.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+              AuditHiddenCountNote(
+                hiddenCount: hiddenReleaseEventCount,
+                itemLabel: "provider release-gate audit event",
+                detail: "Use the detailed audit log for the full provider readiness evidence trail."
+              )
             }
           }
         }
@@ -1196,9 +1208,11 @@ struct AuditView: View {
 
             let hiddenSourceOrderCount = max(inboxCreatedOrdersWithMailboxSourceTrail.count - 4, 0)
             if hiddenSourceOrderCount > 0 {
-              Text("\(hiddenSourceOrderCount) more source-covered order\(hiddenSourceOrderCount == 1 ? "" : "s") are available in Orders.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+              AuditHiddenCountNote(
+                hiddenCount: hiddenSourceOrderCount,
+                itemLabel: "source-covered order",
+                detail: "Open Orders for the complete mailbox source trail list."
+              )
             }
           }
         }
@@ -1236,9 +1250,11 @@ struct AuditView: View {
 
           let hiddenMissingSourceCount = max(inboxCreatedOrdersMissingSourceTrail.count - 4, 0)
           if hiddenMissingSourceCount > 0 {
-            Text("\(hiddenMissingSourceCount) more order\(hiddenMissingSourceCount == 1 ? "" : "s") without source trails are available in Orders.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            AuditHiddenCountNote(
+              hiddenCount: hiddenMissingSourceCount,
+              itemLabel: "order without source trail",
+              detail: "Open Orders to inspect the remaining source-trail gaps."
+            )
           }
         }
       }
@@ -1357,9 +1373,11 @@ struct AuditView: View {
 
           let hiddenGmailHealthCount = max(gmailHealthSummaries.count - 3, 0)
           if hiddenGmailHealthCount > 0 {
-            Text("\(hiddenGmailHealthCount) more Gmail health summar\(hiddenGmailHealthCount == 1 ? "y is" : "ies are") available in Mailbox Monitor.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            AuditHiddenCountNote(
+              hiddenCount: hiddenGmailHealthCount,
+              itemLabel: "Gmail health summary",
+              detail: "Open Mailbox Monitor for the full Gmail refresh history and classifier evidence."
+            )
           }
 
           MailboxProviderPostRefreshDisclosure(
@@ -1520,9 +1538,11 @@ struct AuditView: View {
 
           let hiddenHandoffEventCount = max(visibleInboxDispatchHandoffEvents.count - 4, 0)
           if hiddenHandoffEventCount > 0 {
-            Text("\(hiddenHandoffEventCount) more source dispatch handoff event\(hiddenHandoffEventCount == 1 ? "" : "s") are available in the detailed audit log.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            AuditHiddenCountNote(
+              hiddenCount: hiddenHandoffEventCount,
+              itemLabel: "source dispatch handoff event",
+              detail: "Use the detailed audit log for the full Inbox-to-Dispatch trail."
+            )
           }
         }
       }
@@ -1594,9 +1614,11 @@ struct AuditView: View {
 
           let hiddenSanityItemCount = max(wishlistHandoffSanityItems.count - 6, 0)
           if hiddenSanityItemCount > 0 {
-            Text("\(hiddenSanityItemCount) more Wishlist handoff sanity item\(hiddenSanityItemCount == 1 ? "" : "s") are available in Wishlist.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            AuditHiddenCountNote(
+              hiddenCount: hiddenSanityItemCount,
+              itemLabel: "Wishlist handoff sanity item",
+              detail: "Open Wishlist to review remaining purchase, handoff, and order-watch gaps."
+            )
           }
 
           CompactActionRow {
@@ -1685,15 +1707,15 @@ struct AuditView: View {
 
           AuditFeedSection(title: "Workflow actions", detail: "Reviews, links, completions, acknowledgements, task and draft work.", events: workflowEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
-          })
+          }, hiddenCount: max(workflowEvents.count - 8, 0))
 
           AuditFeedSection(title: "Record changes", detail: "Creates, edits, removals, enables, disables, and pinned changes.", events: recordChangeEvents.prefix(8).map { $0 }, onCreateTask: { event in
             store.createReviewTask(from: event)
-          })
+          }, hiddenCount: max(recordChangeEvents.count - 8, 0))
 
           AuditFeedSection(title: "Earlier", detail: "Most recent local events in plain chronological order.", events: Array(recentEvents.dropFirst(8).prefix(8)), onCreateTask: { event in
             store.createReviewTask(from: event)
-          })
+          }, hiddenCount: max(recentEvents.count - 16, 0))
         }
       }
     }
@@ -1821,6 +1843,7 @@ private struct AuditFeedSection: View {
   var detail: String
   var events: [AuditEvent]
   var onCreateTask: (AuditEvent) -> Void
+  var hiddenCount: Int = 0
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -1846,7 +1869,41 @@ private struct AuditFeedSection: View {
             onCreateTask(event)
           }
         }
+        if hiddenCount > 0 {
+          AuditHiddenCountNote(
+            hiddenCount: hiddenCount,
+            itemLabel: "audit event",
+            detail: "Use the detailed audit log to narrow and inspect the remaining local history."
+          )
+        }
       }
+    }
+  }
+}
+
+private struct AuditHiddenCountNote: View {
+  var hiddenCount: Int
+  var itemLabel: String
+  var detail: String
+
+  var body: some View {
+    if hiddenCount > 0 {
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: "ellipsis.circle")
+          .foregroundStyle(.secondary)
+          .frame(width: 18)
+        VStack(alignment: .leading, spacing: 2) {
+          Text("\(hiddenCount) more \(itemLabel)\(hiddenCount == 1 ? "" : "s") hidden in this compact audit summary.")
+            .font(.caption.weight(.semibold))
+          Text(detail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
   }
 }
