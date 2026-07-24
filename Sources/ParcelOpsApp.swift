@@ -175,6 +175,12 @@ struct ParcelOpsRootView: View {
     showSecondaryDesktopGroups || selectionIsSecondaryDesktopRoute
   }
 
+  private var selectedRouteGroupTitle: String {
+    ParcelNavigationGroup.desktopGroups.first { group in
+      group.sections.contains(selection)
+    }?.title ?? "ParcelOps"
+  }
+
   private var dailyAttentionCount: Int {
     store.reviewIntakeEmailCount
       + store.pendingMailboxReviewCount
@@ -339,14 +345,50 @@ struct ParcelOpsRootView: View {
 
         Divider()
 
-        NavigationStack {
-          content(for: selection)
-            .id(selection)
-            .navigationTitle(selection.title)
+        VStack(spacing: 0) {
+          selectedRouteStatusBar
+
+          Divider()
+
+          NavigationStack {
+            content(for: selection)
+              .id(selection)
+              .navigationTitle(selection.title)
+          }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
+  }
+
+  private var selectedRouteStatusBar: some View {
+    HStack(alignment: .center, spacing: 10) {
+      Image(systemName: selection.symbol)
+        .font(.body.weight(.semibold))
+        .foregroundStyle(.tint)
+        .frame(width: 24, height: 24)
+
+      VStack(alignment: .leading, spacing: 2) {
+        Text(selection.title)
+          .font(.subheadline.weight(.semibold))
+        Text("\(selectedRouteGroupTitle) • \(sidebarRouteHint(for: selection))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+      }
+
+      Spacer()
+
+      if let count = attentionCount(for: selection) {
+        Badge(count == 0 ? "No active count" : "\(count) active", color: count == 0 ? .green : attentionColor(for: selection, count: count))
+      } else if selectionIsSecondaryDesktopRoute {
+        Badge("Reference", color: .secondary)
+      }
+    }
+    .padding(.horizontal, 18)
+    .padding(.vertical, 10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.bar)
   }
 
   private func desktopSidebar(width: CGFloat) -> some View {
