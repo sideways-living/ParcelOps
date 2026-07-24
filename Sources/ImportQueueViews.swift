@@ -373,9 +373,11 @@ struct ImportQueueView: View {
               ImportReadinessRow(item: item, detail: importReadinessDetail(for: item))
             }
             if importItemsNeedingReview.count > 4 {
-              Text("\(importItemsNeedingReview.count - 4) more staged imports need field, link, status, or review checks.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+              ImportHiddenCountNote(
+                hiddenCount: importItemsNeedingReview.count - 4,
+                itemLabel: "staged import",
+                detail: "Keep working this queue from Import Queue, or use Inbox when the source is a mailbox intake email."
+              )
             }
           }
         }
@@ -789,6 +791,34 @@ private struct ImportQueueFeedbackPanel: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.green.opacity(0.12))
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct ImportHiddenCountNote: View {
+  var hiddenCount: Int
+  var itemLabel: String
+  var detail: String
+
+  var body: some View {
+    if hiddenCount > 0 {
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: "ellipsis.circle")
+          .foregroundStyle(.secondary)
+          .frame(width: 18)
+
+        VStack(alignment: .leading, spacing: 2) {
+          Text("\(hiddenCount) more \(itemLabel)\(hiddenCount == 1 ? "" : "s") need checks in this compact summary.")
+            .font(.caption.weight(.semibold))
+          Text(detail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
   }
 }
 

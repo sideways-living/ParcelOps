@@ -198,10 +198,11 @@ struct AcceptanceReviewView: View {
                   )
                 }
                 if !showAllAcceptanceRows && group.candidates.count > displayedCandidates.count {
-                  Text("\(group.candidates.count - displayedCandidates.count) more acceptance candidates hidden in this group.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                  AcceptanceHiddenCountNote(
+                    hiddenCount: group.candidates.count - displayedCandidates.count,
+                    itemLabel: "candidate",
+                    detail: "Use Show all rows to inspect the rest of this grouped acceptance queue."
+                  )
                 }
               }
             }
@@ -312,9 +313,11 @@ struct AcceptanceReviewView: View {
               AcceptanceReadinessRow(candidate: candidate, detail: acceptanceReadinessDetail(for: candidate))
             }
             if candidatesNeedingDecision.count > 4 {
-              Text("\(candidatesNeedingDecision.count - 4) more candidates need field, link, decision, or review checks.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+              AcceptanceHiddenCountNote(
+                hiddenCount: candidatesNeedingDecision.count - 4,
+                itemLabel: "candidate",
+                detail: "Continue in Acceptance Review to link, accept, ignore, reopen, or create follow-up."
+              )
             }
           }
         }
@@ -744,6 +747,34 @@ private struct AcceptanceFeedbackPanel: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.green.opacity(0.12))
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct AcceptanceHiddenCountNote: View {
+  var hiddenCount: Int
+  var itemLabel: String
+  var detail: String
+
+  var body: some View {
+    if hiddenCount > 0 {
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: "ellipsis.circle")
+          .foregroundStyle(.secondary)
+          .frame(width: 18)
+
+        VStack(alignment: .leading, spacing: 2) {
+          Text("\(hiddenCount) more acceptance \(itemLabel)\(hiddenCount == 1 ? "" : "s") hidden in this compact view.")
+            .font(.caption.weight(.semibold))
+          Text(detail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
   }
 }
 
