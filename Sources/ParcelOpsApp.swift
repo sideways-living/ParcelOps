@@ -155,9 +155,9 @@ struct ParcelOpsRootView: View {
   @State private var sidebarSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-  private let desktopSidebarMinimumWidth: CGFloat = 360
-  private let desktopSidebarIdealWidth: CGFloat = 500
-  private let desktopSidebarMaximumWidth: CGFloat = 540
+  private let desktopSidebarMinimumWidth: CGFloat = 400
+  private let desktopSidebarIdealWidth: CGFloat = 520
+  private let desktopSidebarMaximumWidth: CGFloat = 580
 
   private var isSearchingSidebar: Bool {
     !sidebarSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -474,7 +474,7 @@ struct ParcelOpsRootView: View {
   }
 
   private func sidebarDailyFocusSummary(sidebarWidth: CGFloat) -> some View {
-    let cardColumns = sidebarWidth < 430
+    let cardColumns = sidebarWidth < 500
       ? [GridItem(.flexible(), spacing: 8)]
       : Array(repeating: GridItem(.flexible(), spacing: 8), count: 2)
 
@@ -519,7 +519,7 @@ struct ParcelOpsRootView: View {
               }
             }
             .font(.caption.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 112, maxHeight: 112, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: 118, maxHeight: 118, alignment: .topLeading)
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
