@@ -256,8 +256,16 @@ struct InboxView: View {
   }
 
   private var mailboxProviderNextItems: [MailboxProviderTestQueueItem] {
+    Array(mailboxProviderNextItemSource.prefix(isCompact ? 3 : 4))
+  }
+
+  private var mailboxProviderNextItemSource: [MailboxProviderTestQueueItem] {
     let incomplete = mailboxProviderTestQueue.items.filter { !$0.isComplete }
-    return Array((incomplete.isEmpty ? mailboxProviderTestQueue.items : incomplete).prefix(isCompact ? 3 : 4))
+    return incomplete.isEmpty ? mailboxProviderTestQueue.items : incomplete
+  }
+
+  private var hiddenMailboxProviderNextItemCount: Int {
+    max(mailboxProviderNextItemSource.count - mailboxProviderNextItems.count, 0)
   }
 
   private var blockedIncomingCount: Int {
@@ -562,6 +570,16 @@ struct InboxView: View {
           }
         }
 
+        let visibleReadinessLimit = isCompact ? 3 : 6
+        let hiddenReadinessCount = max(wishlistPurchaseReadinessItems.count - visibleReadinessLimit, 0)
+        if hiddenReadinessCount > 0 {
+          OperatorHiddenCountNote(
+            hiddenCount: hiddenReadinessCount,
+            itemLabel: "Wishlist readiness item",
+            detail: "Open the full Wishlist workspace to review the remaining purchase decisions and handoffs."
+          )
+        }
+
         Text("This panel only updates local Wishlist records, tasks, drafts, and audit history. It does not compare live sellers, buy items, open retailer accounts, send payments, mutate mailbox messages, or monitor orders in the background.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
@@ -595,6 +613,16 @@ struct InboxView: View {
             onMarkSeen: {
               store.markWishlistOrderConfirmationSeen(item)
             }
+          )
+        }
+
+        let visibleWatchLimit = isCompact ? 3 : 5
+        let hiddenWatchCount = max(wishlistOrderWatchItems.count - visibleWatchLimit, 0)
+        if hiddenWatchCount > 0 {
+          OperatorHiddenCountNote(
+            hiddenCount: hiddenWatchCount,
+            itemLabel: "Wishlist order-link item",
+            detail: "Open Wishlist to work the remaining manual order-confirmation matches."
           )
         }
 
@@ -673,6 +701,13 @@ struct InboxView: View {
               .frame(maxWidth: .infinity, alignment: .topLeading)
               .background(mailboxProviderReleaseGateColor(for: item.tone).opacity(item.isComplete ? 0.05 : 0.1), in: RoundedRectangle(cornerRadius: 8))
             }
+          }
+          if hiddenMailboxProviderNextItemCount > 0 {
+            OperatorHiddenCountNote(
+              hiddenCount: hiddenMailboxProviderNextItemCount,
+              itemLabel: "provider checklist item",
+              detail: "Open Mailbox Monitor or Settings for the complete provider setup and release checklist."
+            )
           }
         }
 
@@ -906,6 +941,14 @@ struct InboxView: View {
               .padding(8)
               .frame(maxWidth: .infinity, alignment: .topLeading)
               .background(mailboxProviderReleaseGateColor(for: item.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+            let hiddenGateCount = max(openGates.count - 3, 0)
+            if hiddenGateCount > 0 {
+              OperatorHiddenCountNote(
+                hiddenCount: hiddenGateCount,
+                itemLabel: "provider release gate",
+                detail: "Open provider release evidence for the full SpaceMail, Gmail, and Outlook gate list."
+              )
             }
           }
         }
@@ -2066,6 +2109,15 @@ private struct InboxTriageGroupSection: View {
 
       ForEach(bucket.items.prefix(8)) { item in
         InboxTriageRow(item: item, store: store)
+      }
+
+      let hiddenBucketCount = max(bucket.items.count - 8, 0)
+      if hiddenBucketCount > 0 {
+        OperatorHiddenCountNote(
+          hiddenCount: hiddenBucketCount,
+          itemLabel: "Inbox row",
+          detail: "Use search, filters, or Mailbox Monitor to work the remaining rows in this group."
+        )
       }
     }
     .padding(.top, 4)
@@ -4721,6 +4773,33 @@ private struct DispatchQueueInboxOrderContext: View {
     case "SpaceMail": return .teal
     case "Microsoft 365": return .purple
     default: return .secondary
+    }
+  }
+}
+
+private struct OperatorHiddenCountNote: View {
+  var hiddenCount: Int
+  var itemLabel: String
+  var detail: String
+
+  var body: some View {
+    if hiddenCount > 0 {
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: "ellipsis.circle")
+          .foregroundStyle(.secondary)
+          .frame(width: 18)
+        VStack(alignment: .leading, spacing: 2) {
+          Text("\(hiddenCount) more \(itemLabel)\(hiddenCount == 1 ? "" : "s") hidden in this compact summary.")
+            .font(.caption.weight(.semibold))
+          Text(detail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
   }
 }
