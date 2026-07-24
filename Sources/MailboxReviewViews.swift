@@ -319,6 +319,11 @@ struct MailboxView: View {
             }
           )
         }
+        if wishlistOrderWatchItems.count > 5 {
+          Text("\(wishlistOrderWatchItems.count - 5) more Wishlist order-watch item\(wishlistOrderWatchItems.count - 5 == 1 ? "" : "s") are hidden in this compact mailbox panel.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
 
         CompactActionRow {
           NavigationLink {
@@ -5886,9 +5891,12 @@ private struct NeedsReviewInboxOrderRow: View {
   }
 
   private var mailboxSourceText: String {
-    mailboxSourceSummaries.prefix(2)
+    let visible = mailboxSourceSummaries.prefix(2)
       .map { "\($0.providerName) via \($0.mailboxLabel)" }
       .joined(separator: "; ")
+    let hidden = mailboxSourceSummaries.count - 2
+    guard hidden > 0 else { return visible }
+    return "\(visible); \(hidden) more source\(hidden == 1 ? "" : "s") hidden"
   }
 
   private var rowTint: Color {
@@ -5955,6 +5963,9 @@ private struct NeedsReviewInboxOrderRow: View {
         }
         ForEach(mailboxSourceSummaries.prefix(2)) { source in
           Badge(source.badgeLabel, color: mailboxSourceColor(source))
+        }
+        if mailboxSourceSummaries.count > 2 {
+          Badge("+\(mailboxSourceSummaries.count - 2) source", color: .secondary)
         }
       }
       .font(.caption)
