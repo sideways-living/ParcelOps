@@ -5032,6 +5032,64 @@ final class ParcelOpsStore {
     let parserDiagnosticCount = intakeParserDiagnostics.count
     let inboxCreatedOrderCount = orders.filter { $0.source == .forwardedMailbox || $0.checkedMailbox == "manual-import" }.count
     let openPartialOrderTasks = reviewTasks.filter { $0.isPartialInboxOrderFollowUp && $0.status != .completed }.count
+    let mailboxProviderRecordCount = mailboxes.count
+      + spaceMailIMAPConnections.count
+      + gmailMailboxConnections.count
+      + microsoft365MailboxConnections.count
+      + mailboxIngestRecords.count
+    let localRecordGroups: [Int] = [
+      orders.count,
+      mailEvents.count,
+      intakeEmails.count,
+      mailboxProviderRecordCount,
+      shopifyConnections.count,
+      watchedFolders.count,
+      wishlistItems.count,
+      wishlistCaptureCandidates.count,
+      wishlistResearchRequests.count,
+      wishlistPriceSnapshots.count,
+      wishlistSellerQuotes.count,
+      wishlistPriceWatchRules.count,
+      wishlistSellerTrustRecords.count,
+      wishlistPurchaseAccountRecords.count,
+      wishlistPurchaseApprovalRecords.count,
+      wishlistPurchaseLinkRecords.count,
+      wishlistOrderWatchRecords.count,
+      connections.count,
+      auditEvents.count,
+      evidenceAttachments.count,
+      carrierTrackingEvents.count,
+      automationRules.count,
+      savedFilters.count,
+      reviewTasks.count,
+      handoffNotes.count,
+      slaPolicies.count,
+      exceptionPlaybooks.count,
+      communicationTemplates.count,
+      draftMessages.count,
+      contactDirectoryEntries.count,
+      customerRecipientProfiles.count,
+      destinationAddresses.count,
+      deliveryInstructions.count,
+      packageContents.count,
+      costRecords.count,
+      returnClaims.count,
+      procurementRequests.count,
+      receivingInspections.count,
+      inventoryReceipts.count,
+      storageLocations.count,
+      custodyRecords.count,
+      labelReferenceRecords.count,
+      scanSessionRecords.count,
+      shipmentManifestRecords.count,
+      dispatchReadinessChecklists.count,
+      accountCredentialRecords.count,
+      vendorProfiles.count,
+      shipmentGroups.count,
+      importQueueItems.count,
+      acceptanceRecords.count
+    ]
+    let localRecordCount = localRecordGroups.reduce(0, +)
     let activeNoiseSignals = placeholderIntakeCount
       + orphanIngestCount
       + orphanLinkedIntakeCount
@@ -5075,6 +5133,12 @@ final class ParcelOpsStore {
       tone: tone,
       signalCount: activeNoiseSignals,
       metrics: [
+        LocalDataHygieneMetric(title: "Local records", value: "\(localRecordCount)", detail: "In-memory records loaded from local JSON and sample-backed defaults. This helps separate data volume from UI navigation issues.", tone: localRecordCount > 1000 ? "warning" : "success"),
+        LocalDataHygieneMetric(title: "Intake emails", value: "\(intakeEmails.count)", detail: "Captured forwarded mailbox rows currently held for triage, review, ignore, or order handoff.", tone: intakeEmails.count > 250 ? "attention" : "success"),
+        LocalDataHygieneMetric(title: "Orders", value: "\(orders.count)", detail: "Tracked orders available in the primary Orders workflow.", tone: orders.isEmpty ? "neutral" : "success"),
+        LocalDataHygieneMetric(title: "Audit events", value: "\(auditEvents.count)", detail: "Local activity entries used for traceability. A large audit count can make the Audit feed heavier to render.", tone: auditEvents.count > 500 ? "attention" : "success"),
+        LocalDataHygieneMetric(title: "Mailbox metadata", value: "\(mailboxProviderRecordCount)", detail: "Mailbox setup rows plus duplicate tracking metadata. This does not include stored passwords or tokens.", tone: mailboxProviderRecordCount > 500 ? "attention" : "success"),
+        LocalDataHygieneMetric(title: "Expected JSON files", value: "\(JSONParcelOpsRepository.persistedJSONFileNames.count)", detail: "Configured local JSON files ParcelOps may load or sample-back. Settings can record a checkpoint without exporting or deleting data.", tone: "neutral"),
         LocalDataHygieneMetric(title: "Intake placeholders", value: "\(placeholderIntakeCount)", detail: "Rows with missing sender, subject, order, tracking, or raw header-like preview text.", tone: placeholderIntakeCount == 0 ? "success" : "attention"),
         LocalDataHygieneMetric(title: "Needs review", value: "\(reviewIntakeEmails.count)", detail: "Forwarded intake emails still waiting for operator review.", tone: reviewIntakeEmails.isEmpty ? "success" : "attention"),
         LocalDataHygieneMetric(title: "Ignored intake", value: "\(ignoredIntakeCount)", detail: "Rows already ignored locally; useful as test noise evidence, not active Inbox work.", tone: ignoredIntakeCount == 0 ? "success" : "neutral"),
