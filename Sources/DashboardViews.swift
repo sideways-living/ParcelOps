@@ -2292,6 +2292,11 @@ struct DashboardView: View {
             handoffs: Array(openMailboxAssignedHandoffs.prefix(3)),
             store: store
           )
+          DashboardHiddenCountNote(
+            hiddenCount: max(openMailboxAssignedTasks.count - 3, 0) + max(openMailboxAssignedHandoffs.count - 3, 0),
+            itemLabel: "mailbox follow-up",
+            detail: "Open Tasks for the remaining provider tasks and handoff notes."
+          )
 
           CompactActionRow {
             if mailboxAssignedFollowUpCount > 0 {
@@ -2613,8 +2618,23 @@ struct DashboardView: View {
               store: store
             )
             CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)), store: store)
+            DashboardHiddenCountNote(
+              hiddenCount: partialInboxOrderBlockers.count - 4,
+              itemLabel: "Inbox-created order needing verification",
+              detail: "Open Orders to verify the remaining source-created orders before dispatch."
+            )
             CompactInboxCreatedOrderList(orders: Array(store.inboxCreatedOrders.prefix(3)), store: store)
+            DashboardHiddenCountNote(
+              hiddenCount: store.inboxCreatedOrders.count - 3,
+              itemLabel: "Inbox-created order",
+              detail: "Open Orders for the full Inbox-created order queue and source trail."
+            )
             CompactOrderList(orders: Array((store.reviewOrders + store.orders.filter { $0.status == .exception || $0.status == .inTransit || $0.status == .shipped }).prefix(4)), store: store)
+            DashboardHiddenCountNote(
+              hiddenCount: (store.reviewOrders + store.orders.filter { $0.status == .exception || $0.status == .inTransit || $0.status == .shipped }).count - 4,
+              itemLabel: "active/problem order",
+              detail: "Open Orders for the remaining review, exception, shipped, and in-transit orders."
+            )
           }
         }
 
@@ -2631,10 +2651,35 @@ struct DashboardView: View {
               ("Review", "\(store.dispatchReviewWorkCount)", .purple)
             ])
             CompactPartialInboxOrderList(orders: Array(partialInboxOrderBlockers.prefix(4)), store: store)
+            DashboardHiddenCountNote(
+              hiddenCount: partialInboxOrderBlockers.count - 4,
+              itemLabel: "Inbox-created order needing verification",
+              detail: "Open Orders to finish verification before preparing outbound dispatch work."
+            )
             CompactReopenedInboxDispatchHandoffList(manifests: Array(reopenedInboxDispatchManifests.prefix(3)), checklists: Array(reopenedInboxDispatchChecklists.prefix(3)), store: store)
+            DashboardHiddenCountNote(
+              hiddenCount: max(reopenedInboxDispatchManifests.count - 3, 0) + max(reopenedInboxDispatchChecklists.count - 3, 0),
+              itemLabel: "reopened dispatch handoff",
+              detail: "Open Dispatch for the remaining reopened manifests and readiness checklists."
+            )
             CompactInboxDispatchGapList(orders: Array(inboxDispatchGapOrders.prefix(4)), store: store)
+            DashboardHiddenCountNote(
+              hiddenCount: inboxDispatchGapOrders.count - 4,
+              itemLabel: "Inbox order missing dispatch setup",
+              detail: "Open Dispatch or Orders to set up the remaining outbound work."
+            )
             CompactInboxDispatchSetupList(orders: Array(inboxDispatchSetupPendingOrders.prefix(4)), store: store)
+            DashboardHiddenCountNote(
+              hiddenCount: inboxDispatchSetupPendingOrders.count - 4,
+              itemLabel: "Inbox dispatch setup item",
+              detail: "Open Dispatch to finish the remaining setup checklists."
+            )
             CompactShipmentManifestList(records: Array((store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).prefix(4)), store: store)
+            DashboardHiddenCountNote(
+              hiddenCount: (store.blockedShipmentManifests + store.undispatchedShipmentManifests + store.highRiskShipmentManifests).count - 4,
+              itemLabel: "dispatch manifest",
+              detail: "Open Dispatch for the remaining blocked, undispatched, and high-risk manifests."
+            )
           }
         }
 
@@ -2649,10 +2694,27 @@ struct DashboardView: View {
               ("High", "\(store.highPriorityHandoffNotes.count + store.highPriorityOpenReviewTaskCount)", .red)
             ])
             CompactTaskList(tasks: Array(store.reviewTasksNeedingAttention.prefix(3)), store: store)
+            DashboardHiddenCountNote(
+              hiddenCount: store.reviewTasksNeedingAttention.count - 3,
+              itemLabel: "review task",
+              detail: "Open Tasks for the remaining assigned, overdue, or high-priority work."
+            )
             CompactHandoffNoteList(notes: Array(store.handoffNotesNeedingAttention.prefix(3)), store: store)
+            DashboardHiddenCountNote(
+              hiddenCount: store.handoffNotesNeedingAttention.count - 3,
+              itemLabel: "handoff note",
+              detail: "Open Tasks for the remaining handoffs that need acknowledgement or closure."
+            )
             CompactDraftMessageList(drafts: Array((mailboxDiagnosticDrafts + store.draftMessagesNeedingReview.filter { draft in
               !mailboxDiagnosticDrafts.contains(where: { $0.id == draft.id })
             }).prefix(3)), store: store)
+            DashboardHiddenCountNote(
+              hiddenCount: (mailboxDiagnosticDrafts + store.draftMessagesNeedingReview.filter { draft in
+                !mailboxDiagnosticDrafts.contains(where: { $0.id == draft.id })
+              }).count - 3,
+              itemLabel: "draft message",
+              detail: "Open Tasks or Drafts for the remaining provider and review draft messages."
+            )
           }
         }
       }
@@ -5336,6 +5398,34 @@ struct CompactList<Content: View>: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+}
+
+struct DashboardHiddenCountNote: View {
+  var hiddenCount: Int
+  var itemLabel: String
+  var detail: String
+
+  var body: some View {
+    if hiddenCount > 0 {
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: "ellipsis.circle")
+          .foregroundStyle(.secondary)
+          .frame(width: 18)
+
+        VStack(alignment: .leading, spacing: 2) {
+          Text("\(hiddenCount) more \(itemLabel)\(hiddenCount == 1 ? "" : "s") hidden from this compact Dashboard section.")
+            .font(.caption.weight(.semibold))
+          Text(detail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
   }
 }
 
