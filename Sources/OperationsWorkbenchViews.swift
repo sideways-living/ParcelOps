@@ -1683,6 +1683,11 @@ struct OperationsWorkbenchView: View {
                 .background(gmailRefreshTaskWorkbenchColor(task).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
               }
             }
+            WorkbenchHiddenCountNote(
+              hiddenCount: activeGmailRefreshTasks.count - 3,
+              itemLabel: "Gmail refresh follow-up task",
+              detail: "Open Tasks for the remaining Gmail setup, classifier, refresh, or review work."
+            )
           }
           .padding(10)
           .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
@@ -1765,6 +1770,11 @@ struct OperationsWorkbenchView: View {
               .background(gmailToneColor(summary.tone).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
           }
+          WorkbenchHiddenCountNote(
+            hiddenCount: gmailHealthSummaries.count - 3,
+            itemLabel: "Gmail health summary",
+            detail: "Open Mailbox Monitor for the full Gmail refresh history and classifier evidence."
+          )
         }
 
         gmailWorkbenchReadinessPanel
@@ -1878,6 +1888,11 @@ struct OperationsWorkbenchView: View {
                 .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
               }
             }
+            WorkbenchHiddenCountNote(
+              hiddenCount: activeMicrosoft365ReleaseTasks.count - 3,
+              itemLabel: "Outlook release follow-up task",
+              detail: "Open Tasks or Audit for the remaining Microsoft 365 sign-in, Graph, and review work."
+            )
           }
           .padding(10)
           .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
@@ -2293,9 +2308,11 @@ struct OperationsWorkbenchView: View {
             }
           }
           if mailboxAssignedWorkbenchItems.count > 4 {
-            Text("\(mailboxAssignedWorkbenchItems.count - 4) more mailbox-assigned workbench items are hidden and still need review, task, or handoff action.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            WorkbenchHiddenCountNote(
+              hiddenCount: mailboxAssignedWorkbenchItems.count - 4,
+              itemLabel: "mailbox-assigned workbench item",
+              detail: "Open Tasks for the remaining assigned review, task, or handoff actions."
+            )
           }
 
           CompactActionRow {
@@ -2506,27 +2523,33 @@ struct OperationsWorkbenchView: View {
           WishlistResearchWorkbenchRow(request: request, store: store)
         }
         if wishlistResearchWorkbenchRequests.count > 3 {
-          Text("\(wishlistResearchWorkbenchRequests.count - 3) more Wishlist research requests are hidden and still need scope or comparison follow-up.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
+          WorkbenchHiddenCountNote(
+            hiddenCount: wishlistResearchWorkbenchRequests.count - 3,
+            itemLabel: "Wishlist research request",
+            detail: "Open Wishlist to scope the remaining comparison and seller-research work."
+          )
         }
 
         ForEach(wishlistPurchasePacketNeededItems.prefix(3)) { item in
           WishlistWorkbenchPurchasePacketRow(item: item, store: store)
         }
         if wishlistPurchasePacketNeededItems.count > 3 {
-          Text("\(wishlistPurchasePacketNeededItems.count - 3) more Wishlist items are hidden and still need purchase packet preparation.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
+          WorkbenchHiddenCountNote(
+            hiddenCount: wishlistPurchasePacketNeededItems.count - 3,
+            itemLabel: "Wishlist item needing purchase packet",
+            detail: "Open Wishlist to prepare the remaining local purchase handoff packets."
+          )
         }
 
         ForEach(wishlistWorkbenchItems.prefix(4)) { item in
           WishlistWorkbenchFollowUpRow(item: item, store: store)
         }
         if wishlistWorkbenchItems.count > 4 {
-          Text("\(wishlistWorkbenchItems.count - 4) more Wishlist workbench items are hidden and still need readiness, research, purchase, or order-watch follow-up.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
+          WorkbenchHiddenCountNote(
+            hiddenCount: wishlistWorkbenchItems.count - 4,
+            itemLabel: "Wishlist workbench item",
+            detail: "Open Wishlist for the remaining readiness, research, purchase, or order-watch follow-up."
+          )
         }
 
         CompactActionRow {
@@ -3916,6 +3939,34 @@ private struct WorkbenchActionFeedbackPanel: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.green.opacity(0.12))
     .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+}
+
+private struct WorkbenchHiddenCountNote: View {
+  var hiddenCount: Int
+  var itemLabel: String
+  var detail: String
+
+  var body: some View {
+    if hiddenCount > 0 {
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: "ellipsis.circle")
+          .foregroundStyle(.secondary)
+          .frame(width: 18)
+
+        VStack(alignment: .leading, spacing: 2) {
+          Text("\(hiddenCount) more \(itemLabel)\(hiddenCount == 1 ? "" : "s") hidden in this compact Workbench summary.")
+            .font(.caption.weight(.semibold))
+          Text(detail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
   }
 }
 
