@@ -2930,6 +2930,23 @@ struct GmailMailboxConnectionRow: View {
 
       if isEditing {
         VStack(alignment: .leading, spacing: 8) {
+          CompactActionRow {
+            Button("Save Gmail setup", systemImage: "checkmark.circle.fill") {
+              onSave(draft)
+              isEditing = false
+            }
+            .buttonStyle(.borderedProminent)
+            Button("Cancel", systemImage: "xmark.circle") {
+              draft = connection
+              isEditing = false
+            }
+            .buttonStyle(.bordered)
+          }
+          Text("Save and Cancel are repeated here so the Gmail editor can be used on shorter windows without scrolling to the end of the setup fields.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
           TextField("Display name", text: $draft.displayName)
           TextField("Email address", text: $draft.emailAddress)
           TextField("Label names", text: $draft.monitoredLabelNames)
@@ -7072,7 +7089,7 @@ struct SpaceMailIMAPConnectionEditor: View {
         .background(.background)
         .overlay(Divider(), alignment: .top)
       }
-      .frame(minWidth: 460, idealWidth: 620, maxWidth: 740, minHeight: 320, idealHeight: 560, maxHeight: 620)
+      .frame(minWidth: 460, idealWidth: 620, maxWidth: 740, minHeight: 280, idealHeight: 480, maxHeight: 520)
       .navigationTitle("SpaceMail IMAP")
     }
   }
@@ -7188,7 +7205,7 @@ struct Microsoft365MailboxConnectionEditor: View {
         .background(.background)
         .overlay(Divider(), alignment: .top)
       }
-      .frame(minWidth: 480, idealWidth: 640, maxWidth: 760, minHeight: 320, idealHeight: 580, maxHeight: 640)
+      .frame(minWidth: 480, idealWidth: 640, maxWidth: 760, minHeight: 280, idealHeight: 500, maxHeight: 540)
       .navigationTitle("Outlook / Microsoft 365 mailbox")
     }
   }
