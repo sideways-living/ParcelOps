@@ -3502,9 +3502,11 @@ private struct TaskInboxSourceTrail: View {
 
           let hiddenMailboxSourceCount = max(mailboxSourceSummaries.count - 3, 0)
           if hiddenMailboxSourceCount > 0 {
-            Text("\(hiddenMailboxSourceCount) more mailbox source\(hiddenMailboxSourceCount == 1 ? "" : "s") are tracked on this task.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            TaskHiddenCountNote(
+              hiddenCount: hiddenMailboxSourceCount,
+              itemLabel: "mailbox source",
+              detail: "Open the linked order detail for the complete source trail before closing this task."
+            )
           }
         }
         let displayedLinkedEmails = Array(linkedEmails.prefix(3))
@@ -3518,9 +3520,11 @@ private struct TaskInboxSourceTrail: View {
           )
         }
         if linkedEmails.count > displayedLinkedEmails.count {
-          Text("\(linkedEmails.count - displayedLinkedEmails.count) more linked intake email source panels hidden for this task.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
+          TaskHiddenCountNote(
+            hiddenCount: linkedEmails.count - displayedLinkedEmails.count,
+            itemLabel: "linked intake email source panel",
+            detail: "Open Mailbox Monitor or the linked order detail for the remaining intake evidence."
+          )
         }
         if !importItems.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
