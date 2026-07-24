@@ -806,9 +806,11 @@ struct TasksView: View {
 
           let hiddenWishlistContextCount = max(wishlistTaskContextItems.count - 3, 0)
           if hiddenWishlistContextCount > 0 {
-            Text("\(hiddenWishlistContextCount) more Wishlist task context item\(hiddenWishlistContextCount == 1 ? "" : "s") are available in Wishlist.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            TaskHiddenCountNote(
+              hiddenCount: hiddenWishlistContextCount,
+              itemLabel: "Wishlist task context item",
+              detail: "Open Wishlist to review the remaining purchase, handoff, and order-watch context."
+            )
           }
 
           if !wishlistPacketFollowUpItems.isEmpty {
@@ -843,9 +845,11 @@ struct TasksView: View {
 
               let hiddenPacketFollowUpCount = max(wishlistPacketFollowUpItems.count - 3, 0)
               if hiddenPacketFollowUpCount > 0 {
-                Text("\(hiddenPacketFollowUpCount) more purchase packet follow-up item\(hiddenPacketFollowUpCount == 1 ? "" : "s") are available in Wishlist.")
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
+                TaskHiddenCountNote(
+                  hiddenCount: hiddenPacketFollowUpCount,
+                  itemLabel: "purchase packet follow-up item",
+                  detail: "Open Wishlist to work the remaining packet drafts and handoff readiness items."
+                )
               }
             }
             .padding(8)
@@ -1459,9 +1463,11 @@ struct TasksView: View {
             }
           }
           if intakeLinkedTaskItems.count > 4 {
-            Text("\(intakeLinkedTaskItems.count - 4) more Inbox-linked task items are hidden and still need ownership, parse, review, or handoff follow-up.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            TaskHiddenCountNote(
+              hiddenCount: intakeLinkedTaskItems.count - 4,
+              itemLabel: "Inbox-linked task item",
+              detail: "Use Inbox or Mailbox Monitor to inspect the remaining ownership, parse, review, or handoff follow-up."
+            )
           }
         }
 
@@ -1603,9 +1609,11 @@ struct TasksView: View {
 
           let hiddenGmailHealthCount = max(gmailHealthSummaries.count - 3, 0)
           if hiddenGmailHealthCount > 0 {
-            Text("\(hiddenGmailHealthCount) more Gmail setup or refresh summary item\(hiddenGmailHealthCount == 1 ? "" : "s") are available in Mailbox Monitor.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            TaskHiddenCountNote(
+              hiddenCount: hiddenGmailHealthCount,
+              itemLabel: "Gmail setup or refresh summary",
+              detail: "Open Mailbox Monitor for the full Gmail health and classifier history."
+            )
           }
         }
 
@@ -2022,9 +2030,11 @@ struct TasksView: View {
             TaskQueueRow(item: item, store: store)
           }
           if mailboxProviderFollowUpItems.count > 4 {
-            Text("\(mailboxProviderFollowUpItems.count - 4) more mailbox-provider follow-up tasks are hidden and still need operator action.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            TaskHiddenCountNote(
+              hiddenCount: mailboxProviderFollowUpItems.count - 4,
+              itemLabel: "mailbox-provider follow-up task",
+              detail: "Open the detailed task list or Mailbox Monitor before closing the remaining provider work."
+            )
           }
 
           CompactActionRow {
@@ -2103,9 +2113,11 @@ struct TasksView: View {
             }
           }
           if gmailAssignedFollowUpItems.count > 4 {
-            Text("\(gmailAssignedFollowUpItems.count - 4) more Gmail follow-up items are hidden and still need setup, classifier, refresh, or review action.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            TaskHiddenCountNote(
+              hiddenCount: gmailAssignedFollowUpItems.count - 4,
+              itemLabel: "Gmail follow-up item",
+              detail: "Open Mailbox Monitor for the source evidence before completing the remaining Gmail work."
+            )
           }
 
           CompactActionRow {
@@ -2177,9 +2189,11 @@ struct TasksView: View {
             }
           }
           if outlookAssignedFollowUpItems.count > 4 {
-            Text("\(outlookAssignedFollowUpItems.count - 4) more Outlook follow-up items are hidden and still need auth, Graph, refresh, or review action.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+            TaskHiddenCountNote(
+              hiddenCount: outlookAssignedFollowUpItems.count - 4,
+              itemLabel: "Outlook follow-up item",
+              detail: "Open Mailbox Monitor or Audit to review the remaining auth, Graph, refresh, or review evidence."
+            )
           }
 
           CompactActionRow {
@@ -2268,6 +2282,13 @@ struct TasksView: View {
               .frame(maxWidth: .infinity, alignment: .leading)
               .background(item.priority.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
+          }
+          if spaceMailAssignedFollowUpItems.count > 4 {
+            TaskHiddenCountNote(
+              hiddenCount: spaceMailAssignedFollowUpItems.count - 4,
+              itemLabel: "SpaceMail follow-up item",
+              detail: "Open Mailbox Monitor or the detailed task list for the remaining SpaceMail review and handoff work."
+            )
           }
 
           CompactActionRow {
@@ -4027,6 +4048,33 @@ struct ReviewTaskEditView: View {
       #if os(macOS)
       .frame(minWidth: 480, idealWidth: 600, maxWidth: 720, minHeight: 340, idealHeight: 540, maxHeight: 620)
       #endif
+    }
+  }
+}
+
+private struct TaskHiddenCountNote: View {
+  var hiddenCount: Int
+  var itemLabel: String
+  var detail: String
+
+  var body: some View {
+    if hiddenCount > 0 {
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: "ellipsis.circle")
+          .foregroundStyle(.secondary)
+          .frame(width: 18)
+        VStack(alignment: .leading, spacing: 2) {
+          Text("\(hiddenCount) more \(itemLabel)\(hiddenCount == 1 ? "" : "s") hidden in this compact task summary.")
+            .font(.caption.weight(.semibold))
+          Text(detail)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .padding(8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
   }
 }
