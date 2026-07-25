@@ -999,12 +999,12 @@ struct DashboardView: View {
   }
 
   private var dailyFlowCheckpointColumns: [GridItem] {
-    let count = isCompact ? 2 : 3
+    let count = isCompact ? 1 : 3
     return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
   }
 
   private var dailyFlowCheckpointCardHeight: CGFloat {
-    isCompact ? 148 : 136
+    isCompact ? 118 : 136
   }
 
   private var dailyFlowClearCount: Int {
@@ -3094,11 +3094,12 @@ private struct OperatorDashboardCard<Destination: View>: View {
           VStack(alignment: .leading, spacing: 3) {
             Text(title)
               .font(.headline)
-              .lineLimit(1)
+              .lineLimit(isCompact ? 2 : 1)
+              .fixedSize(horizontal: false, vertical: true)
             Text(detail)
               .font(.caption)
               .foregroundStyle(.secondary)
-              .lineLimit(3)
+              .lineLimit(isCompact ? 4 : 3)
               .fixedSize(horizontal: false, vertical: true)
           }
           Spacer(minLength: 8)
@@ -3111,6 +3112,7 @@ private struct OperatorDashboardCard<Destination: View>: View {
           .font(.caption.weight(.semibold))
           .foregroundStyle(tint)
           .lineLimit(isCompact ? 2 : 1)
+          .fixedSize(horizontal: false, vertical: true)
           .frame(maxWidth: .infinity, alignment: .leading)
       }
       .padding(14)
@@ -3700,6 +3702,9 @@ private struct DashboardReleaseCandidateQACard: View {
 
 struct FirstLiveMailboxTestCard: View {
   var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
 
   private var hasSpaceMailSetup: Bool {
     !store.spaceMailIMAPConnections.isEmpty
@@ -3912,7 +3917,7 @@ struct FirstLiveMailboxTestCard: View {
           ("Uncertain", "\(pendingUncertainCount)", pendingUncertainCount > 0 ? .orange : .secondary)
         ])
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 160 : 210), spacing: 10)], alignment: .leading, spacing: 10) {
           ForEach(checklistItems) { item in
             FirstLiveMailboxTestStep(item: item)
           }
@@ -4012,7 +4017,7 @@ struct MetricStrip: View {
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var columns: [GridItem] {
-    [GridItem(.adaptive(minimum: isCompact ? 116 : 128), spacing: 8)]
+    [GridItem(.adaptive(minimum: isCompact ? 108 : 128), spacing: 8)]
   }
 
   var body: some View {
@@ -4027,11 +4032,12 @@ struct MetricStrip: View {
           Text(item.0)
             .font(.caption)
             .foregroundStyle(.secondary)
-            .lineLimit(1)
+            .lineLimit(isCompact ? 2 : 1)
             .minimumScaleFactor(0.8)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .padding(10)
-        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: isCompact ? 74 : 66, alignment: .leading)
         .background(.background)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
