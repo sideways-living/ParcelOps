@@ -32,7 +32,7 @@ extension View {
   @ViewBuilder
   func parcelOpsWindowFrame() -> some View {
     #if os(macOS)
-    self.frame(minWidth: 1120, minHeight: 760)
+    self.frame(minWidth: 940, minHeight: 640)
     #else
     self
     #endif
@@ -89,9 +89,9 @@ struct ParcelOpsRootView: View {
   @State private var sidebarSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-  private let desktopSidebarMinimumWidth: CGFloat = 440
-  private let desktopSidebarIdealWidth: CGFloat = 560
-  private let desktopSidebarMaximumWidth: CGFloat = 660
+  private let desktopSidebarMinimumWidth: CGFloat = 340
+  private let desktopSidebarIdealWidth: CGFloat = 390
+  private let desktopSidebarMaximumWidth: CGFloat = 460
 
   private var isSearchingSidebar: Bool {
     !sidebarSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -465,19 +465,22 @@ struct ParcelOpsRootView: View {
           Button {
             route(to: section)
           } label: {
-            HStack(alignment: .center, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
               Image(systemName: section.symbol)
                 .font(.body.weight(.semibold))
-                .frame(width: 26, height: 26)
+                .frame(width: 24, height: 24)
+                .padding(.top, 2)
 
               VStack(alignment: .leading, spacing: 3) {
                 Text(section.title)
                   .font(.caption.weight(.bold))
-                  .lineLimit(1)
+                  .lineLimit(2)
+                  .fixedSize(horizontal: false, vertical: true)
                 Text(sidebarDailyFocusDetail(for: section, count: count))
                   .font(.caption2)
                   .foregroundStyle(.secondary)
                   .lineLimit(2)
+                  .fixedSize(horizontal: false, vertical: true)
               }
               .layoutPriority(1)
 
@@ -492,7 +495,7 @@ struct ParcelOpsRootView: View {
                 .background(count > 0 ? attentionColor(for: section, count: count) : Color.secondary.opacity(0.12), in: Capsule())
             }
             .font(.caption.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 74, maxHeight: 74, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 86, maxHeight: 86, alignment: .topLeading)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
@@ -664,7 +667,7 @@ struct ParcelOpsRootView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .contentShape(Rectangle())
       .padding(.horizontal, 12)
-      .padding(.vertical, 9)
+      .padding(.vertical, 10)
       .background(selection == section ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8))
       .overlay(RoundedRectangle(cornerRadius: 8).stroke(selection == section ? Color.accentColor.opacity(0.28) : Color.clear))
     }
