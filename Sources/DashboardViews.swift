@@ -1067,7 +1067,11 @@ struct DashboardView: View {
       LazyVStack(alignment: .leading, spacing: 18) {
         header
         dailyStartDecisionPanel
-        dailyOperatorStart
+        if showDailyDashboardSections || !normalizedDashboardSearch.isEmpty {
+          dailyOperatorStart
+        } else {
+          dailyDashboardCollapsedPanel
+        }
         dashboardDetailTogglePanel
 
         if showDetailedDashboard {
@@ -1591,6 +1595,34 @@ struct DashboardView: View {
           }
         }
         .buttonStyle(.bordered)
+      }
+    }
+  }
+
+  private var dailyDashboardCollapsedPanel: some View {
+    SettingsPanel(title: "Daily work cards", symbol: "rectangle.stack.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Daily work cards are hidden on launch so the Dashboard opens quickly. Show them when you want the full Inbox, Orders, Workbench, Dispatch, Tasks, Audit, and Wishlist summary.")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        FilterControlGrid {
+          TextField("Find daily work: Inbox, mailbox, Gmail, orders, dispatch, tasks", text: $dashboardSearchText)
+            .textFieldStyle(.roundedBorder)
+
+          Button("Show daily work cards", systemImage: "rectangle.stack.fill") {
+            showDailyDashboardSections = true
+          }
+          .buttonStyle(.borderedProminent)
+
+          Badge("\(visibleDashboardMatchCount) areas", color: visibleDashboardMatchCount == 0 ? .orange : .teal)
+        }
+
+        Text("Searching also opens the matching daily cards. This does not refresh mail, create records, or change local JSON.")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
