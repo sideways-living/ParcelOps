@@ -122,12 +122,12 @@ struct MailboxView: View {
   }
 
   private var providerStepColumns: [GridItem] {
-    let count = horizontalSizeClass == .compact ? 2 : 4
+    let count = horizontalSizeClass == .compact ? 1 : 4
     return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
   }
 
   private var mailboxProviderRowMinimumWidth: CGFloat {
-    horizontalSizeClass == .compact ? 170 : 250
+    horizontalSizeClass == .compact ? 230 : 250
   }
 
   private var mailboxProviderDecision: (title: String, detail: String, color: Color) {
@@ -4240,7 +4240,7 @@ struct IntakeEmailEditView: View {
         }
       }
       #if os(macOS)
-      .frame(minWidth: 460, idealWidth: 560, maxWidth: 680, minHeight: 320, idealHeight: 500, maxHeight: 600)
+      .frame(minWidth: 340, idealWidth: 560, maxWidth: 680, minHeight: 320, idealHeight: 540, maxHeight: 700)
       #endif
     }
   }
