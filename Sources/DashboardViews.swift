@@ -1062,6 +1062,17 @@ struct DashboardView: View {
     return "Run a full hands-on QA pass from Dashboard through Audit, then note only real friction."
   }
 
+  private var dashboardSecondarySignalSummary: String {
+    let workbench = store.highPriorityWorkbenchItems.count
+    let reopened = reopenedInboxDispatchHandoffCount
+    let wishlist = wishlistDashboardSignalCount
+    var parts: [String] = []
+    if workbench > 0 { parts.append("\(workbench) high-priority Workbench") }
+    if reopened > 0 { parts.append("\(reopened) reopened Dispatch") }
+    if wishlist > 0 { parts.append("\(wishlist) Wishlist") }
+    return parts.isEmpty ? "No extra Workbench, reopened Dispatch, or Wishlist signals are competing with the main daily flow." : "Extra signals: \(parts.joined(separator: ", ")). Open the full daily cards when you need those queues."
+  }
+
   var body: some View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 18) {
@@ -1569,15 +1580,15 @@ struct DashboardView: View {
   }
 
   private var dashboardDetailTogglePanel: some View {
-    SettingsPanel(title: "Detailed dashboard", symbol: "speedometer") {
+    SettingsPanel(title: "Advanced dashboard detail", symbol: "speedometer") {
       VStack(alignment: .leading, spacing: 10) {
-        Text(showDetailedDashboard ? "Detailed readiness and analytics are visible." : "Detailed readiness and analytics are hidden until requested so the app can open quickly.")
+        Text(showDetailedDashboard ? "Detailed readiness and analytics are visible." : "Advanced readiness, provider evidence, and analytics are hidden on launch so the app opens to the operator summary first.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
 
         CompactActionRow {
-          Button(showDetailedDashboard ? "Hide detailed dashboard" : "Show detailed dashboard", systemImage: showDetailedDashboard ? "eye.slash" : "chart.bar.doc.horizontal") {
+          Button(showDetailedDashboard ? "Hide advanced detail" : "Show advanced detail", systemImage: showDetailedDashboard ? "eye.slash" : "chart.bar.doc.horizontal") {
             showDetailedDashboard.toggle()
           }
           .buttonStyle(.bordered)
@@ -1602,7 +1613,7 @@ struct DashboardView: View {
   private var dailyDashboardCollapsedPanel: some View {
     SettingsPanel(title: "Daily work cards", symbol: "rectangle.stack.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Daily work cards are hidden on launch so the Dashboard opens quickly. Show them when you want the full Inbox, Orders, Workbench, Dispatch, Tasks, Audit, and Wishlist summary.")
+        Text("The Dashboard starts in quick mode: one recommendation, primary route buttons, and a small status strip. Show the full daily cards when you want every Inbox, Orders, Workbench, Dispatch, Tasks, Audit, and Wishlist summary.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -1611,7 +1622,7 @@ struct DashboardView: View {
           TextField("Find daily work: Inbox, mailbox, Gmail, orders, dispatch, tasks", text: $dashboardSearchText)
             .textFieldStyle(.roundedBorder)
 
-          Button("Show daily work cards", systemImage: "rectangle.stack.fill") {
+          Button("Show full daily cards", systemImage: "rectangle.stack.fill") {
             showDailyDashboardSections = true
           }
           .buttonStyle(.borderedProminent)
@@ -1619,7 +1630,7 @@ struct DashboardView: View {
           Badge("\(visibleDashboardMatchCount) areas", color: visibleDashboardMatchCount == 0 ? .orange : .teal)
         }
 
-        Text("Searching also opens the matching daily cards. This does not refresh mail, create records, or change local JSON.")
+        Text("Searching also opens matching daily cards. This does not refresh mail, create records, or change local JSON.")
           .font(.caption2)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -1787,16 +1798,17 @@ struct DashboardView: View {
 
         MetricStrip(items: [
           ("Mailbox", dashboardMailboxSetupMetric.value, dashboardMailboxSetupMetric.color),
-          ("Access", dashboardMailboxAuthMetric.value, dashboardMailboxAuthMetric.color),
           ("Refresh", dashboardMailboxRefreshMetric.value, dashboardMailboxRefreshMetric.color),
           ("Inbox", "\(incomingAttentionCount)", incomingAttentionCount == 0 ? .green : .orange),
           ("Orders", "\(problemOrdersCount)", problemOrdersCount == 0 ? .green : .red),
-          ("Workbench", "\(store.highPriorityWorkbenchItems.count)", store.highPriorityWorkbenchItems.isEmpty ? .green : .purple),
           ("Dispatch", "\(dispatchAttentionCount)", dispatchAttentionCount == 0 ? .green : .blue),
-          ("Reopened", "\(reopenedInboxDispatchHandoffCount)", reopenedInboxDispatchHandoffCount == 0 ? .green : .purple),
-          ("Wishlist", "\(wishlistDashboardSignalCount)", wishlistDailyAttentionClear ? .green : .purple),
           ("Tasks", "\(taskAttentionCount)", taskAttentionCount == 0 ? .green : .orange)
         ])
+
+        Text(dashboardSecondarySignalSummary)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
 
         NavigationLink {
           dailyRouteDestination(for: recommendedDailySection)
