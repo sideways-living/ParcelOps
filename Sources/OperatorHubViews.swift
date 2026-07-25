@@ -790,7 +790,7 @@ struct InboxView: View {
                 Text(step.detail)
                   .font(.caption2)
                   .foregroundStyle(.secondary)
-                  .lineLimit(4)
+                  .lineLimit(3)
                   .minimumScaleFactor(0.86)
                   .fixedSize(horizontal: false, vertical: true)
                   .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -846,13 +846,11 @@ struct InboxView: View {
   }
 
   private var dailyFlowGridColumns: [GridItem] {
-    [
-      GridItem(.adaptive(minimum: isCompact ? 160 : 210, maximum: 320), spacing: 8)
-    ]
+    Array(repeating: GridItem(.flexible(), spacing: 8), count: isCompact ? 2 : 3)
   }
 
   private var dailyFlowCardHeight: CGFloat {
-    isCompact ? 170 : 160
+    isCompact ? 168 : 158
   }
 
   private var mailboxProviderReleaseGatePanel: some View {
