@@ -9171,11 +9171,11 @@ struct MVPWorkflowGuide: View {
   var symbol: String = "point.3.connected.trianglepath.dotted"
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   private var stepGridColumns: [GridItem] {
-    let count = horizontalSizeClass == .compact ? 2 : 3
+    let count = horizontalSizeClass == .compact ? 1 : 3
     return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
   }
   private var stepCardHeight: CGFloat {
-    horizontalSizeClass == .compact ? 124 : 112
+    horizontalSizeClass == .compact ? 104 : 112
   }
 
   var body: some View {
