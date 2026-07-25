@@ -660,12 +660,12 @@ struct OrdersView: View {
   }
 
   private var orderReadinessGridColumns: [GridItem] {
-    let count = isCompact ? 2 : 3
+    let count = isCompact ? 1 : 3
     return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
   }
 
   private var orderReadinessCardHeight: CGFloat {
-    isCompact ? 138 : 128
+    isCompact ? 112 : 128
   }
 
   private var orderNextActionPanel: some View {
@@ -1419,8 +1419,11 @@ struct OrderListRow: View {
 private struct OrderQueueRow: View {
   var item: OrderQueueItem
   var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var isEditing = false
   @State private var feedbackMessage: String?
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
 
   var body: some View {
     let order = item.order
@@ -1432,27 +1435,32 @@ private struct OrderQueueRow: View {
           .frame(width: 30, height: 30)
 
         VStack(alignment: .leading, spacing: 6) {
-          HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .leading, spacing: 3) {
-              Text("\(order.store) • \(order.orderNumber)")
-                .font(.headline)
-              Text("\(order.customer) • \(order.recipientEmail)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+          Group {
+            if isCompact {
+              VStack(alignment: .leading, spacing: 6) {
+                orderQueueTitleBlock(order)
+                Badge(item.riskLabel, color: item.riskColor)
+              }
+            } else {
+              HStack(alignment: .top, spacing: 8) {
+                orderQueueTitleBlock(order)
+                Spacer(minLength: 8)
+                Badge(item.riskLabel, color: item.riskColor)
+              }
             }
-            Spacer(minLength: 8)
-            Badge(item.riskLabel, color: item.riskColor)
           }
 
           Text(order.destination)
             .font(.subheadline)
             .foregroundStyle(.secondary)
-            .lineLimit(2)
+            .lineLimit(isCompact ? 3 : 2)
+            .fixedSize(horizontal: false, vertical: true)
 
           Text("\(order.carrier) • \(order.trackingNumber) • \(order.latestStatus)")
             .font(.caption)
             .foregroundStyle(.secondary)
-            .lineLimit(2)
+            .lineLimit(isCompact ? 3 : 2)
+            .fixedSize(horizontal: false, vertical: true)
 
           CompactMetadataGrid {
             Badge(order.status.rawValue, color: order.status.color)
@@ -1587,6 +1595,20 @@ private struct OrderQueueRow: View {
       OrderEditView(order: order) { updatedOrder in
         store.updateOrder(updatedOrder)
       }
+    }
+  }
+
+  private func orderQueueTitleBlock(_ order: TrackedOrder) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+      Text("\(order.store) • \(order.orderNumber)")
+        .font(.headline)
+        .lineLimit(isCompact ? 2 : 1)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("\(order.customer) • \(order.recipientEmail)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(isCompact ? 2 : 1)
+        .fixedSize(horizontal: false, vertical: true)
     }
   }
 
@@ -3259,7 +3281,7 @@ struct OrderEditView: View {
         .overlay(Divider(), alignment: .top)
       }
       #if os(macOS)
-      .frame(minWidth: 360, idealWidth: 620, maxWidth: 760, minHeight: 320, idealHeight: 580, maxHeight: 640)
+      .frame(minWidth: 340, idealWidth: 620, maxWidth: 760, minHeight: 320, idealHeight: 580, maxHeight: 700)
       #endif
     }
   }
