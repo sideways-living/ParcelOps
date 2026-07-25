@@ -131,7 +131,7 @@ struct GoogleGmailAuthClient: GmailAuthClient {
       return GmailAuthResult(
         status: hasReadScope ? .connected : .consentRequired,
         signedInAccount: email.isEmpty ? "Signed in Google account" : email,
-        detailText: "Real Gmail sign-in completed through GoogleSignIn. Granted scopes: \(scopeSummary). Read-only Gmail scope present: \(hasReadScope ? "yes" : "no"). GoogleSignIn may manage its own token cache, but ParcelOps did not store or log access tokens, refresh tokens, ID tokens, auth codes, client secrets, passwords, raw callback URLs, or Gmail messages. No Gmail API mailbox call was made."
+        detailText: "Real Gmail sign-in completed through GoogleSignIn. Granted scopes: \(scopeSummary). Read-only Gmail scope present: \(hasReadScope ? "yes" : "no"). GoogleSignIn may manage its own token cache, but ParcelNest did not store or log access tokens, refresh tokens, ID tokens, auth codes, client secrets, passwords, raw callback URLs, or Gmail messages. No Gmail API mailbox call was made."
       )
     } catch {
       return GmailAuthResult(
@@ -217,12 +217,12 @@ struct GoogleGmailAuthClient: GmailAuthClient {
 
   private func authFailureDetail(for error: Error) -> String {
     let nsError = error as NSError
-    let suffix = "No Google access token, refresh token, ID token, auth code, client secret, password, raw callback URL, or Gmail message was stored in ParcelOps JSON or audit logs. No Gmail API mailbox call was made."
+    let suffix = "No Google access token, refresh token, ID token, auth code, client secret, password, raw callback URL, or Gmail message was stored in ParcelNest JSON or audit logs. No Gmail API mailbox call was made."
     if let localError = error as? GoogleGmailAuthError, localError == .signInTimedOut {
-      return "Google sign-in timed out before GoogleSignIn returned a completion. Bring ParcelOps forward, confirm the browser callback returned to the app, and try again. \(suffix)"
+      return "Google sign-in timed out before GoogleSignIn returned a completion. Bring ParcelNest forward, confirm the browser callback returned to the app, and try again. \(suffix)"
     }
     if error is GoogleGmailAuthError {
-      return "Missing presentation surface: ParcelOps could not find an active app window or view controller for Google sign-in. Bring the app window forward and try again. \(suffix)"
+      return "Missing presentation surface: ParcelNest could not find an active app window or view controller for Google sign-in. Bring the app window forward and try again. \(suffix)"
     }
     let safeSummary = "\(nsError.domain) code \(nsError.code): \(nsError.localizedDescription)"
     let lowerSummary = safeSummary.lowercased()

@@ -792,7 +792,7 @@ struct MVPWishlistWorkflowReadinessPanel: View {
       return "\(blockedResearchRequests.count) research request\(blockedResearchRequests.count == 1 ? "" : "s") need item, source URL, budget, postage, or seller trust detail before agent research."
     }
     if !agentReadyResearchRequests.isEmpty {
-      return "\(agentReadyResearchRequests.count) research brief\(agentReadyResearchRequests.count == 1 ? "" : "s") have enough local scope for an external comparison pass. ParcelOps still does not browse or buy automatically."
+      return "\(agentReadyResearchRequests.count) research brief\(agentReadyResearchRequests.count == 1 ? "" : "s") have enough local scope for an external comparison pass. ParcelNest still does not browse or buy automatically."
     }
     if !readyForPurchaseItems.isEmpty {
       return "\(readyForPurchaseItems.count) item\(readyForPurchaseItems.count == 1 ? "" : "s") look ready for manual purchase handoff. Confirm account, seller trust, postage timing, and order-watch expectations."
@@ -847,7 +847,7 @@ struct MVPWishlistWorkflowReadinessPanel: View {
           )
           wishlistBlock(
             title: "Purchase handoff is manual",
-            detail: "Ready means the operator can open the selected link outside ParcelOps, buy manually, then let Inbox/Orders watch for confirmation. ParcelOps does not purchase automatically.",
+            detail: "Ready means the operator can open the selected link outside ParcelNest, buy manually, then let Inbox/Orders watch for confirmation. ParcelNest does not purchase automatically.",
             symbol: "cart.badge.plus",
             color: .orange
           )
@@ -2003,7 +2003,7 @@ struct MVPHandsOnReleaseChecklist: View {
         ("Audit events", "\(store.auditEvents.count)", .purple)
       ])
 
-      Text("Use this checklist when judging whether ParcelOps is ready for normal hands-on testing in Xcode. It is still a manual, local-first workflow: no background sync, notifications, mailbox mutation, Shopify, carrier APIs, OCR, scanners, or outbound email are active.")
+      Text("Use this checklist when judging whether ParcelNest is ready for normal hands-on testing in Xcode. It is still a manual, local-first workflow: no background sync, notifications, mailbox mutation, Shopify, carrier APIs, OCR, scanners, or outbound email are active.")
         .font(.caption)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -2737,7 +2737,7 @@ struct MVPReleaseRunbook: View {
       ("Mailbox refresh is manual", "Real mailbox refreshes are explicit, read-only, and mixed-mailbox filtered. There is no background sync or mailbox mutation.", "server.rack", .teal),
       ("Shopify is not connected", "Shopify records remain placeholders. No Shopify API, OAuth, store login, or order sync is active.", "cart.badge.plus", .orange),
       ("Carrier tracking is local", "Carrier events are local records only. No carrier APIs, label printing, booking, scanner, or tracking refresh is active.", "location.fill.viewfinder", .orange),
-      ("Outbound communication is draft-only", "Draft messages and templates are local planning records. ParcelOps does not send email or notifications.", "paperplane.slash.fill", .secondary),
+      ("Outbound communication is draft-only", "Draft messages and templates are local planning records. ParcelNest does not send email or notifications.", "paperplane.slash.fill", .secondary),
       ("Secrets stay out of JSON", "SpaceMail passwords are handled through Keychain status/actions and Gmail uses platform auth state, while JSON stores only non-secret operational records.", "key.horizontal.fill", .green),
       ("Advanced records are supporting context", "Costs, claims, procurement, receiving, custody, labels, and scans exist locally but are not the primary daily path.", "archivebox.fill", .secondary)
     ]
@@ -2907,7 +2907,7 @@ struct MVPHandsOnTroubleshootingGuide: View {
       ),
       (
         "LLDB already attached",
-        "If Xcode says it cannot attach to a process more than once, stop the running app, quit any duplicate ParcelOps windows if needed, then run again. A clean Xcode restart is acceptable.",
+        "If Xcode says it cannot attach to a process more than once, stop the running app, quit any duplicate ParcelNest windows if needed, then run again. A clean Xcode restart is acceptable.",
         "ladybug.fill",
         .purple
       ),

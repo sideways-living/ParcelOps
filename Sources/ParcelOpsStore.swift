@@ -4199,7 +4199,7 @@ final class ParcelOpsStore {
       "Release boundaries:",
       "- Mailbox refreshes are explicit, manual, and read-only.",
       "- No background sync, notifications, outbound email sending, Shopify, carrier APIs, OCR, scanners, calendars, or file pickers are active.",
-      "- Passwords, tokens, auth strings, and full message bodies should not be stored in ParcelOps JSON or Audit.",
+      "- Passwords, tokens, auth strings, and full message bodies should not be stored in ParcelNest JSON or Audit.",
       "- Mixed-mailbox filtering is local only and should keep non-order mail out of primary Inbox.",
       "",
       "Recommended release-candidate test:",
@@ -12080,7 +12080,7 @@ final class ParcelOpsStore {
         entityID: "local-demo-workflow",
         entityLabel: "Local demo workflow",
         summary: "Local demo workflow could not start.",
-        afterDetail: "ParcelOps could not find the locally imported sample intake email. No external service, mailbox fetch, or mailbox mutation occurred."
+        afterDetail: "ParcelNest could not find the locally imported sample intake email. No external service, mailbox fetch, or mailbox mutation occurred."
       )
       return
     }
@@ -12219,7 +12219,7 @@ final class ParcelOpsStore {
         entityID: connection.id.uuidString,
         entityLabel: connection.displayName,
         summary: tokenResult.status == .success ? "Real Microsoft Graph token acquired in memory." : "Real Microsoft Graph token request did not complete.",
-        afterDetail: "Token status: \(tokenResult.status.rawValue)\nSigned-in account: \(tokenResult.signedInAccount)\n\(tokenResult.detailText)\n\(tokenResult.tokenDiagnosticsDetail)\nToken values are not stored in ParcelOps JSON or audit logs."
+        afterDetail: "Token status: \(tokenResult.status.rawValue)\nSigned-in account: \(tokenResult.signedInAccount)\n\(tokenResult.detailText)\n\(tokenResult.tokenDiagnosticsDetail)\nToken values are not stored in ParcelNest JSON or audit logs."
       )
     }
 
@@ -13321,7 +13321,7 @@ final class ParcelOpsStore {
     case .graphRejected:
       return "Check the Graph HTTP response, mailbox permissions, tenant policy, and selected fields."
     case .parseFailed:
-      return "Graph responded, but ParcelOps could not parse the message response shape."
+      return "Graph responded, but ParcelNest could not parse the message response shape."
     case .notConnected:
       return "Connect or configure the mailbox before refreshing."
     case .simulatedAuthPlaceholder:
@@ -15848,19 +15848,19 @@ final class ParcelOpsStore {
     let noteSummary: String
     if mailboxProviderSetupCount == 0 || mailboxManualRefreshCount == 0 {
       notePriority = .high
-      noteTitle = "ParcelOps development handoff needs provider proof"
+      noteTitle = "ParcelNest development handoff needs provider proof"
       noteSummary = "Core app is built; mailbox provider setup or first live refresh proof is still the main blocker."
     } else if inboxCreatedOrderCount == 0 {
       notePriority = .normal
-      noteTitle = "ParcelOps development handoff needs Inbox-to-order proof"
+      noteTitle = "ParcelNest development handoff needs Inbox-to-order proof"
       noteSummary = "Manual mailbox intake has evidence; next handoff is proving one clean Inbox row becomes an order and downstream workflow."
     } else if parserDiagnosticCount > 0 || openTaskAndHandoffCount > 0 || !incompleteGateLines.isEmpty {
       notePriority = .normal
-      noteTitle = "ParcelOps development handoff has follow-up queue"
+      noteTitle = "ParcelNest development handoff has follow-up queue"
       noteSummary = "App is usable for hands-on testing; remaining work is parser, task, handoff, or release-gate cleanup."
     } else {
       notePriority = .low
-      noteTitle = "ParcelOps development handoff ready for MVP QA"
+      noteTitle = "ParcelNest development handoff ready for MVP QA"
       noteSummary = "Core local workflows, provider status, Inbox-to-order handoff, Tasks, Audit, and Wishlist planning are ready for hands-on MVP QA."
     }
 
@@ -15978,21 +15978,21 @@ final class ParcelOpsStore {
     let subject: String
     let headline: String
     if mailboxProviderSetupCount == 0 || mailboxManualRefreshCount == 0 {
-      subject = "ParcelOps development status - provider proof needed"
+      subject = "ParcelNest development status - provider proof needed"
       headline = "ParcelNest is built as a local MVP, but the active mailbox provider path still needs setup or first refresh proof."
     } else if inboxCreatedOrderCount == 0 {
-      subject = "ParcelOps development status - Inbox-to-order proof needed"
+      subject = "ParcelNest development status - Inbox-to-order proof needed"
       headline = "Mailbox intake has evidence; the next proof is creating or linking one real Inbox row to an order."
     } else if parserDiagnosticCount > 0 || openTaskAndHandoffCount > 0 || !incompleteGateLines.isEmpty {
-      subject = "ParcelOps development status - follow-up queue"
+      subject = "ParcelNest development status - follow-up queue"
       headline = "ParcelNest is usable for hands-on MVP testing, with parser, task, handoff, or release-gate cleanup still visible."
     } else {
-      subject = "ParcelOps development status - ready for MVP QA"
-      headline = "ParcelOps has enough local workflow coverage for a hands-on MVP QA pass."
+      subject = "ParcelNest development status - ready for MVP QA"
+      headline = "ParcelNest has enough local workflow coverage for a hands-on MVP QA pass."
     }
 
     let selectedTemplate = communicationTemplates.first { $0.linkedEntityType == .integration && $0.isEnabled } ?? communicationTemplates.first
-    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: subject) ?? "Please review the local ParcelOps record \(subject)."
+    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: subject) ?? "Please review the local ParcelNest record \(subject)."
     let body = [
       baseBody,
       "",
@@ -16159,13 +16159,13 @@ final class ParcelOpsStore {
     let subject = troubleshooting.tone == "success"
       ? "Mailbox provider diagnostics clear"
       : "Mailbox provider diagnostics - \(troubleshooting.title)"
-    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: subject) ?? "Please review the local ParcelOps record \(subject)."
+    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: subject) ?? "Please review the local ParcelNest record \(subject)."
     let body = [
       baseBody,
       "",
       "Mailbox provider diagnostic packet",
       troubleshooting.reportText,
-      "Boundary: Draft created locally from current mailbox provider diagnostics. ParcelOps did not run Gmail, SpaceMail, Microsoft 365, IMAP, Graph, OAuth, token storage, external service calls, outbound email, notifications, or mailbox mutation."
+      "Boundary: Draft created locally from current mailbox provider diagnostics. ParcelNest did not run Gmail, SpaceMail, Microsoft 365, IMAP, Graph, OAuth, token storage, external service calls, outbound email, notifications, or mailbox mutation."
     ].joined(separator: "\n")
 
     if let existingIndex = draftMessages.firstIndex(where: {
@@ -16779,7 +16779,7 @@ final class ParcelOpsStore {
     if let existingIndex = communicationTemplates.firstIndex(where: {
       $0.linkedEntityType == .order
         && $0.subjectTemplate == "Update for {{record}}"
-        && $0.bodyTemplate == "Hi team,\n\nPlease review the latest ParcelOps update for {{record}}.\n\nThanks."
+        && $0.bodyTemplate == "Hi team,\n\nPlease review the latest ParcelNest update for {{record}}.\n\nThanks."
         && !$0.isEnabled
         && $0.reviewState == .needsReview
     }) {
@@ -16804,7 +16804,7 @@ final class ParcelOpsStore {
       name: "New communication template \(communicationTemplates.count + 1)",
       linkedEntityType: .order,
       subjectTemplate: "Update for {{record}}",
-      bodyTemplate: "Hi team,\n\nPlease review the latest ParcelOps update for {{record}}.\n\nThanks.",
+      bodyTemplate: "Hi team,\n\nPlease review the latest ParcelNest update for {{record}}.\n\nThanks.",
       channel: .email,
       isEnabled: false,
       createdDate: Self.auditTimestamp(),
@@ -16905,8 +16905,8 @@ final class ParcelOpsStore {
     template: CommunicationTemplate? = nil
   ) {
     let selectedTemplate = template ?? communicationTemplates.first { $0.linkedEntityType == linkedEntityType && $0.isEnabled } ?? communicationTemplates.first
-    let subject = selectedTemplate?.subjectTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "ParcelOps update for \(label)"
-    let body = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "Please review the local ParcelOps record \(label)."
+    let subject = selectedTemplate?.subjectTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "ParcelNest update for \(label)"
+    let body = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "Please review the local ParcelNest record \(label)."
     if let existingIndex = draftMessages.firstIndex(where: {
       $0.linkedEntityType == linkedEntityType
         && $0.linkedEntityID == linkedEntityID
@@ -19815,7 +19815,7 @@ final class ParcelOpsStore {
         && $0.linkedEntityType == .supplier
         && $0.linkedEntityID == "Unlinked"
         && $0.loginURL == "https://example.com/login"
-        && $0.usernameLabel == "Username held outside ParcelOps"
+        && $0.usernameLabel == "Username held outside ParcelNest"
         && $0.credentialStorageStatus == .needsSetup
         && $0.mfaStatus == .unknown
         && $0.renewalReviewDate == "Next month"
@@ -19847,7 +19847,7 @@ final class ParcelOpsStore {
       linkedEntityType: .supplier,
       linkedEntityID: "Unlinked",
       loginURL: "https://example.com/login",
-      usernameLabel: "Username held outside ParcelOps",
+      usernameLabel: "Username held outside ParcelNest",
       credentialStorageStatus: .needsSetup,
       mfaStatus: .unknown,
       renewalReviewDate: "Next month",
@@ -21647,8 +21647,8 @@ final class ParcelOpsStore {
     let label = gmailMessage.subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? connection.displayName : gmailMessage.subject
     let recipient = gmailMessage.sender.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "operations@parcelops.example" : gmailMessage.sender
     let selectedTemplate = communicationTemplates.first { $0.linkedEntityType == .integration && $0.isEnabled } ?? communicationTemplates.first
-    let subject = selectedTemplate?.subjectTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "ParcelOps update for \(label)"
-    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "Please review the local ParcelOps record \(label)."
+    let subject = selectedTemplate?.subjectTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "ParcelNest update for \(label)"
+    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "Please review the local ParcelNest record \(label)."
     let body = [
       baseBody,
       "",
@@ -22516,7 +22516,7 @@ final class ParcelOpsStore {
       lastAuthAttemptDate: "Never",
       lastSuccessfulAuthDate: "Never",
       tokenStoreStatus: "Token storage not configured",
-      tokenStoreDetail: "ParcelOps custom Gmail token storage is not implemented. GoogleSignIn may manage its own SDK cache after real sign-in, but ParcelOps does not create, read, write, delete, store, or log Google access tokens or refresh tokens.",
+      tokenStoreDetail: "ParcelOps custom Gmail token storage is not implemented. GoogleSignIn may manage its own SDK cache after real sign-in, but ParcelNest does not create, read, write, delete, store, or log Google access tokens or refresh tokens.",
       detailText: "Gmail is not connected for this setup record. Mock auth can test UI states. Real Google sign-in and manual read-only Gmail refresh are available only after the compiled app client ID and callback scheme match the saved Gmail setup."
     )
   }
@@ -22564,7 +22564,7 @@ final class ParcelOpsStore {
       lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
       tokenStoreStatus: previousState.tokenStoreStatus,
       tokenStoreDetail: previousState.tokenStoreDetail,
-      detailText: "Real Gmail sign-in test started. A browser sign-in may open, but ParcelOps will not store token values in JSON and will not fetch Gmail messages. Attempt ID: \(attemptID.uuidString)."
+      detailText: "Real Gmail sign-in test started. A browser sign-in may open, but ParcelNest will not store token values in JSON and will not fetch Gmail messages. Attempt ID: \(attemptID.uuidString)."
     )
     gmailAuthSessionStates[connection.id] = startedState
     logAudit(
@@ -22606,7 +22606,7 @@ final class ParcelOpsStore {
       lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
       tokenStoreStatus: tokenStatus,
       tokenStoreDetail: result.status == .connected
-        ? "GoogleSignIn completed sign-in and may manage its own token cache. ParcelOps did not write token values to JSON, custom Keychain storage, or audit logs."
+        ? "GoogleSignIn completed sign-in and may manage its own token cache. ParcelNest did not write token values to JSON, custom Keychain storage, or audit logs."
         : "Real Gmail sign-in did not produce a connected session in ParcelOps. No Google token values were stored in JSON, custom Keychain storage, or audit logs.",
       detailText: attemptID.map { "\(result.detailText) Attempt ID: \($0.uuidString)." } ?? result.detailText
     )
@@ -22645,7 +22645,7 @@ final class ParcelOpsStore {
       lastSuccessfulAuthDate: previousState.lastSuccessfulAuthDate,
       tokenStoreStatus: previousState.tokenStoreStatus,
       tokenStoreDetail: previousState.tokenStoreDetail,
-      detailText: "Timeout: ParcelOps did not receive a final GoogleSignIn completion after the browser sign-in window returned or stalled. Try Test real Google sign-in again from an active ParcelOps window. If this repeats, check the compiled Google callback URL scheme, Google Cloud OAuth client type, consent screen, Xcode signing, and GoogleSignIn callback routing. No Google access token, refresh token, ID token, auth code, client secret, password, raw callback URL, or Gmail message was stored in ParcelOps JSON or audit logs. No Gmail API mailbox call was made. Attempt ID: \(attemptID.uuidString)."
+      detailText: "Timeout: ParcelNest did not receive a final GoogleSignIn completion after the browser sign-in window returned or stalled. Try Test real Google sign-in again from an active ParcelNest window. If this repeats, check the compiled Google callback URL scheme, Google Cloud OAuth client type, consent screen, Xcode signing, and GoogleSignIn callback routing. No Google access token, refresh token, ID token, auth code, client secret, password, raw callback URL, or Gmail message was stored in ParcelNest JSON or audit logs. No Gmail API mailbox call was made. Attempt ID: \(attemptID.uuidString)."
     )
     gmailAuthSessionStates[connectionID] = state
     updateGmailMailboxConnection(connection) { draft in
@@ -23041,8 +23041,8 @@ final class ParcelOpsStore {
     let label = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? connection.displayName : title
     let recipient = sender.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "operations@parcelops.example" : sender
     let selectedTemplate = communicationTemplates.first { $0.linkedEntityType == .integration && $0.isEnabled } ?? communicationTemplates.first
-    let subject = selectedTemplate?.subjectTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "ParcelOps update for \(label)"
-    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "Please review the local ParcelOps record \(label)."
+    let subject = selectedTemplate?.subjectTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "ParcelNest update for \(label)"
+    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: label) ?? "Please review the local ParcelNest record \(label)."
     let body = [
       baseBody,
       "",
@@ -23265,7 +23265,7 @@ final class ParcelOpsStore {
 
   private func createMailboxShiftDraftMessage(linkedEntityID: String, providerName: String, subject: String, body: String) {
     let selectedTemplate = communicationTemplates.first { $0.linkedEntityType == .integration && $0.isEnabled } ?? communicationTemplates.first
-    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: subject) ?? "Please review the local ParcelOps record \(subject)."
+    let baseBody = selectedTemplate?.bodyTemplate.replacingOccurrences(of: "{{record}}", with: subject) ?? "Please review the local ParcelNest record \(subject)."
     let draftBody = [
       baseBody,
       "",
@@ -24387,8 +24387,8 @@ final class ParcelOpsStore {
       lastSuccessfulAuthDate: "Never",
       keychainStatus: "MSAL cache entitlement ready",
       tokenStoreStatus: .keychainNotConfigured,
-      tokenStoreDetail: "ParcelOps custom token store is not configured. MSAL may manage its own signed-in account cache when real sign-in succeeds, but ParcelOps does not create, read, write, delete, or log token values.",
-      detailText: "Microsoft 365 is not connected for this setup record. No browser sign-in opens from this state, no tokens are requested or stored in ParcelOps JSON, and real Graph mailbox reading only runs from the separate manual refresh action after sign-in."
+      tokenStoreDetail: "ParcelOps custom token store is not configured. MSAL may manage its own signed-in account cache when real sign-in succeeds, but ParcelNest does not create, read, write, delete, or log token values.",
+      detailText: "Microsoft 365 is not connected for this setup record. No browser sign-in opens from this state, no tokens are requested or stored in ParcelNest JSON, and real Graph mailbox reading only runs from the separate manual refresh action after sign-in."
     )
   }
 
@@ -24465,7 +24465,7 @@ final class ParcelOpsStore {
       keychainStatus: "MSAL cache entitlement ready",
       tokenStoreStatus: previousState.tokenStoreStatus,
       tokenStoreDetail: previousState.tokenStoreDetail,
-      detailText: "Real Microsoft 365 sign-in test started. A browser sign-in may open, but ParcelOps will not store token values in JSON and will not fetch mailbox messages. Attempt ID: \(attemptID.uuidString)."
+      detailText: "Real Microsoft 365 sign-in test started. A browser sign-in may open, but ParcelNest will not store token values in JSON and will not fetch mailbox messages. Attempt ID: \(attemptID.uuidString)."
     )
     microsoft365AuthSessionStates[connection.id] = startedState
     logAudit(
@@ -24530,7 +24530,7 @@ final class ParcelOpsStore {
       entityID: connection?.id.uuidString ?? "gmail-auth-callback",
       entityLabel: connection?.displayName ?? "Gmail auth callback",
       summary: "Gmail auth callback readiness evaluated.",
-      afterDetail: "\(status)\n\(activeDetail)\nGmail callback handling accepts the placeholder scheme and real reversed Google OAuth client ID schemes registered in the compiled app. No Google access token, refresh token, auth code, client secret, password, raw callback URL, or Gmail message was stored in ParcelOps JSON or audit logs. No Gmail API mailbox call was made."
+      afterDetail: "\(status)\n\(activeDetail)\nGmail callback handling accepts the placeholder scheme and real reversed Google OAuth client ID schemes registered in the compiled app. No Google access token, refresh token, auth code, client secret, password, raw callback URL, or Gmail message was stored in ParcelNest JSON or audit logs. No Gmail API mailbox call was made."
     )
   }
 
@@ -24867,7 +24867,7 @@ final class ParcelOpsStore {
       captureStatus: "Pasted link staged",
       reviewState: .needsReview,
       capturedDate: Self.auditTimestamp(),
-      notes: "Local pasted-link capture only. ParcelOps did not open the page, scrape the website, compare live prices, convert currency, rate the seller, log into accounts, buy, pay, or contact external services."
+      notes: "Local pasted-link capture only. ParcelNest did not open the page, scrape the website, compare live prices, convert currency, rate the seller, log into accounts, buy, pay, or contact external services."
     )
     wishlistCaptureCandidates.insert(capture, at: 0)
     persistWishlist()
@@ -25576,7 +25576,7 @@ final class ParcelOpsStore {
       createdDate: "Now",
       lastReviewedDate: "Not reviewed",
       reviewState: .needsReview,
-      notes: "Local research brief only. ParcelOps has not searched the web, contacted sellers, opened browser pages, logged in, purchased, or stored payment details."
+      notes: "Local research brief only. ParcelNest has not searched the web, contacted sellers, opened browser pages, logged in, purchased, or stored payment details."
     )
     wishlistResearchRequests.insert(request, at: 0)
     persistWishlist()
@@ -25991,7 +25991,7 @@ final class ParcelOpsStore {
     wishlistItems[index].comparisonOptions = options
     wishlistItems[index].comparisonStatus = "Manual seller options"
     wishlistItems[index].purchaseReadiness = "Waiting for seller option review"
-    wishlistItems[index].comparisonNotes = "Manual seller options can be recorded before future agent research is connected. Verify live price, AUD conversion, postage, delivery time, seller trust, returns, and account readiness outside ParcelOps."
+    wishlistItems[index].comparisonNotes = "Manual seller options can be recorded before future agent research is connected. Verify live price, AUD conversion, postage, delivery time, seller trust, returns, and account readiness outside ParcelNest."
     if wishlistItems[index].preferredOptionID == nil {
       wishlistItems[index].preferredOptionID = option.id
     }
@@ -26039,7 +26039,7 @@ final class ParcelOpsStore {
     wishlistItems[index].comparisonOptions = options
     wishlistItems[index].comparisonStatus = "Pasted comparison result"
     wishlistItems[index].purchaseReadiness = "Waiting for pasted seller result review"
-    wishlistItems[index].comparisonNotes = "A pasted comparison result was recorded locally as a seller option. Verify live price, stock, AUD landed cost, postage, delivery time, seller trust, returns, warranty, account readiness, and payment readiness outside ParcelOps."
+    wishlistItems[index].comparisonNotes = "A pasted comparison result was recorded locally as a seller option. Verify live price, stock, AUD landed cost, postage, delivery time, seller trust, returns, warranty, account readiness, and payment readiness outside ParcelNest."
     if wishlistItems[index].preferredOptionID == nil {
       wishlistItems[index].preferredOptionID = option.id
     }
@@ -26121,7 +26121,7 @@ final class ParcelOpsStore {
     wishlistItems[index].comparisonOptions = options
     wishlistItems[index].comparisonStatus = "Pasted comparison batch"
     wishlistItems[index].purchaseReadiness = "Waiting for pasted seller batch review"
-    wishlistItems[index].comparisonNotes = "A pasted comparison batch created \(newOptions.count) local seller options. Verify live price, stock, AUD landed cost, postage, delivery time, seller trust, returns, warranty, account readiness, and payment readiness outside ParcelOps."
+    wishlistItems[index].comparisonNotes = "A pasted comparison batch created \(newOptions.count) local seller options. Verify live price, stock, AUD landed cost, postage, delivery time, seller trust, returns, warranty, account readiness, and payment readiness outside ParcelNest."
     if wishlistItems[index].preferredOptionID == nil {
       wishlistItems[index].preferredOptionID = newOptions.first?.id
     }
@@ -26232,7 +26232,7 @@ final class ParcelOpsStore {
       entityLabel: wishlistItems[index].itemName,
       summary: "Wishlist seller option removed locally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistItems[index].auditDetail)\nRemoved seller option: \(removed.sellerName). Wishlist item, orders, accounts, retailer pages, and purchase state were not changed outside ParcelOps."
+      afterDetail: "\(wishlistItems[index].auditDetail)\nRemoved seller option: \(removed.sellerName). Wishlist item, orders, accounts, retailer pages, and purchase state were not changed outside ParcelNest."
     )
   }
 
@@ -26316,7 +26316,7 @@ final class ParcelOpsStore {
       entityLabel: wishlistItems[index].itemName,
       summary: "Wishlist item marked ready for purchase locally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistItems[index].auditDetail)\nReady means local operator readiness only. ParcelOps did not buy the item, open an account, save payment credentials, monitor checkout, or contact any retailer."
+      afterDetail: "\(wishlistItems[index].auditDetail)\nReady means local operator readiness only. ParcelNest did not buy the item, open an account, save payment credentials, monitor checkout, or contact any retailer."
     )
   }
 
@@ -26399,7 +26399,7 @@ final class ParcelOpsStore {
       WishlistAgentReadinessItem(
         title: "Purchase approval and links",
         status: "\(readyPurchaseLinks) links / \(readyApprovals) approvals",
-        detail: readyPurchaseLinks > 0 && readyApprovals > 0 ? "At least one purchase route has an accepted link and approval record." : "Accepted purchase links and approvals are still local prerequisites before buying outside ParcelOps.",
+        detail: readyPurchaseLinks > 0 && readyApprovals > 0 ? "At least one purchase route has an accepted link and approval record." : "Accepted purchase links and approvals are still local prerequisites before buying outside ParcelNest.",
         tone: readyPurchaseLinks > 0 && readyApprovals > 0 ? "success" : "attention",
         nextAction: "Confirm the selected product link, account context, approved limit, payment method summary, and no-checkout boundary."
       ),
@@ -26678,7 +26678,7 @@ final class ParcelOpsStore {
         && !checkedItem.owner.localizedCaseInsensitiveContains("needs review")
         && !checkedItem.owner.localizedCaseInsensitiveContains("to confirm"),
       failDetail: "Confirm who owns the purchase and which account should be used before buying.",
-      passDetail: "Owner is \(checkedItem.owner). Account choice still requires manual confirmation outside ParcelOps."
+      passDetail: "Owner is \(checkedItem.owner). Account choice still requires manual confirmation outside ParcelNest."
     ))
 
     let blockerCount = checks.filter { $0.status == "Blocked" || $0.severity == "High" }.count
@@ -26693,7 +26693,7 @@ final class ParcelOpsStore {
     wishlistItems[index].comparisonNotes = [
       wishlistItems[index].comparisonNotes,
       preferredOption.map { "Readiness checked against \($0.sellerName). Evidence gaps: \(preferredEvidenceGaps.isEmpty ? "none" : preferredEvidenceGaps.joined(separator: ", "))." },
-      "Ready means local operator review only; ParcelOps still does not open retailer pages, log in, check out, buy, pay, or monitor the external order."
+      "Ready means local operator review only; ParcelNest still does not open retailer pages, log in, check out, buy, pay, or monitor the external order."
     ].compactMap { $0 }.joined(separator: " ")
     persistWishlist()
     logAudit(
@@ -26794,7 +26794,7 @@ final class ParcelOpsStore {
           "Draft only.",
           selectedGaps.isEmpty ? "Selected seller evidence gaps: none recorded locally." : "Selected seller evidence gaps: \(selectedGaps.joined(separator: ", ")).",
           openChecks.isEmpty ? "Readiness checks have no open local failures." : "Open readiness checks: \(openChecks.map { "\($0.title)=\($0.status)" }.joined(separator: "; ")).",
-          "Confirm live price, stock, AUD total, postage, returns, warranty, seller trust, account, and payment readiness outside ParcelOps before buying."
+          "Confirm live price, stock, AUD total, postage, returns, warranty, seller trust, account, and payment readiness outside ParcelNest before buying."
         ].joined(separator: " "),
       decidedBy: current.owner,
       decidedDate: "Now",
@@ -26822,7 +26822,7 @@ final class ParcelOpsStore {
     decision.decisionStatus = "Decision reviewed"
     decision.reviewState = .accepted
     decision.decidedDate = "Now"
-    decision.decisionNotes = "Decision reviewed locally. Operator still must confirm live price, stock, postage, seller trust, account, payment, delivery address, returns, and warranty outside ParcelOps before buying."
+    decision.decisionNotes = "Decision reviewed locally. Operator still must confirm live price, stock, postage, seller trust, account, payment, delivery address, returns, and warranty outside ParcelNest before buying."
     wishlistItems[index].purchaseDecision = decision
     wishlistItems[index].status = "Purchase decision reviewed"
     wishlistItems[index].purchaseReadiness = "Ready for manual purchase handoff"
@@ -26834,7 +26834,7 @@ final class ParcelOpsStore {
       entityLabel: wishlistItems[index].itemName,
       summary: "Wishlist purchase decision reviewed locally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistItems[index].auditDetail)\nReview only. ParcelOps did not buy the item, store payment details, open a retailer account, or monitor external checkout state."
+      afterDetail: "\(wishlistItems[index].auditDetail)\nReview only. ParcelNest did not buy the item, store payment details, open a retailer account, or monitor external checkout state."
     )
   }
 
@@ -26870,7 +26870,7 @@ final class ParcelOpsStore {
       "Postage: \(decision?.postageSummary ?? "Not recorded").",
       "Trust: \(decision?.trustSummary ?? "Not recorded").",
       "Alternates: \(decision?.rejectedOptionsSummary ?? "No alternates recorded").",
-      "Confirm live price, stock, delivery time, returns, warranty, account, delivery address, and payment readiness outside ParcelOps before buying."
+      "Confirm live price, stock, delivery time, returns, warranty, account, delivery address, and payment readiness outside ParcelNest before buying."
     ].joined(separator: " ")
 
     if let existingIndex = reviewTasks.firstIndex(where: {
@@ -27049,13 +27049,13 @@ final class ParcelOpsStore {
     \(watchSummary.isEmpty ? "- No order-watch records captured." : watchSummary)
 
     Manual purchase checklist:
-    - Confirm live price, stock, final landed AUD total, postage cost, delivery ETA, returns, warranty, seller identity, and seller trust outside ParcelOps.
-    - Confirm the account and payment method outside ParcelOps.
+    - Confirm live price, stock, final landed AUD total, postage cost, delivery ETA, returns, warranty, seller identity, and seller trust outside ParcelNest.
+    - Confirm the account and payment method outside ParcelNest.
     - If you purchase externally, watch Inbox/Orders for the confirmation and link it back to this Wishlist item.
     - Do not buy from any seller with unclear delivery, poor trust signals, missing returns/warranty, or suspicious pricing.
 
     Boundaries:
-    This packet is local only. ParcelOps did not open retailer pages, compare live prices, convert currency, rate sellers externally, log into accounts, store payment details, check out, buy, pay, mutate mailboxes, or monitor orders in the background.
+    This packet is local only. ParcelNest did not open retailer pages, compare live prices, convert currency, rate sellers externally, log into accounts, store payment details, check out, buy, pay, mutate mailboxes, or monitor orders in the background.
     """
 
     let draft = DraftMessage(
@@ -27110,7 +27110,7 @@ final class ParcelOpsStore {
       Final manual checks before buying externally:
       - Reconfirm live product page, stock, exact model/variant, and price.
       - Reconfirm final AUD landed cost, currency conversion, postage cost, delivery ETA, returns, warranty, and seller identity.
-      - Confirm the buying account, delivery address, and payment method outside ParcelOps.
+      - Confirm the buying account, delivery address, and payment method outside ParcelNest.
       - Do not buy if delivery reliability, seller trust, returns/warranty, or total landed cost is unclear.
 
       Local boundary: no web search, retailer lookup, browser automation, account login, checkout, purchase, payment, mailbox mutation, or external verification action occurred.
@@ -27130,7 +27130,7 @@ final class ParcelOpsStore {
       - AUD total: final landed AUD amount including item, GST/tax if known, postage, and fees.
       - Postage cost/time: shipping cost and realistic delivery window to Australia.
       - Seller trust: trust notes, recent reviews, returns, warranty, seller identity, and delivery reliability.
-      - Account/payment readiness: which account will be used and whether purchase details are ready outside ParcelOps.
+      - Account/payment readiness: which account will be used and whether purchase details are ready outside ParcelNest.
 
       Keep checks local until the user explicitly opens seller pages or decides to buy. No web search, retailer lookup, browser automation, account login, checkout, purchase, payment, mailbox mutation, or external verification action occurred.
       """
@@ -27787,7 +27787,7 @@ final class ParcelOpsStore {
         .joined(separator: " | "),
       orderWatchStatus: "After purchase, watch Inbox and Orders for local confirmation email or order record.",
       linkedOrderID: nil,
-      notes: "Manual handoff only. Confirm account, payment method, delivery address, returns, warranty, and final AUD total before buying outside ParcelOps.",
+      notes: "Manual handoff only. Confirm account, payment method, delivery address, returns, warranty, and final AUD total before buying outside ParcelNest.",
       updatedAt: "Now"
     )
     wishlistItems[index].status = "Purchase handoff ready"
@@ -27816,14 +27816,14 @@ final class ParcelOpsStore {
       .joined(separator: " | ")
     let taskTitle = "Prepare Wishlist purchase handoff: \(item.itemName)"
     let taskSummary = [
-      "Confirm the manual purchase handoff before buying outside ParcelOps.",
+      "Confirm the manual purchase handoff before buying outside ParcelNest.",
       "Seller: \(seller).",
       "Account: \(account).",
       "AUD total: \(decision?.totalAUDSummary ?? preferredOption?.estimatedAUDTotal ?? item.estimatedCost).",
       "Postage: \(decision?.postageSummary ?? preferredOption.map { "\($0.postageCost), \($0.postageTime)" } ?? "Not recorded").",
       "Trust: \(decision?.trustSummary ?? preferredOption?.trustRating ?? "Not recorded").",
       "Expected order signals: \(expectedSignals).",
-      "Confirm live price, stock, delivery address, returns, warranty, payment method, and account access outside ParcelOps. No purchase should be marked complete until a confirmation is visible in Inbox, Mailbox Monitor, or Orders."
+      "Confirm live price, stock, delivery address, returns, warranty, payment method, and account access outside ParcelNest. No purchase should be marked complete until a confirmation is visible in Inbox, Mailbox Monitor, or Orders."
     ].joined(separator: " ")
 
     if let existingIndex = reviewTasks.firstIndex(where: {
@@ -27892,7 +27892,7 @@ final class ParcelOpsStore {
     }
     handoff.purchaseStatus = "Purchased externally, awaiting order confirmation"
     handoff.orderWatchStatus = "Watch Inbox, Mailbox Monitor, and Orders for confirmation from \(handoff.sellerName). Expected signals: \(handoff.expectedOrderSignals)."
-    handoff.notes = "Operator recorded that this was purchased outside ParcelOps. Use the expected signal packet to match the next imported order confirmation. No payment credentials, checkout session, or retailer account details were stored."
+    handoff.notes = "Operator recorded that this was purchased outside ParcelNest. Use the expected signal packet to match the next imported order confirmation. No payment credentials, checkout session, or retailer account details were stored."
     handoff.updatedAt = "Now"
     wishlistItems[index].purchaseHandoff = handoff
     wishlistItems[index].status = "Awaiting order confirmation"
@@ -27906,7 +27906,7 @@ final class ParcelOpsStore {
       entityLabel: wishlistItems[index].itemName,
       summary: "Wishlist item marked purchased externally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistItems[index].auditDetail)\nExpected confirmation signals: \(handoff.expectedOrderSignals).\nManual record only. ParcelOps did not purchase the item, store payment details, log in to a retailer, send email, or monitor a mailbox in the background."
+      afterDetail: "\(wishlistItems[index].auditDetail)\nExpected confirmation signals: \(handoff.expectedOrderSignals).\nManual record only. ParcelNest did not purchase the item, store payment details, log in to a retailer, send email, or monitor a mailbox in the background."
     )
   }
 
@@ -28436,7 +28436,7 @@ final class ParcelOpsStore {
       entityLabel: wishlistPriceSnapshots[index].itemName,
       summary: "Wishlist price/watch snapshot reviewed locally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistPriceSnapshots[index].auditDetail)\nReview only. Live price, stock, postage, seller trust, account access, checkout, and payment still need confirmation outside ParcelOps before buying."
+      afterDetail: "\(wishlistPriceSnapshots[index].auditDetail)\nReview only. Live price, stock, postage, seller trust, account access, checkout, and payment still need confirmation outside ParcelNest before buying."
     )
   }
 
@@ -28918,8 +28918,8 @@ final class ParcelOpsStore {
       paymentReadinessStatus: "Payment method not stored",
       deliveryAddressStatus: "Delivery address and instructions to confirm",
       expectedOrderEmailSignals: handoff?.expectedOrderSignals ?? "\(sellerName), \(item.itemName), order confirmation, tracking",
-      credentialStorageNote: "No credentials stored. Confirm account access outside ParcelOps.",
-      purchaseBoundaryNote: "Manual purchase only. ParcelOps does not log in, checkout, pay, or submit orders.",
+      credentialStorageNote: "No credentials stored. Confirm account access outside ParcelNest.",
+      purchaseBoundaryNote: "Manual purchase only. ParcelNest does not log in, checkout, pay, or submit orders.",
       createdDate: Self.auditTimestamp(),
       lastReviewedDate: "Not reviewed",
       reviewState: .needsReview,
@@ -28941,8 +28941,8 @@ final class ParcelOpsStore {
     guard let index = wishlistPurchaseAccountRecords.firstIndex(where: { $0.id == record.id }) else { return }
     let beforeDetail = wishlistPurchaseAccountRecords[index].auditDetail
     wishlistPurchaseAccountRecords[index].accountReadinessStatus = "Ready for manual purchase"
-    wishlistPurchaseAccountRecords[index].paymentReadinessStatus = "Confirmed outside ParcelOps"
-    wishlistPurchaseAccountRecords[index].deliveryAddressStatus = "Confirmed outside ParcelOps"
+    wishlistPurchaseAccountRecords[index].paymentReadinessStatus = "Confirmed outside ParcelNest"
+    wishlistPurchaseAccountRecords[index].deliveryAddressStatus = "Confirmed outside ParcelNest"
     wishlistPurchaseAccountRecords[index].reviewState = .accepted
     wishlistPurchaseAccountRecords[index].lastReviewedDate = Self.auditTimestamp()
     if let itemIndex = wishlistPurchaseAccountRecords[index].wishlistItemID.flatMap({ id in wishlistItems.firstIndex { $0.id == id } }) {
@@ -28959,7 +28959,7 @@ final class ParcelOpsStore {
       entityLabel: wishlistPurchaseAccountRecords[index].itemName,
       summary: "Wishlist purchase account readiness accepted locally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistPurchaseAccountRecords[index].auditDetail)\nAcceptance means the operator confirmed readiness outside ParcelOps. No credentials, payment details, account login, checkout, purchase, or seller action occurred in ParcelOps."
+      afterDetail: "\(wishlistPurchaseAccountRecords[index].auditDetail)\nAcceptance means the operator confirmed readiness outside ParcelNest. No credentials, payment details, account login, checkout, purchase, or seller action occurred in ParcelOps."
     )
   }
 
@@ -29039,7 +29039,7 @@ final class ParcelOpsStore {
       approvalStatus: "Needs approval",
       approvedAUDLimit: decision?.totalAUDSummary ?? preferredOption?.estimatedAUDTotal ?? item.estimatedCost,
       budgetCode: "Budget code to confirm",
-      paymentMethodSummary: "Payment method confirmed outside ParcelOps only",
+      paymentMethodSummary: "Payment method confirmed outside ParcelNest only",
       approvalReason: "Wishlist purchase approval request for \(item.itemName).",
       createdDate: Self.auditTimestamp(),
       lastReviewedDate: "Not reviewed",
@@ -29120,7 +29120,7 @@ final class ParcelOpsStore {
       linkedEntityType: .wishlistItem,
       linkedEntityID: record.wishlistItemID?.uuidString ?? record.id.uuidString,
       label: "Review purchase approval: \(record.itemName)",
-      summary: "Review Wishlist purchase approval for \(record.itemName). Seller \(record.sellerName), status \(record.approvalStatus), limit \(record.approvedAUDLimit), budget \(record.budgetCode), approver \(record.approver). Confirm outside ParcelOps before buying.",
+      summary: "Review Wishlist purchase approval for \(record.itemName). Seller \(record.sellerName), status \(record.approvalStatus), limit \(record.approvedAUDLimit), budget \(record.budgetCode), approver \(record.approver). Confirm outside ParcelNest before buying.",
       priority: record.reviewState == .accepted ? .normal : .high,
       assignee: "Wishlist review"
     )
@@ -29159,7 +29159,7 @@ final class ParcelOpsStore {
       postageSummary: decision?.postageSummary ?? [preferredOption?.postageCost, preferredOption?.postageTime].compactMap { $0 }.joined(separator: ", "),
       trustSummary: decision?.trustSummary ?? preferredOption?.trustRating ?? "Needs trust review",
       readinessStatus: "Needs operator review",
-      accountContext: item.purchaseHandoff?.accountLabel ?? "Account to confirm outside ParcelOps",
+      accountContext: item.purchaseHandoff?.accountLabel ?? "Account to confirm outside ParcelNest",
       selectedForPurchase: decision != nil,
       createdDate: Self.auditTimestamp(),
       lastCheckedDate: preferredOption?.lastChecked ?? "Not checked",
@@ -29218,7 +29218,7 @@ final class ParcelOpsStore {
       entityLabel: wishlistPurchaseLinkRecords[index].itemName,
       summary: "Wishlist purchase link selected locally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistPurchaseLinkRecords[index].auditDetail)\nSelection only. ParcelOps did not open a retailer page, log in, check out, pay, or buy."
+      afterDetail: "\(wishlistPurchaseLinkRecords[index].auditDetail)\nSelection only. ParcelNest did not open a retailer page, log in, check out, pay, or buy."
     )
   }
 
@@ -29239,7 +29239,7 @@ final class ParcelOpsStore {
       entityLabel: wishlistPurchaseLinkRecords[index].itemName,
       summary: "Wishlist purchase link marked ready locally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistPurchaseLinkRecords[index].auditDetail)\nReady means the operator can manually open this link outside ParcelOps. No browser automation, checkout, payment, or purchase occurred."
+      afterDetail: "\(wishlistPurchaseLinkRecords[index].auditDetail)\nReady means the operator can manually open this link outside ParcelNest. No browser automation, checkout, payment, or purchase occurred."
     )
   }
 
@@ -29284,7 +29284,7 @@ final class ParcelOpsStore {
       linkedEntityType: .wishlistItem,
       linkedEntityID: record.wishlistItemID?.uuidString ?? record.id.uuidString,
       label: "Review purchase link: \(record.itemName)",
-      summary: "Review Wishlist purchase link for \(record.itemName). Seller \(record.sellerName), link type \(record.linkType), total \(record.estimatedAUDTotal), postage \(record.postageSummary), trust \(record.trustSummary), readiness \(record.readinessStatus). Do not buy from inside ParcelOps.",
+      summary: "Review Wishlist purchase link for \(record.itemName). Seller \(record.sellerName), link type \(record.linkType), total \(record.estimatedAUDTotal), postage \(record.postageSummary), trust \(record.trustSummary), readiness \(record.readinessStatus). Do not buy from inside ParcelNest.",
       priority: record.reviewState == .accepted ? .normal : .high,
       assignee: "Wishlist review"
     )
@@ -29441,7 +29441,7 @@ final class ParcelOpsStore {
         ? (confirmationCandidates.isEmpty ? "Wishlist order watch checked with no confirmation found." : "Wishlist order watch found Inbox confirmation candidates.")
         : "Wishlist order watch matched local order \(matchedOrder?.orderNumber ?? "").",
       beforeDetail: beforeDetail,
-      afterDetail: "\(wishlistOrderWatchRecords[index].auditDetail)\nInbox candidates: \(confirmationCandidates.count). \(candidateSummary)\nLocal match check only. ParcelOps did not fetch mail, poll in the background, open retailer pages, mutate mailbox items, purchase, or pay."
+      afterDetail: "\(wishlistOrderWatchRecords[index].auditDetail)\nInbox candidates: \(confirmationCandidates.count). \(candidateSummary)\nLocal match check only. ParcelNest did not fetch mail, poll in the background, open retailer pages, mutate mailbox items, purchase, or pay."
     )
   }
 
@@ -29606,7 +29606,7 @@ final class ParcelOpsStore {
       Gap counts: \(groupedGapCounts.isEmpty ? "none" : groupedGapCounts.map { "\($0.key): \($0.value)" }.joined(separator: ", "))
       Top gap examples: \(topBlocked.isEmpty ? "none" : topBlocked.joined(separator: " | "))
       \(blocked.isEmpty ? "No task was needed." : "One local review task was created for the closure gap summary.")
-      Local closure readiness only. ParcelOps did not close orders externally, receive stock, update inventory systems, book dispatch, print labels, scan hardware, contact sellers, mutate mailboxes, purchase, or pay.
+      Local closure readiness only. ParcelNest did not close orders externally, receive stock, update inventory systems, book dispatch, print labels, scan hardware, contact sellers, mutate mailboxes, purchase, or pay.
       """
     )
   }
@@ -29677,7 +29677,7 @@ final class ParcelOpsStore {
       entityLabel: closed.itemName,
       summary: "Wishlist item closed locally.",
       beforeDetail: beforeDetail,
-      afterDetail: "\(closed.auditDetail)\nClosure was local only. ParcelOps did not close external orders, receive stock, update inventory systems, book dispatch, print labels, scan hardware, contact sellers, mutate mailboxes, purchase, or pay."
+      afterDetail: "\(closed.auditDetail)\nClosure was local only. ParcelNest did not close external orders, receive stock, update inventory systems, book dispatch, print labels, scan hardware, contact sellers, mutate mailboxes, purchase, or pay."
     )
   }
 
@@ -29717,7 +29717,7 @@ final class ParcelOpsStore {
       entityID: "wishlist-close-ready-batch",
       entityLabel: "Wishlist close ready",
       summary: "Wishlist close-ready batch completed locally.",
-      afterDetail: "Items checked: \(candidates.count)\nItems closed locally: \(ready.count)\nClosed item examples: \(ready.prefix(6).map(\.itemName).joined(separator: ", "))\nClosure was local only. ParcelOps did not close external orders, receive stock, update inventory systems, book dispatch, print labels, scan hardware, contact sellers, mutate mailboxes, purchase, or pay."
+      afterDetail: "Items checked: \(candidates.count)\nItems closed locally: \(ready.count)\nClosed item examples: \(ready.prefix(6).map(\.itemName).joined(separator: ", "))\nClosure was local only. ParcelNest did not close external orders, receive stock, update inventory systems, book dispatch, print labels, scan hardware, contact sellers, mutate mailboxes, purchase, or pay."
     )
   }
 
@@ -29829,7 +29829,7 @@ final class ParcelOpsStore {
       "Inbox candidates: \(candidateMatches.count).",
       candidateLines.isEmpty ? "Candidate preview: none found locally yet." : "Candidate preview:\n\(candidateLines.joined(separator: "\n"))",
       "Next action: \(nextAction)",
-      "Boundary: this task is local follow-up only. ParcelOps did not fetch mail, poll in the background, open retailer pages, mutate mailbox items, purchase, pay, or access retailer accounts."
+      "Boundary: this task is local follow-up only. ParcelNest did not fetch mail, poll in the background, open retailer pages, mutate mailbox items, purchase, pay, or access retailer accounts."
     ].joined(separator: "\n")
 
     if let existingIndex = reviewTasks.firstIndex(where: {
@@ -29976,7 +29976,7 @@ final class ParcelOpsStore {
       Failed or review checks:
       \(failedChecks.isEmpty ? "No failed/review checks recorded." : failedChecks.map { "- \($0.title): \($0.detail)" }.joined(separator: "\n"))
 
-      Confirm live price, stock, total landed AUD cost, postage time, seller trust, returns/warranty, delivery address, account access, and payment method outside ParcelOps before buying. ParcelOps has not purchased anything, sent a message, accessed a retailer account, or stored payment details.
+      Confirm live price, stock, total landed AUD cost, postage time, seller trust, returns/warranty, delivery address, account access, and payment method outside ParcelNest before buying. ParcelNest has not purchased anything, sent a message, accessed a retailer account, or stored payment details.
       """
 
     let auditDetail = """
@@ -30133,7 +30133,7 @@ final class ParcelOpsStore {
       missingFileNames.isEmpty ? "Missing examples: none" : "Missing examples: \(Array(missingFileNames.prefix(6)).joined(separator: ", "))",
       archivedInvalidFileNames.isEmpty ? "Archived invalid examples: none" : "Archived invalid examples: \(Array(archivedInvalidFileNames.prefix(4)).joined(separator: ", "))",
       "Boundary: no files were copied, exported, uploaded, deleted, or modified by this checkpoint.",
-      "Secrets boundary: SpaceMail passwords, app passwords, Google/Microsoft tokens, auth codes, client secrets, raw callback URLs, and Keychain item contents are not stored in ParcelOps JSON or Audit."
+      "Secrets boundary: SpaceMail passwords, app passwords, Google/Microsoft tokens, auth codes, client secrets, raw callback URLs, and Keychain item contents are not stored in ParcelNest JSON or Audit."
     ].joined(separator: "\n")
 
     logAudit(
@@ -30430,7 +30430,7 @@ final class ParcelOpsStore {
       lastSuccessfulAuthDate: result.status == .connected ? timestamp : previousState.lastSuccessfulAuthDate,
       keychainStatus: isRealAuth && result.status == .connected ? "MSAL token cache managed by MSAL" : previousState.keychainStatus,
       tokenStoreStatus: isRealAuth && result.status == .connected ? .mockTokenReferenceAvailable : previousState.tokenStoreStatus,
-      tokenStoreDetail: isRealAuth && result.status == .connected ? "MSAL completed sign-in and manages its own token cache. ParcelOps did not write token values, auth codes, passwords, or client secrets to JSON." : previousState.tokenStoreDetail,
+      tokenStoreDetail: isRealAuth && result.status == .connected ? "MSAL completed sign-in and manages its own token cache. ParcelNest did not write token values, auth codes, passwords, or client secrets to JSON." : previousState.tokenStoreDetail,
       detailText: completionDetail
     )
     microsoft365AuthSessionStates[connection.id] = state
@@ -30483,7 +30483,7 @@ final class ParcelOpsStore {
       keychainStatus: previousState.keychainStatus,
       tokenStoreStatus: previousState.tokenStoreStatus,
       tokenStoreDetail: previousState.tokenStoreDetail,
-      detailText: "Timeout: ParcelOps did not receive a final MSAL completion after the browser sign-in window returned or stalled. Try Test real Microsoft sign-in again from an active ParcelOps window. If this repeats, check callback routing, presentation window state, Xcode signing, and MSAL console diagnostics. No token values were stored in ParcelOps JSON and no Microsoft Graph mailbox call was made. Attempt ID: \(attemptID.uuidString)."
+      detailText: "Timeout: ParcelNest did not receive a final MSAL completion after the browser sign-in window returned or stalled. Try Test real Microsoft sign-in again from an active ParcelNest window. If this repeats, check callback routing, presentation window state, Xcode signing, and MSAL console diagnostics. No token values were stored in ParcelNest JSON and no Microsoft Graph mailbox call was made. Attempt ID: \(attemptID.uuidString)."
     )
     microsoft365AuthSessionStates[connectionID] = state
     logAudit(
@@ -30507,7 +30507,7 @@ final class ParcelOpsStore {
     case .notConnected:
       completionText = "Completion: MSAL returned without connecting an account, usually because the user cancelled or closed the sign-in window."
     case .notConfigured:
-      completionText = "Completion: ParcelOps did not start MSAL because required setup fields are missing."
+      completionText = "Completion: ParcelNest did not start MSAL because required setup fields are missing."
     case .consentRequired:
       completionText = "Completion: MSAL returned a consent, conditional access, or tenant policy requirement."
     case .authFailed:
@@ -30971,7 +30971,7 @@ final class ParcelOpsStore {
       GmailOAuthImplementationChecklistItem(
         title: "Token handling understood",
         isComplete: hasCredentialPlan,
-        detail: hasCredentialPlan ? connection.credentialStorageStatus : "Use GoogleSignIn SDK-managed session state. ParcelOps must not store token values in JSON."
+        detail: hasCredentialPlan ? connection.credentialStorageStatus : "Use GoogleSignIn SDK-managed session state. ParcelNest must not store token values in JSON."
       ),
       GmailOAuthImplementationChecklistItem(
         title: "Manual refresh strategy selected",
@@ -31368,7 +31368,7 @@ final class ParcelOpsStore {
   }
 
   private func gmailAuthSessionAuditDetail(_ state: GmailAuthSessionState) -> String {
-    "Auth status: \(state.status.rawValue)\nSigned-in account: \(state.signedInAccount)\nLast auth attempt: \(state.lastAuthAttemptDate)\nLast successful auth: \(state.lastSuccessfulAuthDate)\nToken store status: \(state.tokenStoreStatus)\nToken store detail: \(state.tokenStoreDetail)\nDetail: \(state.detailText)\nNo Google access token, refresh token, auth code, callback URL, client secret, password, raw Gmail message, or mailbox content is stored in ParcelOps JSON or audit logs."
+    "Auth status: \(state.status.rawValue)\nSigned-in account: \(state.signedInAccount)\nLast auth attempt: \(state.lastAuthAttemptDate)\nLast successful auth: \(state.lastSuccessfulAuthDate)\nToken store status: \(state.tokenStoreStatus)\nToken store detail: \(state.tokenStoreDetail)\nDetail: \(state.detailText)\nNo Google access token, refresh token, auth code, callback URL, client secret, password, raw Gmail message, or mailbox content is stored in ParcelNest JSON or audit logs."
   }
 
   private func gmailTokenStoreAuditDetail(_ state: GmailAuthSessionState) -> String {
@@ -31376,7 +31376,7 @@ final class ParcelOpsStore {
   }
 
   private func microsoft365AuthSessionAuditDetail(_ state: Microsoft365AuthSessionState) -> String {
-    "Auth status: \(state.status.rawValue)\nSigned-in account: \(state.signedInAccount)\nLast auth attempt: \(state.lastAuthAttemptDate)\nLast successful auth: \(state.lastSuccessfulAuthDate)\nKeychain status: \(state.keychainStatus)\nToken store status: \(state.tokenStoreStatus.rawValue)\nToken store detail: \(state.tokenStoreDetail)\nDetail: \(state.detailText)\nNo token values, auth codes, client secrets, passwords, or callback URLs are stored in ParcelOps JSON or audit logs. Microsoft Graph mailbox reading only runs from the separate manual refresh action."
+    "Auth status: \(state.status.rawValue)\nSigned-in account: \(state.signedInAccount)\nLast auth attempt: \(state.lastAuthAttemptDate)\nLast successful auth: \(state.lastSuccessfulAuthDate)\nKeychain status: \(state.keychainStatus)\nToken store status: \(state.tokenStoreStatus.rawValue)\nToken store detail: \(state.tokenStoreDetail)\nDetail: \(state.detailText)\nNo token values, auth codes, client secrets, passwords, or callback URLs are stored in ParcelNest JSON or audit logs. Microsoft Graph mailbox reading only runs from the separate manual refresh action."
   }
 
   private func microsoft365TokenStoreAuditDetail(_ state: Microsoft365AuthSessionState) -> String {

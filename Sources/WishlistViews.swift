@@ -233,7 +233,7 @@ private struct WishlistLinkedOrderSummaryRow: View {
       .buttonStyle(.bordered)
       .controlSize(.mini)
 
-      Text("Local handoff only: use the linked order as source of truth. ParcelOps does not poll carriers, book dispatch, print labels, or update external retailer records from this card.")
+      Text("Local handoff only: use the linked order as source of truth. ParcelNest does not poll carriers, book dispatch, print labels, or update external retailer records from this card.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -1053,7 +1053,7 @@ struct WishlistView: View {
 
     return SettingsPanel(title: "Wishlist purchase state", symbol: "cart.badge.questionmark") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Daily purchase view: decide what is ready to buy, what has already been bought outside ParcelOps, and what still needs an Inbox/order confirmation link.")
+        Text("Daily purchase view: decide what is ready to buy, what has already been bought outside ParcelNest, and what still needs an Inbox/order confirmation link.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -1747,7 +1747,7 @@ struct WishlistView: View {
         }
         .buttonStyle(.bordered)
 
-        Text("Comparison boundary: this prepares local briefs and seller-review rows only. ParcelOps does not browse retailers, run live web search, convert currencies, quote postage, score seller trust externally, log in, purchase, pay, or monitor retailer pages.")
+        Text("Comparison boundary: this prepares local briefs and seller-review rows only. ParcelNest does not browse retailers, run live web search, convert currencies, quote postage, score seller trust externally, log in, purchase, pay, or monitor retailer pages.")
           .font(.caption2)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -1899,7 +1899,7 @@ struct WishlistView: View {
         SettingsPanel(title: "Capture channels", symbol: "square.and.arrow.down.fill") {
           CaptureChannelRow(symbol: "doc.richtext.fill", title: "PDF placeholder", detail: "Creates a local test item only. No file picker, OCR, or PDF parser runs from this screen.")
           CaptureChannelRow(symbol: "photo.fill", title: "Screenshot placeholder", detail: "Creates a local test item only. No screenshot picker, OCR, or image parser runs from this screen.")
-          CaptureChannelRow(symbol: "square.and.arrow.up.fill", title: "Share path placeholder", detail: "Documents a future share-sheet flow. ParcelOps does not receive shared browser pages yet.")
+          CaptureChannelRow(symbol: "square.and.arrow.up.fill", title: "Share path placeholder", detail: "Documents a future share-sheet flow. ParcelNest does not receive shared browser pages yet.")
           CaptureChannelRow(symbol: "puzzlepiece.extension.fill", title: "Browser capture staging", detail: "Creates or reviews local capture candidates in the staging queue. No browser extension, scraping, or external sync is active here.")
         }
 
@@ -2614,7 +2614,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Timeline counts are local guidance only. ParcelOps does not verify live prices, stock, postage, seller trust, account state, payment, mailbox state, carrier status, dispatch booking, or delivery completion.")
+        Text("Timeline counts are local guidance only. ParcelNest does not verify live prices, stock, postage, seller trust, account state, payment, mailbox state, carrier status, dispatch booking, or delivery completion.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -2788,7 +2788,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Readiness is local guidance only. ParcelOps does not buy the item, log into sellers, verify live price or stock, send payment, open a browser, mutate mailboxes, or run background monitoring.")
+        Text("Readiness is local guidance only. ParcelNest does not buy the item, log into sellers, verify live price or stock, send payment, open a browser, mutate mailboxes, or run background monitoring.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -4043,7 +4043,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Queue actions are local workflow actions only. ParcelOps does not browse retailers, log in, purchase, pay, fetch live stock, quote postage, or mutate external mailboxes from this queue.")
+        Text("Queue actions are local workflow actions only. ParcelNest does not browse retailers, log in, purchase, pay, fetch live stock, quote postage, or mutate external mailboxes from this queue.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -4133,7 +4133,7 @@ struct WishlistView: View {
     } else if item.purchaseHandoff == nil {
       workflow = .watch
       stage = "Handoff needed"
-      detail = "Prepare account, payment, delivery, and order-watch notes before buying outside ParcelOps."
+      detail = "Prepare account, payment, delivery, and order-watch notes before buying outside ParcelNest."
       nextAction = "Prepare handoff"
       nextSymbol = "person.crop.circle.badge.checkmark"
       tone = .green
@@ -4141,7 +4141,7 @@ struct WishlistView: View {
     } else if item.purchaseHandoff?.linkedOrderID == nil && !isPurchased {
       workflow = .watch
       stage = "Ready to purchase"
-      detail = "Manual purchase handoff is prepared. Record the external purchase only after buying outside ParcelOps."
+      detail = "Manual purchase handoff is prepared. Record the external purchase only after buying outside ParcelNest."
       nextAction = "Record purchase"
       nextSymbol = "bag.fill"
       tone = .blue
@@ -5043,7 +5043,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("This is a local cleanup queue only. ParcelOps does not scrape seller pages, verify live stock, convert exchange rates, calculate postage, inspect reviews, or start checkout.")
+        Text("This is a local cleanup queue only. ParcelNest does not scrape seller pages, verify live stock, convert exchange rates, calculate postage, inspect reviews, or start checkout.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -5240,7 +5240,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Rubric scoring is local only. ParcelOps does not verify live stock, real-time prices, exchange rates, postage quotes, independent reviews, or seller identity.")
+        Text("Rubric scoring is local only. ParcelNest does not verify live stock, real-time prices, exchange rates, postage quotes, independent reviews, or seller identity.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -5394,7 +5394,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Local-only checklist. ParcelOps does not scrape reviews, validate seller identity, check live ABNs/business registrations, convert currencies, request live postage quotes, or verify delivery probability.")
+        Text("Local-only checklist. ParcelNest does not scrape reviews, validate seller identity, check live ABNs/business registrations, convert currencies, request live postage quotes, or verify delivery probability.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -5586,7 +5586,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Trust evidence remains manually supplied. ParcelOps does not call review sites, check business registrations, validate seller identity, test checkout, verify delivery probability, or contact sellers.")
+        Text("Trust evidence remains manually supplied. ParcelNest does not call review sites, check business registrations, validate seller identity, test checkout, verify delivery probability, or contact sellers.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -5691,7 +5691,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Matrix scoring is local only. ParcelOps has not checked stock, current price, exchange rates, postage quote, seller reviews, checkout, payment, or account login.")
+        Text("Matrix scoring is local only. ParcelNest has not checked stock, current price, exchange rates, postage quote, seller reviews, checkout, payment, or account login.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -5917,7 +5917,7 @@ struct WishlistView: View {
 
     return SettingsPanel(title: "Price/watch snapshots", symbol: "tag.fill") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Record manual observations of seller price, estimated AUD total, postage, availability, and trust over time. These are local snapshots for comparison and purchase review; ParcelOps does not check live retailer pages or run an agent here.")
+        Text("Record manual observations of seller price, estimated AUD total, postage, availability, and trust over time. These are local snapshots for comparison and purchase review; ParcelNest does not check live retailer pages or run an agent here.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -6328,7 +6328,7 @@ struct WishlistView: View {
         if entries.isEmpty {
           MVPEmptyState(
             title: "No seller options to recommend from",
-            detail: "Add manual seller options or create a comparison plan. ParcelOps will then summarise safest, cheapest, fastest, and preferred choices locally.",
+            detail: "Add manual seller options or create a comparison plan. ParcelNest will then summarise safest, cheapest, fastest, and preferred choices locally.",
             symbol: "sparkle.magnifyingglass"
           )
         } else {
@@ -6358,7 +6358,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Recommendation summary is advisory only. Confirm live stock, final AUD total, postage, delivery time, seller trust, returns, warranty, account login, checkout, and payment outside ParcelOps before buying.")
+        Text("Recommendation summary is advisory only. Confirm live stock, final AUD total, postage, delivery time, seller trust, returns, warranty, account login, checkout, and payment outside ParcelNest before buying.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -6636,7 +6636,7 @@ struct WishlistView: View {
         if entries.isEmpty {
           MVPEmptyState(
             title: "No Wishlist items are ready for the shortlist",
-            detail: "Add seller options or run local comparison scoring first. The shortlist appears once ParcelOps has enough local seller data to suggest a purchase route.",
+            detail: "Add seller options or run local comparison scoring first. The shortlist appears once ParcelNest has enough local seller data to suggest a purchase route.",
             symbol: "list.bullet.rectangle.portrait.fill"
           )
         } else {
@@ -7546,7 +7546,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Required before buying: confirm live stock and price, AUD landed cost, postage cost/time, seller trust, account access, payment method, delivery address, returns, and warranty outside ParcelOps.")
+        Text("Required before buying: confirm live stock and price, AUD landed cost, postage cost/time, seller trust, account access, payment method, delivery address, returns, and warranty outside ParcelNest.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -7742,7 +7742,7 @@ struct WishlistView: View {
           sortPriority = 20
         } else if selectedLink == nil {
           stage = "Purchase link missing"
-          detail = "Add the product or retailer link the human should open outside ParcelOps."
+          detail = "Add the product or retailer link the human should open outside ParcelNest."
           actionTitle = "Add link"
           actionSymbol = "link.badge.plus"
           tone = .purple
@@ -7763,7 +7763,7 @@ struct WishlistView: View {
           sortPriority = 50
         } else if !approvalReady {
           stage = "Approval review"
-          detail = "Approval exists but is not accepted locally. Confirm approver, limit, budget, and payment method outside ParcelOps."
+          detail = "Approval exists but is not accepted locally. Confirm approver, limit, budget, and payment method outside ParcelNest."
           actionTitle = "Approval task"
           actionSymbol = "checklist"
           tone = .indigo
@@ -7777,7 +7777,7 @@ struct WishlistView: View {
           sortPriority = 70
         } else if !accountReady {
           stage = "Account review"
-          detail = "Account readiness is not accepted locally. Confirm access, payment readiness, and delivery details outside ParcelOps."
+          detail = "Account readiness is not accepted locally. Confirm access, payment readiness, and delivery details outside ParcelNest."
           actionTitle = "Account task"
           actionSymbol = "checklist"
           tone = .teal
@@ -7970,7 +7970,7 @@ struct WishlistView: View {
         if dossiers.isEmpty {
           MVPEmptyState(
             title: "No purchase evidence dossiers yet",
-            detail: "Add seller options and enter the purchase decision flow before ParcelOps can summarise evidence readiness.",
+            detail: "Add seller options and enter the purchase decision flow before ParcelNest can summarise evidence readiness.",
             symbol: "folder.badge.gearshape.fill"
           )
         } else {
@@ -7998,7 +7998,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Evidence dossiers are local summaries only. ParcelOps does not verify live stock, live price, payment availability, account login, seller reviews, seller identity, or retailer checkout.")
+        Text("Evidence dossiers are local summaries only. ParcelNest does not verify live stock, live price, payment availability, account login, seller reviews, seller identity, or retailer checkout.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -8132,7 +8132,7 @@ struct WishlistView: View {
           sortPriority = 40
         } else if handoff?.linkedOrderID == nil {
           status = "Ready for external buy"
-          detail = "Local evidence pack is signed off. Buy outside ParcelOps only after final live checks, then watch for order confirmation."
+          detail = "Local evidence pack is signed off. Buy outside ParcelNest only after final live checks, then watch for order confirmation."
           tone = .green
           sortPriority = 50
         } else {
@@ -8215,7 +8215,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Evidence pack sign-off is local only. ParcelOps does not verify live stock, current seller reputation, checkout availability, account login, payment, delivery address, returns, warranty, or order placement.")
+        Text("Evidence pack sign-off is local only. ParcelNest does not verify live stock, current seller reputation, checkout availability, account login, payment, delivery address, returns, warranty, or order placement.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -8312,7 +8312,7 @@ struct WishlistView: View {
           sortPriority = 30
         } else if !hasOrder {
           stage = "Ready to buy externally"
-          detail = "Handoff is ready. Buy outside ParcelOps only after final live checks, then watch Inbox/Orders for confirmation."
+          detail = "Handoff is ready. Buy outside ParcelNest only after final live checks, then watch Inbox/Orders for confirmation."
           tone = .green
           actionTitle = "Order seen"
           actionSymbol = "envelope.badge.fill"
@@ -8361,7 +8361,7 @@ struct WishlistView: View {
 
     return SettingsPanel(title: "Operator pre-purchase checklist", symbol: "checklist.checked") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Use this as the human buying checklist. It separates local readiness from real-world verification: ParcelOps can stage the decision and order watch, but a person must still confirm live seller, account, payment, and delivery details outside the app.")
+        Text("Use this as the human buying checklist. It separates local readiness from real-world verification: ParcelNest can stage the decision and order watch, but a person must still confirm live seller, account, payment, and delivery details outside the app.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -8496,7 +8496,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Release means local readiness only. ParcelOps has not verified live price, stock, postage, seller reputation, account login, payment, checkout, or delivery status.")
+        Text("Release means local readiness only. ParcelNest has not verified live price, stock, postage, seller reputation, account login, payment, checkout, or delivery status.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -8775,7 +8775,7 @@ struct WishlistView: View {
       stage = "Ready to buy externally"
       nextAction = "Mark purchased"
       nextSymbol = "bag.fill"
-      detail = "Do final live checks outside ParcelOps, buy manually if appropriate, then mark purchased so the order-watch trail starts."
+      detail = "Do final live checks outside ParcelNest, buy manually if appropriate, then mark purchased so the order-watch trail starts."
       tone = .green
       sortPriority = 40
     }
@@ -9014,7 +9014,7 @@ struct WishlistView: View {
 
     return SettingsPanel(title: "Purchase handoff sanity check", symbol: "checklist.checked") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Use this compact check before and after buying outside ParcelOps. It confirms the local handoff has seller, account, order-watch, cost, procurement, receiving, and order-link context for downstream operations.")
+        Text("Use this compact check before and after buying outside ParcelNest. It confirms the local handoff has seller, account, order-watch, cost, procurement, receiving, and order-link context for downstream operations.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -9271,7 +9271,7 @@ struct WishlistView: View {
         if entries.isEmpty {
           MVPEmptyState(
             title: "No Wishlist purchases are in watch mode",
-            detail: "Accepted purchase decisions and handoffs appear here before and after the manual purchase is made outside ParcelOps.",
+            detail: "Accepted purchase decisions and handoffs appear here before and after the manual purchase is made outside ParcelNest.",
             symbol: "binoculars.fill"
           )
         } else {
@@ -9535,7 +9535,7 @@ struct WishlistView: View {
 
     return SettingsPanel(title: "Purchase approval gate", symbol: "checkmark.seal.fill") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Record the local approval, budget limit, approver, and payment-method readiness before a Wishlist item is treated as ready to buy. This is an operator gate only; ParcelOps still does not purchase, pay, check out, or connect to finance systems.")
+        Text("Record the local approval, budget limit, approver, and payment-method readiness before a Wishlist item is treated as ready to buy. This is an operator gate only; ParcelNest still does not purchase, pay, check out, or connect to finance systems.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -9598,7 +9598,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Local-only boundary: approvals here are notes in ParcelOps JSON. No payment card, bank feed, finance platform, checkout, seller login, purchase order submission, or purchase automation is connected.")
+        Text("Local-only boundary: approvals here are notes in ParcelNest JSON. No payment card, bank feed, finance platform, checkout, seller login, purchase order submission, or purchase automation is connected.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -9627,7 +9627,7 @@ struct WishlistView: View {
 
     return SettingsPanel(title: "Purchase links", symbol: "link.badge.plus") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Keep the best retailer/product links ready for a human to open outside ParcelOps. Each link records AUD total, postage, trust, account context, and readiness without opening checkout or buying.")
+        Text("Keep the best retailer/product links ready for a human to open outside ParcelNest. Each link records AUD total, postage, trust, account context, and readiness without opening checkout or buying.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -9659,7 +9659,7 @@ struct WishlistView: View {
         if records.isEmpty {
           MVPEmptyState(
             title: "No purchase links yet",
-            detail: "Add links after a seller option has been compared. A ready link is still manual: the operator opens it outside ParcelOps and completes any purchase elsewhere.",
+            detail: "Add links after a seller option has been compared. A ready link is still manual: the operator opens it outside ParcelNest and completes any purchase elsewhere.",
             symbol: "link.badge.plus"
           )
         } else {
@@ -9692,7 +9692,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Local-only boundary: ParcelOps stores product links and review notes only. It does not open browser pages, log into retailer accounts, place orders, pay, reserve stock, or monitor retailer pages.")
+        Text("Local-only boundary: ParcelNest stores product links and review notes only. It does not open browser pages, log into retailer accounts, place orders, pay, reserve stock, or monitor retailer pages.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -9714,7 +9714,7 @@ struct WishlistView: View {
 
     return SettingsPanel(title: "Purchase account readiness", symbol: "person.crop.circle.badge.checkmark") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Confirm the non-secret purchase context before buying outside ParcelOps: seller account label, payment readiness, delivery address, and expected order confirmation signals. No passwords, cards, checkout, or retailer login are stored.")
+        Text("Confirm the non-secret purchase context before buying outside ParcelNest: seller account label, payment readiness, delivery address, and expected order confirmation signals. No passwords, cards, checkout, or retailer login are stored.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -9746,7 +9746,7 @@ struct WishlistView: View {
         if records.isEmpty {
           MVPEmptyState(
             title: "No purchase account records yet",
-            detail: "Add one when a Wishlist item has a likely seller. This records non-secret readiness only; credentials and payment details stay outside ParcelOps.",
+            detail: "Add one when a Wishlist item has a likely seller. This records non-secret readiness only; credentials and payment details stay outside ParcelNest.",
             symbol: "person.crop.circle.badge.checkmark"
           )
         } else {
@@ -9912,7 +9912,7 @@ struct WishlistView: View {
         if handoffItems.isEmpty {
           MVPEmptyState(
             title: "No Wishlist purchase handoff yet",
-            detail: "Accept a purchase decision or prepare a purchase handoff before ParcelOps can watch for a local Inbox/order confirmation.",
+            detail: "Accept a purchase decision or prepare a purchase handoff before ParcelNest can watch for a local Inbox/order confirmation.",
             symbol: "envelope.badge.shield.half.filled"
           )
         } else {
@@ -10299,7 +10299,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Match packets are local guidance only. ParcelOps does not fetch mail here, monitor in the background, log in to seller accounts, open checkout pages, send messages, or mutate mailbox messages.")
+        Text("Match packets are local guidance only. ParcelNest does not fetch mail here, monitor in the background, log in to seller accounts, open checkout pages, send messages, or mutate mailbox messages.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -10351,7 +10351,7 @@ struct WishlistView: View {
 
     return SettingsPanel(title: "Wishlist order confirmation matching", symbol: "link.badge.plus") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Review imported Inbox confirmations against Wishlist purchases. Use a matching intake row to create or link the local order, or mark confirmation seen when the purchase was checked outside ParcelOps.")
+        Text("Review imported Inbox confirmations against Wishlist purchases. Use a matching intake row to create or link the local order, or mark confirmation seen when the purchase was checked outside ParcelNest.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -10454,7 +10454,7 @@ struct WishlistView: View {
 
     return SettingsPanel(title: "Post-purchase order watch", symbol: "envelope.badge.shield.half.filled") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Use this queue after a Wishlist item is bought outside ParcelOps. It keeps order-confirmation follow-up visible until a local Inbox confirmation or order is linked.")
+        Text("Use this queue after a Wishlist item is bought outside ParcelNest. It keeps order-confirmation follow-up visible until a local Inbox confirmation or order is linked.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -11667,7 +11667,7 @@ struct WishlistView: View {
 
     return SettingsPanel(title: "Agent research output contract", symbol: "checklist.checked") {
       VStack(alignment: .leading, spacing: 12) {
-        Text("This converts Wishlist research briefs into a precise result contract. It tells a future agent or human researcher exactly what must come back before ParcelOps can compare sellers or prepare a purchase decision.")
+        Text("This converts Wishlist research briefs into a precise result contract. It tells a future agent or human researcher exactly what must come back before ParcelNest can compare sellers or prepare a purchase decision.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -11823,7 +11823,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("This is planning only. ParcelOps still does not run a live agent, scrape retailer sites, convert currencies, request postage quotes, score external sellers, log in, check out, pay, or monitor web pages.")
+        Text("This is planning only. ParcelNest still does not run a live agent, scrape retailer sites, convert currencies, request postage quotes, score external sellers, log in, check out, pay, or monitor web pages.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -11910,7 +11910,7 @@ struct WishlistView: View {
     case .draft:
       return "Review the packet before handing it to a future research agent or copying it into a manual comparison workflow."
     case .ready:
-      return "Use the packet outside ParcelOps, then mark it sent locally once the handoff is complete."
+      return "Use the packet outside ParcelNest, then mark it sent locally once the handoff is complete."
     case .sentLocally:
       return "The packet is no longer active in Tasks. Reopen it only if the comparison research needs another pass."
     case .reopened:
@@ -12082,7 +12082,7 @@ struct WishlistView: View {
         }
         .buttonStyle(.bordered)
 
-        Text("Research remains local/manual here. ParcelOps does not compare live retailer sites, convert currencies, quote postage, rate external sellers, open browser pages, log into accounts, purchase, or monitor orders from this section.")
+        Text("Research remains local/manual here. ParcelNest does not compare live retailer sites, convert currencies, quote postage, rate external sellers, open browser pages, log into accounts, purchase, or monitor orders from this section.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -12226,7 +12226,7 @@ struct WishlistView: View {
         }
         .buttonStyle(.bordered)
 
-        Text("Still manual: the operator must verify live price, stock, AUD landed total, postage time, returns/warranty, seller trust, account fit, and payment readiness outside ParcelOps before buying.")
+        Text("Still manual: the operator must verify live price, stock, AUD landed total, postage time, returns/warranty, seller trust, account fit, and payment readiness outside ParcelNest before buying.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -12766,7 +12766,7 @@ struct WishlistView: View {
         }
         .buttonStyle(.bordered)
 
-        Text("This is a local field map only. ParcelOps still does not browse retailer sites, compare live prices, convert currency live, quote postage, rate sellers externally, open accounts, buy items, or monitor orders from Wishlist.")
+        Text("This is a local field map only. ParcelNest still does not browse retailer sites, compare live prices, convert currency live, quote postage, rate sellers externally, open accounts, buy items, or monitor orders from Wishlist.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -12914,7 +12914,7 @@ struct WishlistView: View {
     } else if item.purchaseDecision == nil {
       stage = "Ready for decision"
       detail = "Preferred seller has enough local evidence for a draft purchase decision."
-      nextAction = "Draft the local purchase decision and keep live price/payment checks outside ParcelOps."
+      nextAction = "Draft the local purchase decision and keep live price/payment checks outside ParcelNest."
       primaryActionTitle = "Draft decision"
       primaryActionSymbol = "doc.badge.plus"
       tone = .green
@@ -13122,7 +13122,7 @@ struct WishlistView: View {
     } else if item.purchaseDecision == nil {
       stage = "Draft decision"
       detail = "A preferred seller exists with enough local evidence for a purchase decision draft."
-      nextAction = "Draft a local purchase decision, then review it before real checkout outside ParcelOps."
+      nextAction = "Draft a local purchase decision, then review it before real checkout outside ParcelNest."
       primaryAction = "Draft decision"
       primarySymbol = "doc.badge.plus"
       tone = .green
@@ -13270,7 +13270,7 @@ struct WishlistView: View {
         }
         .buttonStyle(.bordered)
 
-        Text("Future extension output should write only staged capture candidates. ParcelOps should not buy, log in, scrape retailer pages, convert currency, quote postage, validate seller trust, or monitor orders from the capture step.")
+        Text("Future extension output should write only staged capture candidates. ParcelNest should not buy, log in, scrape retailer pages, convert currency, quote postage, validate seller trust, or monitor orders from the capture step.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -13417,7 +13417,7 @@ struct WishlistView: View {
           }
         }
 
-        Text("Only manual entry and local placeholder staging are active. ParcelOps does not install browser extensions, receive share-sheet payloads, read screenshots/PDFs, scrape retailer pages, or validate live product data from this panel.")
+        Text("Only manual entry and local placeholder staging are active. ParcelNest does not install browser extensions, receive share-sheet payloads, read screenshots/PDFs, scrape retailer pages, or validate live product data from this panel.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -13549,7 +13549,7 @@ struct WishlistView: View {
         }
         .buttonStyle(.bordered)
 
-        Text("This panel is only a contract. ParcelOps does not install a browser extension, read browser tabs, scrape pages, collect cookies, access accounts, capture payment details, or send data to an external service.")
+        Text("This panel is only a contract. ParcelNest does not install a browser extension, read browser tabs, scrape pages, collect cookies, access accounts, capture payment details, or send data to an external service.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.orange)
           .fixedSize(horizontal: false, vertical: true)
@@ -14628,7 +14628,7 @@ private struct WishlistSellerDecisionSnapshotRow: View {
         .foregroundStyle(entry.gapCount == 0 ? Color.green : entry.tone)
         .fixedSize(horizontal: false, vertical: true)
 
-      Text("Review live price, stock, postage, seller trust, returns, account fit, and payment details outside ParcelOps before buying.")
+      Text("Review live price, stock, postage, seller trust, returns, account fit, and payment details outside ParcelNest before buying.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -16133,7 +16133,7 @@ private struct WishlistPastedLinkCaptureEditor: View {
       Section("Paste product link") {
         TextField("Product URL or copied product text", text: $draft.pastedText, axis: .vertical)
           .lineLimit(3...8)
-        Text("Paste the direct product link where possible. Structured lines such as Product:, Seller:, Price:, Model:, Shipping:, or Notes: are read locally as hints. Tracking URL parameters are stripped when possible. ParcelOps does not open the link or read the website.")
+        Text("Paste the direct product link where possible. Structured lines such as Product:, Seller:, Price:, Model:, Shipping:, or Notes: are read locally as hints. Tracking URL parameters are stripped when possible. ParcelNest does not open the link or read the website.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -16276,7 +16276,7 @@ private struct WishlistPastedComparisonResultEditor: View {
       }
 
       Section("Review boundary") {
-        Text("The created seller option stays in manual review until price, AUD landed cost, postage, delivery time, seller trust, returns/warranty, account fit, and payment readiness are checked outside ParcelOps.")
+        Text("The created seller option stays in manual review until price, AUD landed cost, postage, delivery time, seller trust, returns/warranty, account fit, and payment readiness are checked outside ParcelNest.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -16344,7 +16344,7 @@ private struct WishlistManualItemEditor: View {
       }
 
       Section("What happens next") {
-        Text("ParcelOps will create a local Wishlist item and, when seller/link/price clues are present, stage an initial seller option for later comparison. It will not open the website, compare prices, convert currency, check stock, rate the seller, log into accounts, buy, pay, or monitor anything in the background.")
+        Text("ParcelNest will create a local Wishlist item and, when seller/link/price clues are present, stage an initial seller option for later comparison. It will not open the website, compare prices, convert currency, check stock, rate the seller, log into accounts, buy, pay, or monitor anything in the background.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -16771,7 +16771,7 @@ private struct WishlistAgentOutputContractRow: View {
           .fixedSize(horizontal: false, vertical: true)
       }
 
-      Text("Boundary: returned research may inform a local purchase decision, but ParcelOps still must not check out, pay, log into retailer accounts, capture credentials, or mutate mailboxes.")
+      Text("Boundary: returned research may inform a local purchase decision, but ParcelNest still must not check out, pay, log into retailer accounts, capture credentials, or mutate mailboxes.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -16957,7 +16957,7 @@ private struct WishlistResearchResultQualityRow: View {
           .fixedSize(horizontal: false, vertical: true)
       }
 
-      Text("Research QA only. Verify live retailer price, stock, AUD total, postage, delivery timing, trust evidence, returns, and account/payment readiness outside ParcelOps.")
+      Text("Research QA only. Verify live retailer price, stock, AUD total, postage, delivery timing, trust evidence, returns, and account/payment readiness outside ParcelNest.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.orange)
         .fixedSize(horizontal: false, vertical: true)
@@ -17002,7 +17002,7 @@ private struct WishlistPriceWatchDecisionRow: View {
       return "Create a manual snapshot from the current preferred seller option before purchase decision work continues."
     }
     if entry.stage == "Ready to verify" {
-      return "Best local snapshot has no obvious field gaps. Reconfirm live price, stock, postage, returns, and trust outside ParcelOps before buying."
+      return "Best local snapshot has no obvious field gaps. Reconfirm live price, stock, postage, returns, and trust outside ParcelNest before buying."
     }
     return "Resolve \(blockerText) before using this as a purchase candidate. Snapshot source: \(snapshot.snapshotSource)."
   }
@@ -17629,7 +17629,7 @@ private struct WishlistPurchaseRecommendationRow: View {
         }
       }
 
-      Text("Local-only summary. ParcelOps has not checked live stock, retailer pages, exchange rates, postage quotes, seller reviews, login, checkout, payment, or delivery guarantees.")
+      Text("Local-only summary. ParcelNest has not checked live stock, retailer pages, exchange rates, postage quotes, seller reviews, login, checkout, payment, or delivery guarantees.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.orange)
         .fixedSize(horizontal: false, vertical: true)
@@ -18080,7 +18080,7 @@ private struct WishlistManualPurchaseHandoffReadinessRow: View {
         WishlistMatrixMetric(title: "Expected email", value: entry.handoff?.expectedOrderSignals ?? entry.account?.expectedOrderEmailSignals ?? "Order confirmation signals not recorded", symbol: "envelope.badge.fill")
       }
 
-      Text("Manual handoff only. Confirm live stock, seller page, account access, payment, and delivery details outside ParcelOps.")
+      Text("Manual handoff only. Confirm live stock, seller page, account access, payment, and delivery details outside ParcelNest.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.orange)
         .fixedSize(horizontal: false, vertical: true)
@@ -18181,7 +18181,7 @@ private struct WishlistPurchaseDecisionSummaryRow: View {
           }
         }
       } else {
-        Text("Local decision fields are complete. Still verify live price, stock, postage, account, payment, delivery address, returns, and warranty outside ParcelOps before buying.")
+        Text("Local decision fields are complete. Still verify live price, stock, postage, account, payment, delivery address, returns, and warranty outside ParcelNest before buying.")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.green)
           .fixedSize(horizontal: false, vertical: true)
@@ -18324,7 +18324,7 @@ private struct WishlistPurchaseDecisionEvidencePackRow: View {
       }
 
       if pack.unresolvedEvidence.isEmpty {
-        Label("No unresolved local evidence gaps. Final live verification still happens outside ParcelOps.", systemImage: "checkmark.seal.fill")
+        Label("No unresolved local evidence gaps. Final live verification still happens outside ParcelNest.", systemImage: "checkmark.seal.fill")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.green)
           .fixedSize(horizontal: false, vertical: true)
@@ -18473,7 +18473,7 @@ private struct WishlistPurchaseEvidenceDossierRow: View {
         }
       }
 
-      Text("This dossier is a local readiness summary. Re-check live seller page, checkout, payment, stock, final AUD total, postage, delivery address, returns, and warranty before buying outside ParcelOps.")
+      Text("This dossier is a local readiness summary. Re-check live seller page, checkout, payment, stock, final AUD total, postage, delivery address, returns, and warranty before buying outside ParcelNest.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.orange)
         .fixedSize(horizontal: false, vertical: true)
@@ -18959,7 +18959,7 @@ struct WishlistItemRow: View {
             .help("Score seller options locally")
           Button("Ready to buy", systemImage: "checkmark.seal") {
             onReady()
-            feedbackMessage = "Wishlist item marked ready for purchase review locally. ParcelOps did not buy anything or store payment details."
+            feedbackMessage = "Wishlist item marked ready for purchase review locally. ParcelNest did not buy anything or store payment details."
           }
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
@@ -18980,14 +18980,14 @@ struct WishlistItemRow: View {
             .help("Draft purchase decision")
           Button("Handoff", systemImage: "person.crop.circle.badge.checkmark") {
             onHandoff()
-            feedbackMessage = "Manual purchase handoff prepared locally. Confirm account and payment outside ParcelOps."
+            feedbackMessage = "Manual purchase handoff prepared locally. Confirm account and payment outside ParcelNest."
           }
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
             .help("Prepare manual purchase handoff")
           Button("Purchased", systemImage: "bag.fill") {
             onPurchased()
-            feedbackMessage = "External purchase recorded locally. ParcelOps did not buy anything or store payment details."
+            feedbackMessage = "External purchase recorded locally. ParcelNest did not buy anything or store payment details."
           }
             .buttonStyle(.bordered)
             .labelStyle(.iconOnly)
@@ -19087,7 +19087,7 @@ struct WishlistItemRow: View {
       }
 
       if blockers.isEmpty {
-        Label("Local packet is ready for manual live verification. Confirm current price, stock, postage, seller trust, account, delivery address, and payment details outside ParcelOps before buying.", systemImage: "checkmark.seal.fill")
+        Label("Local packet is ready for manual live verification. Confirm current price, stock, postage, seller trust, account, delivery address, and payment details outside ParcelNest before buying.", systemImage: "checkmark.seal.fill")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.green)
           .fixedSize(horizontal: false, vertical: true)
@@ -19119,12 +19119,12 @@ struct WishlistItemRow: View {
         .buttonStyle(.bordered)
         Button("Handoff task", systemImage: "checklist") {
           onHandoffTask()
-          feedbackMessage = "Wishlist purchase handoff task created or refreshed locally. Confirm account, payment, address, seller page, and order confirmation outside ParcelOps."
+          feedbackMessage = "Wishlist purchase handoff task created or refreshed locally. Confirm account, payment, address, seller page, and order confirmation outside ParcelNest."
         }
         .buttonStyle(.bordered)
       }
 
-      Text("This packet is a local buying checklist only. ParcelOps does not verify live retailer pages, convert currency live, quote postage, assess seller reputation externally, buy items, or store payment details.")
+      Text("This packet is a local buying checklist only. ParcelNest does not verify live retailer pages, convert currency live, quote postage, assess seller reputation externally, buy items, or store payment details.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -19374,14 +19374,14 @@ struct WishlistItemRow: View {
       ) {
         Button("Prepare handoff", systemImage: "person.crop.circle.badge.checkmark") {
           onHandoff()
-          feedbackMessage = "Manual purchase handoff prepared locally. Confirm account and payment outside ParcelOps."
+          feedbackMessage = "Manual purchase handoff prepared locally. Confirm account and payment outside ParcelNest."
         }
         .buttonStyle(.borderedProminent)
       }
     } else if linkedOrder == nil {
       wishlistNextStepPanel(
         title: "Next: watch for order confirmation",
-        detail: "Purchase handoff is staged. After buying outside ParcelOps, mark the confirmation seen or link the matching local order.",
+        detail: "Purchase handoff is staged. After buying outside ParcelNest, mark the confirmation seen or link the matching local order.",
         symbol: "envelope.badge.fill",
         color: .purple
       ) {
@@ -19512,7 +19512,7 @@ struct WishlistItemRow: View {
             WishlistPurchaseCheckRow(check: check)
           }
         }
-        Text("Readiness checks are local guidance only. Confirm live seller, price, account, payment, postage, returns, and delivery details outside ParcelOps before buying.")
+        Text("Readiness checks are local guidance only. Confirm live seller, price, account, payment, postage, returns, and delivery details outside ParcelNest before buying.")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -19551,7 +19551,7 @@ struct WishlistItemRow: View {
         CompactActionRow {
           Button("Handoff task", systemImage: "checklist") {
             onHandoffTask()
-            feedbackMessage = "Wishlist purchase handoff task created or refreshed locally. Confirm account, payment, address, seller page, and order confirmation outside ParcelOps."
+            feedbackMessage = "Wishlist purchase handoff task created or refreshed locally. Confirm account, payment, address, seller page, and order confirmation outside ParcelNest."
           }
           .buttonStyle(.bordered)
         }
@@ -19595,7 +19595,7 @@ struct WishlistItemRow: View {
           Label("Account used for purchase", systemImage: "key.horizontal.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.purple)
-          Text("Track the retailer or supplier account reference here. ParcelOps stores only non-secret account placeholders; no passwords, tokens, payment details, or browser sessions are stored.")
+          Text("Track the retailer or supplier account reference here. ParcelNest stores only non-secret account placeholders; no passwords, tokens, payment details, or browser sessions are stored.")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -20845,7 +20845,7 @@ private struct WishlistComparisonOptionEditor: View {
           .buttonStyle(.borderedProminent)
       }
 
-      Text("Record manual comparison details only. ParcelOps does not verify live prices, contact retailers, calculate postage, access accounts, or purchase anything from this editor.")
+      Text("Record manual comparison details only. ParcelNest does not verify live prices, contact retailers, calculate postage, access accounts, or purchase anything from this editor.")
         .font(.caption)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)

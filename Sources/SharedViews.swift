@@ -5005,7 +5005,7 @@ struct SpaceMailOperationsRunbook: View {
         runbookColumn(title: "If something looks wrong", symbol: "wrench.and.screwdriver.fill", items: recoverySteps, color: .orange)
       }
 
-      Text("Boundaries: SpaceMail refresh is manual and read-only. ParcelOps must not delete, move, mark read, flag, send, or modify mailbox messages. Passwords and app passwords must not be written to JSON or Audit.")
+      Text("Boundaries: SpaceMail refresh is manual and read-only. ParcelNest must not delete, move, mark read, flag, send, or modify mailbox messages. Passwords and app passwords must not be written to JSON or Audit.")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -5047,7 +5047,7 @@ struct SpaceMailOperationsRunbook: View {
 struct GmailOperationsRunbook: View {
   private let normalSteps = [
     ("Confirm setup", "Check Gmail address, monitored labels, OAuth client ID placeholder, reversed URL scheme, and read-only Gmail scope notes."),
-    ("Test Google sign-in", "Use the explicit sign-in test. ParcelOps should record only non-secret status, not tokens or callback URLs."),
+    ("Test Google sign-in", "Use the explicit sign-in test. ParcelNest should record only non-secret status, not tokens or callback URLs."),
     ("Run manual refresh", "Use real Gmail refresh only when a person is ready to review results. It must stay read-only."),
     ("Review outcomes", "Start with imported Inbox rows, then uncertain messages, then filtered examples if expected order mail is missing."),
     ("Create or link orders", "Use confirmed order or tracking details to create/link orders, then check Orders, Workbench, Tasks, and Audit.")
@@ -5084,7 +5084,7 @@ struct GmailOperationsRunbook: View {
         runbookColumn(title: "If something looks wrong", symbol: "wrench.and.screwdriver.fill", items: recoverySteps, color: .orange)
       }
 
-      Text("Boundaries: Gmail refresh is manual and read-only. ParcelOps must not delete, move, mark read, send, or modify Gmail messages. Google access tokens, refresh tokens, auth codes, callback URLs, and client secrets must not be written to JSON or Audit.")
+      Text("Boundaries: Gmail refresh is manual and read-only. ParcelNest must not delete, move, mark read, send, or modify Gmail messages. Google access tokens, refresh tokens, auth codes, callback URLs, and client secrets must not be written to JSON or Audit.")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -5163,7 +5163,7 @@ struct Microsoft365OperationsRunbook: View {
         runbookColumn(title: "If something looks wrong", symbol: "wrench.and.screwdriver.fill", items: recoverySteps, color: .orange)
       }
 
-      Text("Boundaries: Outlook refresh is manual and read-only. ParcelOps must not delete, move, mark read, send, or modify mailbox messages. Microsoft access tokens, refresh tokens, auth codes, callback URLs, authorization headers, and client secrets must not be written to JSON or Audit.")
+      Text("Boundaries: Outlook refresh is manual and read-only. ParcelNest must not delete, move, mark read, send, or modify mailbox messages. Microsoft access tokens, refresh tokens, auth codes, callback URLs, authorization headers, and client secrets must not be written to JSON or Audit.")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -7973,7 +7973,7 @@ struct OperatorHandoffBriefCard: View {
       ),
       (
         "Wishlist",
-        "\(wishlistLine) Capture, comparison, trust review, purchase handoff, and order watch are local/manual until an operator acts outside ParcelOps.",
+        "\(wishlistLine) Capture, comparison, trust review, purchase handoff, and order watch are local/manual until an operator acts outside ParcelNest.",
         "star.square.fill",
         wishlistFollowUpCount == 0 ? (store.activeWishlistItemCount == 0 ? .secondary : .teal) : .purple
       ),
@@ -8007,7 +8007,7 @@ struct OperatorHandoffBriefCard: View {
 
   private var briefText: String {
     [
-      "ParcelOps operator handoff",
+      "ParcelNest operator handoff",
       "Status: \(attentionCount == 0 ? "clear" : "\(attentionCount) attention item\(attentionCount == 1 ? "" : "s")")",
       mailboxLine,
       "Inbox: \(store.reviewIntakeEmails.count) review row\(store.reviewIntakeEmails.count == 1 ? "" : "s"), \(inboxLinkedOrderCount) linked intake order source\(inboxLinkedOrderCount == 1 ? "" : "s").",
@@ -8143,7 +8143,7 @@ struct LocalDataSafetyCard: View {
         VStack(alignment: .leading, spacing: 4) {
           Text("Local data safety")
             .font(.headline)
-          Text("ParcelOps keeps the MVP usable without a live service by saving operational records as local JSON and keeping sensitive mailbox credentials out of those JSON files.")
+          Text("ParcelNest keeps the MVP usable without a live service by saving operational records as local JSON and keeping sensitive mailbox credentials out of those JSON files.")
             .font(.callout)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -8221,7 +8221,7 @@ struct LocalDataSafetyCard: View {
         )
         safetyLine(
           title: "No mailbox mutation",
-          detail: "Real SpaceMail refresh remains manual and read-only. ParcelOps does not delete, move, flag, send, or mark mailbox messages read.",
+          detail: "Real SpaceMail refresh remains manual and read-only. ParcelNest does not delete, move, flag, send, or mark mailbox messages read.",
           symbol: "envelope.badge.shield.half.filled",
           color: .teal
         )
@@ -8233,7 +8233,7 @@ struct LocalDataSafetyCard: View {
         )
         safetyLine(
           title: "Manual backup boundary",
-          detail: "To back up test data, copy the ParcelOps JSON folder outside the app. This screen does not run an export, file picker, cloud sync, or background backup.",
+          detail: "To back up test data, copy the ParcelNest JSON folder outside the app. This screen does not run an export, file picker, cloud sync, or background backup.",
           symbol: "externaldrive.fill",
           color: .green
         )
@@ -8970,7 +8970,7 @@ struct PrimaryRouteShortcutGuideCard: View {
         }
       }
 
-      Text("Shortcut boundary: these commands only change the visible ParcelOps route. They do not refresh mail, modify records, touch credentials, or perform background work.")
+      Text("Shortcut boundary: these commands only change the visible ParcelNest route. They do not refresh mail, modify records, touch credentials, or perform background work.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -9109,7 +9109,7 @@ private struct LocalPersistenceSnapshot {
     if missingCount > 0 {
       return "\(missingCount) expected JSON file\(missingCount == 1 ? " is" : "s are") still sample-backed or not written yet. This is normal before those local record types are edited."
     }
-    return "All expected JSON files are present in the local ParcelOps store."
+    return "All expected JSON files are present in the local ParcelNest store."
   }
 
   var tone: Color {

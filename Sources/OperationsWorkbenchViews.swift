@@ -1444,7 +1444,7 @@ struct OperationsWorkbenchView: View {
         } else if let draft = developmentStatusDrafts.first {
           CompactRow(
             title: draft.subject,
-            detail: "Local development status packet. Review or copy outside ParcelOps if needed; no outbound email is sent.",
+            detail: "Local development status packet. Review or copy outside ParcelNest if needed; no outbound email is sent.",
             badge: draft.status.rawValue,
             color: draft.status.color
           )

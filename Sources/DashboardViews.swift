@@ -2110,7 +2110,7 @@ struct DashboardView: View {
               Microsoft365ReleaseSelfCheckCard(summary: summary)
             }
 
-            Text("Outlook / Microsoft 365 remains a separate, explicit provider path. Use it only for Microsoft-hosted mailboxes; real Graph refresh is manual and read-only, and token values stay out of ParcelOps JSON.")
+            Text("Outlook / Microsoft 365 remains a separate, explicit provider path. Use it only for Microsoft-hosted mailboxes; real Graph refresh is manual and read-only, and token values stay out of ParcelNest JSON.")
               .font(.caption2.weight(.semibold))
               .foregroundStyle(latestMicrosoft365Tone)
               .fixedSize(horizontal: false, vertical: true)

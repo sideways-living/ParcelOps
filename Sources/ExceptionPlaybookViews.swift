@@ -548,12 +548,12 @@ struct ExceptionPlaybookRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill") {
           onCreateDraft()
-          feedbackMessage = "Draft message created from this playbook. It remains local until a person sends anything outside ParcelOps."
+          feedbackMessage = "Draft message created from this playbook. It remains local until a person sends anything outside ParcelNest."
         }
           .buttonStyle(.bordered)
         Button("Remove", systemImage: "trash") {
           onRemove()
-          feedbackMessage = "Exception playbook removed locally. No tasks, automations, or external systems were changed outside ParcelOps."
+          feedbackMessage = "Exception playbook removed locally. No tasks, automations, or external systems were changed outside ParcelNest."
         }
           .buttonStyle(.bordered)
       }

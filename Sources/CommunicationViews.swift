@@ -104,7 +104,7 @@ struct CommunicationView: View {
   }
 
   private var draftNextActionTitle: String {
-    if !readyDrafts.isEmpty { return "Send ready drafts outside ParcelOps" }
+    if !readyDrafts.isEmpty { return "Send ready drafts outside ParcelNest" }
     if !store.draftMessagesNeedingReview.isEmpty { return "Review draft follow-up" }
     if openDrafts.isEmpty { return "No open draft follow-up" }
     return "Continue open draft work"
@@ -118,7 +118,7 @@ struct CommunicationView: View {
       return "\(store.draftMessagesNeedingReview.count) draft needs review, readiness, sending, or reopening before its related work is closed."
     }
     if openDrafts.isEmpty {
-      return "All local drafts are either sent locally or no drafts have been created yet. ParcelOps still does not send outbound email."
+      return "All local drafts are either sent locally or no drafts have been created yet. ParcelNest still does not send outbound email."
     }
     return "\(openDrafts.count) draft is still open. Use the status controls to keep follow-up visible on Dashboard, Workbench, and Tasks."
   }
@@ -129,7 +129,7 @@ struct CommunicationView: View {
         VStack(alignment: .leading, spacing: 6) {
           Text("Drafts & Templates")
             .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-          Text("Local draft follow-up and reusable message templates. Nothing is sent from ParcelOps yet.")
+          Text("Local draft follow-up and reusable message templates. Nothing is sent from ParcelNest yet.")
             .foregroundStyle(.secondary)
         }
 
@@ -273,7 +273,7 @@ struct CommunicationView: View {
             if filteredDrafts.isEmpty {
               MVPEmptyState(
                 title: "No drafts match this view",
-                detail: hasActiveFilters ? "Clear search or filters to return to all local drafts." : "Add a local draft. Drafts stay local until you send the message outside ParcelOps and mark it sent locally.",
+                detail: hasActiveFilters ? "Clear search or filters to return to all local drafts." : "Add a local draft. Drafts stay local until you send the message outside ParcelNest and mark it sent locally.",
                 symbol: "envelope.open.fill",
                 actionTitle: hasActiveFilters ? "Clear filters" : "Add draft",
                 action: hasActiveFilters ? clearFilters : store.addDraftMessagePlaceholder
@@ -310,7 +310,7 @@ struct CommunicationView: View {
           ("All drafts", "\(store.draftMessages.count)", store.draftMessages.isEmpty ? .secondary : .teal)
         ])
 
-        Text("Use this screen to manage local draft state only. ParcelOps does not send outbound email, store SMTP credentials, or contact a mail provider for sending.")
+        Text("Use this screen to manage local draft state only. ParcelNest does not send outbound email, store SMTP credentials, or contact a mail provider for sending.")
           .font(.caption)
           .foregroundStyle(.secondary)
       }
@@ -346,7 +346,7 @@ struct CommunicationView: View {
         ForEach(developmentStatusDrafts.prefix(2)) { draft in
           CompactRow(
             title: draft.subject,
-            detail: "Status: \(draft.status.rawValue). Review: \(draft.reviewState.rawValue). This remains local until copied or sent outside ParcelOps.",
+            detail: "Status: \(draft.status.rawValue). Review: \(draft.reviewState.rawValue). This remains local until copied or sent outside ParcelNest.",
             badge: draft.status.rawValue,
             color: draft.status.color
           )
@@ -355,7 +355,7 @@ struct CommunicationView: View {
         CompactActionRow {
           Button(developmentStatusDrafts.isEmpty ? "Create status draft" : "Refresh status draft", systemImage: "envelope.open.fill") {
             store.createDraftMessageFromDevelopmentStatusCheckpoint()
-            developmentStatusFeedbackMessage = "Development status draft refreshed locally. ParcelOps did not send email."
+            developmentStatusFeedbackMessage = "Development status draft refreshed locally. ParcelNest did not send email."
           }
           .buttonStyle(.borderedProminent)
 
@@ -379,7 +379,7 @@ struct CommunicationView: View {
           .buttonStyle(.bordered)
         }
 
-        Text("Local-only boundary: ParcelOps does not send outbound email here. Draft packets are for review, copying, or manual sending outside the app.")
+        Text("Local-only boundary: ParcelNest does not send outbound email here. Draft packets are for review, copying, or manual sending outside the app.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -452,7 +452,7 @@ struct CommunicationView: View {
     if !wishlistDrafts.isEmpty || store.wishlistItems.contains(where: store.isActiveWishlistItem) || !store.wishlistResearchRequests.isEmpty {
       SettingsPanel(title: "Wishlist draft focus", symbol: "star.square.on.square.fill") {
         VStack(alignment: .leading, spacing: 12) {
-          Text("Wishlist research briefs, purchase handoff packets, and seller follow-up drafts are grouped here. They stay local until an operator copies or sends them outside ParcelOps and marks them sent locally.")
+          Text("Wishlist research briefs, purchase handoff packets, and seller follow-up drafts are grouped here. They stay local until an operator copies or sends them outside ParcelNest and marks them sent locally.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -537,7 +537,7 @@ struct CommunicationView: View {
     if !gmailDrafts.isEmpty || !store.gmailMailboxConnections.isEmpty {
       SettingsPanel(title: "Gmail draft focus", symbol: "envelope.badge.shield.half.filled") {
         VStack(alignment: .leading, spacing: 12) {
-          Text("Local drafts linked to Gmail intake, Gmail setup, classifier tuning, or provider-release work are grouped here. Send any ready message outside ParcelOps, then mark it sent locally.")
+          Text("Local drafts linked to Gmail intake, Gmail setup, classifier tuning, or provider-release work are grouped here. Send any ready message outside ParcelNest, then mark it sent locally.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -651,7 +651,7 @@ struct CommunicationView: View {
 
     return SettingsPanel(title: "Inbox and Wishlist draft readiness", symbol: "envelope.open.fill") {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local draft follow-up. ParcelOps still does not send email; ready drafts must be sent outside the app.")
+        Text("Checks whether orders created from Inbox intake or Wishlist purchase handoff have local draft follow-up. ParcelNest still does not send email; ready drafts must be sent outside the app.")
           .font(.caption)
           .foregroundStyle(.secondary)
 
@@ -803,7 +803,7 @@ struct CommunicationView: View {
 
   private func draftActionSummary(for draft: DraftMessage) -> String {
     var parts: [String] = []
-    if draft.status == .ready { parts.append("send outside ParcelOps then mark sent locally") }
+    if draft.status == .ready { parts.append("send outside ParcelNest then mark sent locally") }
     if draft.status != .sentLocally && draft.status != .ready { parts.append("finish draft") }
     if draft.reviewState != .accepted { parts.append("mark reviewed") }
     return parts.isEmpty ? "Draft is reviewed and sent locally." : parts.joined(separator: ", ")
@@ -853,7 +853,7 @@ struct CommunicationView: View {
       case .draft:
         return "Review the comparison packet before handing it to a future research agent or manual research workflow."
       case .ready:
-        return "Use the packet outside ParcelOps, then mark it sent locally."
+        return "Use the packet outside ParcelNest, then mark it sent locally."
       case .sentLocally:
         return "Batch packet is closed locally. Reopen only if comparison research needs another pass."
       case .reopened:
@@ -865,7 +865,7 @@ struct CommunicationView: View {
       case .draft:
         return "Review seller choice, AUD total, postage, trust, approvals, purchase links, and order-watch notes before any manual buying."
       case .ready:
-        return "Use this packet as the local buying checklist outside ParcelOps. After manual purchase work is handled, mark it sent locally."
+        return "Use this packet as the local buying checklist outside ParcelNest. After manual purchase work is handled, mark it sent locally."
       case .sentLocally:
         return "Purchase packet is closed locally. Reopen only if seller, price, trust, approval, or order-watch details changed."
       case .reopened:
@@ -873,7 +873,7 @@ struct CommunicationView: View {
       }
     }
     var parts: [String] = []
-    if draft.status == .ready { parts.append("send or copy outside ParcelOps, then mark sent locally") }
+    if draft.status == .ready { parts.append("send or copy outside ParcelNest, then mark sent locally") }
     if draft.status == .reopened { parts.append("finish reopened Wishlist follow-up") }
     if draft.status == .draft { parts.append("finish local Wishlist draft") }
     if draft.reviewState != .accepted { parts.append("mark reviewed after seller, price, trust, or handoff context is checked") }
@@ -882,7 +882,7 @@ struct CommunicationView: View {
 
   private func gmailDraftActionSummary(for draft: DraftMessage) -> String {
     var parts: [String] = []
-    if draft.status == .ready { parts.append("send outside ParcelOps, then mark sent locally") }
+    if draft.status == .ready { parts.append("send outside ParcelNest, then mark sent locally") }
     if draft.status == .reopened { parts.append("finish reopened Gmail follow-up") }
     if draft.status == .draft { parts.append("finish draft before release or handoff closure") }
     if draft.reviewState != .accepted { parts.append("mark reviewed after checking context") }
@@ -912,7 +912,7 @@ struct CommunicationView: View {
       case "mock":
         detail = "Mock mailbox intake supports local draft workflow testing without contacting a mailbox provider."
       default:
-        detail = "Local mailbox intake can create draft follow-up after an order is confirmed. Drafts still send outside ParcelOps."
+        detail = "Local mailbox intake can create draft follow-up after an order is confirmed. Drafts still send outside ParcelNest."
       }
       return (
         label: label,
@@ -1184,7 +1184,7 @@ struct DraftMessageRow: View {
                 Badge(linkedWishlistItem.purchaseHandoff == nil ? "No handoff" : "Handoff staged", color: linkedWishlistItem.purchaseHandoff == nil ? .orange : .green)
                 Badge(linkedWishlistItem.purchaseHandoff?.linkedOrderID == nil ? "No linked order" : "Order linked", color: linkedWishlistItem.purchaseHandoff?.linkedOrderID == nil ? .orange : .green)
               }
-              Text("Use the packet to prepare a local handoff and order-watch rule before any manual buying outside ParcelOps.")
+              Text("Use the packet to prepare a local handoff and order-watch rule before any manual buying outside ParcelNest.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1272,7 +1272,7 @@ struct DraftMessageRow: View {
           .buttonStyle(.bordered)
         Button("Ready", systemImage: "checkmark.circle.fill") {
           onReady()
-          feedbackMessage = "Draft marked ready locally. Send it outside ParcelOps, then mark sent locally."
+          feedbackMessage = "Draft marked ready locally. Send it outside ParcelNest, then mark sent locally."
         }
           .buttonStyle(.bordered)
         Button("Sent locally", systemImage: "paperplane.fill") {
@@ -1319,10 +1319,10 @@ struct DraftMessageRow: View {
     var warnings: [String] = []
     if draft.linkedEntityType == .wishlistItem && draft.subject.localizedCaseInsensitiveContains("wishlist purchase packet") {
       warnings.append("Wishlist purchase packet: review seller, AUD total, postage, trust, approvals, purchase links, account context, and order-watch notes before any manual buying.")
-      warnings.append("Local boundary: ParcelOps does not open retailer links, log in, buy, pay, or monitor orders in the background.")
+      warnings.append("Local boundary: ParcelNest does not open retailer links, log in, buy, pay, or monitor orders in the background.")
     }
     if draft.status == .ready && !inboxOrders.isEmpty {
-      warnings.append("Draft is ready. Send it outside ParcelOps, then mark sent locally.")
+      warnings.append("Draft is ready. Send it outside ParcelNest, then mark sent locally.")
     }
     if draft.status != .sentLocally && draft.status != .ready && !inboxOrders.isEmpty {
       warnings.append("Draft is still open for an Inbox-created order.")
@@ -1371,7 +1371,7 @@ private struct CommunicationActionFeedbackPanel: View {
         .font(.caption.weight(.semibold))
         .foregroundStyle(.green)
 
-      Text("This is a local communication workflow action. ParcelOps still does not send outbound email.")
+      Text("This is a local communication workflow action. ParcelNest still does not send outbound email.")
         .font(.caption)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)

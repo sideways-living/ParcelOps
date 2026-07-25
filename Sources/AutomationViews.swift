@@ -61,7 +61,7 @@ struct AutomationView: View {
         VStack(alignment: .leading, spacing: 6) {
           Text("Automation rules")
             .font(horizontalSizeClass == .compact ? .title.bold() : .largeTitle.bold())
-          Text("Local rules document future automation intent. ParcelOps does not execute background jobs, sync accounts, or call external services from this screen.")
+          Text("Local rules document future automation intent. ParcelNest does not execute background jobs, sync accounts, or call external services from this screen.")
             .foregroundStyle(.secondary)
         }
 

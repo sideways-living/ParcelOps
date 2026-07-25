@@ -157,7 +157,7 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
           continuation.resume(returning: Microsoft365AuthResult(
             status: .authFailed,
             signedInAccount: "Not signed in",
-            detailText: "Sign-in ended without an MSAL result. Try again from an active ParcelOps window, or use mock auth for local testing. No token value was stored in ParcelOps JSON and no Microsoft Graph mailbox call was made."
+            detailText: "Sign-in ended without an MSAL result. Try again from an active ParcelNest window, or use mock auth for local testing. No token value was stored in ParcelNest JSON and no Microsoft Graph mailbox call was made."
           ))
           return
         }
@@ -166,7 +166,7 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
         continuation.resume(returning: Microsoft365AuthResult(
           status: .connected,
           signedInAccount: account.isEmpty ? "Signed in Microsoft account" : account,
-          detailText: "Success: real Microsoft 365 identity sign-in completed with User.Read only. MSAL handled its token cache internally; ParcelOps did not store or log access tokens, refresh tokens, ID tokens, auth codes, passwords, or client secrets. Mailbox reading still requires the separate manual Graph refresh action and Mail.Read consent."
+          detailText: "Success: real Microsoft 365 identity sign-in completed with User.Read only. MSAL handled its token cache internally; ParcelNest did not store or log access tokens, refresh tokens, ID tokens, auth codes, passwords, or client secrets. Mailbox reading still requires the separate manual Graph refresh action and Mail.Read consent."
         ))
       }
     }
@@ -204,10 +204,10 @@ struct MSALMicrosoft365AuthClient: Microsoft365AuthClient {
   private func authFailureDetail(for error: Error) -> String {
     let nsError = error as NSError
     let summary = safeErrorSummary(error)
-    let safeSuffix = "No token value was stored in ParcelOps JSON and no Microsoft Graph mailbox call was made."
+    let safeSuffix = "No token value was stored in ParcelNest JSON and no Microsoft Graph mailbox call was made."
 
     if error is MSALMicrosoft365AuthError {
-      return "Missing presentation window: ParcelOps could not find an active app window for Microsoft sign-in. Bring the app window forward and try again from Settings or Mailbox Monitor. \(safeSuffix)"
+      return "Missing presentation window: ParcelNest could not find an active app window for Microsoft sign-in. Bring the app window forward and try again from Settings or Mailbox Monitor. \(safeSuffix)"
     }
 
     if nsError.domain == "NSURLErrorDomain" {
@@ -411,7 +411,7 @@ struct MSALMicrosoft365GraphTokenProvider: Microsoft365GraphTokenProvider {
           status: .success,
           accessToken: result.accessToken,
           signedInAccount: signedInAccount,
-          detailText: "MSAL acquired an in-memory access token for User.Read and Mail.Read. ParcelOps did not store or log the token value.",
+          detailText: "MSAL acquired an in-memory access token for User.Read and Mail.Read. ParcelNest did not store or log the token value.",
           tokenDiagnosticsDetail: safeTokenDiagnostics(for: result.accessToken, signedInAccount: signedInAccount)
         ))
       }
@@ -584,7 +584,7 @@ enum MSALMicrosoft365AuthError: LocalizedError {
   var errorDescription: String? {
     switch self {
     case .missingPresentationWindow:
-      "ParcelOps could not find an active presentation window for Microsoft sign-in."
+      "ParcelNest could not find an active presentation window for Microsoft sign-in."
     }
   }
 }

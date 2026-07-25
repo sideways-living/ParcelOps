@@ -525,7 +525,7 @@ struct ValidationIssueRow: View {
           .disabled(!issue.supportsReviewTask)
         Button("Draft", systemImage: "square.and.pencil") {
           onCreateDraft()
-          feedbackMessage = "Draft message created from this validation issue. It remains local until a person sends anything outside ParcelOps."
+          feedbackMessage = "Draft message created from this validation issue. It remains local until a person sends anything outside ParcelNest."
         }
           .buttonStyle(.bordered)
           .disabled(!issue.supportsDraftMessage)

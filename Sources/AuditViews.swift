@@ -2427,13 +2427,13 @@ private extension AuditEvent {
       return "Use this event to confirm account, cost, procurement, receiving, and linked-order context before a human purchase or order-confirmation handoff."
     }
     if searchableText.localizedCaseInsensitiveContains("purchase handoff") {
-      return "The item has moved into manual handoff follow-up. Confirm account, payment method, delivery address, returns, warranty, and order confirmation outside ParcelOps."
+      return "The item has moved into manual handoff follow-up. Confirm account, payment method, delivery address, returns, warranty, and order confirmation outside ParcelNest."
     }
     if searchableText.localizedCaseInsensitiveContains("closure readiness") {
       return "This local check verifies whether the Wishlist item has enough linked operational evidence to leave the active queue. It does not close external orders, inventory, dispatch, payments, or seller activity."
     }
     if searchableText.localizedCaseInsensitiveContains("closed wishlist") || searchableText.localizedCaseInsensitiveContains("closed locally") {
-      return "The Wishlist item was closed inside ParcelOps and should no longer count as active work. Its JSON record and audit trail remain available for linked order and handoff history."
+      return "The Wishlist item was closed inside ParcelNest and should no longer count as active work. Its JSON record and audit trail remain available for linked order and handoff history."
     }
     if searchableText.localizedCaseInsensitiveContains("reopened locally") {
       return "The closed Wishlist item was returned to local follow-up. Review the linked order and handoff state before treating it as active purchase or dispatch work."

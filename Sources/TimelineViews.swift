@@ -667,7 +667,7 @@ struct TimelineActivityRow: View {
           .disabled(!activity.supportsReviewTask)
         Button("Draft", systemImage: "square.and.pencil") {
           onCreateDraft()
-          feedbackMessage = "Draft message created from this timeline activity. It remains local until a person sends anything outside ParcelOps."
+          feedbackMessage = "Draft message created from this timeline activity. It remains local until a person sends anything outside ParcelNest."
         }
           .buttonStyle(.bordered)
           .disabled(!activity.supportsDraftMessage)

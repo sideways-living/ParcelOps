@@ -296,7 +296,7 @@ struct MailboxView: View {
   private var wishlistOrderWatchPanel: some View {
     if !wishlistOrderWatchItems.isEmpty {
       SettingsPanel(title: "Wishlist order watch", symbol: "star.square.on.square.fill") {
-        Text("Use this after manual mailbox refreshes to connect Wishlist purchase handoffs to imported order confirmations. This is local matching only; ParcelOps does not watch retailer accounts, run checkout, or poll mail in the background.")
+        Text("Use this after manual mailbox refreshes to connect Wishlist purchase handoffs to imported order confirmations. This is local matching only; ParcelNest does not watch retailer accounts, run checkout, or poll mail in the background.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -1298,7 +1298,7 @@ struct WishlistOrderWatchMatchRow: View {
       }
 
       if matches.isEmpty {
-        Text("No imported Inbox confirmation currently matches this Wishlist handoff. Run a manual mailbox refresh, or use Mark seen if the purchase was checked outside ParcelOps.")
+        Text("No imported Inbox confirmation currently matches this Wishlist handoff. Run a manual mailbox refresh, or use Mark seen if the purchase was checked outside ParcelNest.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -4558,7 +4558,7 @@ struct NeedsReviewView: View {
 
         if showsDraftMessageFollowUp && !store.draftMessagesNeedingReview.isEmpty {
           SettingsPanel(title: "Draft message follow-up", symbol: "envelope.open.fill") {
-            Text("Drafts created from Inbox, Orders, Tasks, Workbench, and Dispatch stay in primary review until they are ready, sent locally, or reopened for editing. ParcelOps does not send outbound email.")
+            Text("Drafts created from Inbox, Orders, Tasks, Workbench, and Dispatch stay in primary review until they are ready, sent locally, or reopened for editing. ParcelNest does not send outbound email.")
               .font(.callout)
               .foregroundStyle(.secondary)
             ForEach(visibleNeedsReviewItems(store.draftMessagesNeedingReview)) { draft in

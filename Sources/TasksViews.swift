@@ -1366,7 +1366,7 @@ struct TasksView: View {
           }
         }
 
-        Text("This panel is a routing check, not an automation. ParcelOps still requires an operator to import, dismiss, link, create an order, or create a task locally.")
+        Text("This panel is a routing check, not an automation. ParcelNest still requires an operator to import, dismiss, link, create an order, or create a task locally.")
           .font(.caption.weight(.semibold))
           .foregroundStyle(mailboxTaskReadinessTone)
           .fixedSize(horizontal: false, vertical: true)
@@ -2970,7 +2970,7 @@ private struct TaskDraftFollowUpRow: View {
       case .draft:
         return "Review the provider diagnostic packet, then mark it ready when the setup, refresh, parser, Inbox, and handoff notes are accurate for the next operator."
       case .ready:
-        return "Use this packet outside ParcelOps if needed, then mark it sent locally once the provider diagnostic handoff has left the queue."
+        return "Use this packet outside ParcelNest if needed, then mark it sent locally once the provider diagnostic handoff has left the queue."
       case .sentLocally:
         return "The provider diagnostic packet is closed locally. Reopen only if provider setup, refresh evidence, parser output, or handoff context changed."
       case .reopened:
@@ -2982,7 +2982,7 @@ private struct TaskDraftFollowUpRow: View {
       case .draft:
         return "Review the local batch brief, then mark it ready when it can be handed to an external research agent or copied into a manual research workflow."
       case .ready:
-        return "Use the ready packet outside ParcelOps. After external research is handled, mark it sent locally so Tasks knows the handoff left the queue."
+        return "Use the ready packet outside ParcelNest. After external research is handled, mark it sent locally so Tasks knows the handoff left the queue."
       case .sentLocally:
         return "The batch packet was marked sent locally. Reopen it only if the Wishlist comparison research needs another pass."
       case .reopened:
@@ -2994,7 +2994,7 @@ private struct TaskDraftFollowUpRow: View {
       case .draft:
         return "Review the local buying packet: seller choice, AUD total, postage, trust, approvals, purchase links, account context, and order-watch notes."
       case .ready:
-        return "Use the packet outside ParcelOps for manual purchase work, then mark it sent locally once the handoff leaves the queue."
+        return "Use the packet outside ParcelNest for manual purchase work, then mark it sent locally once the handoff leaves the queue."
       case .sentLocally:
         return "The purchase packet is closed locally. Reopen only if seller, trust, pricing, approval, or order-watch details changed."
       case .reopened:
@@ -3003,9 +3003,9 @@ private struct TaskDraftFollowUpRow: View {
     }
     switch draft.status {
     case .draft:
-      return "Review the local draft and mark ready when the message can be sent outside ParcelOps."
+      return "Review the local draft and mark ready when the message can be sent outside ParcelNest."
     case .ready:
-      return "Send this outside ParcelOps, then mark it sent locally."
+      return "Send this outside ParcelNest, then mark it sent locally."
     case .sentLocally:
       return "The draft is marked sent locally. Reopen only if more follow-up is needed."
     case .reopened:
@@ -3077,7 +3077,7 @@ private struct TaskDraftFollowUpRow: View {
           }
 
           if isWishlistPurchasePacketDraft {
-            Label("Local packet only. ParcelOps does not open product links, compare live prices, log in, buy, pay, or monitor orders in the background.", systemImage: "lock.doc.fill")
+            Label("Local packet only. ParcelNest does not open product links, compare live prices, log in, buy, pay, or monitor orders in the background.", systemImage: "lock.doc.fill")
               .font(.caption2.weight(.semibold))
               .foregroundStyle(.orange)
               .fixedSize(horizontal: false, vertical: true)

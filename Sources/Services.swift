@@ -384,7 +384,7 @@ struct RealGmailMailboxClient: GmailMailboxClient {
         messages: messages,
         detail: appendGmailTokenMetadata(
           tokenResult.tokenMetadataDetail,
-          to: "Real Gmail API manual refresh fetched \(messages.count) read-only message metadata/snippet records from labels '\(labels)'. \(outcome.profileDetail) \(outcome.labelDetail) Only id, thread id, snippet, internal date, and safe headers were requested. No Gmail message was deleted, moved, marked read, sent, or modified. No Google token value was logged or stored in ParcelOps JSON."
+          to: "Real Gmail API manual refresh fetched \(messages.count) read-only message metadata/snippet records from labels '\(labels)'. \(outcome.profileDetail) \(outcome.labelDetail) Only id, thread id, snippet, internal date, and safe headers were requested. No Gmail message was deleted, moved, marked read, sent, or modified. No Google token value was logged or stored in ParcelNest JSON."
         )
       )
     } catch let error as RealGmailMailboxError {
@@ -471,7 +471,7 @@ struct RealGmailMailboxClient: GmailMailboxClient {
         continuation.resume(returning: TokenResult(
           status: .success,
           accessToken: token,
-          detail: "\(restoreDetail) GoogleSignIn provided an in-memory access token. ParcelOps did not store or log the token value.",
+          detail: "\(restoreDetail) GoogleSignIn provided an in-memory access token. ParcelNest did not store or log the token value.",
           tokenMetadataDetail: Self.safeGmailTokenMetadata(
             token,
             grantedScopes: grantedScopes,
@@ -923,7 +923,7 @@ struct RealGmailMailboxClient: GmailMailboxClient {
     } catch {
       throw RealGmailMailboxError(
         status: .parseFailed,
-        safeDetail: "Gmail \(requestLabel) returned data but ParcelOps could not parse the safe metadata response: \(Self.safeErrorSummary(error)). Response bytes: \(data.count). No raw Gmail body was logged."
+        safeDetail: "Gmail \(requestLabel) returned data but ParcelNest could not parse the safe metadata response: \(Self.safeErrorSummary(error)). Response bytes: \(data.count). No raw Gmail body was logged."
       )
     }
   }
@@ -1306,7 +1306,7 @@ struct RealSpaceMailIMAPClient: SpaceMailIMAPClient {
       return SpaceMailIMAPFetchResult(
         status: .credentialMissing,
         messages: [],
-        detail: "Real SpaceMail IMAP refresh stopped before login because no password or app-password reference is available. ParcelOps did not prompt for, store, read, or log a password, and no mailbox item was touched."
+        detail: "Real SpaceMail IMAP refresh stopped before login because no password or app-password reference is available. ParcelNest did not prompt for, store, read, or log a password, and no mailbox item was touched."
       )
     }
 

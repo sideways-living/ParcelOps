@@ -320,7 +320,7 @@ struct IntegrationsView: View {
       return "One or more Gmail setup records use custom domains. Confirm those domains are hosted by Google Workspace before relying on Gmail API refresh; otherwise use SpaceMail/IMAP."
     }
     if hasGmailSetup && !hasGmailConnectedAuth {
-      return "Use readiness check and the explicit Google sign-in test before real Gmail refresh. ParcelOps keeps token values out of JSON and Audit."
+      return "Use readiness check and the explicit Google sign-in test before real Gmail refresh. ParcelNest keeps token values out of JSON and Audit."
     }
     if hasSpaceMailUncertainReview {
       return "Uncertain mixed-mailbox messages stay out of Inbox until an operator imports or dismisses them locally."
@@ -1782,7 +1782,7 @@ struct Microsoft365AuthStateSection: View {
         .font(.caption2.weight(.semibold))
         .foregroundStyle(statusColor)
         .fixedSize(horizontal: false, vertical: true)
-      Text("Real sign-in is opt-in. ParcelOps does not store token values in JSON. Mock Graph remains available, and real Graph refresh is manual/read-only.")
+      Text("Real sign-in is opt-in. ParcelNest does not store token values in JSON. Mock Graph remains available, and real Graph refresh is manual/read-only.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -1811,7 +1811,7 @@ struct Microsoft365AuthStateSection: View {
     case .consentRequired:
       "Consent/admin review: check Entra app registration, tenant policy, and User.Read permission consent."
     case .tokenExpired:
-      "Token cache needs attention: retry sign-in. ParcelOps still does not store token values in JSON."
+      "Token cache needs attention: retry sign-in. ParcelNest still does not store token values in JSON."
     }
   }
 }
@@ -2893,7 +2893,7 @@ struct GmailMailboxConnectionRow: View {
         .foregroundStyle(.teal)
         .fixedSize(horizontal: false, vertical: true)
 
-      Text("Real Gmail sign-in is opt-in. Real refresh may use the current GoogleSignIn session in memory; no token values are stored in ParcelOps JSON.")
+      Text("Real Gmail sign-in is opt-in. Real refresh may use the current GoogleSignIn session in memory; no token values are stored in ParcelNest JSON.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -2920,7 +2920,7 @@ struct GmailMailboxConnectionRow: View {
         ForEach(Array(setupTestChecklist.items.enumerated()), id: \.element.id) { index, item in
           GmailSetupChecklistStepRow(index: index + 1, item: item)
         }
-        Text("Real Gmail refresh remains manual and read-only. ParcelOps does not delete, move, mark read, send, or modify Gmail messages.")
+        Text("Real Gmail refresh remains manual and read-only. ParcelNest does not delete, move, mark read, send, or modify Gmail messages.")
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -3497,7 +3497,7 @@ struct GmailMailboxConnectionRow: View {
         }
       }
 
-      Text("Real Gmail refresh is manual and read-only. ParcelOps does not store Google token values in JSON and does not delete, move, mark read, send, or modify Gmail messages.")
+      Text("Real Gmail refresh is manual and read-only. ParcelNest does not store Google token values in JSON and does not delete, move, mark read, send, or modify Gmail messages.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -3699,7 +3699,7 @@ struct GmailMailboxConnectionRow: View {
       .padding(8)
       .background(gmailCompiledHandoffColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
-      Text("Client IDs and URL schemes are non-secret app configuration. ParcelOps still does not store Google access tokens, refresh tokens, auth codes, client secrets, passwords, raw callback URLs, or Gmail message bodies.")
+      Text("Client IDs and URL schemes are non-secret app configuration. ParcelNest still does not store Google access tokens, refresh tokens, auth codes, client secrets, passwords, raw callback URLs, or Gmail message bodies.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -3806,7 +3806,7 @@ struct GmailMailboxConnectionRow: View {
         }
         .buttonStyle(.bordered)
       }
-      Text("This is a local provider-choice check only. ParcelOps does not look up DNS, contact Google, contact IMAP servers, store tokens, or fetch mail from this card.")
+      Text("This is a local provider-choice check only. ParcelNest does not look up DNS, contact Google, contact IMAP servers, store tokens, or fetch mail from this card.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -4301,7 +4301,7 @@ struct GmailMailboxConnectionRow: View {
       return "Saved Gmail setup values and compiled app callback configuration need to match before real Google sign-in or real refresh should be used."
     }
     if authState.status != .connected {
-      return "Use the explicit sign-in test. ParcelOps should only keep non-secret session status in JSON; token values remain outside app persistence."
+      return "Use the explicit sign-in test. ParcelNest should only keep non-secret session status in JSON; token values remain outside app persistence."
     }
     if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") {
       return "The latest real refresh could not use the current Google session. Sign in again, then retry the manual read-only refresh."
@@ -4535,7 +4535,7 @@ struct GmailMailboxConnectionRow: View {
 
   private var gmailRefreshGuidanceDetail: String {
     if connection.connectionStatus.localizedCaseInsensitiveContains("Auth required") {
-      return "Use Test real Google sign-in, confirm the same mailbox account, then retry Run real Gmail refresh. ParcelOps does not store token values in JSON."
+      return "Use Test real Google sign-in, confirm the same mailbox account, then retry Run real Gmail refresh. ParcelNest does not store token values in JSON."
     }
     if connection.connectionStatus.localizedCaseInsensitiveContains("Consent required") {
       return "The signed-in Google session is missing read-only Gmail consent or the Google Cloud consent screen/API access needs review. Re-run sign-in and confirm gmail.readonly or gmail.metadata is granted."
@@ -5196,7 +5196,7 @@ struct GmailGoogleCloudSetupGuide: View {
         VStack(alignment: .leading, spacing: 4) {
           Text("Google setup before real Gmail sign-in")
             .font(.caption.weight(.semibold))
-          Text("These are local setup checks only. ParcelOps does not store Google access tokens, refresh tokens, auth codes, client secrets, passwords, or full Gmail message bodies in JSON or Audit.")
+          Text("These are local setup checks only. ParcelNest does not store Google access tokens, refresh tokens, auth codes, client secrets, passwords, or full Gmail message bodies in JSON or Audit.")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -5270,7 +5270,7 @@ struct GmailGoogleCloudSetupGuide: View {
         }
       }
 
-      Text("Current boundary: ParcelOps can use GoogleSignIn and the Gmail API for an explicit manual refresh after setup, but it still does not run background checks, send mail, mark messages read, delete or move messages, store token values in JSON, or use Gmail as an automation trigger.")
+      Text("Current boundary: ParcelNest can use GoogleSignIn and the Gmail API for an explicit manual refresh after setup, but it still does not run background checks, send mail, mark messages read, delete or move messages, store token values in JSON, or use Gmail as an automation trigger.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -5336,7 +5336,7 @@ struct GmailIntakeFoundationCard: View {
         }
       }
 
-      Text("Safe boundary: mock Gmail refresh creates deterministic local message payloads. Real Gmail refresh is separate, explicit, manual, read-only, and uses GoogleSignIn in-memory session state; ParcelOps still does not store token values in JSON, send mail, or alter mailbox messages.")
+      Text("Safe boundary: mock Gmail refresh creates deterministic local message payloads. Real Gmail refresh is separate, explicit, manual, read-only, and uses GoogleSignIn in-memory session state; ParcelNest still does not store token values in JSON, send mail, or alter mailbox messages.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -5726,7 +5726,7 @@ struct SpaceMailIMAPConnectionRow: View {
         Badge("5 Review results", color: .orange)
         Badge("6 Tune classifier", color: .secondary)
       }
-      Text("Real refresh is read-only IMAP. ParcelOps must not delete, move, mark read, flag, send, or modify mailbox items.")
+      Text("Real refresh is read-only IMAP. ParcelNest must not delete, move, mark read, flag, send, or modify mailbox items.")
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -5838,7 +5838,7 @@ struct SpaceMailIMAPConnectionRow: View {
   private var keychainCredentialSection: some View {
     VStack(alignment: .leading, spacing: 6) {
       ActionGroupHeader(title: "2. Set Keychain credential", symbol: "key.horizontal")
-      Text("Set, check, or clear the SpaceMail password/app-password in Keychain. ParcelOps stores only the non-secret status label in JSON and Audit.")
+      Text("Set, check, or clear the SpaceMail password/app-password in Keychain. ParcelNest stores only the non-secret status label in JSON and Audit.")
         .font(.caption)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -6975,7 +6975,7 @@ struct SpaceMailCredentialSheet: View {
           Text(connection.emailAddressUsername)
             .font(.subheadline)
             .foregroundStyle(.secondary)
-          Text("The password/app-password is sent to Keychain only. It is not stored in ParcelOps JSON or Audit.")
+          Text("The password/app-password is sent to Keychain only. It is not stored in ParcelNest JSON or Audit.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
@@ -8867,21 +8867,21 @@ struct SettingsView: View {
           WishlistSettingsBoundaryStep(
             number: "3",
             title: "Prepare agent packet",
-            detail: "Agent-ready briefs are local packets only. They do not launch an external research agent or browse retailer sites from ParcelOps.",
+            detail: "Agent-ready briefs are local packets only. They do not launch an external research agent or browse retailer sites from ParcelNest.",
             symbol: "sparkles.rectangle.stack.fill",
             color: .teal
           )
           WishlistSettingsBoundaryStep(
             number: "4",
             title: "Manual purchase handoff",
-            detail: "Use handoff, account, cost, procurement, receiving, and order-watch records before buying outside ParcelOps.",
+            detail: "Use handoff, account, cost, procurement, receiving, and order-watch records before buying outside ParcelNest.",
             symbol: "person.crop.circle.badge.checkmark",
             color: .orange
           )
           WishlistSettingsBoundaryStep(
             number: "5",
             title: "Watch for order",
-            detail: "Order confirmation matching uses imported Inbox mail and local order links. ParcelOps does not monitor retailer accounts in the background.",
+            detail: "Order confirmation matching uses imported Inbox mail and local order links. ParcelNest does not monitor retailer accounts in the background.",
             symbol: "envelope.badge.fill",
             color: .green
           )
@@ -9103,7 +9103,7 @@ struct SettingsView: View {
           )
 
           SettingsPanel(title: "Local-only status", symbol: "checklist") {
-          Text("ParcelOps stores operational records in local JSON. SpaceMail uses Keychain for password/app-password values; Gmail uses explicit Google sign-in; Outlook uses explicit Microsoft sign-in. Mailbox refresh remains manual and read-only; the rest of the integration surface remains planning-only.")
+          Text("ParcelNest stores operational records in local JSON. SpaceMail uses Keychain for password/app-password values; Gmail uses explicit Google sign-in; Outlook uses explicit Microsoft sign-in. Mailbox refresh remains manual and read-only; the rest of the integration surface remains planning-only.")
             .foregroundStyle(.secondary)
 
           LocalDataSafetyCard(store: store, compact: isCompact)

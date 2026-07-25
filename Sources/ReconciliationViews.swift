@@ -605,7 +605,7 @@ struct ReconciliationIssueRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "square.and.pencil") {
           onCreateDraft()
-          feedbackMessage = "Draft message created from this reconciliation issue. It remains local until a person sends anything outside ParcelOps."
+          feedbackMessage = "Draft message created from this reconciliation issue. It remains local until a person sends anything outside ParcelNest."
         }
           .buttonStyle(.bordered)
         if let store, let linkedOrder {

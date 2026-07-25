@@ -592,7 +592,7 @@ struct InboxView: View {
   private var wishlistOrderWatchPanel: some View {
     if !wishlistOrderWatchItems.isEmpty {
       SettingsPanel(title: "Wishlist order links", symbol: "star.square.on.square.fill") {
-        Text("Wishlist purchases with a local handoff but no linked order appear here. Match them to already-imported Inbox confirmations; ParcelOps does not monitor retailer accounts or fetch mail in the background.")
+        Text("Wishlist purchases with a local handoff but no linked order appear here. Match them to already-imported Inbox confirmations; ParcelNest does not monitor retailer accounts or fetch mail in the background.")
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -1969,7 +1969,7 @@ private struct InboxOutlookHealthRow: View {
       }
       .padding(8)
       .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-      Text("Outlook refresh uses explicit Microsoft 365 sign-in and read-only Graph calls. It does not mutate mailbox messages, send mail, or store token values in ParcelOps JSON.")
+      Text("Outlook refresh uses explicit Microsoft 365 sign-in and read-only Graph calls. It does not mutate mailbox messages, send mail, or store token values in ParcelNest JSON.")
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)

@@ -737,7 +737,7 @@ struct EvidenceAttachmentRow: View {
           .buttonStyle(.bordered)
         Button("Draft", systemImage: "envelope.open.fill") {
           onCreateDraft()
-          feedbackMessage = "Draft message created from this evidence item. It remains local until a person sends anything outside ParcelOps."
+          feedbackMessage = "Draft message created from this evidence item. It remains local until a person sends anything outside ParcelNest."
         }
           .buttonStyle(.bordered)
         Button("Contact", systemImage: "person.crop.circle.badge.plus") {
