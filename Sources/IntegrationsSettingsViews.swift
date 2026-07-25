@@ -2302,7 +2302,7 @@ struct GmailMailboxConnectionRow: View {
           Button("Open setup plan", systemImage: "list.clipboard.fill", action: onReviewPlan)
         }
         .buttonStyle(.bordered)
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 8)], alignment: .leading, spacing: 8) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 240 : 190), spacing: 8)], alignment: .leading, spacing: 8) {
           ForEach(releaseSelfCheck.items) { item in
             VStack(alignment: .leading, spacing: 5) {
               Label(item.title, systemImage: item.symbolName)
@@ -6008,7 +6008,7 @@ struct SpaceMailIMAPConnectionRow: View {
           .foregroundStyle(.secondary)
       } else {
         if !recentHistory.isEmpty {
-          LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 8)], alignment: .leading, spacing: 8) {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 240 : 190), spacing: 8)], alignment: .leading, spacing: 8) {
             ForEach(recentHistory) { entry in
               VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {

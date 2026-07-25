@@ -553,7 +553,7 @@ struct ParcelOpsRootView: View {
         }
       }
 
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 6)], alignment: .leading, spacing: 6) {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 6)], alignment: .leading, spacing: 6) {
         ForEach(sidebarReadinessItems, id: \.title) { item in
           Label(item.title, systemImage: item.isReady ? "checkmark.circle.fill" : "circle")
             .font(.caption2.weight(.semibold))
