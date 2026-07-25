@@ -16168,6 +16168,7 @@ private struct WishlistPastedLinkCaptureEditor: View {
       ToolbarItem(placement: .confirmationAction) {
         Button("Stage") {
           onSave(draft)
+          dismiss()
         }
         .disabled(!draft.canSave)
       }
@@ -16298,6 +16299,7 @@ private struct WishlistPastedComparisonResultEditor: View {
         Button("Add option") {
           guard let selectedItem else { return }
           onSave(selectedItem, draft)
+          dismiss()
         }
         .disabled(!draft.canSave)
       }
@@ -16360,6 +16362,7 @@ private struct WishlistManualItemEditor: View {
       ToolbarItem(placement: .confirmationAction) {
         Button("Add") {
           onSave(draft)
+          dismiss()
         }
         .disabled(!draft.canSave)
       }
@@ -16428,6 +16431,7 @@ private struct WishlistCaptureCandidateEditor: View {
       ToolbarItem(placement: .confirmationAction) {
         Button("Save") {
           onSave(draft)
+          dismiss()
         }
       }
     }
