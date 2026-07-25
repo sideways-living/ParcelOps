@@ -3087,7 +3087,8 @@ private struct TaskDraftFollowUpRow: View {
               Text("\(sourceTitle) • \(draft.recipient)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
             Badge(draft.status.rawValue, color: statusColor)
