@@ -1119,12 +1119,12 @@ struct TasksView: View {
   }
 
   private var taskResolutionGridColumns: [GridItem] {
-    let count = horizontalSizeClass == .compact ? 2 : 3
+    let count = horizontalSizeClass == .compact ? 1 : 3
     return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
   }
 
   private var taskResolutionCardHeight: CGFloat {
-    horizontalSizeClass == .compact ? 138 : 128
+    horizontalSizeClass == .compact ? 112 : 128
   }
 
   private var nextActionTone: Color {
@@ -3204,11 +3204,14 @@ private struct TaskDraftFollowUpRow: View {
 }
 
 private struct TaskQueueRow: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   var item: TaskQueueItem
   var store: ParcelOpsStore
   @State private var editingTask: ReviewTask?
   @State private var editingHandoff: HandoffNote?
   @State private var feedbackMessage: String?
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
 
   private var linkedOrder: TrackedOrder? {
     guard item.linkedEntityType == .order,
@@ -3225,22 +3228,38 @@ private struct TaskQueueRow: View {
           .frame(width: 30, height: 30)
 
         VStack(alignment: .leading, spacing: 6) {
-          HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .leading, spacing: 3) {
-              Text(item.title)
-                .font(.headline)
-              Text("\(item.assignee) • due \(item.dueDate)")
-                .font(.caption)
-                .foregroundStyle(item.isOverdue ? .red : .secondary)
+          if isCompact {
+            VStack(alignment: .leading, spacing: 6) {
+              VStack(alignment: .leading, spacing: 3) {
+                Text(item.title)
+                  .font(.headline)
+                  .fixedSize(horizontal: false, vertical: true)
+                Text("\(item.assignee) • due \(item.dueDate)")
+                  .font(.caption)
+                  .foregroundStyle(item.isOverdue ? .red : .secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              Badge(item.sourceLabel, color: item.priority.color)
             }
-            Spacer(minLength: 8)
-            Badge(item.sourceLabel, color: item.priority.color)
+          } else {
+            HStack(alignment: .top, spacing: 8) {
+              VStack(alignment: .leading, spacing: 3) {
+                Text(item.title)
+                  .font(.headline)
+                Text("\(item.assignee) • due \(item.dueDate)")
+                  .font(.caption)
+                  .foregroundStyle(item.isOverdue ? .red : .secondary)
+              }
+              Spacer(minLength: 8)
+              Badge(item.sourceLabel, color: item.priority.color)
+            }
           }
 
           Text(item.summary)
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .lineLimit(3)
+            .fixedSize(horizontal: false, vertical: true)
 
           if item.linkedEntityType == .order || linkedOrder != nil {
             LinkedOrderContextPanel(
@@ -3861,6 +3880,7 @@ struct ReviewTasksDetailView: View {
 }
 
 struct ReviewTaskRow: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   var task: ReviewTask
   var store: ParcelOpsStore? = nil
   var linkedOrder: TrackedOrder? = nil
@@ -3881,6 +3901,8 @@ struct ReviewTaskRow: View {
   @State private var isEditing = false
   @State private var feedbackMessage: String?
 
+  private var isCompact: Bool { horizontalSizeClass == .compact }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 12) {
@@ -3889,24 +3911,45 @@ struct ReviewTaskRow: View {
           .frame(width: 28, height: 28)
 
         VStack(alignment: .leading, spacing: 6) {
-          HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-              Text(task.title)
-                .font(.headline)
-              Text("\(task.assignee) • due \(task.dueDate)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+          if isCompact {
+            VStack(alignment: .leading, spacing: 6) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(task.title)
+                  .font(.headline)
+                  .fixedSize(horizontal: false, vertical: true)
+                Text("\(task.assignee) • due \(task.dueDate)")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              CompactActionRow {
+                Badge(task.priority.rawValue, color: task.priority.color)
+                if task.isLocallyOverdue {
+                  Badge("Overdue", color: .red)
+                }
+              }
             }
-            Spacer()
-            Badge(task.priority.rawValue, color: task.priority.color)
-            if task.isLocallyOverdue {
-              Badge("Overdue", color: .red)
+          } else {
+            HStack(alignment: .top) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(task.title)
+                  .font(.headline)
+                Text("\(task.assignee) • due \(task.dueDate)")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(task.priority.rawValue, color: task.priority.color)
+              if task.isLocallyOverdue {
+                Badge("Overdue", color: .red)
+              }
             }
           }
 
           Text(task.summary)
             .foregroundStyle(.secondary)
             .lineLimit(3)
+            .fixedSize(horizontal: false, vertical: true)
 
           CompactMetadataGrid {
             Badge(task.status.rawValue, color: task.status.color)
@@ -4090,7 +4133,7 @@ struct ReviewTaskEditView: View {
         .overlay(Divider(), alignment: .top)
       }
       #if os(macOS)
-      .frame(minWidth: 360, idealWidth: 600, maxWidth: 720, minHeight: 320, idealHeight: 540, maxHeight: 620)
+      .frame(minWidth: 340, idealWidth: 600, maxWidth: 720, minHeight: 320, idealHeight: 560, maxHeight: 700)
       #endif
     }
   }
