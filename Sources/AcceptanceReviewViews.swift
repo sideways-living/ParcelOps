@@ -512,6 +512,7 @@ struct AcceptanceCandidateRow: View {
   var onReopen: () -> Void
   var onTask: () -> Void
   var onDraft: () -> Void
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var feedbackMessage: String?
 
   private var linkedOrder: TrackedOrder? {
@@ -522,6 +523,10 @@ struct AcceptanceCandidateRow: View {
 
   private var sourceContext: (label: String, detail: String, symbol: String) {
     store.acceptanceSourceContext(for: candidate)
+  }
+
+  private var factColumns: [GridItem] {
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 240 : 190), spacing: 10)]
   }
 
   var body: some View {
@@ -541,17 +546,27 @@ struct AcceptanceCandidateRow: View {
           Text(candidate.rawSummary)
             .font(.caption)
             .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          if horizontalSizeClass == .compact {
+            HStack(spacing: 6) {
+              Badge(candidate.decision.rawValue, color: candidate.decision.color)
+              Badge("\(candidate.confidenceScore)% confidence", color: candidate.confidenceScore < 50 ? .red : candidate.confidenceScore < 75 ? .orange : .green)
+            }
+          }
         }
+        .layoutPriority(1)
 
-        Spacer()
+        if horizontalSizeClass != .compact {
+          Spacer()
 
-        VStack(alignment: .trailing, spacing: 6) {
-          Badge(candidate.decision.rawValue, color: candidate.decision.color)
-          Badge("\(candidate.confidenceScore)% confidence", color: candidate.confidenceScore < 50 ? .red : candidate.confidenceScore < 75 ? .orange : .green)
+          VStack(alignment: .trailing, spacing: 6) {
+            Badge(candidate.decision.rawValue, color: candidate.decision.color)
+            Badge("\(candidate.confidenceScore)% confidence", color: candidate.confidenceScore < 50 ? .red : candidate.confidenceScore < 75 ? .orange : .green)
+          }
         }
       }
 
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 10)], alignment: .leading, spacing: 10) {
+      LazyVGrid(columns: factColumns, alignment: .leading, spacing: 10) {
         AcceptanceFact(title: "Merchant", value: candidate.detectedMerchant)
         AcceptanceFact(title: "Order", value: candidate.detectedOrderNumber)
         AcceptanceFact(title: "Tracking", value: candidate.detectedTrackingNumber)
