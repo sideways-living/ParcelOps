@@ -126,6 +126,10 @@ struct MailboxView: View {
     return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
   }
 
+  private var mailboxProviderRowMinimumWidth: CGFloat {
+    horizontalSizeClass == .compact ? 170 : 250
+  }
+
   private var mailboxProviderDecision: (title: String, detail: String, color: Color) {
     let hasSpaceMailRefresh = latestSpaceMailSummary.map {
       $0.fetchedCount > 0 || $0.importedCount > 0 || $0.duplicateCount > 0 || $0.filteredCount > 0 || $0.uncertainCount > 0
@@ -396,7 +400,7 @@ struct MailboxView: View {
           ("Gmail host checks", "\(gmailProviderFitAttentionCount)", gmailProviderFitAttentionCount > 0 ? .teal : .green)
         ])
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: mailboxProviderRowMinimumWidth), spacing: 10)], alignment: .leading, spacing: 10) {
           ForEach(mailboxProviderRows, id: \.name) { row in
             VStack(alignment: .leading, spacing: 8) {
               HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -1827,6 +1831,11 @@ private struct MailboxProviderRefreshSummaryGrid: View {
   var gmailSummary: GmailIntakeHealthSummary?
   var microsoft365Summary: Microsoft365IntakeHealthSummary?
   var microsoft365Connections: [Microsoft365MailboxConnection] = []
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var providerCardMinimumWidth: CGFloat {
+    horizontalSizeClass == .compact ? 170 : 240
+  }
 
   private var microsoft365ProviderSummary: ProviderSummary? {
     if let microsoft365Summary {
@@ -1872,7 +1881,7 @@ private struct MailboxProviderRefreshSummaryGrid: View {
   }
 
   var body: some View {
-    LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 10)], alignment: .leading, spacing: 10) {
+    LazyVGrid(columns: [GridItem(.adaptive(minimum: providerCardMinimumWidth), spacing: 10)], alignment: .leading, spacing: 10) {
       providerCard(
         title: "SpaceMail IMAP",
         symbol: "server.rack",
@@ -2388,6 +2397,11 @@ private struct MailboxSpaceMailReadinessPanel: View {
 
 private struct MailboxSpaceMailRunbookPanel: View {
   var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var runbookCardMinimumWidth: CGFloat {
+    horizontalSizeClass == .compact ? 160 : 210
+  }
 
   private var latestSummary: SpaceMailIntakeHealthSummary? {
     store.latestSpaceMailIntakeHealthSummary
@@ -2516,7 +2530,7 @@ private struct MailboxSpaceMailRunbookPanel: View {
           Badge(headlineColor == .green ? "Clear" : "Next action", color: headlineColor)
         }
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: runbookCardMinimumWidth), spacing: 10)], alignment: .leading, spacing: 10) {
           ForEach(runbookItems, id: \.title) { item in
             VStack(alignment: .leading, spacing: 8) {
               HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -2689,6 +2703,11 @@ private struct MailboxMicrosoft365ReadinessPanel: View {
 
 private struct MailboxGmailRunbookPanel: View {
   var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var runbookCardMinimumWidth: CGFloat {
+    horizontalSizeClass == .compact ? 160 : 215
+  }
 
   private var latestSummary: GmailIntakeHealthSummary? {
     store.latestGmailIntakeHealthSummary
@@ -2844,7 +2863,7 @@ private struct MailboxGmailRunbookPanel: View {
           Badge(headlineColor == .green ? "Clear" : "Next action", color: headlineColor)
         }
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 215), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: runbookCardMinimumWidth), spacing: 10)], alignment: .leading, spacing: 10) {
           ForEach(runbookItems, id: \.title) { item in
             VStack(alignment: .leading, spacing: 8) {
               HStack(alignment: .firstTextBaseline, spacing: 8) {
