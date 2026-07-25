@@ -962,10 +962,18 @@ struct ExpandableBottomMenu: View {
             } else {
               ForEach(secondaryGroups) { group in
                 VStack(alignment: .leading, spacing: 6) {
-                  Text(group.title)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
+                  VStack(alignment: .leading, spacing: 2) {
+                    Text(group.title)
+                      .font(.caption2.weight(.semibold))
+                      .foregroundStyle(.secondary)
+                    if group.title == "More daily tools" {
+                      Text("Wishlist, Audit, and Settings remain available here on compact screens.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                  }
+                  .padding(.horizontal, 6)
                   LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], alignment: .leading, spacing: 8) {
                     ForEach(group.sections) { section in
                       CompactMenuRouteButton(section: section, badgeCount: attentionCount(section), isSelected: selection == section) {
@@ -1000,7 +1008,7 @@ struct ParcelNavigationGroup: Identifiable {
 
   static let dailyOperations = ParcelNavigationGroup(title: "Primary Workflow", sections: [.dashboard, .inbox, .orders, .workbench, .dispatch, .tasks, .wishlist, .audit, .settings])
 
-  static let mobilePrimarySections: [ParcelSection] = dailyOperations.sections
+  static let mobilePrimarySections: [ParcelSection] = [.dashboard, .inbox, .orders, .workbench, .dispatch, .tasks]
 
   static let secondaryDesktopGroups: [ParcelNavigationGroup] = [
     ParcelNavigationGroup(title: "Detailed Review", sections: [.mvpSetup, .review, .mailbox, .importQueue, .acceptanceReview, .shipmentManifests, .dispatchReadiness, .tracking, .search, .timeline, .validation, .reconciliation, .handoffNotes]),
