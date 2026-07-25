@@ -835,6 +835,6 @@ struct ScanSessionEditView: View {
         }
       }
     }
-    .frame(minWidth: 640, minHeight: 680)
+    .frame(minWidth: 340, minHeight: 680)
   }
 }

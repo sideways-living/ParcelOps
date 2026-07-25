@@ -855,7 +855,7 @@ struct VendorProfileEditView: View {
         }
       }
       #if os(macOS)
-      .frame(minWidth: 580, minHeight: 660)
+      .frame(minWidth: 340, minHeight: 660)
       #endif
     }
   }

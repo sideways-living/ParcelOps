@@ -860,6 +860,6 @@ struct CustodyRecordEditView: View {
         }
       }
     }
-    .frame(minWidth: 620, minHeight: 660)
+    .frame(minWidth: 340, minHeight: 660)
   }
 }

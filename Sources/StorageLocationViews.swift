@@ -821,6 +821,6 @@ struct StorageLocationEditView: View {
         }
       }
     }
-    .frame(minWidth: 580, minHeight: 620)
+    .frame(minWidth: 340, minHeight: 620)
   }
 }

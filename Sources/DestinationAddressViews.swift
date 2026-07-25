@@ -765,7 +765,7 @@ struct DestinationAddressEditView: View {
         ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
         ToolbarItem(placement: .confirmationAction) { Button("Save") { onSave(draft) } }
       }
-      .frame(minWidth: 500, minHeight: 560)
+      .frame(minWidth: 340, minHeight: 560)
     }
   }
 }

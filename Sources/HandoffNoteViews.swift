@@ -1157,6 +1157,6 @@ struct HandoffNoteEditView: View {
         }
       }
     }
-    .frame(minWidth: 540, minHeight: 620)
+    .frame(minWidth: 340, minHeight: 620)
   }
 }

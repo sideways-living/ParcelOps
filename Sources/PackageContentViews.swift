@@ -822,6 +822,6 @@ struct PackageContentEditView: View {
         }
       }
     }
-    .frame(minWidth: 560, minHeight: 560)
+    .frame(minWidth: 340, minHeight: 560)
   }
 }

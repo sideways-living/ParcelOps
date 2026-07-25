@@ -1466,7 +1466,7 @@ struct CommunicationTemplateEditView: View {
         }
       }
       #if os(macOS)
-      .frame(minWidth: 560, minHeight: 620)
+      .frame(minWidth: 340, minHeight: 620)
       #endif
     }
   }
@@ -1546,7 +1546,7 @@ struct DraftMessageEditView: View {
         }
       }
       #if os(macOS)
-      .frame(minWidth: 560, minHeight: 620)
+      .frame(minWidth: 340, minHeight: 620)
       #endif
     }
   }

@@ -852,6 +852,6 @@ struct ReturnClaimEditView: View {
         }
       }
     }
-    .frame(minWidth: 580, minHeight: 600)
+    .frame(minWidth: 340, minHeight: 600)
   }
 }
