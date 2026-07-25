@@ -89,9 +89,9 @@ struct ParcelOpsRootView: View {
   @State private var sidebarSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-  private let desktopSidebarMinimumWidth: CGFloat = 340
-  private let desktopSidebarIdealWidth: CGFloat = 390
-  private let desktopSidebarMaximumWidth: CGFloat = 460
+  private let desktopSidebarMinimumWidth: CGFloat = 370
+  private let desktopSidebarIdealWidth: CGFloat = 420
+  private let desktopSidebarMaximumWidth: CGFloat = 500
 
   private var isSearchingSidebar: Bool {
     !sidebarSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -925,12 +925,13 @@ struct ExpandableBottomMenu: View {
               Badge(mvpStatusTitle, color: mvpStatusColor)
             }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 6)], alignment: .leading, spacing: 6) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 6)], alignment: .leading, spacing: 6) {
               ForEach(readinessItems, id: \.title) { item in
                 Label(item.title, systemImage: item.isReady ? "checkmark.circle.fill" : "circle")
                   .font(.caption2.weight(.semibold))
                   .foregroundStyle(item.isReady ? .green : .secondary)
-                  .lineLimit(1)
+                  .lineLimit(2)
+                  .fixedSize(horizontal: false, vertical: true)
               }
             }
 
@@ -1116,7 +1117,7 @@ struct CompactMenuRouteButton: View {
           .frame(width: 16)
         Text(section.shortTitle)
           .font(.caption2.weight(.semibold))
-          .lineLimit(1)
+          .lineLimit(2)
           .minimumScaleFactor(0.75)
         Spacer(minLength: 0)
         if let badgeCount, badgeCount > 0 {
