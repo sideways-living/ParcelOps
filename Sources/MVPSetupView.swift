@@ -111,7 +111,7 @@ struct MVPSetupView: View {
     VStack(alignment: .leading, spacing: 8) {
       Text("MVP Setup")
         .font(isCompact ? .title.bold() : .largeTitle.bold())
-      Text("ParcelOps is currently a local-first operations prototype. Use these screens to test the order intake, review, dispatch, task, and audit workflow before connecting live systems.")
+      Text("ParcelNest is currently a local-first operations prototype. Use these screens to test the order intake, review, dispatch, task, and audit workflow before connecting live systems.")
         .foregroundStyle(.secondary)
     }
   }

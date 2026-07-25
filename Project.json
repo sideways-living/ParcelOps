@@ -67,6 +67,8 @@
           "NSSupportsLiveActivities": true,
           "NSSupportsLiveActivitiesFrequentUpdates": true,
           "LSApplicationCategoryType": "public.app-category.business",
+          "CFBundleDisplayName": "ParcelNest",
+          "CFBundleName": "ParcelNest",
           "CFBundleURLTypes": [
             {
               "CFBundleURLName": "Microsoft 365 OAuth callback",

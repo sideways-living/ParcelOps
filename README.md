@@ -1,6 +1,8 @@
-# ParcelOps
+# ParcelNest
 
-ParcelOps is a SwiftUI local-first operations app for tracking company orders, mailbox intake, supplier references, wishlist items, review tasks, dispatch handoff, and audit history.
+ParcelNest is a SwiftUI local-first operations app for tracking company orders, mailbox intake, supplier references, wishlist items, review tasks, dispatch handoff, and audit history.
+
+Current public-facing name: ParcelNest. Current preferred domain: `parcelnest.app`.
 
 ## Current Scope
 

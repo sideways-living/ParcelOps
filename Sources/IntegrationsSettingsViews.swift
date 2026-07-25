@@ -8626,7 +8626,7 @@ struct SettingsView: View {
           VStack(alignment: .leading, spacing: 4) {
             Text("Build Mac and iPad first; treat web as later")
               .font(.headline)
-            Text("ParcelOps is currently a SwiftUI local-first operations app. That remains the practical path while mailbox intake, Inbox-to-order handoff, Wishlist planning, and audit evidence are still being hardened.")
+            Text("ParcelNest is currently a SwiftUI local-first operations app. That remains the practical path while mailbox intake, Inbox-to-order handoff, Wishlist planning, and audit evidence are still being hardened.")
               .font(.subheadline)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)

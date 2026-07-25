@@ -112,7 +112,7 @@ struct ParcelOpsRootView: View {
   private var selectedRouteGroupTitle: String {
     ParcelNavigationGroup.desktopGroups.first { group in
       group.sections.contains(selection)
-    }?.title ?? "ParcelOps"
+    }?.title ?? "ParcelNest"
   }
 
   private var dailyAttentionCount: Int {
@@ -329,7 +329,7 @@ struct ParcelOpsRootView: View {
     VStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 10) {
         HStack(alignment: .firstTextBaseline) {
-          Text("ParcelOps")
+          Text("ParcelNest")
             .font(.title3.weight(.bold))
           Spacer()
           Badge("\(dailyAttentionCount)", color: dailyAttentionCount == 0 ? .green : .orange)
@@ -349,7 +349,7 @@ struct ParcelOpsRootView: View {
           if isSearchingSidebar {
             sidebarSectionHeader("Route Search")
             if desktopSearchResults.isEmpty {
-              Text("No matching ParcelOps screens.")
+              Text("No matching ParcelNest screens.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 18)
@@ -961,7 +961,7 @@ struct ExpandableBottomMenu: View {
         ScrollView(.vertical, showsIndicators: false) {
           VStack(alignment: .leading, spacing: 10) {
             if secondaryGroups.isEmpty {
-              Text(isSearching ? "No matching ParcelOps screens." : "No secondary routes available.")
+              Text(isSearching ? "No matching ParcelNest screens." : "No secondary routes available.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 6)

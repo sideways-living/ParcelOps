@@ -15979,13 +15979,13 @@ final class ParcelOpsStore {
     let headline: String
     if mailboxProviderSetupCount == 0 || mailboxManualRefreshCount == 0 {
       subject = "ParcelOps development status - provider proof needed"
-      headline = "ParcelOps is built as a local MVP, but the active mailbox provider path still needs setup or first refresh proof."
+      headline = "ParcelNest is built as a local MVP, but the active mailbox provider path still needs setup or first refresh proof."
     } else if inboxCreatedOrderCount == 0 {
       subject = "ParcelOps development status - Inbox-to-order proof needed"
       headline = "Mailbox intake has evidence; the next proof is creating or linking one real Inbox row to an order."
     } else if parserDiagnosticCount > 0 || openTaskAndHandoffCount > 0 || !incompleteGateLines.isEmpty {
       subject = "ParcelOps development status - follow-up queue"
-      headline = "ParcelOps is usable for hands-on MVP testing, with parser, task, handoff, or release-gate cleanup still visible."
+      headline = "ParcelNest is usable for hands-on MVP testing, with parser, task, handoff, or release-gate cleanup still visible."
     } else {
       subject = "ParcelOps development status - ready for MVP QA"
       headline = "ParcelOps has enough local workflow coverage for a hands-on MVP QA pass."

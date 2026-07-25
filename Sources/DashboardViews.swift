@@ -3091,7 +3091,7 @@ struct MVPReadinessCallout: View {
         VStack(alignment: .leading, spacing: 4) {
           Text("Local readiness")
             .font(.headline)
-          Text("ParcelOps is local-only right now. Use it for order intake, exception review, dispatch preparation, tasks, and audit before connecting live services.")
+          Text("ParcelNest is local-only right now. Use it for order intake, exception review, dispatch preparation, tasks, and audit before connecting live services.")
             .foregroundStyle(.secondary)
         }
         Spacer()
