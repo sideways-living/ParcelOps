@@ -1110,12 +1110,12 @@ struct OperationsWorkbenchView: View {
   }
 
   private var resolutionLadderGridColumns: [GridItem] {
-    let count = horizontalSizeClass == .compact ? 2 : 3
+    let count = horizontalSizeClass == .compact ? 1 : 3
     return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
   }
 
   private var resolutionLadderCardHeight: CGFloat {
-    horizontalSizeClass == .compact ? 138 : 128
+    horizontalSizeClass == .compact ? 112 : 128
   }
 
   private var operatorSummary: some View {
@@ -2912,7 +2912,10 @@ private struct WorkbenchInboxOrderRow: View {
   var sourceTrailCount: Int
   var mailboxSourceSummaries: [OrderMailboxSourceSummary]
   var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var feedbackMessage: String?
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
 
   private var rowColor: Color {
     if hasReopenedInboxDispatchHandoff { return .purple }
@@ -2976,6 +2979,38 @@ private struct WorkbenchInboxOrderRow: View {
     return "\(visible); \(hidden) more source\(hidden == 1 ? "" : "s") hidden"
   }
 
+  private var workbenchOrderTitleBlock: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text("\(order.store) \(order.orderNumber)")
+        .font(.headline)
+        .lineLimit(isCompact ? 2 : 1)
+        .fixedSize(horizontal: false, vertical: true)
+      Text("\(order.customer) • \(order.destination)")
+        .foregroundStyle(.secondary)
+        .lineLimit(isCompact ? 3 : 2)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private var workbenchOrderBadges: some View {
+    CompactMetadataGrid(minimumWidth: isCompact ? 120 : 130) {
+      Badge(order.status.rawValue, color: rowColor)
+      Badge(order.reviewState.rawValue, color: order.reviewState.color)
+      if needsPreDispatchVerification {
+        Badge("Verify first", color: .orange)
+      }
+      if hasReopenedInboxDispatchHandoff {
+        Badge("Reopened handoff", color: .purple)
+      }
+      if needsDispatchSetup {
+        Badge("Dispatch gap", color: .purple)
+      }
+      if needsInboxDispatchReadiness {
+        Badge("Readiness", color: .teal)
+      }
+    }
+  }
+
   private func mailboxSourceColor(_ summary: OrderMailboxSourceSummary) -> Color {
     if summary.importedCount > 0 { return .green }
     if summary.duplicateRefreshedCount > 0 { return .teal }
@@ -2995,34 +3030,24 @@ private struct WorkbenchInboxOrderRow: View {
           .foregroundStyle(rowColor)
           .frame(width: 22)
 
-        VStack(alignment: .leading, spacing: 4) {
-          Text("\(order.store) \(order.orderNumber)")
-            .font(.headline)
-          Text("\(order.customer) • \(order.destination)")
-            .foregroundStyle(.secondary)
-            .lineLimit(2)
+        VStack(alignment: .leading, spacing: 6) {
+          if isCompact {
+            VStack(alignment: .leading, spacing: 6) {
+              workbenchOrderTitleBlock
+              workbenchOrderBadges
+            }
+          } else {
+            HStack(alignment: .top, spacing: 8) {
+              workbenchOrderTitleBlock
+              Spacer(minLength: 8)
+              workbenchOrderBadges
+            }
+          }
+
           Text(nextActionText)
             .font(.caption.weight(.semibold))
             .foregroundStyle(rowColor)
-        }
-
-        Spacer()
-
-        VStack(alignment: .trailing, spacing: 6) {
-          Badge(order.status.rawValue, color: rowColor)
-          Badge(order.reviewState.rawValue, color: order.reviewState.color)
-          if needsPreDispatchVerification {
-            Badge("Verify first", color: .orange)
-          }
-          if hasReopenedInboxDispatchHandoff {
-            Badge("Reopened handoff", color: .purple)
-          }
-          if needsDispatchSetup {
-            Badge("Dispatch gap", color: .purple)
-          }
-          if needsInboxDispatchReadiness {
-            Badge("Readiness", color: .teal)
-          }
+            .fixedSize(horizontal: false, vertical: true)
         }
       }
 
