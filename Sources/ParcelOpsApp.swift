@@ -925,7 +925,7 @@ struct ExpandableBottomMenu: View {
               Badge(mvpStatusTitle, color: mvpStatusColor)
             }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 6)], alignment: .leading, spacing: 6) {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 6)], alignment: .leading, spacing: 6) {
               ForEach(readinessItems, id: \.title) { item in
                 Label(item.title, systemImage: item.isReady ? "checkmark.circle.fill" : "circle")
                   .font(.caption2.weight(.semibold))
@@ -975,7 +975,7 @@ struct ExpandableBottomMenu: View {
                     }
                   }
                   .padding(.horizontal, 6)
-                  LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], alignment: .leading, spacing: 8) {
+                  LazyVGrid(columns: [GridItem(.flexible(), spacing: 8)], alignment: .leading, spacing: 8) {
                     ForEach(group.sections) { section in
                       CompactMenuRouteButton(section: section, badgeCount: attentionCount(section), isSelected: selection == section) {
                         routeSearchText = ""
