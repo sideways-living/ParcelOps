@@ -7695,6 +7695,7 @@ struct SettingsView: View {
   @State private var settingsSearchText = ""
   @State private var settingsFeedbackMessage: String?
   @State private var showAdvancedSettingsSections = false
+  @State private var showPlanningStatusSections = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var providerStatusGridColumns: [GridItem] {
@@ -8427,6 +8428,34 @@ struct SettingsView: View {
     ].filter(\.self).count
   }
 
+  private var planningStatusTogglePanel: some View {
+    SettingsPanel(title: "Status and planning detail", symbol: "chart.bar.doc.horizontal.fill") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text(showPlanningStatusSections ? "App completeness, platform direction, and Wishlist planning details are visible." : "Daily setup stays first. Open this only when you want the broader app-completeness, platform, or Wishlist planning notes.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("App", appSnapshotTone == .green ? "Ready" : "Setup proof", appSnapshotTone),
+          ("Platform", "Native first", .teal),
+          ("Wishlist", store.activeWishlistItemCount > 0 ? "Active" : "Ready", wishlistSettingsTone)
+        ])
+
+        CompactActionRow {
+          Button(showPlanningStatusSections ? "Hide planning detail" : "Show planning detail", systemImage: showPlanningStatusSections ? "eye.slash" : "chart.bar.doc.horizontal") {
+            showPlanningStatusSections.toggle()
+          }
+          .buttonStyle(.bordered)
+
+          if !normalizedSettingsSearch.isEmpty {
+            Badge("Search can reveal matching detail", color: .blue)
+          }
+        }
+      }
+    }
+  }
+
   private var settingsReadinessPanel: some View {
     SettingsPanel(title: "Daily operator readiness", symbol: "checkmark.seal.fill") {
       VStack(alignment: .leading, spacing: 12) {
@@ -8981,11 +9010,21 @@ struct SettingsView: View {
           .font(isCompact ? .title.bold() : .largeTitle.bold())
 
         settingsReadinessPanel
-        appReadinessSnapshotPanel
-        platformDirectionPanel
         mailboxProviderStatusPanel
         setupCompletionLadderPanel
-        wishlistPlanningSettingsPanel
+        planningStatusTogglePanel
+
+        if showPlanningStatusSections || !normalizedSettingsSearch.isEmpty {
+          if showsLocalOnlyStatus {
+            appReadinessSnapshotPanel
+          }
+          if showsPlatformDirection {
+            platformDirectionPanel
+          }
+          if showsWishlistPlanning {
+            wishlistPlanningSettingsPanel
+          }
+        }
 
         SettingsPanel(title: "Find setting", symbol: "magnifyingglass") {
           VStack(alignment: .leading, spacing: 10) {
