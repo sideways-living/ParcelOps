@@ -756,7 +756,7 @@ struct IntegrationsView: View {
         if showsEditorSafety {
           SettingsPanel(title: "Setup editor safety", symbol: "rectangle.and.pencil.and.ellipsis") {
             VStack(alignment: .leading, spacing: 12) {
-              Text("SpaceMail and Microsoft setup editors are for non-secret configuration only. Their forms scroll, and Save/Cancel stay pinned at the bottom of the sheet so they remain reachable on shorter windows.")
+              Text("SpaceMail and Microsoft setup editors are for non-secret configuration only. Their forms scroll inside a bounded sheet, and Save/Cancel stay pinned at the bottom so they remain reachable on shorter windows.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -776,7 +776,7 @@ struct IntegrationsView: View {
                 )
                 SetupEditorSafetyItem(
                   title: "Pinned actions",
-                  detail: "If the sheet is taller than the screen, scroll the form; Save and Cancel should remain visible at the bottom.",
+                  detail: "Scroll the fields, not the window. Save and Cancel stay fixed in the bottom action bar.",
                   symbol: "arrow.down.to.line.compact",
                   color: .teal
                 )
@@ -788,7 +788,7 @@ struct IntegrationsView: View {
                 )
               }
 
-              Text("If Save is not visible after opening a setup editor, that is a layout bug. The intended behavior is a scrollable form with a fixed bottom action bar.")
+              Text("If Save is not visible after opening a setup editor, close the sheet and reopen it after resizing the app window. The intended behavior is a bounded sheet with a scrollable form and fixed bottom actions.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -7073,6 +7073,7 @@ struct SpaceMailIMAPConnectionEditor: View {
         }
       }
       .formStyle(.grouped)
+      .scrollContentBackground(.hidden)
       .safeAreaInset(edge: .bottom) {
         HStack {
           Spacer()
@@ -7089,7 +7090,7 @@ struct SpaceMailIMAPConnectionEditor: View {
         .background(.background)
         .overlay(Divider(), alignment: .top)
       }
-      .frame(minWidth: 460, idealWidth: 620, maxWidth: 740, minHeight: 280, idealHeight: 480, maxHeight: 520)
+      .frame(minWidth: 420, idealWidth: 620, maxWidth: 740, minHeight: 280, idealHeight: 480, maxHeight: 520)
       .navigationTitle("SpaceMail IMAP")
     }
   }
@@ -7189,6 +7190,7 @@ struct Microsoft365MailboxConnectionEditor: View {
         }
       }
       .formStyle(.grouped)
+      .scrollContentBackground(.hidden)
       .safeAreaInset(edge: .bottom) {
         HStack {
           Spacer()
@@ -7205,7 +7207,7 @@ struct Microsoft365MailboxConnectionEditor: View {
         .background(.background)
         .overlay(Divider(), alignment: .top)
       }
-      .frame(minWidth: 480, idealWidth: 640, maxWidth: 760, minHeight: 280, idealHeight: 500, maxHeight: 540)
+      .frame(minWidth: 420, idealWidth: 640, maxWidth: 760, minHeight: 280, idealHeight: 500, maxHeight: 540)
       .navigationTitle("Outlook / Microsoft 365 mailbox")
     }
   }
