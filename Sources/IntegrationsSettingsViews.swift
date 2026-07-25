@@ -7008,10 +7008,9 @@ struct SpaceMailCredentialSheet: View {
           .font(.caption)
           .foregroundStyle(.secondary)
 
-        Spacer()
       }
       .padding()
-      .frame(minWidth: 420, idealWidth: 520, maxWidth: 620, minHeight: 220, idealHeight: 280, maxHeight: 360)
+      .frame(minWidth: 340, idealWidth: 500, maxWidth: 620, minHeight: 220, idealHeight: 280, maxHeight: 360)
       .navigationTitle("SpaceMail Credential")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
@@ -7111,7 +7110,7 @@ struct SpaceMailIMAPConnectionEditor: View {
         .background(.background)
         .overlay(Divider(), alignment: .top)
       }
-      .frame(minWidth: 420, idealWidth: 620, maxWidth: 740, minHeight: 280, idealHeight: 480, maxHeight: 520)
+      .frame(minWidth: 340, idealWidth: 620, maxWidth: 740, minHeight: 280, idealHeight: 480, maxHeight: 620)
       .navigationTitle("SpaceMail IMAP")
     }
   }
@@ -7228,7 +7227,7 @@ struct Microsoft365MailboxConnectionEditor: View {
         .background(.background)
         .overlay(Divider(), alignment: .top)
       }
-      .frame(minWidth: 420, idealWidth: 640, maxWidth: 760, minHeight: 280, idealHeight: 500, maxHeight: 540)
+      .frame(minWidth: 340, idealWidth: 640, maxWidth: 760, minHeight: 280, idealHeight: 500, maxHeight: 640)
       .navigationTitle("Outlook / Microsoft 365 mailbox")
     }
   }
