@@ -247,6 +247,7 @@ struct ParcelOpsRootView: View {
   private var phoneLayout: some View {
     NavigationStack {
       content(for: selection)
+        .id(selection)
         .navigationTitle(selection.title)
     }
     .safeAreaInset(edge: .bottom) {
@@ -285,6 +286,7 @@ struct ParcelOpsRootView: View {
 
           NavigationStack {
             content(for: selection)
+              .id(selection)
               .navigationTitle(selection.title)
           }
         }
