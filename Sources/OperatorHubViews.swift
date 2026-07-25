@@ -3454,12 +3454,12 @@ struct DispatchView: View {
   }
 
   private var dispatchReadinessGridColumns: [GridItem] {
-    let count = isCompact ? 2 : 3
+    let count = isCompact ? 1 : 3
     return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
   }
 
   private var dispatchReadinessCardHeight: CGFloat {
-    isCompact ? 138 : 128
+    isCompact ? 112 : 128
   }
 
   private var dispatchReadinessLadderPanel: some View {
@@ -3777,7 +3777,7 @@ struct DispatchView: View {
 
   private var detailRoutes: some View {
     SettingsPanel(title: "Detailed dispatch views", symbol: "rectangle.stack.fill") {
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 220 : 260), spacing: 12)], alignment: .leading, spacing: 12) {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 170 : 260), spacing: 12)], alignment: .leading, spacing: 12) {
         OperatorRouteCard(title: "Shipment Manifests", detail: "Prepare outbound batches and courier handoff groups.", symbol: "list.bullet.clipboard.fill", badge: "\(store.shipmentManifestRecords.count) manifests") {
           ShipmentManifestsView(store: store)
         }
@@ -3865,7 +3865,10 @@ struct DispatchView: View {
 private struct DispatchInboxOrderRow: View {
   var order: TrackedOrder
   var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var feedbackMessage: String?
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
 
   private var partialFollowUpTasks: [ReviewTask] {
     store.tasks(for: .order, linkedEntityID: order.id.uuidString)
@@ -3908,22 +3911,25 @@ private struct DispatchInboxOrderRow: View {
           .frame(width: 24)
 
         VStack(alignment: .leading, spacing: 5) {
-          HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
-              Text("\(order.store) • \(order.orderNumber)")
-                .font(.headline)
-              Text("\(order.customer) • \(order.destination)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+          Group {
+            if isCompact {
+              VStack(alignment: .leading, spacing: 6) {
+                dispatchOrderTitleBlock
+                Badge(rowBadgeLabel, color: needsPreDispatchVerification ? .orange : rowColor)
+              }
+            } else {
+              HStack(alignment: .top) {
+                dispatchOrderTitleBlock
+                Spacer(minLength: 8)
+                Badge(rowBadgeLabel, color: needsPreDispatchVerification ? .orange : rowColor)
+              }
             }
-            Spacer(minLength: 8)
-            Badge(rowBadgeLabel, color: needsPreDispatchVerification ? .orange : rowColor)
           }
 
           Text(nextActionText)
             .font(.caption.weight(.semibold))
             .foregroundStyle(needsPreDispatchVerification || sourceTrailCount == 0 ? .orange : .teal)
+            .fixedSize(horizontal: false, vertical: true)
 
           CompactMetadataGrid {
             Badge(order.status.rawValue, color: rowColor)
@@ -4100,6 +4106,18 @@ private struct DispatchInboxOrderRow: View {
     .background(.background)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+  }
+
+  private var dispatchOrderTitleBlock: some View {
+    VStack(alignment: .leading, spacing: 3) {
+      Text("\(order.store) • \(order.orderNumber)")
+        .font(.headline)
+      Text("\(order.customer) • \(order.destination)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(isCompact ? 3 : 2)
+        .fixedSize(horizontal: false, vertical: true)
+    }
   }
 
   private var rowColor: Color {
@@ -4450,7 +4468,10 @@ private enum DispatchQueueSource {
 private struct DispatchQueueRow: View {
   var item: DispatchQueueItem
   var store: ParcelOpsStore
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var feedbackMessage: String?
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
 
   private var linkedOrder: TrackedOrder? {
     switch item.source {
@@ -4489,23 +4510,26 @@ private struct DispatchQueueRow: View {
           .frame(width: 24)
 
         VStack(alignment: .leading, spacing: 5) {
-          HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
-              Text(item.title)
-                .font(.headline)
-              Text(item.subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+          Group {
+            if isCompact {
+              VStack(alignment: .leading, spacing: 6) {
+                dispatchQueueTitleBlock
+                Badge(item.sourceLabel, color: item.riskLevel.color)
+              }
+            } else {
+              HStack(alignment: .top) {
+                dispatchQueueTitleBlock
+                Spacer(minLength: 8)
+                Badge(item.sourceLabel, color: item.riskLevel.color)
+              }
             }
-            Spacer(minLength: 8)
-            Badge(item.sourceLabel, color: item.riskLevel.color)
           }
 
           Text(item.detail)
             .font(.caption)
             .foregroundStyle(.secondary)
-            .lineLimit(2)
+            .lineLimit(isCompact ? 4 : 2)
+            .fixedSize(horizontal: false, vertical: true)
 
           CompactMetadataGrid {
             Badge(item.statusLabel, color: item.riskLevel.color)
@@ -4654,6 +4678,18 @@ private struct DispatchQueueRow: View {
       ShipmentManifestsView(store: store)
     case .checklist:
       DispatchReadinessView(store: store)
+    }
+  }
+
+  private var dispatchQueueTitleBlock: some View {
+    VStack(alignment: .leading, spacing: 3) {
+      Text(item.title)
+        .font(.headline)
+      Text(item.subtitle)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(isCompact ? 3 : 2)
+        .fixedSize(horizontal: false, vertical: true)
     }
   }
 
