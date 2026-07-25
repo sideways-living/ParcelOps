@@ -4071,21 +4071,26 @@ struct ReviewTaskEditView: View {
         }
       }
       .navigationTitle("Edit task")
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
+      .safeAreaInset(edge: .bottom) {
+        HStack {
+          Spacer()
           Button("Cancel") {
             dismiss()
           }
-        }
-        ToolbarItem(placement: .confirmationAction) {
+          .keyboardShortcut(.cancelAction)
           Button("Save") {
             onSave(draft)
             dismiss()
           }
+          .buttonStyle(.borderedProminent)
+          .keyboardShortcut(.defaultAction)
         }
+        .padding()
+        .background(.background)
+        .overlay(Divider(), alignment: .top)
       }
       #if os(macOS)
-      .frame(minWidth: 480, idealWidth: 600, maxWidth: 720, minHeight: 340, idealHeight: 540, maxHeight: 620)
+      .frame(minWidth: 360, idealWidth: 600, maxWidth: 720, minHeight: 320, idealHeight: 540, maxHeight: 620)
       #endif
     }
   }

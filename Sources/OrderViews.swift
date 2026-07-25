@@ -3240,21 +3240,26 @@ struct OrderEditView: View {
         }
       }
       .navigationTitle("Edit order")
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
+      .safeAreaInset(edge: .bottom) {
+        HStack {
+          Spacer()
           Button("Cancel") {
             dismiss()
           }
-        }
-        ToolbarItem(placement: .confirmationAction) {
+          .keyboardShortcut(.cancelAction)
           Button("Save") {
             onSave(draft)
             dismiss()
           }
+          .buttonStyle(.borderedProminent)
+          .keyboardShortcut(.defaultAction)
         }
+        .padding()
+        .background(.background)
+        .overlay(Divider(), alignment: .top)
       }
       #if os(macOS)
-      .frame(minWidth: 500, idealWidth: 620, maxWidth: 760, minHeight: 360, idealHeight: 580, maxHeight: 640)
+      .frame(minWidth: 360, idealWidth: 620, maxWidth: 760, minHeight: 320, idealHeight: 580, maxHeight: 640)
       #endif
     }
   }
