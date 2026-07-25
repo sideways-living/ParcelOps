@@ -18766,6 +18766,7 @@ private struct WishlistPurchaseHandoffSanityRow: View {
 }
 
 struct WishlistItemRow: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   var item: WishlistItem
   var linkedOrder: TrackedOrder?
   var store: ParcelOpsStore?
@@ -18841,6 +18842,8 @@ struct WishlistItemRow: View {
   var onDelete: () -> Void
   @State private var feedbackMessage: String?
 
+  private var isCompact: Bool { horizontalSizeClass == .compact }
+
   private var isClosedLocally: Bool {
     item.status == "Closed locally"
   }
@@ -18860,23 +18863,39 @@ struct WishlistItemRow: View {
           .foregroundStyle(.teal)
           .frame(width: 28)
         VStack(alignment: .leading, spacing: 4) {
-          Text(item.itemName)
-            .font(.headline)
+          if isCompact {
+            VStack(alignment: .leading, spacing: 6) {
+              Text(item.itemName)
+                .font(.headline)
+                .fixedSize(horizontal: false, vertical: true)
+              Badge(item.status, color: statusBadgeColor)
+            }
+          } else {
+            Text(item.itemName)
+              .font(.headline)
+          }
           Text("\(item.storefront) • \(item.estimatedCost)")
             .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
           Text(item.storefrontURL)
             .font(.caption)
             .foregroundStyle(.secondary)
+            .lineLimit(isCompact ? 2 : 1)
+            .truncationMode(.middle)
           Text("\(item.owner) • \(item.pool)")
             .font(.caption)
             .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
         Spacer()
-        Badge(item.status, color: statusBadgeColor)
+        if !isCompact {
+          Badge(item.status, color: statusBadgeColor)
+        }
       }
       Text(item.capturedDetail)
         .font(.caption)
         .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
 
       if isClosedLocally {
         wishlistClosedStateSummary
@@ -20829,9 +20848,12 @@ private struct WishlistSellerEvidenceChecklist: View {
 }
 
 private struct WishlistComparisonOptionEditor: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @Binding var option: WishlistComparisonOption
   var onCancel: () -> Void
   var onSave: () -> Void
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -20886,8 +20908,8 @@ private struct WishlistComparisonOptionEditor: View {
         }
       }
     }
-    .padding(20)
-    .frame(minWidth: 520, minHeight: 560)
+    .padding(isCompact ? 14 : 20)
+    .frame(minWidth: isCompact ? 340 : 520, idealWidth: 560, maxWidth: 720, minHeight: 520, idealHeight: 620, maxHeight: 720)
   }
 }
 
