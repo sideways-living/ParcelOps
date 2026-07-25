@@ -748,7 +748,10 @@ struct CustomerProfileEditView: View {
           Button("Cancel") { dismiss() }
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Save") { onSave(draft) }
+          Button("Save") {
+            onSave(draft)
+            dismiss()
+          }
         }
       }
       .frame(minWidth: 340, minHeight: 520)

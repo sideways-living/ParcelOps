@@ -763,7 +763,12 @@ struct DestinationAddressEditView: View {
       .navigationTitle("Edit Destination")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-        ToolbarItem(placement: .confirmationAction) { Button("Save") { onSave(draft) } }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") {
+            onSave(draft)
+            dismiss()
+          }
+        }
       }
       .frame(minWidth: 340, minHeight: 560)
     }
