@@ -1442,6 +1442,11 @@ struct InboxView: View {
 private struct InboxSpaceMailDecisionGuide: View {
   var store: ParcelOpsStore
   @Binding var showParserDiagnosticsInTriage: Bool
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var decisionGuideCardMinimumWidth: CGFloat {
+    horizontalSizeClass == .compact ? 160 : 220
+  }
 
   private var fetchedCount: Int {
     store.totalMailboxFetchedCount
@@ -1602,7 +1607,7 @@ private struct InboxSpaceMailDecisionGuide: View {
         .padding(10)
         .background(parserQAColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: decisionGuideCardMinimumWidth), spacing: 10)], alignment: .leading, spacing: 10) {
           InboxDecisionGuideItem(
             title: "Imported",
             detail: "Treat as primary work. Confirm merchant, order number, tracking number, and destination before create/link order.",
