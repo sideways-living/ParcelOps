@@ -14,6 +14,7 @@ struct IntegrationsView: View {
   private let setupRowLimit = 4
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
+  private var setupGuidanceCardMinimumWidth: CGFloat { isCompact ? 160 : 220 }
   private var hasSpaceMailSetup: Bool { !store.spaceMailIMAPConnections.isEmpty }
   private var hasSpaceMailCredentialReference: Bool {
     store.spaceMailIMAPConnections.contains {
@@ -761,7 +762,7 @@ struct IntegrationsView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-              LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
+              LazyVGrid(columns: [GridItem(.adaptive(minimum: setupGuidanceCardMinimumWidth), spacing: 10)], alignment: .leading, spacing: 10) {
                 SetupEditorSafetyItem(
                   title: "Non-secret setup",
                   detail: "Use setup editors for mailbox address, host, folder, mode, planning notes, and classifier hints.",
@@ -1264,6 +1265,12 @@ struct SetupEditorSafetyItem: View {
 }
 
 struct Microsoft365SetupFlowGuide: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  private var flowStepCardMinimumWidth: CGFloat {
+    horizontalSizeClass == .compact ? 160 : 220
+  }
+
   private let steps: [(String, String, String)] = [
     ("1", "Set up mailbox record", "Record the mailbox address, tenant hint, folders, and local setup notes."),
     ("2", "Prepare OAuth planning fields", "Capture non-secret tenant, client, redirect, scope, and consent planning details."),
@@ -1278,7 +1285,7 @@ struct Microsoft365SetupFlowGuide: View {
       Label("Local setup flow", systemImage: "list.number")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], alignment: .leading, spacing: 10) {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: flowStepCardMinimumWidth), spacing: 10)], alignment: .leading, spacing: 10) {
         ForEach(steps, id: \.0) { step in
           HStack(alignment: .top, spacing: 10) {
             Text(step.0)
@@ -1886,6 +1893,7 @@ struct ActionGroupHeader: View {
 }
 
 struct GmailMailboxConnectionRow: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   var connection: GmailMailboxConnection
   var readiness: GmailOAuthReadinessSummary
   var implementationPlan: GmailOAuthImplementationPlan
@@ -1944,6 +1952,10 @@ struct GmailMailboxConnectionRow: View {
   @State private var classifierSender = ""
   @State private var classifierSubject = "Delivery question"
   @State private var classifierPreview = "Can you check whether this relates to an order? I do not have the tracking number yet."
+
+  private var classifierPreviewCardMinimumWidth: CGFloat {
+    horizontalSizeClass == .compact ? 160 : 210
+  }
 
   private var totalUncertainCount: Int {
     max(connection.lastRefreshUncertainCount ?? 0, (connection.uncertainMessages ?? []).count)
@@ -3394,7 +3406,7 @@ struct GmailMailboxConnectionRow: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 8)], alignment: .leading, spacing: 8) {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: classifierPreviewCardMinimumWidth), spacing: 8)], alignment: .leading, spacing: 8) {
         ForEach(classifierImpactPreviews) { preview in
           VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -5574,6 +5586,7 @@ private struct GmailGoogleCloudSetupStep: View {
 }
 
 struct SpaceMailIMAPConnectionRow: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   var connection: SpaceMailIMAPConnection
   var healthSummary: SpaceMailIntakeHealthSummary
   var assignedFollowUpSummaries: [String]
@@ -5619,6 +5632,14 @@ struct SpaceMailIMAPConnectionRow: View {
   @State private var classifierSender = "customer@example.com"
   @State private var classifierSubject = "Delivery question"
   @State private var classifierPreview = "Can you check whether this relates to an order? I do not have the tracking number yet."
+
+  private var classifierTemplateCardMinimumWidth: CGFloat {
+    horizontalSizeClass == .compact ? 160 : 220
+  }
+
+  private var classifierPreviewCardMinimumWidth: CGFloat {
+    horizontalSizeClass == .compact ? 160 : 210
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -5749,7 +5770,7 @@ struct SpaceMailIMAPConnectionRow: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 8)], alignment: .leading, spacing: 8) {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: classifierTemplateCardMinimumWidth), spacing: 8)], alignment: .leading, spacing: 8) {
         spaceMailTestTemplateCard(
           title: "Should import",
           badge: "Imported",
@@ -6270,7 +6291,7 @@ struct SpaceMailIMAPConnectionRow: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 8)], alignment: .leading, spacing: 8) {
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: classifierPreviewCardMinimumWidth), spacing: 8)], alignment: .leading, spacing: 8) {
         ForEach(classifierImpactPreviews) { preview in
           VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
