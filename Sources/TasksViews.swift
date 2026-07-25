@@ -8,6 +8,8 @@ struct TasksView: View {
   @State private var mvpFeedbackMessage: String?
   @State private var showTasksProviderEvidence = false
   @State private var showTaskContextSections = false
+  @State private var showAllTaskQueueRows = false
+  @State private var showAllTaskDraftRows = false
 
   private var queueItems: [TaskQueueItem] {
     let tasks = store.activeWishlistReviewTasks.map(TaskQueueItem.task)
@@ -523,11 +525,11 @@ struct TasksView: View {
   }
 
   private var displayedDraftFollowUpItems: [DraftMessage] {
-    Array(visibleDraftFollowUpItems.prefix(6))
+    showAllTaskDraftRows ? visibleDraftFollowUpItems : Array(visibleDraftFollowUpItems.prefix(6))
   }
 
   private var displayedQueueItems: [TaskQueueItem] {
-    Array(visibleQueueItems.prefix(16))
+    showAllTaskQueueRows ? visibleQueueItems : Array(visibleQueueItems.prefix(16))
   }
 
   private var hiddenDraftFollowUpCount: Int {
@@ -2393,9 +2395,25 @@ struct TasksView: View {
             TaskDraftFollowUpRow(draft: draft, store: store)
           }
           if hiddenDraftFollowUpCount > 0 {
-            Text("\(hiddenDraftFollowUpCount) more draft follow-ups are available in Drafts & Templates.")
+            CompactActionRow {
+              Label("Showing first \(displayedDraftFollowUpItems.count) draft follow-ups", systemImage: "speedometer")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              Badge("\(hiddenDraftFollowUpCount) hidden", color: .secondary)
+              Button("Show all \(visibleDraftFollowUpItems.count)", systemImage: "rectangle.expand.vertical") {
+                showAllTaskDraftRows = true
+              }
+              .buttonStyle(.bordered)
+            }
+            Text("Draft follow-up stays capped until expanded so Tasks opens quickly with accumulated local data.")
               .font(.caption)
               .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          } else if showAllTaskDraftRows && visibleDraftFollowUpItems.count > 6 {
+            Button("Show first 6", systemImage: "rectangle.compress.vertical") {
+              showAllTaskDraftRows = false
+            }
+            .buttonStyle(.bordered)
           }
 
           NavigationLink {
@@ -2466,9 +2484,25 @@ struct TasksView: View {
             TaskQueueRow(item: item, store: store)
           }
           if hiddenQueueItemCount > 0 {
-            Text("\(hiddenQueueItemCount) more queue items are available in the detailed Review Tasks and Handoff Notes views.")
+            CompactActionRow {
+              Label("Showing first \(displayedQueueItems.count) queue items", systemImage: "speedometer")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              Badge("\(hiddenQueueItemCount) hidden", color: .secondary)
+              Button("Show all \(visibleQueueItems.count)", systemImage: "rectangle.expand.vertical") {
+                showAllTaskQueueRows = true
+              }
+              .buttonStyle(.bordered)
+            }
+            Text("Search still scans every local task and handoff. Rendering stays capped until you choose Show all.")
               .font(.caption)
               .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          } else if showAllTaskQueueRows && visibleQueueItems.count > 16 {
+            Button("Show first 16", systemImage: "rectangle.compress.vertical") {
+              showAllTaskQueueRows = false
+            }
+            .buttonStyle(.bordered)
           }
         }
       }
