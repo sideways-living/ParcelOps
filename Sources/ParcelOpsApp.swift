@@ -448,9 +448,7 @@ struct ParcelOpsRootView: View {
   }
 
   private func sidebarDailyFocusSummary(sidebarWidth: CGFloat) -> some View {
-    let cardColumns = sidebarWidth < 560
-      ? [GridItem(.flexible(), spacing: 8)]
-      : Array(repeating: GridItem(.flexible(), spacing: 8), count: 2)
+    let cardColumns = [GridItem(.flexible(), spacing: 8)]
 
     return VStack(alignment: .leading, spacing: 8) {
       Text("Start with the row that has the highest active count. Advanced records stay hidden unless you need diagnostics.")
@@ -464,38 +462,36 @@ struct ParcelOpsRootView: View {
           Button {
             route(to: section)
           } label: {
-            HStack(alignment: .top, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
               Image(systemName: section.symbol)
                 .font(.body.weight(.semibold))
-                .frame(width: 24, height: 28)
+                .frame(width: 26, height: 26)
 
               VStack(alignment: .leading, spacing: 3) {
                 Text(section.title)
                   .font(.caption.weight(.bold))
-                  .lineLimit(2)
-                  .fixedSize(horizontal: false, vertical: true)
+                  .lineLimit(1)
                 Text(sidebarDailyFocusDetail(for: section, count: count))
                   .font(.caption2)
                   .foregroundStyle(.secondary)
-                  .lineLimit(3)
-                  .fixedSize(horizontal: false, vertical: true)
+                  .lineLimit(2)
               }
+              .layoutPriority(1)
 
               Spacer(minLength: 6)
 
-              if count > 0 {
-                Text("\(count)")
-                  .font(.caption2.weight(.bold))
-                  .foregroundStyle(.white)
-                  .padding(.horizontal, 6)
-                  .padding(.vertical, 2)
-                  .background(attentionColor(for: section, count: count), in: Capsule())
-              }
+              Text(count > 0 ? "\(count)" : "0")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(count > 0 ? .white : .secondary)
+                .frame(minWidth: 28)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(count > 0 ? attentionColor(for: section, count: count) : Color.secondary.opacity(0.12), in: Capsule())
             }
             .font(.caption.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 128, maxHeight: 128, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: 74, maxHeight: 74, alignment: .leading)
             .padding(.horizontal, 10)
-            .padding(.vertical, 9)
+            .padding(.vertical, 8)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
           }
           .buttonStyle(.plain)
@@ -628,31 +624,28 @@ struct ParcelOpsRootView: View {
       route(to: section)
     } label: {
       VStack(alignment: .leading, spacing: 4) {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .center, spacing: 10) {
           Image(systemName: section.symbol)
             .font(.body.weight(.bold))
-            .frame(width: 28, height: 30, alignment: .center)
+            .frame(width: 28, height: 28, alignment: .center)
             .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
-            .padding(.top, 1)
 
           VStack(alignment: .leading, spacing: 2) {
             Text(section.title)
               .font(.subheadline.weight(.semibold))
               .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
-              .lineLimit(2)
-              .fixedSize(horizontal: false, vertical: true)
+              .lineLimit(1)
             Text(sidebarRouteHint(for: section))
               .font(.caption2)
               .foregroundStyle(.secondary)
-              .lineLimit(2)
-              .fixedSize(horizontal: false, vertical: true)
+              .lineLimit(1)
           }
+          .layoutPriority(1)
           .frame(maxWidth: .infinity, alignment: .leading)
 
-          Spacer(minLength: 4)
           if let count, count > 0 {
             Badge("\(count)", color: attentionColor(for: section, count: count))
-              .padding(.top, 1)
+              .frame(minWidth: 38, alignment: .trailing)
           }
         }
         if let context {
@@ -666,7 +659,7 @@ struct ParcelOpsRootView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .contentShape(Rectangle())
       .padding(.horizontal, 12)
-      .padding(.vertical, 10)
+      .padding(.vertical, 9)
       .background(selection == section ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8))
       .overlay(RoundedRectangle(cornerRadius: 8).stroke(selection == section ? Color.accentColor.opacity(0.28) : Color.clear))
     }
