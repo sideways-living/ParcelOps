@@ -29,7 +29,7 @@ struct MailboxView: View {
   }
 
   private var displayedIntakeEmails: [ForwardedEmailIntake] {
-    showAllDetectedIntakeEmails ? visibleIntakeEmails : Array(visibleIntakeEmails.prefix(24))
+    showAllDetectedIntakeEmails ? visibleIntakeEmails : Array(visibleIntakeEmails.prefix(12))
   }
 
   private var hiddenDisplayedIntakeCount: Int {
@@ -49,7 +49,7 @@ struct MailboxView: View {
   }
 
   private var displayedMailEvents: [MailEvent] {
-    showAllMailboxEvents ? store.mailEvents : Array(store.mailEvents.prefix(24))
+    showAllMailboxEvents ? store.mailEvents : Array(store.mailEvents.prefix(12))
   }
 
   private var visibleReviewIntakeCount: Int {
@@ -65,7 +65,6 @@ struct MailboxView: View {
     showMailboxReviewTools
       || showProviderSetupDetails
       || showAdvancedMailboxEvidence
-      || !store.intakeParserDiagnostics.isEmpty
   }
 
   private var latestSpaceMailSummary: SpaceMailIntakeHealthSummary? {
@@ -1160,7 +1159,7 @@ struct MailboxView: View {
               .buttonStyle(.bordered)
               Badge("\(store.reviewIntakeEmails.count) need review", color: .orange)
               if hiddenDisplayedIntakeCount > 0 {
-                Button(showAllDetectedIntakeEmails ? "Show first 24" : "Show all \(visibleIntakeEmails.count)", systemImage: showAllDetectedIntakeEmails ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
+                Button(showAllDetectedIntakeEmails ? "Show first 12" : "Show all \(visibleIntakeEmails.count)", systemImage: showAllDetectedIntakeEmails ? "rectangle.compress.vertical" : "rectangle.expand.vertical") {
                   showAllDetectedIntakeEmails.toggle()
                 }
                 .buttonStyle(.bordered)
