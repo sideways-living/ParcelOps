@@ -2136,6 +2136,11 @@ private struct AuditDetailStack: View {
 struct AuditDetailBlock: View {
   var title: String
   var detail: String
+  @State private var showFullDetail = false
+
+  private var isLongDetail: Bool {
+    detail.count > 900 || detail.components(separatedBy: .newlines).count > 14
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 3) {
@@ -2145,6 +2150,23 @@ struct AuditDetailBlock: View {
       Text(detail)
         .font(.caption)
         .foregroundStyle(.secondary)
+        .lineLimit(isLongDetail && !showFullDetail ? 14 : nil)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if isLongDetail {
+        Button(showFullDetail ? "Collapse long detail" : "Show full diagnostic detail", systemImage: showFullDetail ? "chevron.up.circle" : "chevron.down.circle") {
+          showFullDetail.toggle()
+        }
+        .font(.caption.weight(.semibold))
+        .buttonStyle(.bordered)
+
+        if !showFullDetail {
+          Text("Long diagnostic detail is shortened here to keep Audit scannable. Expand only when investigating provider, parser, or mailbox internals.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(10)
