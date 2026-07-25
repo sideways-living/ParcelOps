@@ -10,13 +10,27 @@ struct AuditView: View {
   @State private var showExtendedAuditSections = false
   @State private var developmentStatusFeedbackMessage: String?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  private let defaultAuditEventLimit = 120
+  private let extendedAuditEventLimit = 300
 
   private var normalizedAuditSearch: String {
     auditSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
   }
 
+  private var baseAuditEvents: [AuditEvent] {
+    if hasActiveAuditFilters {
+      return store.auditEvents
+    }
+    return Array(store.auditEvents.prefix(showExtendedAuditSections ? extendedAuditEventLimit : defaultAuditEventLimit))
+  }
+
+  private var hiddenDefaultAuditEventCount: Int {
+    guard !hasActiveAuditFilters else { return 0 }
+    return max(store.auditEvents.count - baseAuditEvents.count, 0)
+  }
+
   private var searchMatchedEvents: [AuditEvent] {
-    store.auditEvents.filter(eventMatchesSearch)
+    baseAuditEvents.filter(eventMatchesSearch)
   }
 
   private var filteredEvents: [AuditEvent] {
@@ -1658,6 +1672,11 @@ struct AuditView: View {
 
         if !normalizedAuditSearch.isEmpty {
           Label("\(searchMatchedEvents.count) audit events match \"\(auditSearchText)\". Clear filters to return to the full activity feed.", systemImage: "magnifyingglass")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        } else if hiddenDefaultAuditEventCount > 0 {
+          Label("Showing the most recent \(searchMatchedEvents.count) audit events to keep the feed responsive. Use search, action filters, or Show extended sections when you need older history.", systemImage: "speedometer")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
