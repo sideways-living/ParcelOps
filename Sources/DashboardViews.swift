@@ -3923,7 +3923,7 @@ struct FirstLiveMailboxTestCard: View {
           }
         }
 
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], alignment: .leading, spacing: 8) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 240 : 150), spacing: 8)], alignment: .leading, spacing: 8) {
           NavigationLink { MailboxView(store: store) } label: { Label("Mailbox Monitor", systemImage: "server.rack") }
           NavigationLink { InboxView(store: store) } label: { Label("Inbox", systemImage: "tray.full.fill") }
           NavigationLink { OrdersView(store: store) } label: { Label("Orders", systemImage: "shippingbox.fill") }

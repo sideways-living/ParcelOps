@@ -751,7 +751,7 @@ struct CustomerProfileEditView: View {
           Button("Save") { onSave(draft) }
         }
       }
-      .frame(minWidth: 460, minHeight: 520)
+      .frame(minWidth: 340, minHeight: 520)
     }
   }
 }

@@ -2114,10 +2114,11 @@ struct SettingsPanel<Content: View>: View {
 }
 
 struct FilterControlGrid<Content: View>: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @ViewBuilder var content: Content
 
   private var columns: [GridItem] {
-    [GridItem(.adaptive(minimum: 150), spacing: 10)]
+    [GridItem(.adaptive(minimum: horizontalSizeClass == .compact ? 240 : 150), spacing: 10)]
   }
 
   var body: some View {
