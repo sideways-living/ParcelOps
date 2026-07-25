@@ -7719,15 +7719,19 @@ struct SettingsView: View {
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var providerStatusGridColumns: [GridItem] {
-    let count = isCompact ? 2 : 3
+    let count = isCompact ? 1 : 3
     return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
   }
   private var providerStatusCardHeight: CGFloat { isCompact ? 150 : 138 }
   private var setupCompletionGridColumns: [GridItem] {
-    let count = isCompact ? 2 : 3
+    let count = isCompact ? 1 : 3
     return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
   }
   private var setupCompletionCardHeight: CGFloat { isCompact ? 144 : 132 }
+  private var localIntegrationStatusGridColumns: [GridItem] {
+    let count = isCompact ? 1 : 2
+    return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+  }
   private var hasSpaceMailSetup: Bool { !store.spaceMailIMAPConnections.isEmpty }
   private var hasSpaceMailCredentialReference: Bool {
     store.spaceMailIMAPConnections.contains {
@@ -9171,7 +9175,7 @@ struct SettingsView: View {
 
           LocalDataHygieneCard(store: store, compact: isCompact)
 
-          LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+          LazyVGrid(columns: localIntegrationStatusGridColumns, spacing: 10) {
             IntegrationStatusRow(title: "Email mailbox", status: mailboxStatus.0, symbol: "envelope.badge.fill", color: mailboxStatus.1)
             IntegrationStatusRow(title: "Shopify", status: "Not connected", symbol: "cart.badge.plus", color: .orange)
             IntegrationStatusRow(title: "Carrier APIs", status: "Not connected", symbol: "location.fill.viewfinder", color: .orange)
