@@ -308,7 +308,8 @@ struct ParcelOpsRootView: View {
         Text("\(selectedRouteGroupTitle) • \(sidebarRouteHint(for: selection))")
           .font(.caption2)
           .foregroundStyle(.secondary)
-          .lineLimit(1)
+          .lineLimit(2)
+          .fixedSize(horizontal: false, vertical: true)
       }
 
       Spacer()
@@ -629,18 +630,20 @@ struct ParcelOpsRootView: View {
         HStack(alignment: .center, spacing: 10) {
           Image(systemName: section.symbol)
             .font(.body.weight(.bold))
-            .frame(width: 28, height: 28, alignment: .center)
+            .frame(width: 24, height: 28, alignment: .center)
             .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
 
           VStack(alignment: .leading, spacing: 2) {
             Text(section.title)
               .font(.subheadline.weight(.semibold))
               .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
-              .lineLimit(1)
+              .lineLimit(2)
+              .fixedSize(horizontal: false, vertical: true)
             Text(sidebarRouteHint(for: section))
               .font(.caption2)
               .foregroundStyle(.secondary)
-              .lineLimit(1)
+              .lineLimit(2)
+              .fixedSize(horizontal: false, vertical: true)
           }
           .layoutPriority(1)
           .frame(maxWidth: .infinity, alignment: .leading)
