@@ -846,12 +846,13 @@ struct InboxView: View {
   }
 
   private var dailyFlowGridColumns: [GridItem] {
-    let count = isCompact ? 2 : 3
-    return Array(repeating: GridItem(.flexible(), spacing: 8), count: count)
+    [
+      GridItem(.adaptive(minimum: isCompact ? 160 : 210, maximum: 320), spacing: 8)
+    ]
   }
 
   private var dailyFlowCardHeight: CGFloat {
-    isCompact ? 156 : 148
+    isCompact ? 170 : 160
   }
 
   private var mailboxProviderReleaseGatePanel: some View {

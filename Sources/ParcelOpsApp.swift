@@ -89,9 +89,9 @@ struct ParcelOpsRootView: View {
   @State private var sidebarSearchText = ""
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-  private let desktopSidebarMinimumWidth: CGFloat = 400
-  private let desktopSidebarIdealWidth: CGFloat = 520
-  private let desktopSidebarMaximumWidth: CGFloat = 580
+  private let desktopSidebarMinimumWidth: CGFloat = 440
+  private let desktopSidebarIdealWidth: CGFloat = 560
+  private let desktopSidebarMaximumWidth: CGFloat = 660
 
   private var isSearchingSidebar: Bool {
     !sidebarSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -271,7 +271,7 @@ struct ParcelOpsRootView: View {
     GeometryReader { proxy in
       let sidebarWidth = min(
         desktopSidebarMaximumWidth,
-        max(desktopSidebarMinimumWidth, min(desktopSidebarIdealWidth, proxy.size.width * 0.34))
+        max(desktopSidebarMinimumWidth, min(desktopSidebarIdealWidth, proxy.size.width * 0.38))
       )
 
       HStack(spacing: 0) {
@@ -450,7 +450,7 @@ struct ParcelOpsRootView: View {
   }
 
   private func sidebarDailyFocusSummary(sidebarWidth: CGFloat) -> some View {
-    let cardColumns = sidebarWidth < 500
+    let cardColumns = sidebarWidth < 560
       ? [GridItem(.flexible(), spacing: 8)]
       : Array(repeating: GridItem(.flexible(), spacing: 8), count: 2)
 
@@ -495,7 +495,7 @@ struct ParcelOpsRootView: View {
               }
             }
             .font(.caption.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 118, maxHeight: 118, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: 128, maxHeight: 128, alignment: .topLeading)
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .background(selection == section ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
@@ -629,12 +629,13 @@ struct ParcelOpsRootView: View {
     return Button {
       route(to: section)
     } label: {
-      VStack(alignment: .leading, spacing: 2) {
-        HStack(alignment: .center, spacing: 10) {
+      VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .top, spacing: 10) {
           Image(systemName: section.symbol)
             .font(.body.weight(.bold))
             .frame(width: 28, height: 30, alignment: .center)
             .foregroundStyle(selection == section ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+            .padding(.top, 1)
 
           VStack(alignment: .leading, spacing: 2) {
             Text(section.title)
@@ -650,7 +651,7 @@ struct ParcelOpsRootView: View {
           }
           .frame(maxWidth: .infinity, alignment: .leading)
 
-          Spacer(minLength: 8)
+          Spacer(minLength: 4)
           if let shortcut = routeShortcut(for: section) {
             Text(shortcut.label)
               .font(.caption2.weight(.semibold))
