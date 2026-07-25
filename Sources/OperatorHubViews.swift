@@ -3052,6 +3052,7 @@ struct DispatchView: View {
   @State private var dispatchSearchText = ""
   @State private var showDispatchProviderEvidence = false
   @State private var showDispatchContextSections = false
+  @State private var showAllDispatchQueueRows = false
 
   private var isCompact: Bool { horizontalSizeClass == .compact }
   private var dispatchItems: [DispatchQueueItem] {
@@ -3097,6 +3098,14 @@ struct DispatchView: View {
         item.nextAction
       ].joined(separator: " ").localizedLowercase.contains(query)
     }
+  }
+
+  private var displayedDispatchItems: [DispatchQueueItem] {
+    showAllDispatchQueueRows ? visibleDispatchItems : Array(visibleDispatchItems.prefix(12))
+  }
+
+  private var hiddenDispatchItemCount: Int {
+    max(visibleDispatchItems.count - displayedDispatchItems.count, 0)
   }
 
   private var visibleInboxDispatchSetupOrders: [TrackedOrder] {
@@ -3691,7 +3700,7 @@ struct DispatchView: View {
         FilterControlGrid {
           TextField("Search dispatch queue", text: $dispatchSearchText)
             .textFieldStyle(.roundedBorder)
-          Badge("\(visibleDispatchItems.count + visibleInboxDispatchSetupOrders.count) shown", color: visibleDispatchItems.isEmpty && visibleInboxDispatchSetupOrders.isEmpty ? .orange : .blue)
+          Badge("\(displayedDispatchItems.count + visibleInboxDispatchSetupOrders.count) shown", color: displayedDispatchItems.isEmpty && visibleInboxDispatchSetupOrders.isEmpty ? .orange : .blue)
           if !dispatchSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Button("Clear search", systemImage: "xmark.circle") {
               dispatchSearchText = ""
@@ -3717,8 +3726,29 @@ struct DispatchView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
         } else {
-          ForEach(visibleDispatchItems.prefix(12)) { item in
+          ForEach(displayedDispatchItems) { item in
             DispatchQueueRow(item: item, store: store)
+          }
+          if hiddenDispatchItemCount > 0 {
+            CompactActionRow {
+              Label("Showing first \(displayedDispatchItems.count) dispatch rows", systemImage: "speedometer")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              Badge("\(hiddenDispatchItemCount) hidden", color: .secondary)
+              Button("Show all \(visibleDispatchItems.count)", systemImage: "rectangle.expand.vertical") {
+                showAllDispatchQueueRows = true
+              }
+              .buttonStyle(.bordered)
+            }
+            Text("Search still scans every local manifest and readiness item. Rendering stays capped until you choose Show all.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          } else if showAllDispatchQueueRows && visibleDispatchItems.count > 12 {
+            Button("Show first 12", systemImage: "rectangle.compress.vertical") {
+              showAllDispatchQueueRows = false
+            }
+            .buttonStyle(.bordered)
           }
         }
       }
