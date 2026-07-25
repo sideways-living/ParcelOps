@@ -650,13 +650,6 @@ struct ParcelOpsRootView: View {
           .frame(maxWidth: .infinity, alignment: .leading)
 
           Spacer(minLength: 4)
-          if let shortcut = routeShortcut(for: section) {
-            Text(shortcut.label)
-              .font(.caption2.weight(.semibold))
-              .foregroundStyle(.secondary)
-              .padding(.top, 2)
-              .frame(minWidth: 24, alignment: .trailing)
-          }
           if let count, count > 0 {
             Badge("\(count)", color: attentionColor(for: section, count: count))
               .padding(.top, 1)
