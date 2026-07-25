@@ -621,12 +621,12 @@ struct AuditView: View {
   }
 
   private var auditEvidenceGridColumns: [GridItem] {
-    let count = horizontalSizeClass == .compact ? 2 : 3
+    let count = horizontalSizeClass == .compact ? 1 : 3
     return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
   }
 
   private var auditEvidenceCardHeight: CGFloat {
-    horizontalSizeClass == .compact ? 132 : 122
+    horizontalSizeClass == .compact ? 112 : 122
   }
 
   private func eventMatchesSearch(_ event: AuditEvent) -> Bool {
@@ -1928,10 +1928,13 @@ private struct AuditHiddenCountNote: View {
 }
 
 private struct AuditActivityRow: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   var event: AuditEvent
   var onCreateTask: () -> Void
   @State private var showDetails = false
   @State private var feedbackMessage: String?
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -1941,16 +1944,31 @@ private struct AuditActivityRow: View {
           .frame(width: 28, height: 28)
 
         VStack(alignment: .leading, spacing: 6) {
-          HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-              Text(event.entityLabel)
-                .font(.headline)
-              Text("\(event.action.operatorLabel) • \(event.timestamp)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+          if isCompact {
+            VStack(alignment: .leading, spacing: 6) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(event.entityLabel)
+                  .font(.headline)
+                  .fixedSize(horizontal: false, vertical: true)
+                Text("\(event.action.operatorLabel) • \(event.timestamp)")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              Badge(event.action.rawValue, color: event.action.color)
             }
-            Spacer(minLength: 8)
-            Badge(event.action.rawValue, color: event.action.color)
+          } else {
+            HStack(alignment: .top, spacing: 8) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(event.entityLabel)
+                  .font(.headline)
+                Text("\(event.action.operatorLabel) • \(event.timestamp)")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer(minLength: 8)
+              Badge(event.action.rawValue, color: event.action.color)
+            }
           }
 
           Text(event.summary)
@@ -2014,10 +2032,13 @@ private struct AuditActivityRow: View {
 }
 
 struct AuditEventRow: View {
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   var event: AuditEvent
   var onCreateTask: () -> Void = {}
   @State private var showDetails = false
   @State private var feedbackMessage: String?
+
+  private var isCompact: Bool { horizontalSizeClass == .compact }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -2027,20 +2048,36 @@ struct AuditEventRow: View {
           .frame(width: 28, height: 28)
 
         VStack(alignment: .leading, spacing: 6) {
-          HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-              Text(event.entityLabel)
-                .font(.headline)
-              Text("\(event.actor) • \(event.timestamp)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+          if isCompact {
+            VStack(alignment: .leading, spacing: 6) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(event.entityLabel)
+                  .font(.headline)
+                  .fixedSize(horizontal: false, vertical: true)
+                Text("\(event.actor) • \(event.timestamp)")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              Badge(event.action.rawValue, color: event.action.color)
             }
-            Spacer()
-            Badge(event.action.rawValue, color: event.action.color)
+          } else {
+            HStack(alignment: .top) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(event.entityLabel)
+                  .font(.headline)
+                Text("\(event.actor) • \(event.timestamp)")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+              Spacer()
+              Badge(event.action.rawValue, color: event.action.color)
+            }
           }
 
           Text(event.summary)
             .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
 
           if !event.operatorOutcomeLines.isEmpty {
             CompactMetadataGrid {
