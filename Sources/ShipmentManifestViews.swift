@@ -862,6 +862,6 @@ struct ShipmentManifestEditView: View {
         }
       }
     }
-    .frame(minWidth: 500, idealWidth: 640, maxWidth: 760, minHeight: 360, idealHeight: 580, maxHeight: 640)
+    .frame(minWidth: 340, idealWidth: 640, maxWidth: 760, minHeight: 360, idealHeight: 580, maxHeight: 700)
   }
 }
