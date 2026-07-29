@@ -115,6 +115,12 @@ struct ParcelOpsRootView: View {
     }?.title ?? "ParcelNest"
   }
 
+  private func routeGroupTitle(for section: ParcelSection) -> String {
+    ParcelNavigationGroup.desktopGroups.first { group in
+      group.sections.contains(section)
+    }?.title ?? "ParcelNest"
+  }
+
   private var dailyAttentionCount: Int {
     store.reviewIntakeEmailCount
       + store.pendingMailboxReviewCount
@@ -214,6 +220,9 @@ struct ParcelOpsRootView: View {
   var body: some View {
     rootLayout
       .tint(.teal)
+      .onAppear {
+        recordUsage(for: selection)
+      }
       .onReceive(NotificationCenter.default.publisher(for: .parcelRouteRequested)) { notification in
         guard
           let rawValue = notification.object as? String,
@@ -606,9 +615,18 @@ struct ParcelOpsRootView: View {
     selection = section
     sidebarSearchText = ""
     isMoreMenuExpanded = false
+    recordUsage(for: section)
     if ParcelNavigationGroup.secondaryDesktopGroups.flatMap(\.sections).contains(section) {
       showSecondaryDesktopGroups = true
     }
+  }
+
+  private func recordUsage(for section: ParcelSection) {
+    store.recordAppRouteVisit(
+      routeRawValue: section.rawValue,
+      routeTitle: section.title,
+      area: routeGroupTitle(for: section)
+    )
   }
 
   private func desktopGroupBinding(for group: ParcelNavigationGroup) -> Binding<Bool> {

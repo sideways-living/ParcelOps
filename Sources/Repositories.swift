@@ -74,6 +74,11 @@ protocol AuditRepository {
   func saveAuditEvents(_ events: [AuditEvent])
 }
 
+protocol AppUsageRepository {
+  func loadAppUsageRecords() -> [AppUsageRecord]
+  func saveAppUsageRecords(_ records: [AppUsageRecord])
+}
+
 protocol EvidenceRepository {
   func loadEvidenceAttachments() -> [EvidenceAttachment]
   func saveEvidenceAttachments(_ attachments: [EvidenceAttachment])
@@ -226,7 +231,7 @@ protocol AcceptanceRepository {
   func saveAcceptanceRecords(_ records: [AcceptanceRecord])
 }
 
-final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, MailboxIngestRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, InventoryReceiptRepository, StorageLocationRepository, CustodyRepository, LabelReferenceRepository, ScanSessionRepository, ShipmentManifestRepository, DispatchReadinessRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
+final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, MailboxIngestRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, AppUsageRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, InventoryReceiptRepository, StorageLocationRepository, CustodyRepository, LabelReferenceRepository, ScanSessionRepository, ShipmentManifestRepository, DispatchReadinessRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private let storeDirectory: URL
   private let fileManager: FileManager
   private let encoder: JSONEncoder
@@ -450,6 +455,14 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
 
   func saveAuditEvents(_ events: [AuditEvent]) {
     save(events, to: .auditEvents)
+  }
+
+  func loadAppUsageRecords() -> [AppUsageRecord] {
+    load([AppUsageRecord].self, from: .appUsageRecords, defaultValue: [])
+  }
+
+  func saveAppUsageRecords(_ records: [AppUsageRecord]) {
+    save(records, to: .appUsageRecords)
   }
 
   func loadEvidenceAttachments() -> [EvidenceAttachment] {
@@ -781,6 +794,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
     case wishlistOrderWatchRecords = "wishlist-order-watch-records.json"
     case settings = "settings.json"
     case auditEvents = "audit-events.json"
+    case appUsageRecords = "app-usage-records.json"
     case evidenceAttachments = "evidence-attachments.json"
     case carrierTrackingEvents = "carrier-tracking-events.json"
     case automationRules = "automation-rules.json"
@@ -815,7 +829,7 @@ final class JSONParcelOpsRepository: OrderRepository, MailEventRepository, Intak
   }
 }
 
-final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, MailboxIngestRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, InventoryReceiptRepository, StorageLocationRepository, CustodyRepository, LabelReferenceRepository, ScanSessionRepository, ShipmentManifestRepository, DispatchReadinessRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
+final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, IntakeEmailRepository, MailboxIngestRepository, IntegrationRepository, WishlistRepository, SettingsRepository, AuditRepository, AppUsageRepository, EvidenceRepository, TrackingRepository, AutomationRuleRepository, SavedFilterRepository, ReviewTaskRepository, HandoffNoteRepository, SLAPolicyRepository, ExceptionPlaybookRepository, CommunicationRepository, ContactDirectoryRepository, CustomerRecipientProfileRepository, DestinationAddressRepository, DeliveryInstructionRepository, PackageContentRepository, CostRecordRepository, ReturnClaimRepository, ProcurementRequestRepository, ReceivingInspectionRepository, InventoryReceiptRepository, StorageLocationRepository, CustodyRepository, LabelReferenceRepository, ScanSessionRepository, ShipmentManifestRepository, DispatchReadinessRepository, AccountCredentialRepository, VendorProfileRepository, ShipmentGroupRepository, ImportQueueRepository, AcceptanceRepository {
   private var orders = SampleData.orders
   private var mailEvents = SampleData.mailEvents
   private var intakeEmails = SampleData.intakeEmails
@@ -841,6 +855,7 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
   private var wishlistOrderWatchRecords = SampleData.wishlistOrderWatchRecords
   private var settings = ParcelOpsSettings()
   private var auditEvents = SampleData.auditEvents
+  private var appUsageRecords: [AppUsageRecord] = []
   private var evidenceAttachments = SampleData.evidenceAttachments
   private var carrierTrackingEvents = SampleData.carrierTrackingEvents
   private var automationRules = SampleData.automationRules
@@ -933,6 +948,9 @@ final class InMemoryParcelOpsRepository: OrderRepository, MailEventRepository, I
 
   func loadAuditEvents() -> [AuditEvent] { auditEvents }
   func saveAuditEvents(_ events: [AuditEvent]) { auditEvents = events }
+
+  func loadAppUsageRecords() -> [AppUsageRecord] { appUsageRecords }
+  func saveAppUsageRecords(_ records: [AppUsageRecord]) { appUsageRecords = records }
 
   func loadEvidenceAttachments() -> [EvidenceAttachment] { evidenceAttachments }
   func saveEvidenceAttachments(_ attachments: [EvidenceAttachment]) { evidenceAttachments = attachments }

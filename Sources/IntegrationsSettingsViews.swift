@@ -7860,6 +7860,28 @@ struct SettingsView: View {
     activeWishlistItems.filter { $0.source != .manual }.count
   }
 
+  private var usageRecordsByMostUsed: [AppUsageRecord] {
+    store.appUsageRecords.sorted {
+      if $0.visitCount == $1.visitCount {
+        return $0.lastVisitedDate > $1.lastVisitedDate
+      }
+      return $0.visitCount > $1.visitCount
+    }
+  }
+
+  private var recentlyUsedRoutes: [AppUsageRecord] {
+    store.appUsageRecords.sorted { $0.lastVisitedDate > $1.lastVisitedDate }
+  }
+
+  private var lightlyUsedRoutes: [AppUsageRecord] {
+    usageRecordsByMostUsed.filter { $0.visitCount <= 2 }
+  }
+
+  private var unopenedDailyRoutes: [ParcelSection] {
+    let opened = Set(store.appUsageRecords.map(\.routeRawValue))
+    return ParcelNavigationGroup.dailyOperations.sections.filter { !opened.contains($0.rawValue) }
+  }
+
   private var wishlistItemsWithSellerOptionsCount: Int {
     activeWishlistItems.filter { $0.comparisonOptions?.isEmpty == false }.count
   }
@@ -7917,6 +7939,91 @@ struct SettingsView: View {
       return "Wishlist has local purchase handoff records. Continue in Wishlist, Orders, Tasks, Workbench, and Audit to keep manual purchase follow-up traceable."
     }
     return "Use Wishlist to add seller options, AUD landed cost notes, postage timing, trust evidence, and a manual purchase decision before handoff."
+  }
+
+  private var usageTrackingPanel: some View {
+    SettingsPanel(title: "Local usage tracking", symbol: "chart.bar.xaxis") {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("ParcelNest counts screen visits locally so we can see which areas are useful and which should be simplified or hidden later. This is private JSON-backed app telemetry: no analytics service, network call, background tracking, or external upload.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        MetricStrip(items: [
+          ("Visits", "\(store.appUsageRecords.reduce(0) { $0 + $1.visitCount })", .blue),
+          ("Screens opened", "\(store.appUsageRecords.count)", .teal),
+          ("Light use", "\(lightlyUsedRoutes.count)", lightlyUsedRoutes.isEmpty ? .secondary : .orange),
+          ("Daily unopened", "\(unopenedDailyRoutes.count)", unopenedDailyRoutes.isEmpty ? .green : .secondary)
+        ])
+
+        if let latest = recentlyUsedRoutes.first {
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "clock.arrow.circlepath")
+              .foregroundStyle(.teal)
+              .frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+              Text("Latest visit")
+                .font(.caption.weight(.semibold))
+              Text("\(latest.routeTitle) · \(latest.lastVisitedDate)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+
+        if usageRecordsByMostUsed.isEmpty {
+          MVPEmptyState(
+            title: "Usage tracking has just started",
+            detail: "Open Dashboard, Inbox, Orders, Workbench, Dispatch, Tasks, Wishlist, Audit, and Settings during normal work. This panel will show regular and rarely used areas after a few sessions.",
+            symbol: "chart.bar.xaxis"
+          )
+        } else {
+          ActionGroupHeader(title: "Most used screens", symbol: "star.circle.fill")
+          LazyVGrid(columns: localIntegrationStatusGridColumns, spacing: 8) {
+            ForEach(Array(usageRecordsByMostUsed.prefix(8))) { record in
+              VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 8) {
+                  Text(record.routeTitle)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                  Spacer()
+                  Badge("\(record.visitCount)", color: record.visitCount >= 5 ? .green : .blue)
+                }
+                Text(record.area)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                Text("Last opened \(record.lastVisitedDate)")
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+                  .lineLimit(2)
+              }
+              .padding(10)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+          }
+        }
+
+        if !unopenedDailyRoutes.isEmpty {
+          ActionGroupHeader(title: "Daily screens not opened yet", symbol: "circle.dotted")
+          Text(unopenedDailyRoutes.map(\.title).joined(separator: ", "))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        CompactActionRow {
+          Button("Reset local usage counters", systemImage: "arrow.counterclockwise") {
+            store.resetAppUsageRecords()
+          }
+          .buttonStyle(.bordered)
+
+          Badge("Local only", color: .teal)
+          Badge("No analytics", color: .secondary)
+        }
+      }
+    }
   }
 
   private var setupUncertainReviewCount: Int {
@@ -9037,6 +9144,7 @@ struct SettingsView: View {
         mailboxProviderStatusPanel
         setupCompletionLadderPanel
         planningStatusTogglePanel
+        usageTrackingPanel
 
         if showPlanningStatusSections || !normalizedSettingsSearch.isEmpty {
           if showsLocalOnlyStatus {

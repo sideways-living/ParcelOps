@@ -825,6 +825,18 @@ struct AuditEvent: Identifiable, Hashable, Codable {
   var afterDetail: String?
 }
 
+struct AppUsageRecord: Identifiable, Hashable, Codable {
+  var id = UUID()
+  var area: String
+  var routeRawValue: String
+  var routeTitle: String
+  var visitCount: Int
+  var firstVisitedDate: String
+  var lastVisitedDate: String
+  var lastActionSummary: String
+  var reviewState: ReviewState
+}
+
 struct EvidenceAttachment: Identifiable, Hashable, Codable {
   var id = UUID()
   var linkedEntityType: EvidenceLinkedEntityType

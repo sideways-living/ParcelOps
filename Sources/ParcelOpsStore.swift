@@ -38,6 +38,7 @@ final class ParcelOpsStore {
   var deletedWishlistItems: [WishlistItem]
   var connections: [SourceConnection]
   var auditEvents: [AuditEvent]
+  var appUsageRecords: [AppUsageRecord]
   var evidenceAttachments: [EvidenceAttachment]
   var carrierTrackingEvents: [CarrierTrackingEvent]
   var automationRules: [AutomationRule]
@@ -105,6 +106,7 @@ final class ParcelOpsStore {
   private let wishlistRepository: WishlistRepository
   private let settingsRepository: SettingsRepository
   private let auditRepository: AuditRepository
+  private let appUsageRepository: AppUsageRepository
   private let evidenceRepository: EvidenceRepository
   private let trackingRepository: TrackingRepository
   private let automationRuleRepository: AutomationRuleRepository
@@ -153,7 +155,7 @@ final class ParcelOpsStore {
   private let parcelExportService: ParcelExportService
   private let workflowTemplateEngine: WorkflowTemplateEngine
 
-  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & MailboxIngestRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & ProcurementRequestRepository & ReceivingInspectionRepository & InventoryReceiptRepository & StorageLocationRepository & CustodyRepository & LabelReferenceRepository & ScanSessionRepository & ShipmentManifestRepository & DispatchReadinessRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
+  typealias Repository = OrderRepository & MailEventRepository & IntakeEmailRepository & MailboxIngestRepository & IntegrationRepository & WishlistRepository & SettingsRepository & AuditRepository & AppUsageRepository & EvidenceRepository & TrackingRepository & AutomationRuleRepository & SavedFilterRepository & ReviewTaskRepository & HandoffNoteRepository & SLAPolicyRepository & ExceptionPlaybookRepository & CommunicationRepository & ContactDirectoryRepository & CustomerRecipientProfileRepository & DestinationAddressRepository & DeliveryInstructionRepository & PackageContentRepository & CostRecordRepository & ReturnClaimRepository & ProcurementRequestRepository & ReceivingInspectionRepository & InventoryReceiptRepository & StorageLocationRepository & CustodyRepository & LabelReferenceRepository & ScanSessionRepository & ShipmentManifestRepository & DispatchReadinessRepository & AccountCredentialRepository & VendorProfileRepository & ShipmentGroupRepository & ImportQueueRepository & AcceptanceRepository
 
   init(
     repository: any Repository = JSONParcelOpsRepository(),
@@ -189,6 +191,7 @@ final class ParcelOpsStore {
     self.wishlistRepository = repository
     self.settingsRepository = repository
     self.auditRepository = repository
+    self.appUsageRepository = repository
     self.evidenceRepository = repository
     self.trackingRepository = repository
     self.automationRuleRepository = repository
@@ -261,6 +264,7 @@ final class ParcelOpsStore {
     self.deletedWishlistItems = repository.loadDeletedWishlistItems()
     self.settings = repository.loadSettings()
     self.auditEvents = repository.loadAuditEvents()
+    self.appUsageRecords = repository.loadAppUsageRecords()
     self.evidenceAttachments = repository.loadEvidenceAttachments()
     self.carrierTrackingEvents = repository.loadCarrierTrackingEvents()
     self.automationRules = repository.loadAutomationRules()
@@ -30097,6 +30101,46 @@ final class ParcelOpsStore {
     )
   }
 
+  func recordAppRouteVisit(routeRawValue: String, routeTitle: String, area: String) {
+    let timestamp = Self.auditTimestamp()
+    if let index = appUsageRecords.firstIndex(where: { $0.routeRawValue == routeRawValue }) {
+      appUsageRecords[index].area = area
+      appUsageRecords[index].routeTitle = routeTitle
+      appUsageRecords[index].visitCount += 1
+      appUsageRecords[index].lastVisitedDate = timestamp
+      appUsageRecords[index].lastActionSummary = "Opened \(routeTitle)."
+    } else {
+      appUsageRecords.append(
+        AppUsageRecord(
+          area: area,
+          routeRawValue: routeRawValue,
+          routeTitle: routeTitle,
+          visitCount: 1,
+          firstVisitedDate: timestamp,
+          lastVisitedDate: timestamp,
+          lastActionSummary: "Opened \(routeTitle).",
+          reviewState: .monitor
+        )
+      )
+    }
+    appUsageRepository.saveAppUsageRecords(appUsageRecords)
+  }
+
+  func resetAppUsageRecords() {
+    let beforeCount = appUsageRecords.count
+    appUsageRecords.removeAll()
+    appUsageRepository.saveAppUsageRecords(appUsageRecords)
+    logAudit(
+      action: .removed,
+      entityType: .settings,
+      entityID: "local-app-usage",
+      entityLabel: "Local app usage",
+      summary: "Local app usage counters reset.",
+      beforeDetail: "\(beforeCount) locally tracked route usage records were cleared.",
+      afterDetail: "Usage tracking remains local-only. No analytics service, network call, background job, or external telemetry was used."
+    )
+  }
+
   func recordLocalJSONBackupCheckpoint() {
     let storePath = JSONParcelOpsRepository.defaultStoreDirectoryPath
     let expectedFileNames = JSONParcelOpsRepository.persistedJSONFileNames
@@ -31403,6 +31447,10 @@ final class ParcelOpsStore {
 
   private func persistMailboxIngestRecords() {
     mailboxIngestRepository.saveMailboxIngestRecords(mailboxIngestRecords)
+  }
+
+  private func persistAppUsageRecords() {
+    appUsageRepository.saveAppUsageRecords(appUsageRecords)
   }
 
   private func persistIntegrations() {
